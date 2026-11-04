@@ -120,7 +120,7 @@ struct CardWriteToolsTests {
         "create_card", ["spec": ["display": ["colour": "red"]]],
         """
         The spec has 4 errors. Fix them and try again:
-        - version: version is required: the spec's format, 1.
+        - version: version is required: the spec's format, 1 or 2.
         - display.name: display.name is required: what the card is called on Summary.
         - display.colour: Unknown field "colour" in display. Allowed: name, symbol, color, unit.
         - series: series is required: 1 to 4 series, e.g. [{"type": "HKQuantityTypeIdentifierHeartRate"}].

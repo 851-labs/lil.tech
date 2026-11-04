@@ -2,15 +2,23 @@ import { Schema } from "effect";
 import { healthCatalogTypes, workoutActivities } from "../HealthCatalog.ts";
 import { codePointCount } from "./CardJson.ts";
 
-// The card spec, version 1, as the server reads it (851-3202, `docs/decisions/cards.md`, The card
+// The card spec, versions 1 and 2, as the server reads it (851-3202, `docs/decisions/cards.md`, The card
 // spec, v1). The Swift `HealthCards` module is its source of truth: the lists below are its, and
 // `CardSpec`'s JSON Schema must equal the one it generates (`card-spec.schema.json`, a test), so a
 // list that drifts fails. The rules a schema can't express are `CardSpecValidator.ts`'s.
 
-/** The spec version apps and tools write. */
-export const cardSpecVersion = 1;
+/**
+ * The latest spec version the server reads and writes. A spec is written at the lowest version
+ * that has what it uses: 2 only for a workout window's `location` (851-4031).
+ */
+export const cardSpecVersion = 2;
+const cardSpecVersions = [1, 2] as const;
 /** The versions the server reads. It refuses a spec of any other (`unsupportedVersion`). */
-export const readableCardSpecVersions: ReadonlyArray<number> = [1];
+export const readableCardSpecVersions: ReadonlyArray<number> = cardSpecVersions;
+
+/** Where a workout window's workouts were (version 2): a workout that doesn't say is in neither. */
+export const cardWorkoutLocations = ["indoor", "outdoor"] as const;
+export type CardWorkoutLocation = (typeof cardWorkoutLocations)[number];
 
 /** At most this many errors are returned for one spec. */
 export const maxCardSpecErrors = 20;
@@ -237,6 +245,11 @@ export const CardWindow = Schema.Union([
         Schema.Literals(workoutActivities.map(({ activityType }) => activityType)).check(whole),
       ).check(Schema.isMinLength(1), Schema.isMaxLength(10), Schema.isUnique()),
     ),
+    /**
+     * Version 2's: indoor or outdoor workouts only, or null for anywhere. Every workout window of
+     * a version 2 spec has it, and none of a version 1 spec's, which the validator checks.
+     */
+    location: Schema.optionalKey(Schema.NullOr(Schema.Literals(cardWorkoutLocations))),
   }),
   Schema.Struct({ kind: Schema.Literal("timeOfDay"), from: ClockTime, to: ClockTime }),
 ]);
@@ -281,8 +294,7 @@ export type CardFormula = typeof CardFormula.Type;
  * `storedCardSpecErrors` is the store's whole check, with the messages agents read.
  */
 export const CardSpec = Schema.Struct({
-  // `Schema.Literals` of one value renders as `anyOf` of one.
-  version: Schema.Literal(cardSpecVersion).check(whole),
+  version: Schema.Literals(cardSpecVersions).check(whole),
   display: Schema.Struct({
     name: Text,
     symbol: Schema.Literals(cardSymbols),
@@ -333,6 +345,13 @@ const SeriesInput = Schema.Struct({
               "workout.",
           }),
         ),
+        location: defaulted(
+          Schema.Literals(cardWorkoutLocations).annotate({
+            description:
+              "Spec version 2: only workouts indoors or outdoors, as the workouts tool's indoor " +
+              "says (workouts that don't say are left out); null for every workout.",
+          }),
+        ),
       }),
       Schema.Struct({ kind: Schema.Literal("timeOfDay"), from: ClockTime, to: ClockTime }),
     ]),
@@ -354,7 +373,9 @@ const SeriesInput = Schema.Struct({
  * with `canonicalCardSpec`, whose messages say what to fix, rather than decoding it with this.
  */
 export const CardSpecInput = Schema.Struct({
-  version: Schema.Literal(cardSpecVersion).check(whole),
+  version: Schema.Literals(cardSpecVersions).check(whole).annotate({
+    description: "1, or 2 for a workout window's location.",
+  }),
   display: Schema.Struct({
     name: Text,
     symbol: defaulted(Schema.Literals(cardSymbols)),

@@ -41,11 +41,11 @@ private func everyMinute(
   }
 }
 
-private func windowCard(_ series: String, bucket: String = "night", formulas: String = "[]") throws
-  -> CardSpec
-{
+private func windowCard(
+  _ series: String, bucket: String = "night", formulas: String = "[]", version: Int = 1
+) throws -> CardSpec {
   try spec(
-    #"{"version": 1, "display": {"name": "Card"}, "series": [\#(series)], "formulas": \#(formulas), "bucket": "\#(bucket)", "range": "W"}"#
+    #"{"version": \#(version), "display": {"name": "Card"}, "series": [\#(series)], "formulas": \#(formulas), "bucket": "\#(bucket)", "range": "W"}"#
   )
 }
 
@@ -358,6 +358,47 @@ struct CardWindowsTests {
         #"{"type": "Heart Rate", "window": {"kind": "workout"}}"#, bucket: "day"),
       range: .week, date: date(10, 20), now: date(10, 20), calendar: london)
     #expect(workoutRun.windowFetches == [.workouts(ms(date(10, 19))..<ms(date(10, 26)))])
+  }
+
+  /// Readings during workouts indoors or outdoors (851-4031): a workout that doesn't say is in
+  /// neither, and one that does counts with the activities given.
+  @Test
+  func workoutsByLocation() throws {
+    let (running, cycling) = (37, 13)
+    let workouts = [
+      CardWorkout(
+        start: ms(date(10, 20, 7)), end: ms(date(10, 20, 7, 30)), activityType: running,
+        indoor: false),
+      CardWorkout(
+        start: ms(date(10, 20, 18)), end: ms(date(10, 20, 19)), activityType: cycling,
+        indoor: true),
+      CardWorkout(
+        start: ms(date(10, 21, 7)), end: ms(date(10, 21, 7, 45)), activityType: running,
+        indoor: true),
+      // Says nothing of where it was.
+      CardWorkout(
+        start: ms(date(10, 21, 12)), end: ms(date(10, 21, 12, 30)), activityType: running),
+    ]
+    let readings = everyMinute(date(10, 20, 6)..<date(10, 21, 20)) { at in
+      workouts.first { ms(at) >= $0.start && ms(at) < $0.end } == nil ? 70 : 140
+    }
+    func points(_ window: String) throws -> [[Double]] {
+      let card = try windowCard(
+        #"{"type": "Heart Rate", "aggregation": "count", "window": \#(window)}"#, bucket: "day",
+        version: 2)
+      return run(card, .week, on: date(10, 20), readings: [heartRate: readings], workouts: workouts)
+        .series[0].points.map { [$0.value, Double(ms($0.start))] }
+    }
+    let (day1, day2) = (Double(ms(date(10, 20))), Double(ms(date(10, 21))))
+    #expect(try points(#"{"kind": "workout", "location": "outdoor"}"#) == [[30, day1]])
+    #expect(
+      try points(#"{"kind": "workout", "location": "indoor"}"#) == [[60, day1], [45, day2]])
+    #expect(
+      try points(#"{"kind": "workout", "activities": [37], "location": "indoor"}"#)
+        == [[45, day2]])
+    // Anywhere: every workout, those that don't say included.
+    #expect(
+      try points(#"{"kind": "workout", "location": null}"#) == [[90, day1], [75, day2]])
   }
 
   /// A workout across the period's end weighs its last reading as without the period.

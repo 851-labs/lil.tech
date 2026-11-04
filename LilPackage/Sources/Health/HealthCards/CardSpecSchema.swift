@@ -38,15 +38,20 @@ extension HealthCards {
     func nullable(_ schema: CardJSON) -> CardJSON {
       ["anyOf": [schema, ["type": "null"]]]
     }
+    /// Every property required, but those named in `optional`.
     func object(
-      _ properties: [(key: String, value: CardJSON)], description: String? = nil
+      _ properties: [(key: String, value: CardJSON)], optional: [String] = [],
+      description: String? = nil
     ) -> CardJSON {
       var members: [(key: String, value: CardJSON)] = []
       if let description { members.append(("description", .string(description))) }
       members += [
         ("type", "object"),
         ("properties", .object(properties)),
-        ("required", .array(properties.map { .string($0.key) })),
+        (
+          "required",
+          .array(properties.map(\.key).filter { !optional.contains($0) }.map(CardJSON.string))
+        ),
         ("additionalProperties", false),
       ]
       return .object(members)
@@ -63,16 +68,20 @@ extension HealthCards {
         object([("kind", strings(["asleep"]))]),
         object([("kind", strings(["beforeSleep"])), ("minutes", minutes)]),
         object([("kind", strings(["afterWaking"])), ("minutes", minutes)]),
-        object([
-          ("kind", strings(["workout"])),
-          (
-            "activities",
-            nullable(
-              array(
-                ["type": "integer", "enum": .array(activityTypes.map { .number(Double($0)) })],
-                windowActivities, unique: true))
-          ),
-        ]),
+        // `location` is version 2's: every workout window of a version 2 spec has it, and
+        // none of a version 1 spec's, which the validator checks.
+        object(
+          [
+            ("kind", strings(["workout"])),
+            (
+              "activities",
+              nullable(
+                array(
+                  ["type": "integer", "enum": .array(activityTypes.map { .number(Double($0)) })],
+                  windowActivities, unique: true))
+            ),
+            ("location", nullable(strings(CardWorkoutLocation.allCases.map(\.rawValue)))),
+          ], optional: ["location"]),
         object([("kind", strings(["timeOfDay"])), ("from", clockTime), ("to", clockTime)]),
       ]
     ])
@@ -131,7 +140,7 @@ extension HealthCards {
         ),
       ],
       description:
-        "A lil health card spec, version 1, in canonical form (docs/decisions/cards.md). "
+        "A lil health card spec, version 1 or 2, in canonical form (docs/decisions/cards.md). "
         + "Generated from HealthCards by scripts/generate-health-cards: don't edit.")
     guard case .object(let members) = schema else { return schema }
     return .object(

@@ -267,6 +267,8 @@ private struct PreviewData {
 
   /// A run, a walk or a strength workout most days, with their statistics, and segments for
   /// the runs. Routes are left out: their locations are blobs, which catalogs pass directly.
+  /// Runs say they were outdoors and strength workouts indoors (`HKIndoorWorkout`); walks don't
+  /// say, as a workout an app recorded without it, so cards' workout windows have each kind.
   private func makeWorkouts() -> [PreviewWorkout] {
     var random = SplitMix64(seed: "HKWorkoutTypeIdentifier")
     var workouts: [PreviewWorkout] = []
@@ -298,7 +300,8 @@ private struct PreviewData {
         endDate: start.addingTimeInterval(minutes * 60 + 90).unixMilliseconds,
         duration: minutes * 60, activities: "[]", events: "[\(segments)]",
         statistics: "{\(statistics)}", sourceName: "Apple Watch",
-        sourceBundleID: "com.apple.health.watch", device: Self.watch)
+        sourceBundleID: "com.apple.health.watch", device: Self.watch,
+        metadata: [#"{"HKIndoorWorkout":false}"#, nil, #"{"HKIndoorWorkout":true}"#][kind])
       workouts.append(
         PreviewWorkout(
           workout: workout, start: start, heartRate: heartRate, distance: distance,

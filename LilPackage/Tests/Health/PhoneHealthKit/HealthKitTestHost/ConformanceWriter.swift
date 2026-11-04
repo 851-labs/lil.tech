@@ -55,13 +55,47 @@ enum ConformanceWriter {
       try await store.save(samples)
     }
     for workout in part.workouts {
-      let configuration = HKWorkoutConfiguration()
-      guard let activity = HKWorkoutActivityType(rawValue: UInt(workout.activityType)) else {
-        throw Failure(description: "Workout \(workout.id): no activity \(workout.activityType)")
+      func configuration(
+        _ activityType: Int, locationType: Int? = nil, swimmingLocationType: Int? = nil
+      ) throws -> HKWorkoutConfiguration {
+        let configuration = HKWorkoutConfiguration()
+        guard let activity = HKWorkoutActivityType(rawValue: UInt(activityType)) else {
+          throw Failure(description: "Workout \(workout.id): no activity \(activityType)")
+        }
+        configuration.activityType = activity
+        if let location = locationType.flatMap(HKWorkoutSessionLocationType.init(rawValue:)) {
+          configuration.locationType = location
+        }
+        if let swimming = swimmingLocationType.flatMap(
+          HKWorkoutSwimmingLocationType.init(rawValue:))
+        {
+          configuration.swimmingLocationType = swimming
+        }
+        if activity == .swimming {
+          configuration.lapLength = HKQuantity(unit: .meter(), doubleValue: 25)
+        }
+        return configuration
       }
-      configuration.activityType = activity
-      let builder = HKWorkoutBuilder(healthStore: store, configuration: configuration, device: nil)
+      // Where it was, as the cards' workout windows read it (851-4031): its metadata's
+      // `HKIndoorWorkout`, and its activities' configurations and metadata.
+      func metadata(_ indoor: NSNumber?) -> [String: Any]? {
+        indoor.map { [HKMetadataKeyIndoorWorkout: $0] }
+      }
+      let builder = HKWorkoutBuilder(
+        healthStore: store, configuration: try configuration(workout.activityType), device: nil)
       try await builder.beginCollection(at: date(workout.start))
+      if let metadata = metadata(workout.indoor) {
+        try await builder.addMetadata(metadata)
+      }
+      for activity in workout.activities {
+        try await builder.addWorkoutActivity(
+          HKWorkoutActivity(
+            workoutConfiguration: try configuration(
+              activity.activityType, locationType: activity.locationType,
+              swimmingLocationType: activity.swimmingLocationType),
+            start: date(activity.start), end: date(activity.end),
+            metadata: metadata(activity.indoor)))
+      }
       try await builder.endCollection(at: date(workout.end))
       guard try await builder.finishWorkout() != nil else {
         throw Failure(description: "Workout \(workout.id) wasn't saved.")

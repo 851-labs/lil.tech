@@ -145,14 +145,26 @@ public struct WorkoutActivityRecord: Equatable, Sendable {
 
 extension HealthWorkout {
   /// What its metadata says (``WorkoutMetadata``).
-  public var decodedMetadata: WorkoutMetadata {
+  public var decodedMetadata: WorkoutMetadata { Self.decodedMetadata(metadata) }
+
+  /// Its activities, often none (`HealthWorkout` on the server). Read like its statistics: all
+  /// of them or, if one can't be read, none.
+  public var decodedActivities: [WorkoutActivityRecord] { Self.decodedActivities(activities) }
+
+  /// Whether a workout was indoors, from its `metadata` and `activities` columns, as the
+  /// `workouts` tools say (`location(metadata:activities:)`): what cards' workout windows keep
+  /// by (851-4031).
+  static func indoor(metadata: String?, activities: String) -> Bool? {
+    location(metadata: decodedMetadata(metadata), activities: decodedActivities(activities))
+      .indoor
+  }
+
+  static func decodedMetadata(_ metadata: String?) -> WorkoutMetadata {
     WorkoutMetadata(
       metadata.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) })
   }
 
-  /// Its activities, often none (`HealthWorkout` on the server). Read like its statistics: all
-  /// of them or, if one can't be read, none.
-  public var decodedActivities: [WorkoutActivityRecord] {
+  static func decodedActivities(_ activities: String) -> [WorkoutActivityRecord] {
     guard
       let array = (try? JSONSerialization.jsonObject(with: Data(activities.utf8))) as? [Any]
     else { return [] }

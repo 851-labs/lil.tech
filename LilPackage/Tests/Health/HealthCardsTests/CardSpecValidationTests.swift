@@ -42,7 +42,7 @@ struct CardSpecValidationTests {
     Example("not an object", "[]", " | invalidType | A card spec is a JSON object."),
     Example(
       "required", #"{"display": {}, "series": [{}]}"#,
-      "version | required | version is required: the spec's format, 1.",
+      "version | required | version is required: the spec's format, 1 or 2.",
       "display.name | required | display.name is required: what the card is called on Summary.",
       #"series[0].type | required | series[0].type is required: a quantity type, e.g. HKQuantityTypeIdentifierHeartRate or "Heart Rate"."#
     ),
@@ -69,8 +69,8 @@ struct CardSpecValidationTests {
       "wrong type", card(#"{"type": "HeartRate", "hidden": "yes"}"#),
       "series[0].hidden | invalidType | series[0].hidden must be true or false."),
     Example(
-      "unsupported version, the one error", #"{"version": 2, "display": 5}"#,
-      "version | unsupportedVersion | version 2 isn't supported. This server reads card spec version 1."
+      "unsupported version, the one error", #"{"version": 3, "display": 5}"#,
+      "version | unsupportedVersion | version 3 isn't supported. This server reads card spec versions 1 and 2."
     ),
     // Display
     Example(

@@ -6,13 +6,13 @@ public import SQLiteData
 // Cards snapshot catalogs share (851-3211): the Mac's and the iPhone's Summary, and the card page.
 // Synthetic data only.
 
-/// A card of spec version 2, which this version can't read: its name, symbol and color still
+/// A card of spec version 3, which this version can't read: its name, symbol and color still
 /// show.
 public let laterVersionCard = Card(
   HealthCard(
     id: "card_01JB7Z0000000000000000000A",
     spec:
-      #"{"version":2,"display":{"name":"Oxygen at Altitude","symbol":"lungs.fill","color":"teal","unit":null},"series":[]}"#,
+      #"{"version":3,"display":{"name":"Oxygen at Altitude","symbol":"lungs.fill","color":"teal","unit":null},"series":[]}"#,
     position: "a1V", createdAt: 0, updatedAt: 0))
 
 /// The design's five example cards, in its order, as an agent would write them. Summary's catalogs

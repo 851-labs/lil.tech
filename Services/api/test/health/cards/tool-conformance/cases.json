@@ -2053,7 +2053,7 @@
               }
             }
           },
-          "expectedError": "The spec has 4 errors. Fix them and try again:\n- version: version is required: the spec's format, 1.\n- display.name: display.name is required: what the card is called on Summary.\n- display.colour: Unknown field \"colour\" in display. Allowed: name, symbol, color, unit.\n- series: series is required: 1 to 4 series, e.g. [{\"type\": \"HKQuantityTypeIdentifierHeartRate\"}]."
+          "expectedError": "The spec has 4 errors. Fix them and try again:\n- version: version is required: the spec's format, 1 or 2.\n- display.name: display.name is required: what the card is called on Summary.\n- display.colour: Unknown field \"colour\" in display. Allowed: name, symbol, color, unit.\n- series: series is required: 1 to 4 series, e.g. [{\"type\": \"HKQuantityTypeIdentifierHeartRate\"}]."
         },
         {
           "tool": "preview_card",
@@ -2080,13 +2080,13 @@
           "tool": "preview_card",
           "arguments": {
             "spec": {
-              "version": 2,
+              "version": 3,
               "display": {
                 "name": "Later"
               }
             }
           },
-          "expectedError": "The spec has 1 error. Fix it and try again:\n- version: version 2 isn't supported. This server reads card spec version 1."
+          "expectedError": "The spec has 1 error. Fix it and try again:\n- version: version 3 isn't supported. This server reads card spec versions 1 and 2."
         },
         {
           "tool": "preview_card",
@@ -2158,7 +2158,7 @@
             "range": "Y",
             "timeZone": "Mars/Olympus"
           },
-          "expectedError": "The spec has 4 errors. Fix them and try again:\n- version: version is required: the spec's format, 1.\n- display.name: display.name is required: what the card is called on Summary.\n- display.colour: Unknown field \"colour\" in display. Allowed: name, symbol, color, unit.\n- series: series is required: 1 to 4 series, e.g. [{\"type\": \"HKQuantityTypeIdentifierHeartRate\"}]."
+          "expectedError": "The spec has 4 errors. Fix them and try again:\n- version: version is required: the spec's format, 1 or 2.\n- display.name: display.name is required: what the card is called on Summary.\n- display.colour: Unknown field \"colour\" in display. Allowed: name, symbol, color, unit.\n- series: series is required: 1 to 4 series, e.g. [{\"type\": \"HKQuantityTypeIdentifierHeartRate\"}]."
         }
       ]
     },
@@ -2729,7 +2729,7 @@
               }
             }
           },
-          "expectedError": "The spec has 4 errors. Fix them and try again:\n- version: version is required: the spec's format, 1.\n- display.name: display.name is required: what the card is called on Summary.\n- display.colour: Unknown field \"colour\" in display. Allowed: name, symbol, color, unit.\n- series: series is required: 1 to 4 series, e.g. [{\"type\": \"HKQuantityTypeIdentifierHeartRate\"}]."
+          "expectedError": "The spec has 4 errors. Fix them and try again:\n- version: version is required: the spec's format, 1 or 2.\n- display.name: display.name is required: what the card is called on Summary.\n- display.colour: Unknown field \"colour\" in display. Allowed: name, symbol, color, unit.\n- series: series is required: 1 to 4 series, e.g. [{\"type\": \"HKQuantityTypeIdentifierHeartRate\"}]."
         },
         {
           "tool": "create_card",
@@ -2741,7 +2741,7 @@
             },
             "timeZone": "Mars/Olympus"
           },
-          "expectedError": "The spec has 4 errors. Fix them and try again:\n- version: version is required: the spec's format, 1.\n- display.name: display.name is required: what the card is called on Summary.\n- display.colour: Unknown field \"colour\" in display. Allowed: name, symbol, color, unit.\n- series: series is required: 1 to 4 series, e.g. [{\"type\": \"HKQuantityTypeIdentifierHeartRate\"}]."
+          "expectedError": "The spec has 4 errors. Fix them and try again:\n- version: version is required: the spec's format, 1 or 2.\n- display.name: display.name is required: what the card is called on Summary.\n- display.colour: Unknown field \"colour\" in display. Allowed: name, symbol, color, unit.\n- series: series is required: 1 to 4 series, e.g. [{\"type\": \"HKQuantityTypeIdentifierHeartRate\"}]."
         },
         {
           "tool": "create_card",
@@ -3611,7 +3611,7 @@
               }
             }
           },
-          "expectedError": "The spec has 4 errors. Fix them and try again:\n- version: version is required: the spec's format, 1.\n- display.name: display.name is required: what the card is called on Summary.\n- display.colour: Unknown field \"colour\" in display. Allowed: name, symbol, color, unit.\n- series: series is required: 1 to 4 series, e.g. [{\"type\": \"HKQuantityTypeIdentifierHeartRate\"}]."
+          "expectedError": "The spec has 4 errors. Fix them and try again:\n- version: version is required: the spec's format, 1 or 2.\n- display.name: display.name is required: what the card is called on Summary.\n- display.colour: Unknown field \"colour\" in display. Allowed: name, symbol, color, unit.\n- series: series is required: 1 to 4 series, e.g. [{\"type\": \"HKQuantityTypeIdentifierHeartRate\"}]."
         },
         {
           "tool": "update_card",

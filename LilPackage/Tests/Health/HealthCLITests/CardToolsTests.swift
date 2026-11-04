@@ -32,7 +32,7 @@ struct CardToolsTests {
           id: seed.id, spec: seed.spec.jsonText, position: seed.position,
           createdAt: 1_792_000_000_000, updatedAt: 1_792_000_000_000, seed: seed.seed)
         HealthCard(
-          id: "card_later", spec: #"{"version":2,"display":{"name":"Later"}}"#, position: "a9",
+          id: "card_later", spec: #"{"version":3,"display":{"name":"Later"}}"#, position: "a9",
           createdAt: 1_792_000_000_000, updatedAt: 1_792_100_000_000)
       }
       .execute(db)
@@ -61,7 +61,7 @@ struct CardToolsTests {
     #expect(result.text.contains(#""spec":{"bucket":"auto","chart":{"goal":null,"style":"bars"}"#))
     #expect(result.text.contains(#""seed":null"#))
     // A later version's spec comes as it's stored.
-    #expect(listed.cards[1].spec["version"] == .number(2))
+    #expect(listed.cards[1].spec["version"] == .number(3))
     await connection.close()
   }
 
@@ -113,7 +113,7 @@ struct CardToolsTests {
       (["id": "card_nope"], #"No card with the id "card_nope". list_cards lists them."#),
       (
         ["id": "card_later"],
-        "This card's spec is version 2, which this version of lil health can't run. Replace it "
+        "This card's spec is version 3, which this version of lil health can't run. Replace it "
           + "with update_card, or ask the person to update lil health."
       ),
       (

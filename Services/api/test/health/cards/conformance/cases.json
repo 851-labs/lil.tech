@@ -2680,6 +2680,201 @@
     },
     {
       "now": "2026-10-28T12:00:00Z",
+      "name": "the highest heart rate during outdoor runs (version 2)",
+      "note": "Runs as the workouts tool's indoor has them: 20 Oct 16:30–17:00Z says outdoors in its metadata, as a number (HKIndoorWorkout 0); 22 Oct 17:00–17:30Z says indoors (true), so its 140 is left out; 24 Oct 10:30–11:00Z says nothing itself, but its one activity's configuration says outdoors (locationType 3).",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2026-10-21",
+      "spec": {
+        "version": 2,
+        "display": {
+          "name": "Outdoor Running HR"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "aggregation": "max",
+            "window": {
+              "kind": "workout",
+              "activities": ["Running"],
+              "location": "outdoor"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2026-10-19",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "max",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-20T00:00:00+01:00",
+                "value": 160,
+                "minimum": 150,
+                "maximum": 160,
+                "readings": 2
+              },
+              {
+                "start": "2026-10-24T00:00:00+01:00",
+                "value": 130,
+                "minimum": 130,
+                "maximum": 130,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "highest",
+          "value": 160,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "heart rate during indoor workouts of every kind (version 2)",
+      "note": "October's only indoor workout with heart rate is 22 Oct's run (HKIndoorWorkout true): 140. 24 Oct's strength workout (10:00–10:45Z) doesn't say where it was, so it's in neither location and 10:15's 120 is left out; that day's run is outdoors.",
+      "timeZone": "Europe/London",
+      "range": "M",
+      "date": "2026-10-21",
+      "spec": {
+        "version": 2,
+        "display": {
+          "name": "Indoor Workout HR"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "workout",
+              "activities": null,
+              "location": "indoor"
+            }
+          }
+        ],
+        "chart": {
+          "style": "dots"
+        }
+      },
+      "expected": {
+        "range": "M",
+        "start": "2026-10-01",
+        "end": "2026-10-31",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-22T00:00:00+01:00",
+                "value": 140,
+                "minimum": 140,
+                "maximum": 140,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 140,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "heart rate readings in outdoor workouts, by month (version 2)",
+      "note": "Every activity, outdoors: 20 Oct's run (150 and 160) and 24 Oct's (130 at 10:50Z). 24 Oct's strength workout, which overlaps the run, doesn't say, so its stretch (and 10:15's 120) isn't kept: only the run's 10:30–11:00Z is.",
+      "timeZone": "Europe/London",
+      "range": "6M",
+      "date": "2026-10-21",
+      "spec": {
+        "version": 2,
+        "display": {
+          "name": "Outdoor Readings"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "aggregation": "count",
+            "window": {
+              "kind": "workout",
+              "location": "outdoor"
+            }
+          }
+        ],
+        "bucket": "month",
+        "chart": {
+          "style": "bars"
+        }
+      },
+      "expected": {
+        "range": "6M",
+        "start": "2026-05-01",
+        "end": "2026-10-31",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "month",
+        "grain": "month",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "count",
+            "unit": "count",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-01T00:00:00+01:00",
+                "value": 3,
+                "minimum": 3,
+                "maximum": 3,
+                "readings": 3
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "count",
+          "value": 3,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
       "name": "body temperature by the hour over a week",
       "timeZone": "Europe/London",
       "range": "W",

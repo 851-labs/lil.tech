@@ -147,7 +147,8 @@ describe("health_card", () => {
         message: [
           `The card ${cardId(1)} has 4 errors:`,
           "- spec: The spec isn't in canonical form (a default left out, a type or activity by " +
-            "name, or a name or label not trimmed): apps and tools write it canonicalized.",
+            "name, a name or label not trimmed, or a version later than it needs): apps and " +
+            "tools write it canonicalized.",
           '- position: position "a00" isn\'t a fractional index: base-62 digits, starting with ' +
             "a letter that gives the length of its integer part.",
           "- updatedAt: updatedAt (4) can't be before createdAt (5).",
@@ -165,10 +166,10 @@ describe("health_card", () => {
         '- spec.series[0].type: "HeartRat" isn\'t a type lil health knows. Did you mean Heart ' +
           "Rate (HKQuantityTypeIdentifierHeartRate)?",
       );
-      const later = yield* push(store, [upsert(cardId(1), { spec: { version: 2 } })]).pipe(
+      const later = yield* push(store, [upsert(cardId(1), { spec: { version: 3 } })]).pipe(
         Effect.flip,
       );
-      assert.include(later.message, "- spec.version: version 2 isn't supported.");
+      assert.include(later.message, "- spec.version: version 3 isn't supported.");
       const notJson = yield* push(store, [upsert(cardId(1), { spec: "{}" })]).pipe(Effect.flip);
       assert.include(notJson.message, "- spec: A card spec is a JSON object.");
 

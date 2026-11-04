@@ -223,15 +223,36 @@ public struct HealthKitCardEngine: Sendable {
   }
 
   /// Workouts of every activity that end after `range` starts and start before it ends (Unix
-  /// milliseconds), from every source, by start, with their overall activity.
+  /// milliseconds), from every source, by start, with their overall activity and whether they
+  /// were indoors, as the Mac and the server read it from what the iPhone uploads.
   public func workouts(overlapping range: Range<Int>) async throws -> [CardWorkout] {
     try await samples(of: HKWorkoutType.workoutType(), overlapping: range) { sample in
       (sample as? HKWorkout).map {
         CardWorkout(
           start: $0.startDate.milliseconds, end: $0.endDate.milliseconds,
-          activityType: Int($0.workoutActivityType.rawValue))
+          activityType: Int($0.workoutActivityType.rawValue), indoor: Self.indoor($0))
       }
     }
+  }
+
+  /// Whether a workout was indoors: as its `HKMetadataKeyIndoorWorkout` says, else as its
+  /// activities do (each one's metadata, else its configuration's `locationType`), if they
+  /// agree; `nil` when nothing says.
+  static func indoor(_ workout: HKWorkout) -> Bool? {
+    CardWorkout.indoor(
+      workout: indoor(metadata: workout.metadata),
+      activities: workout.workoutActivities.map { activity in
+        indoor(metadata: activity.metadata)
+          ?? CardWorkout.indoor(locationType: activity.workoutConfiguration.locationType.rawValue)
+      })
+  }
+
+  /// `HKMetadataKeyIndoorWorkout`: a Boolean, or 0 or 1 from apps that write it as a number, as
+  /// the Mac and the server read it.
+  static func indoor(metadata: [String: Any]?) -> Bool? {
+    guard let value = metadata?[HKMetadataKeyIndoorWorkout] as? NSNumber else { return nil }
+    if CFGetTypeID(value) == CFBooleanGetTypeID() { return value.boolValue }
+    return value.doubleValue == 1 ? true : value.doubleValue == 0 ? false : nil
   }
 
   /// Samples of `type` that end after `range` starts and start before it ends, by start, made

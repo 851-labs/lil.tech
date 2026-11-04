@@ -2172,7 +2172,7 @@
   },
   {
     "name": "preview_card",
-    "description": "Checks a draft card spec and runs it over the person's Health data, without saving anything: start here to make a card. If the spec has errors, the call fails listing every one with its path and how to fix it; otherwise it returns the canonical spec and the data the card would show. Fix and preview again until it's right, then create_card (or update_card) with the spec.\n\nA card spec is JSON. Only version (1), display.name and each series' type are required: leave the rest out for their defaults. Outputs give the canonical form, every default filled in.\n- display: name (1-40 characters), symbol (one of the schema's SF Symbols; default the type's), color (red, orange, yellow, green, mint, teal, cyan, blue, indigo, purple, pink, brown, gray; default the type's), unit (e.g. kg, lb, degF, km; null for the person's locale).\n- series: 1 to 4, sharing one axis, so one unit. Each is a quantity type (an identifier, or a name such as \"Heart Rate\": list_types and search find them) and an aggregation per bucket (sum, avg, min, max, first, latest, count): types that add up (steps, energy, distance) take sum only, others avg (the default), min, max, first, latest or count. Optional: id (a, b, c, d by default), label, hidden.\n- window, for types that don't add up, keeps readings that start in it: {\"kind\": \"asleep\"}, {\"kind\": \"beforeSleep\", \"minutes\": 5} or {\"kind\": \"afterWaking\", \"minutes\": 30} (1-240 minutes, around each night's main sleep), {\"kind\": \"workout\", \"activities\": [37]} (HKWorkoutActivityType values or names; null for every workout), {\"kind\": \"timeOfDay\", \"from\": \"00:00\", \"to\": \"12:00\"} (the local clock; may cross midnight). filter: {\"sources\": [bundle IDs], \"deviceModels\": [\"Watch\"]}.\n- bucket, what one point covers (auto, hour, day, night, week, month): auto (the default) is hours at D, days at W and M, weeks at 6M and months at Y. hour takes ranges D and W; day W, M, 6M and Y; week M, 6M and Y; month 6M and Y; night (a point per night) any, and needs a series with a sleep window. Sleep windows need night, week or month.\n- range, the period it opens on (D, W, M, 6M, Y): a calendar day, week, month, six months or year. Default W, or the bucket's first.\n- formulas, up to 2: {\"kind\": \"movingAverage\", \"of\": \"a\", \"points\": 7} (2-30 points) or {\"kind\": \"difference\", \"of\": [\"a\", \"b\"]} (a minus b). Hide a series to show only a formula.\n- chart: style (bars, ranges, dots, line; default the type's), goal ({\"value\": 10000}, in the lead series' unit).\nExamples:\n- body temperature as a line: {\"version\":1,\"display\":{\"name\":\"Body Temperature\",\"symbol\":\"thermometer.medium\",\"color\":\"red\"},\"series\":[{\"type\":\"BodyTemperature\"}],\"range\":\"M\",\"chart\":{\"style\":\"line\"}}\n- heart rate while asleep, per night: {\"version\":1,\"display\":{\"name\":\"Sleeping Heart Rate\",\"symbol\":\"moon.zzz.fill\",\"color\":\"indigo\"},\"series\":[{\"type\":\"HeartRate\",\"window\":{\"kind\":\"asleep\"}}],\"bucket\":\"night\",\"range\":\"M\",\"chart\":{\"style\":\"line\"}}\n- HRV as dots, with a 7-point moving average: {\"version\":1,\"display\":{\"name\":\"HRV\",\"symbol\":\"waveform.path.ecg\",\"color\":\"pink\"},\"series\":[{\"type\":\"HeartRateVariabilitySDNN\"}],\"formulas\":[{\"id\":\"trend\",\"kind\":\"movingAverage\",\"of\":\"a\",\"points\":7}],\"range\":\"M\",\"chart\":{\"style\":\"dots\"}}\n- heart rate in the 5 minutes before falling asleep, per night: {\"version\":1,\"display\":{\"name\":\"Heart Rate Before Sleep\",\"symbol\":\"bed.double.fill\",\"color\":\"mint\"},\"series\":[{\"type\":\"Heart Rate\",\"window\":{\"kind\":\"beforeSleep\",\"minutes\":5}}],\"bucket\":\"night\",\"range\":\"M\",\"chart\":{\"style\":\"dots\"}}\n- the first weigh-in each day before noon, with a 7-day rolling average: {\"version\":1,\"display\":{\"name\":\"Morning Weight\",\"symbol\":\"scalemass.fill\",\"color\":\"purple\"},\"series\":[{\"type\":\"BodyMass\",\"aggregation\":\"first\",\"window\":{\"kind\":\"timeOfDay\",\"from\":\"00:00\",\"to\":\"12:00\"},\"label\":\"First weigh-in before noon\"}],\"formulas\":[{\"id\":\"trend\",\"kind\":\"movingAverage\",\"of\":\"a\",\"points\":7,\"label\":\"7-day rolling average\"}],\"bucket\":\"day\",\"range\":\"M\",\"chart\":{\"style\":\"dots\"}}",
+    "description": "Checks a draft card spec and runs it over the person's Health data, without saving anything: start here to make a card. If the spec has errors, the call fails listing every one with its path and how to fix it; otherwise it returns the canonical spec and the data the card would show. Fix and preview again until it's right, then create_card (or update_card) with the spec.\n\nA card spec is JSON. Only version (1, or 2 for a workout window's location), display.name and each series' type are required: leave the rest out for their defaults. Outputs give the canonical form, every default filled in, at the lowest version that has what it uses.\n- display: name (1-40 characters), symbol (one of the schema's SF Symbols; default the type's), color (red, orange, yellow, green, mint, teal, cyan, blue, indigo, purple, pink, brown, gray; default the type's), unit (e.g. kg, lb, degF, km; null for the person's locale).\n- series: 1 to 4, sharing one axis, so one unit. Each is a quantity type (an identifier, or a name such as \"Heart Rate\": list_types and search find them) and an aggregation per bucket (sum, avg, min, max, first, latest, count): types that add up (steps, energy, distance) take sum only, others avg (the default), min, max, first, latest or count. Optional: id (a, b, c, d by default), label, hidden.\n- window, for types that don't add up, keeps readings that start in it: {\"kind\": \"asleep\"}, {\"kind\": \"beforeSleep\", \"minutes\": 5} or {\"kind\": \"afterWaking\", \"minutes\": 30} (1-240 minutes, around each night's main sleep), {\"kind\": \"workout\", \"activities\": [37]} (HKWorkoutActivityType values or names; null for every workout; with version 2, \"location\": \"indoor\" or \"outdoor\" keeps only workouts the workouts tool's indoor says were there, leaving out those that don't say, e.g. {\"kind\": \"workout\", \"activities\": [\"Running\"], \"location\": \"outdoor\"} for outdoor runs), {\"kind\": \"timeOfDay\", \"from\": \"00:00\", \"to\": \"12:00\"} (the local clock; may cross midnight). filter: {\"sources\": [bundle IDs], \"deviceModels\": [\"Watch\"]}.\n- bucket, what one point covers (auto, hour, day, night, week, month): auto (the default) is hours at D, days at W and M, weeks at 6M and months at Y. hour takes ranges D and W; day W, M, 6M and Y; week M, 6M and Y; month 6M and Y; night (a point per night) any, and needs a series with a sleep window. Sleep windows need night, week or month.\n- range, the period it opens on (D, W, M, 6M, Y): a calendar day, week, month, six months or year. Default W, or the bucket's first.\n- formulas, up to 2: {\"kind\": \"movingAverage\", \"of\": \"a\", \"points\": 7} (2-30 points) or {\"kind\": \"difference\", \"of\": [\"a\", \"b\"]} (a minus b). Hide a series to show only a formula.\n- chart: style (bars, ranges, dots, line; default the type's), goal ({\"value\": 10000}, in the lead series' unit).\nExamples:\n- body temperature as a line: {\"version\":1,\"display\":{\"name\":\"Body Temperature\",\"symbol\":\"thermometer.medium\",\"color\":\"red\"},\"series\":[{\"type\":\"BodyTemperature\"}],\"range\":\"M\",\"chart\":{\"style\":\"line\"}}\n- heart rate while asleep, per night: {\"version\":1,\"display\":{\"name\":\"Sleeping Heart Rate\",\"symbol\":\"moon.zzz.fill\",\"color\":\"indigo\"},\"series\":[{\"type\":\"HeartRate\",\"window\":{\"kind\":\"asleep\"}}],\"bucket\":\"night\",\"range\":\"M\",\"chart\":{\"style\":\"line\"}}\n- HRV as dots, with a 7-point moving average: {\"version\":1,\"display\":{\"name\":\"HRV\",\"symbol\":\"waveform.path.ecg\",\"color\":\"pink\"},\"series\":[{\"type\":\"HeartRateVariabilitySDNN\"}],\"formulas\":[{\"id\":\"trend\",\"kind\":\"movingAverage\",\"of\":\"a\",\"points\":7}],\"range\":\"M\",\"chart\":{\"style\":\"dots\"}}\n- heart rate in the 5 minutes before falling asleep, per night: {\"version\":1,\"display\":{\"name\":\"Heart Rate Before Sleep\",\"symbol\":\"bed.double.fill\",\"color\":\"mint\"},\"series\":[{\"type\":\"Heart Rate\",\"window\":{\"kind\":\"beforeSleep\",\"minutes\":5}}],\"bucket\":\"night\",\"range\":\"M\",\"chart\":{\"style\":\"dots\"}}\n- the first weigh-in each day before noon, with a 7-day rolling average: {\"version\":1,\"display\":{\"name\":\"Morning Weight\",\"symbol\":\"scalemass.fill\",\"color\":\"purple\"},\"series\":[{\"type\":\"BodyMass\",\"aggregation\":\"first\",\"window\":{\"kind\":\"timeOfDay\",\"from\":\"00:00\",\"to\":\"12:00\"},\"label\":\"First weigh-in before noon\"}],\"formulas\":[{\"id\":\"trend\",\"kind\":\"movingAverage\",\"of\":\"a\",\"points\":7,\"label\":\"7-day rolling average\"}],\"bucket\":\"day\",\"range\":\"M\",\"chart\":{\"style\":\"dots\"}}",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2182,8 +2182,10 @@
             "version": {
               "type": "integer",
               "enum": [
-                1
-              ]
+                1,
+                2
+              ],
+              "description": "1, or 2 for a workout window's location."
             },
             "display": {
               "type": "object",
@@ -2449,6 +2451,21 @@
                                       ]
                                     },
                                     "description": "HKWorkoutActivityType raw values or names, e.g. 37 or \"Running\"; null for every workout."
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "location": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "indoor",
+                                      "outdoor"
+                                    ],
+                                    "description": "Spec version 2: only workouts indoors or outdoors, as the workouts tool's indoor says (workouts that don't say are left out); null for every workout."
                                   },
                                   {
                                     "type": "null"
@@ -3170,8 +3187,10 @@
             "version": {
               "type": "integer",
               "enum": [
-                1
-              ]
+                1,
+                2
+              ],
+              "description": "1, or 2 for a workout window's location."
             },
             "display": {
               "type": "object",
@@ -3437,6 +3456,21 @@
                                       ]
                                     },
                                     "description": "HKWorkoutActivityType raw values or names, e.g. 37 or \"Running\"; null for every workout."
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "location": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "indoor",
+                                      "outdoor"
+                                    ],
+                                    "description": "Spec version 2: only workouts indoors or outdoors, as the workouts tool's indoor says (workouts that don't say are left out); null for every workout."
                                   },
                                   {
                                     "type": "null"
@@ -3901,8 +3935,10 @@
             "version": {
               "type": "integer",
               "enum": [
-                1
-              ]
+                1,
+                2
+              ],
+              "description": "1, or 2 for a workout window's location."
             },
             "display": {
               "type": "object",
@@ -4168,6 +4204,21 @@
                                       ]
                                     },
                                     "description": "HKWorkoutActivityType raw values or names, e.g. 37 or \"Running\"; null for every workout."
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "location": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "indoor",
+                                      "outdoor"
+                                    ],
+                                    "description": "Spec version 2: only workouts indoors or outdoors, as the workouts tool's indoor says (workouts that don't say are left out); null for every workout."
                                   },
                                   {
                                     "type": "null"

@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 /// The cards' dataset as a HealthKit would hold it, for the iPhone's side of the conformance cases
 /// (851-3201): its samples and workouts, each with its source and device, after every batch's
@@ -37,6 +37,25 @@ public struct ConformanceSamples: Sendable {
     public var start: Int
     public var end: Int
     public var source: String
+    /// Its metadata's `HKIndoorWorkout`, as the dataset has it (a Boolean, or 0 or 1).
+    public var indoor: NSNumber?
+    /// Its activities, as the Mac and the server read them: all of them, or none if one can't
+    /// be read.
+    public var activities: [Activity] = []
+  }
+
+  /// One of a workout's activities, with what says where it was.
+  public struct Activity: Sendable {
+    /// `HKWorkoutActivityType`'s raw value.
+    public var activityType: Int
+    public var start: Int
+    public var end: Int
+    /// Its configuration's `HKWorkoutSessionLocationType` raw value.
+    public var locationType: Int?
+    /// Its configuration's `HKWorkoutSwimmingLocationType` raw value.
+    public var swimmingLocationType: Int?
+    /// Its metadata's `HKIndoorWorkout`.
+    public var indoor: NSNumber?
   }
 
   /// What a sample says of the device that recorded it, as `HKDevice` has it.
@@ -105,7 +124,10 @@ public struct ConformanceSamples: Sendable {
           throw ConformanceError("workout \(id) has no activity type")
         }
         workouts.append(
-          Workout(id: id, activityType: activityType, start: start, end: end, source: source))
+          Workout(
+            id: id, activityType: activityType, start: start, end: end, source: source,
+            indoor: (row["metadata"] as? [String: Any])?["HKIndoorWorkout"] as? NSNumber,
+            activities: Self.activities(row["activities"])))
         continue
       }
       guard let type = row["type"] as? String else {
@@ -125,6 +147,35 @@ public struct ConformanceSamples: Sendable {
           categoryValue: row["categoryValue"] as? Int, source: source, device: device))
     }
     self.sources = sources.sorted()
+  }
+
+  /// A workout's activities as the Mac reads them (`HealthWorkout.decodedActivities`): all of
+  /// them, or none if one can't be read, such as a location type written as a string.
+  static func activities(_ value: Any?) -> [Activity] {
+    guard let items = value as? [[String: Any]] else { return [] }
+    var activities: [Activity] = []
+    for item in items {
+      // Missing or null, or a number.
+      func optionalInt(_ key: String) -> Int?? {
+        switch item[key] {
+        case nil, is NSNull: .some(nil)
+        case let number as NSNumber where CFGetTypeID(number) != CFBooleanGetTypeID():
+          .some(number.intValue)
+        default: nil
+        }
+      }
+      guard let activityType = item["activityType"] as? Int,
+        let start = item["startDate"] as? Int, let end = item["endDate"] as? Int,
+        let locationType = optionalInt("locationType"),
+        let swimmingLocationType = optionalInt("swimmingLocationType")
+      else { return [] }
+      activities.append(
+        Activity(
+          activityType: activityType, start: start, end: end, locationType: locationType,
+          swimmingLocationType: swimmingLocationType,
+          indoor: (item["metadata"] as? [String: Any])?["HKIndoorWorkout"] as? NSNumber))
+    }
+    return activities
   }
 
   /// The samples and workouts of one source.

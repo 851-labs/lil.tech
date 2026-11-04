@@ -33,6 +33,7 @@ import type {
   CardSeries,
   CardSpec,
   CardWindow,
+  CardWorkoutLocation,
 } from "./CardSpec.ts";
 
 // The server's card engine core (851-3197, `docs/decisions/cards.md`, What an engine computes): a
@@ -69,11 +70,15 @@ export interface CardStretch {
   readonly end: number;
 }
 
-/** A workout, as every engine reads it: its overall activity (`HKWorkoutActivityType`'s raw value). */
+/**
+ * A workout, as every engine reads it: its overall activity (`HKWorkoutActivityType`'s raw value),
+ * and whether it was indoors, as the `workouts` tool's `indoor` says (null when nothing says).
+ */
 export interface CardWorkout {
   readonly start: number;
   readonly end: number;
   readonly activityType: number;
+  readonly indoor?: boolean | null | undefined;
 }
 
 /** What a run needs fetched for one of its series. */
@@ -580,15 +585,18 @@ export const sleepStretches = (
 
 /**
  * A workout window's stretches: each matching workout's `[start, end)` (of `activities`, or every
- * one), merged where they overlap or touch, and clipped to `span`.
+ * one, and where `location` says, or anywhere), merged where they overlap or touch, and clipped to
+ * `span`. A workout that doesn't say where it was is in neither location.
  */
 export const workoutStretches = (
   activities: ReadonlyArray<number> | null,
+  location: CardWorkoutLocation | null,
   workouts: ReadonlyArray<CardWorkout>,
   span: CardInterval,
 ): Array<CardStretch> => {
   const matching = workouts
     .filter((workout) => activities === null || activities.includes(workout.activityType))
+    .filter((workout) => location === null || workout.indoor === (location === "indoor"))
     .sort((a, b) => a.start - b.start || a.end - b.end);
   const stretches: Array<{ start: number; end: number }> = [];
   for (const workout of matching) {
@@ -837,7 +845,7 @@ export class CardRun {
       } else if (window.kind === "workout") {
         // Up to the longest weight past the period, which is all its last readings' weights need.
         windows.set(index, {
-          stretches: workoutStretches(window.activities, workouts, {
+          stretches: workoutStretches(window.activities, window.location ?? null, workouts, {
             start: span.start,
             end: this.interval.end + maxSampleWeightMillis,
           }),

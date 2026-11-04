@@ -65,16 +65,20 @@ extension HealthDatabase {
   }
 
   /// Workouts of every activity that end after `range` starts and start before it ends (Unix
-  /// milliseconds), from every source.
+  /// milliseconds), from every source, with whether each was indoors, as the `workouts` tools say.
   static func cardWorkouts(in range: Range<Int>, _ db: Database) throws -> [CardWorkout] {
     let (lower, upper) = (range.lowerBound, range.upperBound)
     return
       try HealthWorkout
       .where { $0.startDate < upper && $0.endDate > lower }
       .order(by: \.startDate)
-      .select { ($0.startDate, $0.endDate, $0.activityType) }
+      .select { ($0.startDate, $0.endDate, $0.activityType, $0.metadata, $0.activities) }
       .fetchAll(db)
-      .map { CardWorkout(start: $0, end: $1, activityType: $2) }
+      .map { start, end, activityType, metadata, activities in
+        CardWorkout(
+          start: start, end: end, activityType: activityType,
+          indoor: HealthWorkout.indoor(metadata: metadata, activities: activities))
+      }
   }
 
   /// A type's readings starting in one of `stretches` (in order and apart), oldest first, that

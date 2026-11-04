@@ -12,11 +12,32 @@ public struct CardWorkout: Hashable, Sendable {
   public var end: Int
   /// `HKWorkoutActivityType`'s raw value, the workout's overall activity.
   public var activityType: Int
+  /// Whether it was indoors: as its `HKMetadataKeyIndoorWorkout` says, else as its activities'
+  /// do (each one's metadata, else its configuration's `locationType`), if they agree; `nil` when
+  /// nothing says (`indoor(workout:activities:)`). A workout window's `location` keeps workouts by
+  /// it (851-4031).
+  public var indoor: Bool?
 
-  public init(start: Int, end: Int, activityType: Int) {
+  public init(start: Int, end: Int, activityType: Int, indoor: Bool? = nil) {
     self.start = start
     self.end = end
     self.activityType = activityType
+    self.indoor = indoor
+  }
+
+  /// Whether a workout was indoors, as every engine and the Health tools' `indoor` read it: as
+  /// the workout says (`workout`), else as its activities say, if those that say agree.
+  public static func indoor(workout: Bool?, activities: [Bool?]) -> Bool? {
+    if let workout { return workout }
+    let given = activities.compactMap(\.self)
+    guard let first = given.first, given.allSatisfy({ $0 == first }) else { return nil }
+    return first
+  }
+
+  /// Indoors or not, by an `HKWorkoutSessionLocationType` raw value: 2 indoor, 3 outdoor, and
+  /// `nil` for 1 (unknown) or anything else.
+  public static func indoor(locationType: Int?) -> Bool? {
+    locationType == 2 ? true : locationType == 3 ? false : nil
   }
 }
 
@@ -185,12 +206,15 @@ extension CardWindows {
   }
 
   /// A workout window's stretches: each matching workout's `[start, end)` (of `activities`, or
-  /// every one), merged where they overlap or touch, and clipped to `span`.
+  /// every one, and where `location` says, or anywhere), merged where they overlap or touch, and
+  /// clipped to `span`. A workout that doesn't say where it was is in neither location.
   static func workoutStretches(
-    activities: [Int]?, workouts: [CardWorkout], in span: Range<Int>
+    activities: [Int]?, location: CardWorkoutLocation? = nil, workouts: [CardWorkout],
+    in span: Range<Int>
   ) -> [CardStretch] {
     let matching = workouts.filter { workout in
-      activities.map { $0.contains(workout.activityType) } ?? true
+      (activities.map { $0.contains(workout.activityType) } ?? true)
+        && (location.map { $0.contains(indoor: workout.indoor) } ?? true)
     }
     var stretches: [CardStretch] = []
     for workout in matching.sorted(by: { ($0.start, $0.end) < ($1.start, $1.end) }) {

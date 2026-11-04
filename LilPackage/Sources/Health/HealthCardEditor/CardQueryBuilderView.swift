@@ -234,11 +234,23 @@ struct CardWindowRows: View {
       CardNumberField(
         title: "Minutes", value: minutes, range: HealthCards.windowMinutes
       ) { minutes in change { $0.window = .afterWaking(minutes: minutes) } }
-    case .workout(let activities):
+    case .workout(let activities, let location):
       LabeledContent("Workouts") {
         CardActivitiesMenu(activities: activities) { activities in
-          change { $0.window = .workout(activities: activities) }
+          change { $0.window = .workout(activities: activities, location: location) }
         }
+      }
+      Picker(
+        "Location",
+        selection: Binding(
+          get: { location },
+          set: { location in
+            change { $0.window = .workout(activities: activities, location: location) }
+          })
+      ) {
+        Text("Anywhere").tag(CardWorkoutLocation?.none)
+        Text("Indoor").tag(CardWorkoutLocation?.some(.indoor))
+        Text("Outdoor").tag(CardWorkoutLocation?.some(.outdoor))
       }
     case .timeOfDay(let window):
       CardClockPicker(title: "From", time: window.from) { from in

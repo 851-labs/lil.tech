@@ -136,6 +136,26 @@ const agreed = <A, B>(values: ReadonlyArray<A>, read: (value: A) => B | null): B
   return given.length > 0 && given.every((value) => value === given[0]) ? given[0]! : null;
 };
 
+/**
+ * Whether a workout was indoors: as its metadata says or, if it doesn't, as its activities say
+ * they were, if they agree. A workout of one activity may only say so on its activity, or its
+ * configuration.
+ */
+const workoutIndoor = (
+  metadata: Metadata | null,
+  activities: ReadonlyArray<WorkoutActivity>,
+): boolean | null => indoor(metadata) ?? agreed(activities, activityIndoor);
+
+/**
+ * Whether a workout was indoors, from its `metadata` and `activities` columns, as the tool's
+ * `indoor` says: what cards' workout windows keep by (851-4031).
+ */
+export const storedWorkoutIndoor = (metadata: unknown, activities: unknown): boolean | null =>
+  workoutIndoor(
+    Option.getOrNull(decodeMetadata(metadata)),
+    Option.getOrElse(decodeActivities(activities), () => []),
+  );
+
 /** The kinds of distance a workout can record, the usual ones first. */
 const distanceTypes = [
   "HKQuantityTypeIdentifierDistanceWalkingRunning",
@@ -194,9 +214,7 @@ export const healthWorkouts = Effect.fn("healthWorkouts")(function* (
         distance: distanceTypes.map(sum).find((distance) => distance !== null) ?? null,
         averageHeartRate: statistics["HKQuantityTypeIdentifierHeartRate"]?.average ?? null,
         elevationAscended: elevationAscended(metadata),
-        // A workout that doesn't say is where its activities say they were, if they agree: a
-        // workout of one activity may only say so on its activity, or its configuration.
-        indoor: indoor(metadata) ?? agreed(activities, activityIndoor),
+        indoor: workoutIndoor(metadata, activities),
         swimmingLocation:
           swimmingLocation(metadata) ?? agreed(activities, activitySwimmingLocation),
         hasRoute: withRoutes.has(workout.id),
