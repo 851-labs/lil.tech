@@ -664,7 +664,7 @@ Seven tools, defined once in `Services/api/src/health/cards/CardsToolkit.ts` wit
 
 ## The five example cards
 
-The acceptance test (851-3218): an agent creates them over MCP, they sync, and they render on the Mac and the iPhone. In canonical form:
+The acceptance test (851-3218): they're made over MCP and in the apps (agents over the remote server and `lil-health mcp`, people in the Mac's and the iPhone's editors), they sync, and they render on the Mac and the iPhone. In canonical form:
 
 **1. Body temperature:** a line over time.
 
@@ -761,6 +761,20 @@ An agent may write card 4 as just `{"version": 1, "display": {"name": "Heart Rat
 Bucket `day` rather than `auto`, so each dot is a day and the average is 7 days at every range (with `auto`, 6M's points would be weeks).
 
 **Beyond the five**, as the spec allows: Sleeping HR minus Resting HR per night is series `a` (HeartRate `avg` `asleep`, hidden), `b` (RestingHeartRate `avg`, no window, by the night's day, hidden), and a `difference` of `["a", "b"]`, bucket `night`. Steps with a 10,000 goal is the seed card with `"goal": {"value": 10000}`. Heart rate during runs is HeartRate `avg` with `{"kind": "workout", "activities": [37]}`, bucket `day`, style `ranges`.
+
+### The acceptance, as run (851-3218)
+
+Run once, end to end, on 4 November 2026, on PR #477's preview stage (`pr-477`) and its test account `e2e`, with synthetic data only: a Debug Mac build in a temporary home, a Debug iPhone build in a simulator of its own, and two agents.
+
+- **The data:** 60 days ending at the run, written into the simulator's HealthKit by the HealthKit tests' host app: nights with stages (Core, Deep, REM, a few minutes awake), heart rate every 5 minutes and a reading a minute in the 5 minutes before falling asleep, HRV three times a night, a morning body temperature most days, and weigh-ins (mornings, some twice, some evenings, a day a week only after noon). The iPhone uploaded it, and the Mac pulled it, so the three engines read the same samples. The period crossed the clocks going back on 1 November (America/Los_Angeles).
+- **Made each way:** Sleeping Heart Rate and Heart Rate Before Sleep by an agent over the remote MCP server (preview first, specs written as an agent would, defaults left out, types by name), Body Temperature in the Mac's editor, Morning Weight over the Mac's `lil-health mcp` (the app wrote it), and HRV in the iPhone's editor. All five, as both servers' `list_cards` gave them, equal the canonical specs above exactly, after the seed (`a6` to `aA`).
+- **Sync:** each appeared on the other devices' Summary and in both servers' `list_cards`, in the same order.
+- **The numbers agree exactly:** each card's `get_card` on the remote server and on `lil-health mcp`, at its opening period (November), October, a week across the clock change, 6M and Y, gave the same card data within 1e-9 (25 runs); the iPhone's engine (`HealthKitCardEngine`, on the simulator's HealthKit) gave the same 25, compared as the conformance cases are. The Summary rows (value and date) and the pages' headers read the same on the Mac and the iPhone, and their charts plot the same points.
+- **Edits, moves and deletes across devices:** an agent changed the Mac's card (color, range), moved Morning Weight under Weight (one key, `a5V`) and deleted a seed card (Resting Heart Rate); the Mac renamed an agent's card, moved HRV up and deleted a seed card (Walking + Running Distance) from its menu; `lil-health mcp` deleted another (Steps); the iPhone swiped one away (Active Energy) and dragged a card to the top (one key, `a0`). Every change reached every device and both servers.
+- **The seed:** a new account had the six seed cards, `a0` to `a5`, once. Those four were deleted, one from each place, and stayed deleted: after the Mac signed out and in again (pulling as a new device), after a new card of a deleted seed card's type (a new ID, `seed` null), and after the preview was deployed again, which restarts the store and its seed check.
+- **Consent:** an agent connected with `health:read` alone (its consent page asks only to read) listed, got and previewed cards, and its four writes failed with "This agent can read lil health but not change cards. To let it, connect it again and allow it to manage cards.", changing nothing. The remote access log named each card an agent changed (`cardId`, `cardName`), the refused calls' too, with outcome `error`. The Mac's Remote Access Log said so in sentences: "Deleted card “Resting Heart Rate”" for the full agent's delete, and "Create card “Sleeping Heart Rate”", "Read-Only Agent · error" for the refused one (asked, not done). The Mac's local Access Log, which always reads as asked, had "Change card “Heart Rate Before Sleep”" and "Create card “Steps Goal”" for `lil-health mcp`'s writes.
+- **Found:** one bug, older than cards: the Mac's charts expose their "No data for …" element to accessibility when they have data (851-4042).
+- **Not kept as a test:** the run needs a deployed stage, the Mac app driven through its accessibility, and the servers' answers of the day, so it can't run in `scripts/test-iphone-healthkit` or CI without flaking. The conformance cases (851-3198, 851-3201) keep the engines agreeing, the tools' cases (851-3217) the servers, and each screen's catalog its drawing. What only this run checked isn't kept: a US time zone over its change of clocks (the cases are in London, New York without a change, and Kathmandu), two months of data at 6M and Y, and `lil-health mcp`'s `get_card` against the remote server's for the five cards; 851-4043 adds a conformance case for the first. The run's throwaway code (the data writer, the iPhone's XCUITest, the iPhone engine's comparison, the agents' clients) was kept outside the repo.
 
 ## UI
 
@@ -909,4 +923,4 @@ In order. Each is one PR, and keeps this file current.
 | **851-4011** (new) | The access log's card columns, in the API and Settings' log rows | MCP tools |
 | 851-3216 | The local card tools, and the app's card actions | MCP tools |
 | 851-3217 | The card tools' conformance across both servers | MCP tools |
-| 851-3218 | Acceptance: the five example cards by an agent, on the Mac and the iPhone; lil.tech/agents | The five example cards |
+| 851-3218 | Acceptance: the five example cards made over both MCP servers and in both editors, on the Mac and the iPhone; lil.tech/agents | The five example cards |

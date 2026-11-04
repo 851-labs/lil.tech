@@ -122,6 +122,20 @@
         <li><code>search</code>: finds kinds of data by name, such as “blood pressure”.</li>
         <li><code>sync_status</code>: how fresh the data is.</li>
       </ul>
+      <p>Its card tools (see <a href="#cards">Cards</a>):</p>
+      <ul>
+        <li><code>list_cards</code>: your cards, in Summary's order.</li>
+        <li><code>get_card</code>: a card and its chart's numbers for a period.</li>
+        <li>
+          <code>preview_card</code>: tries a card out without saving it, so the agent can check what
+          it would show first.
+        </li>
+        <li>
+          <code>create_card</code>, <code>update_card</code>, <code>delete_card</code> and
+          <code>reorder_cards</code>: change your cards, if you allowed it to when you connected it
+          (see <a href="#cards">Cards</a>).
+        </li>
+      </ul>
 
       <h2>What an agent can read</h2>
       <ul>
@@ -163,6 +177,22 @@
         for a chart in your own words, such as “add a card with my heart rate while I sleep”. It
         can't change your Health data. Its changes sync to your Mac and iPhone, and you can edit or
         delete its cards yourself.
+      </p>
+      <p>Some cards to ask for:</p>
+      <ul>
+        <li>“Add a card with my body temperature as a line, over a month.”</li>
+        <li>“Add a card with my average heart rate while I'm asleep, each night.”</li>
+        <li>“Add a card with my HRV as dots over a month, with a moving average line.”</li>
+        <li>“Add a card with my heart rate in the 5 minutes before I fall asleep, each night.”</li>
+        <li>
+          “Add a Morning Weight card: my first weigh-in before noon each day as dots, and a 7-day
+          rolling average as a line.”
+        </li>
+      </ul>
+      <p>
+        Agents are asked to try a card out before adding it, and new cards go at the end of your
+        Summary. Ask for changes the same way, such as “show my sleeping heart rate over six
+        months”.
       </p>
       <p>
         When an agent connects, its page tells you whether it will be able to manage your cards as
