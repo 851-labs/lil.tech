@@ -407,12 +407,12 @@ cmd_new() {
   else
     fetch
     if git show-ref --verify --quiet "refs/heads/$branch"; then
-      git worktree add "$path" "$branch"
+      git worktree add --quiet "$path" "$branch"
     elif git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
-      git worktree add --track -b "$branch" "$path" "origin/$branch"
+      git worktree add --quiet --track -b "$branch" "$path" "origin/$branch"
     else
       # No upstream yet: the first `git push -u origin HEAD` sets it to the branch's own.
-      git worktree add --no-track -b "$branch" "$path" origin/main
+      git worktree add --quiet --no-track -b "$branch" "$path" origin/main
     fi
   fi
   cd "$path/LilPackage"

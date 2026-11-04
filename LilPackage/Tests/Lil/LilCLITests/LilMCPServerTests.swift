@@ -181,7 +181,8 @@ struct LilMCPServerTests {
   /// `lil-<app>` on `PATH` for an app `lil` doesn't know is never run.
   @Test
   func skipsServersThatDontStart() async throws {
-    try writeScript("echo 'unknown command' >&2; exit 64", to: bin.appending(path: "lil-old"))
+    // Its usage error's status. What it says on standard error would reach the test's output.
+    try writeScript("exit 64", to: bin.appending(path: "lil-old"))
     try writeScript("touch \"$0.ran\"; exit 0", to: bin.appending(path: "lil-stranger"))
     let reports = Reports()
     let connection = try await connect(["example", "missing", "old", "example"], reports: reports)
@@ -209,7 +210,8 @@ struct LilMCPServerTests {
   /// attempt. If that fails, its tools answer with an error from then on.
   @Test
   func startsAServerThatExitedAgainOnce() async throws {
-    let connection = try await connect(["example"])
+    let reports = Reports()
+    let connection = try await connect(["example"], reports: reports)
     let example = try #require(connection.apps.first?.server)
     let first = try #require(await example.processIdentifier)
     // It exits while it answers.
@@ -234,6 +236,10 @@ struct LilMCPServerTests {
       #expect(stopped.isError == true)
       #expect(stopped.text == "lil example's server stopped.")
     }
+    #expect(
+      reports.lines == [
+        "lil mcp: lil example's server stopped, and didn't start again: lil-example mcp exited with status 1"
+      ])
     await #expect(throws: MCPError.internalError("lil example's server stopped.")) {
       _ = try await connection.client.readResource(uri: "example://greeting")
     }

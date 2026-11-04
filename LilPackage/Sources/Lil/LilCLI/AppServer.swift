@@ -19,6 +19,8 @@ actor AppServer {
   nonisolated let environment: [String: String]
   /// How long it has to start: to initialize, and list its tools and resources, together.
   nonisolated let timeout: Duration
+  /// Where it says it stopped for good: `lil mcp`'s standard error (`LilMCPServer.startApps`).
+  nonisolated let report: @Sendable (String) -> Void
 
   /// What a started server offered.
   struct Listing: Sendable {
@@ -46,11 +48,15 @@ actor AppServer {
   /// Whether starting it again failed, after which its tools answer with an error.
   private var stopped = false
 
-  init(app: String, tool: URL, environment: [String: String], timeout: Duration) {
+  init(
+    app: String, tool: URL, environment: [String: String], timeout: Duration,
+    report: @escaping @Sendable (String) -> Void = LilMCPServer.reportOnStandardError
+  ) {
     self.app = app
     self.tool = tool
     self.environment = environment
     self.timeout = timeout
+    self.report = report
   }
 
   /// Starts it and returns what it offers.
@@ -142,8 +148,7 @@ actor AppServer {
       return connection
     } catch {
       stopped = true
-      FileHandle.standardError.write(
-        Data("lil mcp: lil \(app)'s server stopped, and didn't start again: \(error)\n".utf8))
+      report("lil mcp: lil \(app)'s server stopped, and didn't start again: \(error)")
       return nil
     }
   }

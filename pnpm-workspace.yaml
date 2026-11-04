@@ -49,3 +49,10 @@ allowBuilds:
   # drizzle-kit's bundler. Its binary comes as an optional dependency, so its install script
   # (which only checks for the binary) isn't needed.
   esbuild: false
+# Agent skills that dependencies bundle aren't installed: the repo's skills are its own (AGENTS.md).
+# Deciding keeps pnpm from asking on every install (851-3229).
+permissions:
+  "@tanstack/react-start":
+    skills: false
+  drizzle-kit:
+    skills: false

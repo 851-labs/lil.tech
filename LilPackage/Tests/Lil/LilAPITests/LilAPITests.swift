@@ -49,8 +49,12 @@ struct LilAPITests {
   @Test
   func testDependencyFailsRequests() async {
     @Dependency(\.api) var api
+    // The issue it reports is the known one. The error it throws is expected, not recorded, since
+    // a known issue's description (the whole request, with its generic types) fills pages.
     await withKnownIssue {
-      _ = try await api.status()
+      await #expect(throws: (any Error).self) {
+        _ = try await api.status()
+      }
     }
   }
 
