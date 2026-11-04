@@ -6,11 +6,34 @@
 
   extension PhoneSnapshotTests {
     /// Shows `view` in the host app's window with accessibility on, as VoiceOver turns it on, and
-    /// reads its accessibility elements with `read`, from its hosting view, after `change` (if
-    /// any) has had it lay out again.
+    /// reads its accessibility elements with `read`, from its hosting view.
     func withAccessibility<Result>(
-      of view: some View, after change: (() -> Void)? = nil,
+      of view: some View, _ read: @MainActor (UIView) throws -> Result
+    ) throws -> Result {
+      try hosting(view) { try read($0) }
+    }
+
+    /// Like `withAccessibility(of:_:)`, read again after `change`, once what it reads has
+    /// changed: UIKit's elements follow the view a moment after it changes.
+    func withAccessibility<Result: Equatable>(
+      of view: some View, after change: () -> Void,
       _ read: @MainActor (UIView) throws -> Result
+    ) throws -> Result {
+      try hosting(view) { root in
+        let before = try read(root)
+        change()
+        let deadline = Date().addingTimeInterval(2)
+        var after = try read(root)
+        while after == before, Date() < deadline {
+          RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+          after = try read(root)
+        }
+        return after
+      }
+    }
+
+    private func hosting<Result>(
+      _ view: some View, _ body: @MainActor (UIView) throws -> Result
     ) throws -> Result {
       let window = try #require(hostWindow())
       // SwiftUI makes its elements only while accessibility is on, as VoiceOver turns it on.
@@ -27,12 +50,7 @@
       }
       controller.view.layoutIfNeeded()
       RunLoop.main.run(until: Date().addingTimeInterval(0.5))
-      if let change {
-        change()
-        controller.view.layoutIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
-      }
-      return try read(try #require(controller.view))
+      return try body(try #require(controller.view))
     }
   }
 

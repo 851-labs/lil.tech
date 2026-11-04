@@ -1,5 +1,4 @@
 #if os(macOS)
-  import Accessibility
   import AppKit
   import SwiftUI
   import Testing

@@ -23,7 +23,7 @@
     }
 
     /// Loaded while the spinner is in its minimum time, the content is hidden, from VoiceOver too,
-    /// until the spinner goes (851-3086).
+    /// until the spinner goes (851-3086), AppKit's views included: its opacity hides them.
     @Test func delayedProgressHidesContentWhileSpinnerStays() {
       let loader = Loader()
       let tree = withDependencies {
@@ -36,6 +36,10 @@
         }
       }
       #expect(tree.map(\.role) == ["AXGroup", "AXBusyIndicator"], "\(tree)")
+      // What it hid: the content, laid out.
+      let content = accessibilityTree(of: LoadedContent(), title: "content")
+      #expect(content.contains { $0.role == "AXOutline" }, "\(content)")
+      #expect(content.contains { $0.description == #"AXButton "AppKit Button""# }, "\(content)")
     }
 
     /// Pages whose views hide elements from VoiceOver inside `delayedProgress`: each state reads
@@ -110,9 +114,35 @@
     let loader: Loader
 
     var body: some View {
-      Text("Loaded")
-        .frame(width: 300, height: 100)
+      LoadedContent()
         .delayedProgress(isLoading: loader.isLoading)
     }
+  }
+
+  /// A window's content, as the app's session check holds it (`AppView`): a split view with a
+  /// sidebar list (AppKit's outline), and an AppKit view of its own, as a workout's map is.
+  private struct LoadedContent: View {
+    var body: some View {
+      NavigationSplitView {
+        List {
+          Text("Summary")
+          Text("Browse")
+        }
+      } detail: {
+        VStack {
+          Text("Loaded")
+          AppKitButton()
+        }
+      }
+      .frame(width: 500, height: 300)
+    }
+  }
+
+  private struct AppKitButton: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSButton {
+      NSButton(title: "AppKit Button", target: nil, action: nil)
+    }
+
+    func updateNSView(_ button: NSButton, context: Context) {}
   }
 #endif

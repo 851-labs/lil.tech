@@ -22,9 +22,13 @@
       let object = element as AnyObject
       role = object.accessibilityRole?()?.rawValue ?? ""
       label = object.accessibilityLabel?() ?? ""
+      // By selector, as its role and label are, which `as? NSAccessibilityProtocol` can't (and
+      // `accessibilityValue?()` is ambiguous): never by key, which raises where it's missing.
+      let getValue = NSSelectorFromString("accessibilityValue")
       value =
         role == NSAccessibility.Role.staticText.rawValue
-        ? object.value(forKey: "accessibilityValue") as? String ?? "" : ""
+          && (element as? NSObject)?.responds(to: getValue) == true
+        ? (element as? NSObject)?.perform(getValue)?.takeUnretainedValue() as? String ?? "" : ""
       frame = object.accessibilityFrame?() ?? .zero
       hasChartDescriptor = (element as? any AXChart)?.accessibilityChartDescriptor != nil
       children = ((object.accessibilityChildren?()).flatMap { $0 } ?? []).map(
@@ -66,8 +70,8 @@
     }
   }
 
-  /// Every element of a view's accessibility tree, in a window as a snapshot's, read after
-  /// `change` (if any) has had the window lay out again.
+  /// Every element of a view's accessibility tree, in a window as a snapshot's, read once it has
+  /// some, or once it has changed after `change` (if any).
   @MainActor
   func accessibilityTree(
     of view: some View, title: String, after change: (() -> Void)? = nil
@@ -86,18 +90,21 @@
       of: view, appearance: .aqua, title: title, redrawsToolbarImages: false)
     defer { window.close() }
     guard let content = window.contentView else { return [] }
-    if let change {
-      change()
-      content.layoutSubtreeIfNeeded()
-      RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    // SwiftUI makes them a moment after it's asked for them the first time, and updates them a
+    // moment after the view changes.
+    func read(until isReady: ([AccessibilityNode]) -> Bool) -> [AccessibilityNode] {
+      let deadline = Date().addingTimeInterval(2)
+      var tree = AccessibilityNode(content).all
+      while !isReady(tree), Date() < deadline {
+        RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        tree = AccessibilityNode(content).all
+      }
+      return tree
     }
-    // The first time, SwiftUI makes them a moment after it's asked for them.
-    let deadline = Date().addingTimeInterval(2)
-    var tree = AccessibilityNode(content).all
-    while tree.count <= 1, Date() < deadline {
-      RunLoop.main.run(until: Date().addingTimeInterval(0.02))
-      tree = AccessibilityNode(content).all
-    }
-    return tree
+    let tree = read { $0.count > 1 }
+    guard let change else { return tree }
+    let before = tree.map(\.description)
+    change()
+    return read { $0.map(\.description) != before }
   }
 #endif

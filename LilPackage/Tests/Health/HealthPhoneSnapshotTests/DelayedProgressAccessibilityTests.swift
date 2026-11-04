@@ -28,7 +28,15 @@
           accessibilityLabels(under: $0)
         }
       }
-      #expect(!labels.contains("Loaded"), "\(labels)")
+      // Read, beside the spinner: VoiceOver reads the window, not none of it.
+      #expect(labels.contains("Beside"), "\(labels)")
+      for hidden in ["Loaded", "Summary", "UIKit Button"] {
+        #expect(!labels.contains(hidden), "\(labels)")
+      }
+      // What it hid: the content, laid out.
+      let content = try withAccessibility(of: LoadedContent(), accessibilityLabels(under:))
+      #expect(
+        ["Loaded", "Summary", "UIKit Button"].allSatisfy(content.contains), "\(content)")
     }
   }
 
@@ -57,9 +65,36 @@
     let loader: Loader
 
     var body: some View {
-      Text("Loaded")
-        .frame(width: 300, height: 100)
-        .delayedProgress(isLoading: loader.isLoading)
+      VStack {
+        Text("Beside")
+        LoadedContent()
+          .delayedProgress(isLoading: loader.isLoading)
+      }
     }
+  }
+
+  /// A page with a list (UIKit's collection view) and a UIKit view of its own.
+  private struct LoadedContent: View {
+    var body: some View {
+      VStack {
+        Text("Loaded")
+        UIKitButton()
+          .frame(height: 44)
+        List {
+          Text("Summary")
+        }
+        .frame(height: 200)
+      }
+    }
+  }
+
+  private struct UIKitButton: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIButton {
+      let button = UIButton(type: .system)
+      button.setTitle("UIKit Button", for: .normal)
+      return button
+    }
+
+    func updateUIView(_ button: UIButton, context: Context) {}
   }
 #endif
