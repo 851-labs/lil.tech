@@ -345,7 +345,8 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
       WorkersLogsTelemetry,
     ]),
     // Around the rest, so what captures the setup's services, as the API's routes and the store
-    // do, logs as JSON too, not with the isolate's pretty logger (851-4050).
-    Effect.provide(WorkersLogs),
+    // do, logs as JSON too, not with the isolate's pretty logger (851-4050). Only in the Worker:
+    // a deploy runs the setup too, in Alchemy's CLI, which keeps its own logger.
+    Effect.provide(globalThis.__ALCHEMY_RUNTIME__ ? WorkersLogs : Layer.empty),
   ),
 ) {}

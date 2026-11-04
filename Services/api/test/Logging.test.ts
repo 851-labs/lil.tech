@@ -84,13 +84,14 @@ describe("workersLogger", () => {
     }),
   );
 
-  it.effect("keeps redacted values redacted, and annotations can't replace the message", () =>
+  it.effect("keeps redacted values redacted, and annotations can't replace its own fields", () =>
     Effect.gen(function* () {
       const lines = yield* logged(
         Effect.logInfo("Signed in", { token: Redacted.make("secret") }).pipe(
           Effect.annotateLogs({
             message: "replaced",
             level: "error",
+            cause: "not a cause",
             key: Redacted.make("secret"),
           }),
         ),
@@ -98,6 +99,7 @@ describe("workersLogger", () => {
       const entry = lines[0]?.args[0] as Record<string, unknown>;
       assert.strictEqual(entry["message"], "Signed in");
       assert.strictEqual(entry["level"], "info");
+      assert.notProperty(entry, "cause");
       assert.notInclude(JSON.stringify(entry), "secret");
     }),
   );
