@@ -3089,6 +3089,912 @@
         },
         "goal": null
       }
+    },
+    {
+      "now": "2025-04-01T12:00:00Z",
+      "name": "heart rate in Los Angeles on the day the clocks go forward, by the hour: 23 hours, no 02:00",
+      "note": "9 Mar 2025 runs from 08:00Z to 07:00Z on 10 Mar. 01:50 PST (09:50Z) is followed by 03:05 PDT (10:05Z): the hour after 01:00 is 03:00, at 10:00Z. Weights: 00:40 until 01:50 (capped: 3600 s), 01:50 until 03:05 (900 s), 03:05 until 03:15 (600 s), 03:15 until 04:00 (2700 s), 04:00 until 07:00 and 07:00 until 22:57 (capped: 3600 s each), and 22:57's 66, whose next reading (09:30Z on 10 Mar) is more than an hour past the period, for its own duration: 1 s.",
+      "timeZone": "America/Los_Angeles",
+      "firstWeekday": "sunday",
+      "range": "D",
+      "date": "2025-03-09",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate"
+          }
+        ],
+        "bucket": "hour",
+        "range": "D",
+        "chart": {
+          "style": "line"
+        }
+      },
+      "expected": {
+        "range": "D",
+        "start": "2025-03-09",
+        "end": "2025-03-09",
+        "timeZone": "America/Los_Angeles",
+        "firstWeekday": "sunday",
+        "bucket": "hour",
+        "grain": "hour",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-03-09T00:00:00-08:00",
+                "value": 55.0,
+                "minimum": 55,
+                "maximum": 55,
+                "readings": 1
+              },
+              {
+                "start": "2025-03-09T01:00:00-08:00",
+                "value": 52.0,
+                "minimum": 52,
+                "maximum": 52,
+                "readings": 1
+              },
+              {
+                "start": "2025-03-09T03:00:00-07:00",
+                "value": 60.81818181818182,
+                "minimum": 51,
+                "maximum": 63,
+                "readings": 2
+              },
+              {
+                "start": "2025-03-09T04:00:00-07:00",
+                "value": 49.0,
+                "minimum": 49,
+                "maximum": 49,
+                "readings": 1
+              },
+              {
+                "start": "2025-03-09T07:00:00-07:00",
+                "value": 68.0,
+                "minimum": 68,
+                "maximum": 68,
+                "readings": 1
+              },
+              {
+                "start": "2025-03-09T22:00:00-07:00",
+                "value": 66.0,
+                "minimum": 66,
+                "maximum": 66,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 57.780547963469104,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-04-01T12:00:00Z",
+      "name": "heart rate from 01:30 to 03:30 on the day the clocks go forward: an hour long, since 02:00 to 03:00 doesn't exist",
+      "note": "The stretch is 01:30 PST (09:30Z) to 03:30 PDT (10:30Z). 01:50's 52 counts until 03:05 (900 s), 03:05's 51 until 03:15 (600 s) and 03:15's 63 until the stretch's end (900 s). 04:00 is outside.",
+      "timeZone": "America/Los_Angeles",
+      "firstWeekday": "sunday",
+      "range": "D",
+      "date": "2025-03-09",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Small Hours"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "01:30",
+              "to": "03:30"
+            }
+          }
+        ],
+        "range": "D",
+        "chart": {
+          "style": "line"
+        }
+      },
+      "expected": {
+        "range": "D",
+        "start": "2025-03-09",
+        "end": "2025-03-09",
+        "timeZone": "America/Los_Angeles",
+        "firstWeekday": "sunday",
+        "bucket": "auto",
+        "grain": "hour",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-03-09T01:00:00-08:00",
+                "value": 52.0,
+                "minimum": 52,
+                "maximum": 52,
+                "readings": 1
+              },
+              {
+                "start": "2025-03-09T03:00:00-07:00",
+                "value": 58.2,
+                "minimum": 51,
+                "maximum": 63,
+                "readings": 2
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 55.875,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-04-01T12:00:00Z",
+      "name": "heart rate asleep and in the 5 minutes before sleep, per night, over the week the clocks go forward",
+      "note": "Weeks from Sunday: 9 to 15 Mar 2025. 9 Mar's night starts at 23:30 PST on the 8th, the evening before the period, and is asleep across the skipped hour, but for 03:10 to 03:20 PDT awake: its stretches are 07:30Z to 10:10Z and 10:20Z to 13:30Z. 00:40's 55 counts until 01:50 (capped: 3600 s), 01:50's 52 until 03:05 PDT (900 s), 03:05's 51 until its stretch ends at 03:10 (300 s), 04:00's 49 until its stretch's end (capped: 3600 s); 03:15's 63 is awake. 10 Mar's night (23:00 to 07:00 PDT) has 02:30's 50. Before sleep: 23:27 PST's 67 and 22:57 PDT's 66, each until sleep starts (180 s). 8 Mar's and 16 Mar's nights are outside the week. The header is the lead's.",
+      "timeZone": "America/Los_Angeles",
+      "firstWeekday": "sunday",
+      "range": "W",
+      "date": "2025-03-12",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Night Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "asleep"
+            },
+            "label": "Asleep"
+          },
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "beforeSleep",
+              "minutes": 5
+            },
+            "label": "Before sleep"
+          }
+        ],
+        "bucket": "night",
+        "chart": {
+          "style": "line"
+        }
+      },
+      "expected": {
+        "range": "W",
+        "start": "2025-03-09",
+        "end": "2025-03-15",
+        "timeZone": "America/Los_Angeles",
+        "firstWeekday": "sunday",
+        "bucket": "night",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Asleep",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-03-09T00:00:00-08:00",
+                "value": 51.964285714285715,
+                "minimum": 49,
+                "maximum": 55,
+                "readings": 4
+              },
+              {
+                "start": "2025-03-10T00:00:00-07:00",
+                "value": 50.0,
+                "minimum": 50,
+                "maximum": 50,
+                "readings": 1
+              }
+            ]
+          },
+          {
+            "id": "b",
+            "label": "Before sleep",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-03-09T00:00:00-08:00",
+                "value": 67.0,
+                "minimum": 67,
+                "maximum": 67,
+                "readings": 1
+              },
+              {
+                "start": "2025-03-10T00:00:00-07:00",
+                "value": 66.0,
+                "minimum": 66,
+                "maximum": 66,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 51.375,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-04-01T12:00:00Z",
+      "name": "the first weigh-in before noon by the day over the month the clocks go forward",
+      "note": "19:30Z is 11:30 PST on 8 Mar 2025, but 12:30 PDT on the 9th, so the 9th has none. 10 Mar's first is 08:00 PDT (70.3), before 11:45's 70.5. Days start at -08:00 until the 9th and at -07:00 from the 10th. The header is the average of the days' firsts.",
+      "timeZone": "America/Los_Angeles",
+      "firstWeekday": "sunday",
+      "range": "M",
+      "date": "2025-03-09",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Morning Weight"
+        },
+        "series": [
+          {
+            "type": "BodyMass",
+            "aggregation": "first",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "00:00",
+              "to": "12:00"
+            }
+          }
+        ],
+        "bucket": "day",
+        "range": "M",
+        "chart": {
+          "style": "dots"
+        }
+      },
+      "expected": {
+        "range": "M",
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "timeZone": "America/Los_Angeles",
+        "firstWeekday": "sunday",
+        "bucket": "day",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Weight",
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "aggregation": "first",
+            "unit": "kg",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-03-08T00:00:00-08:00",
+                "value": 70.6,
+                "minimum": 70.6,
+                "maximum": 70.6,
+                "readings": 1
+              },
+              {
+                "start": "2025-03-10T00:00:00-07:00",
+                "value": 70.3,
+                "minimum": 70.3,
+                "maximum": 70.5,
+                "readings": 2
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 70.44999999999999,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-04-01T12:00:00Z",
+      "name": "sleeping heart rate by the week over the month the clocks go forward, weeks from Sunday",
+      "note": "8 Mar 2025's night (a Saturday) is in the week of 2 Mar; 9 and 10 Mar's (as in the week's case) in the week of 9 Mar, which starts at midnight PST, before the change; 16 Mar's in the week of 16 Mar, at midnight PDT. Each reading asleep counts until the next in its stretch or the stretch's end, at most an hour.",
+      "timeZone": "America/Los_Angeles",
+      "firstWeekday": "sunday",
+      "range": "M",
+      "date": "2025-03-09",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Sleeping Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "asleep"
+            }
+          }
+        ],
+        "bucket": "week",
+        "range": "M",
+        "chart": {
+          "style": "line"
+        }
+      },
+      "expected": {
+        "range": "M",
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "timeZone": "America/Los_Angeles",
+        "firstWeekday": "sunday",
+        "bucket": "week",
+        "grain": "week",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-03-02T00:00:00-08:00",
+                "value": 53.0,
+                "minimum": 53,
+                "maximum": 53,
+                "readings": 1
+              },
+              {
+                "start": "2025-03-09T00:00:00-08:00",
+                "value": 51.375,
+                "minimum": 49,
+                "maximum": 55,
+                "readings": 5
+              },
+              {
+                "start": "2025-03-16T00:00:00-07:00",
+                "value": 48.0,
+                "minimum": 48,
+                "maximum": 48,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 51.046875,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-12-01T12:00:00Z",
+      "name": "heart rate in Los Angeles on the day the clocks go back, by the hour: 25 hours, 01:00 twice",
+      "note": "2 Nov 2025 runs from 07:00Z to 08:00Z on 3 Nov. 01:00 PDT is 08:00Z and 01:00 PST 09:00Z. Weights: 01:30 PDT until 01:58 (1680 s), 01:58 until 01:01 PST (180 s), 01:01 until 01:30 PST (1740 s), 01:30 PST until 03:10 (capped: 3600 s), 03:10 until 04:00 (3000 s), 04:00 until 06:30 and 06:30 until 22:27 (capped: 3600 s each), and 22:27's 65, whose next reading (09:30Z on 3 Nov) is more than an hour past the period, for its own duration: 1 s.",
+      "timeZone": "America/Los_Angeles",
+      "firstWeekday": "sunday",
+      "range": "D",
+      "date": "2025-11-02",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate"
+          }
+        ],
+        "range": "D",
+        "chart": {
+          "style": "line"
+        }
+      },
+      "expected": {
+        "range": "D",
+        "start": "2025-11-02",
+        "end": "2025-11-02",
+        "timeZone": "America/Los_Angeles",
+        "firstWeekday": "sunday",
+        "bucket": "auto",
+        "grain": "hour",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-11-02T01:00:00-07:00",
+                "value": 60.58064516129032,
+                "minimum": 60,
+                "maximum": 66,
+                "readings": 2
+              },
+              {
+                "start": "2025-11-02T01:00:00-08:00",
+                "value": 57.258426966292134,
+                "minimum": 54,
+                "maximum": 64,
+                "readings": 2
+              },
+              {
+                "start": "2025-11-02T03:00:00-08:00",
+                "value": 62.0,
+                "minimum": 62,
+                "maximum": 62,
+                "readings": 1
+              },
+              {
+                "start": "2025-11-02T04:00:00-08:00",
+                "value": 50.0,
+                "minimum": 50,
+                "maximum": 50,
+                "readings": 1
+              },
+              {
+                "start": "2025-11-02T06:00:00-08:00",
+                "value": 70.0,
+                "minimum": 70,
+                "maximum": 70,
+                "readings": 1
+              },
+              {
+                "start": "2025-11-02T22:00:00-08:00",
+                "value": 65.0,
+                "minimum": 65,
+                "maximum": 65,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 59.56582955002586,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-12-01T12:00:00Z",
+      "name": "heart rate from 01:00 to 02:00 on the day the clocks go back: two hours of readings",
+      "note": "The stretch is 01:00 PDT (08:00Z) to 02:00 PST (10:00Z), both 01:00s. Each reading counts until the next (1680, 180 and 1740 s), and 01:30 PST's 54 until the stretch's end (1800 s), not an hour as without a window.",
+      "timeZone": "America/Los_Angeles",
+      "firstWeekday": "sunday",
+      "range": "D",
+      "date": "2025-11-02",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Small Hours"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "01:00",
+              "to": "02:00"
+            }
+          }
+        ],
+        "range": "D",
+        "chart": {
+          "style": "line"
+        }
+      },
+      "expected": {
+        "range": "D",
+        "start": "2025-11-02",
+        "end": "2025-11-02",
+        "timeZone": "America/Los_Angeles",
+        "firstWeekday": "sunday",
+        "bucket": "auto",
+        "grain": "hour",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-11-02T01:00:00-07:00",
+                "value": 60.58064516129032,
+                "minimum": 60,
+                "maximum": 66,
+                "readings": 2
+              },
+              {
+                "start": "2025-11-02T01:00:00-08:00",
+                "value": 58.91525423728814,
+                "minimum": 54,
+                "maximum": 64,
+                "readings": 2
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 59.48888888888889,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-12-01T12:00:00Z",
+      "name": "sleeping heart rate per night over the week the clocks go back",
+      "note": "Weeks from Sunday: 2 to 8 Nov 2025. 2 Nov's night: in bed awake from 00:30 PDT, asleep from 01:02 PST (09:02Z) to 03:00 and from 03:20 to 06:00 PST. 01:30 PDT's 60 is awake in bed, though 01:30 PST's 54 is asleep; 03:10's 62 is awake. 54 and 04:00's 50 each count until their stretch's end (capped: 3600 s). 3 Nov's night (22:30 to 06:30 PST) has 01:30's 51. 1 Nov's and 9 Nov's nights are outside the week. Drawn as ranges, the header is the lowest and highest.",
+      "timeZone": "America/Los_Angeles",
+      "firstWeekday": "sunday",
+      "range": "W",
+      "date": "2025-11-05",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Sleeping Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "asleep"
+            }
+          }
+        ],
+        "bucket": "night"
+      },
+      "expected": {
+        "range": "W",
+        "start": "2025-11-02",
+        "end": "2025-11-08",
+        "timeZone": "America/Los_Angeles",
+        "firstWeekday": "sunday",
+        "bucket": "night",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-11-02T00:00:00-07:00",
+                "value": 52.0,
+                "minimum": 50,
+                "maximum": 54,
+                "readings": 2
+              },
+              {
+                "start": "2025-11-03T00:00:00-08:00",
+                "value": 51.0,
+                "minimum": 51,
+                "maximum": 51,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "range",
+          "value": null,
+          "minimum": 50,
+          "maximum": 54
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-12-01T12:00:00Z",
+      "name": "heart rate in the 5 minutes before falling asleep, per night, over the week the clocks go back: 01:57 PDT to 01:02 PST",
+      "note": "2 Nov 2025's sleep starts at 01:02 PST (09:02Z), not when the Watch's in-bed awake record starts. Its 5 minutes are elapsed time, 08:57Z to 09:02Z, across the change: 01:58 PDT's 66 counts until 01:01 PST (180 s), and 64 until sleep starts (60 s). 01:30 PDT's 60 is before them. 3 Nov's sleep starts at 22:30 PST on the 2nd: 22:27's 65 counts 180 s.",
+      "timeZone": "America/Los_Angeles",
+      "firstWeekday": "sunday",
+      "range": "W",
+      "date": "2025-11-02",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Before Sleep"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "beforeSleep",
+              "minutes": 5
+            }
+          }
+        ],
+        "bucket": "night",
+        "chart": {
+          "style": "dots"
+        }
+      },
+      "expected": {
+        "range": "W",
+        "start": "2025-11-02",
+        "end": "2025-11-08",
+        "timeZone": "America/Los_Angeles",
+        "firstWeekday": "sunday",
+        "bucket": "night",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-11-02T00:00:00-07:00",
+                "value": 65.5,
+                "minimum": 64,
+                "maximum": 66,
+                "readings": 2
+              },
+              {
+                "start": "2025-11-03T00:00:00-08:00",
+                "value": 65.0,
+                "minimum": 65,
+                "maximum": 65,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 65.28571428571429,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-12-01T12:00:00Z",
+      "name": "sleeping heart rate by the week over the month the clocks go back, weeks from Sunday",
+      "note": "1 Nov 2025's night (a Saturday, 23:00 to 07:00 PDT) is in the week of 26 Oct, which starts before the period: it counts, its day being in it. 2 and 3 Nov's nights (as in the week's case) are in the week of 2 Nov, which starts at midnight PDT, before the change; 9 Nov's in the week of 9 Nov, at midnight PST. Each reading counts until its stretch's end, at most an hour.",
+      "timeZone": "America/Los_Angeles",
+      "firstWeekday": "sunday",
+      "range": "M",
+      "date": "2025-11-02",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Sleeping Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "asleep"
+            }
+          }
+        ],
+        "bucket": "week",
+        "range": "M",
+        "chart": {
+          "style": "line"
+        }
+      },
+      "expected": {
+        "range": "M",
+        "start": "2025-11-01",
+        "end": "2025-11-30",
+        "timeZone": "America/Los_Angeles",
+        "firstWeekday": "sunday",
+        "bucket": "week",
+        "grain": "week",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-10-26T00:00:00-07:00",
+                "value": 52.0,
+                "minimum": 52,
+                "maximum": 52,
+                "readings": 1
+              },
+              {
+                "start": "2025-11-02T00:00:00-07:00",
+                "value": 51.666666666666664,
+                "minimum": 50,
+                "maximum": 54,
+                "readings": 3
+              },
+              {
+                "start": "2025-11-09T00:00:00-08:00",
+                "value": 49.0,
+                "minimum": 49,
+                "maximum": 49,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 51.2,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-12-01T12:00:00Z",
+      "name": "morning weight over the week the clocks go back: the first weigh-in before noon each day, and its 7-day rolling average",
+      "note": "19:30Z is 12:30 PDT on 1 Nov 2025, but 11:30 PST on the 2nd, so the 2nd's counts and the 1st has none. 3 Nov's first is 07:30 PST (70.1), before 08:00's 70.3; 5 Nov's 12:30 PST is after noon. The average reaches back before the period, to 31 Oct's 07:30 PDT (70.5): the 2nd's is 31 Oct's and the 2nd's, the 3rd's those and the 3rd's. The header is the average of the days' firsts.",
+      "timeZone": "America/Los_Angeles",
+      "firstWeekday": "sunday",
+      "range": "W",
+      "date": "2025-11-04",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Morning Weight"
+        },
+        "series": [
+          {
+            "type": "Weight",
+            "aggregation": "first",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "00:00",
+              "to": "12:00"
+            },
+            "label": "First weigh-in before noon"
+          }
+        ],
+        "formulas": [
+          {
+            "id": "trend",
+            "kind": "movingAverage",
+            "of": "a",
+            "points": 7,
+            "label": "7-day rolling average"
+          }
+        ],
+        "chart": {
+          "style": "dots"
+        }
+      },
+      "expected": {
+        "range": "W",
+        "start": "2025-11-02",
+        "end": "2025-11-08",
+        "timeZone": "America/Los_Angeles",
+        "firstWeekday": "sunday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "First weigh-in before noon",
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "aggregation": "first",
+            "unit": "kg",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-11-02T00:00:00-07:00",
+                "value": 70.4,
+                "minimum": 70.4,
+                "maximum": 70.4,
+                "readings": 1
+              },
+              {
+                "start": "2025-11-03T00:00:00-08:00",
+                "value": 70.1,
+                "minimum": 70.1,
+                "maximum": 70.3,
+                "readings": 2
+              }
+            ]
+          }
+        ],
+        "formulas": [
+          {
+            "id": "trend",
+            "kind": "movingAverage",
+            "label": "7-day rolling average",
+            "unit": "kg",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-11-02T00:00:00-07:00",
+                "value": 70.45
+              },
+              {
+                "start": "2025-11-03T00:00:00-08:00",
+                "value": 70.33333333333333
+              }
+            ]
+          }
+        ],
+        "summary": {
+          "kind": "average",
+          "value": 70.25,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
     }
   ]
 }
