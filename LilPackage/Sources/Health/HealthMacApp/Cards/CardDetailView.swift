@@ -77,8 +77,9 @@ struct CardDetailView: View {
 }
 
 /// A card over a chosen period, as Metric Detail charts a type: the bucket's ranges and earlier
-/// periods in the toolbar, opening on the latest period with data (851-3188), and keeping the
-/// period shown while the next loads (851-3084). Follows the local database as sync changes it.
+/// periods in the toolbar, opening on the period of its latest data (851-3188, 851-3987), and
+/// keeping the period shown while the next loads (851-3084). Follows the local database as sync
+/// changes it.
 struct CardChartPage: View {
   let spec: CardSpec
   @State private var range: CardRange
@@ -91,8 +92,10 @@ struct CardChartPage: View {
     self.spec = spec
     let range = spec.range
     _range = State(initialValue: range)
-    // The lead's type's latest data, read before the page first draws, as Metric Detail's.
-    _offset = State(initialValue: spec.leadType.map { range.openingOffset(of: $0) } ?? 0)
+    // Read before the page first draws, as Metric Detail's, so it never shows another period
+    // first and then moves (851-3084).
+    @Dependency(\.defaultDatabase) var database
+    _offset = State(initialValue: (try? database.read { try spec.openingOffset($0) }) ?? 0)
   }
 
   private var request: CardDataRequest {
@@ -115,6 +118,20 @@ struct CardChartPage: View {
       chart,
       isUpdating: $chart.isLoading || chart.range != range || chart.offset != offset
         || chart.spec != spec)
+  }
+}
+
+extension CardSpec {
+  /// The period of its range a card's page and the editor's preview open on, as an offset from
+  /// the current one: its headline's (`HealthDatabase.cardOpeningDate`, 851-3987), so a card with
+  /// a window or filter opens where its Summary row's value is, not on its type's latest data.
+  func openingOffset(_ db: Database) throws -> Int {
+    // The caller's dependencies (a fetch's, which SQLiteData passes on), so snapshot catalogs
+    // fix them.
+    @Dependency(\.date.now) var now
+    @Dependency(\.calendar) var calendar
+    let latest = try HealthDatabase.cardOpeningDate(self, now: now, calendar: calendar, db)
+    return range.openingOffset(latest: latest, now: now, calendar: calendar)
   }
 }
 

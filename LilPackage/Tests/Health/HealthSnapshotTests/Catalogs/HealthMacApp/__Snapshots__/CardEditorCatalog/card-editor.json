@@ -46,6 +46,13 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardEditorCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.editing-heart-rate-before-sleep-none-this-week-dark.png",
+      "id" : "card-editor.editing-heart-rate-before-sleep-none-this-week",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.editing-heart-rate-before-sleep-none-this-week-light.png",
+      "name" : "Editing heart rate before sleep, none this week",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardEditorCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.another-symbol-and-color-dark.png",
       "id" : "card-editor.another-symbol-and-color",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardEditorCatalog/card-editor.another-symbol-and-color-light.png",

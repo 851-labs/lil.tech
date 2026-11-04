@@ -274,6 +274,44 @@ struct CardQueriesTests {
     #expect(headline?.date == date(10, 21))
   }
 
+  /// A card's page opens on its headline's period (851-3987): for heart rate before sleep, the
+  /// month of its latest night, not of heart rate's latest reading, which has no night in it. A
+  /// card without a window opens on its type's latest data, as Metric Detail does.
+  @Test
+  func aWindowedCardOpensOnItsHeadlinesPeriod() throws {
+    try database.write { db in
+      try HealthSample.insert {
+        night(21)
+        for minute in -65..<(-60) {
+          sample(heartRate, date(10, 21).addingTimeInterval(Double(minute) * 60), 60)
+        }
+        // November's readings, with no sleep.
+        sample(heartRate, date(11, 2, 9), 70)
+        sample(heartRate, date(11, 3, 9), 72)
+      }
+      .execute(db)
+    }
+    func opening(_ series: String, bucket: String = "night") throws -> Date? {
+      let card = try spec(
+        #"{"version": 1, "display": {"name": "Card"}, "series": [\#(series)], "bucket": "\#(bucket)", "range": "M"}"#
+      )
+      return try database.read { db in
+        try HealthDatabase.cardOpeningDate(card, now: date(11, 3, 12), calendar: calendar, db)
+      }
+    }
+    #expect(
+      try opening(#"{"type": "Heart Rate", "window": {"kind": "beforeSleep", "minutes": 5}}"#)
+        == date(10, 21))
+    #expect(try opening(#"{"type": "Heart Rate"}"#, bucket: "auto") == date(11, 3, 9))
+    #expect(
+      try opening(#"{"type": "Heart Rate", "aggregation": "max"}"#, bucket: "day")
+        == date(11, 3, 9))
+    // No Data opens the current period.
+    #expect(
+      try opening(#"{"type": "Heart Rate", "window": {"kind": "afterWaking", "minutes": 5}}"#)
+        == nil)
+  }
+
   /// Readings during workouts of the activities given, from the database's workouts.
   @Test
   func workoutWindows() throws {

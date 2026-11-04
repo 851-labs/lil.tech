@@ -291,20 +291,11 @@ struct CardPreviewContent: View {
   }
 }
 
-/// A card at its range, on the latest period with its lead's data, as its page opens.
+/// A card at its range, on the period its page opens on (`CardSpec.openingOffset`).
 struct CardPreviewRequest: FetchKeyRequest {
   let spec: CardSpec
 
   func fetch(_ db: Database) throws -> CardPeriod? {
-    // The dependencies where the fetch started (SQLiteData passes them on), so snapshot
-    // catalogs fix them.
-    @Dependency(\.date.now) var now
-    @Dependency(\.calendar) var calendar
-    let range = spec.range
-    let latest = try spec.leadType.flatMap {
-      try HealthDatabase.latestPeriodDate(of: $0, by: now, calendar: calendar, db)
-    }
-    let offset = range.openingOffset(latest: latest, now: now, calendar: calendar)
-    return try CardDataRequest(spec: spec, range: range, offset: offset).fetch(db)
+    try CardDataRequest(spec: spec, range: spec.range, offset: spec.openingOffset(db)).fetch(db)
   }
 }

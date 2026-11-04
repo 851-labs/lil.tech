@@ -108,6 +108,26 @@ extension HealthDatabase {
     }
   }
 
+  /// When the period a card's page and the editor's preview open on is from (851-3188,
+  /// 851-3987): its headline's date, as its Summary row and the iPhone's page find it, so the
+  /// three agree. `nil` for No Data: the current period. Without a window, filter or formula
+  /// that's the lead type's latest data (`latestPeriodDate`, the period the headline's run ends
+  /// on), one seek of an index, cheap enough for a page to read before it first draws. With one,
+  /// the lead type's latest data may have none of the card's readings, so it's the headline's
+  /// search.
+  public static func cardOpeningDate(
+    _ spec: CardSpec, now: Date, calendar: Calendar, _ db: Database
+  ) throws -> Date? {
+    switch spec.headlineLookup {
+    case nil:
+      return nil
+    case .latestReading(let type), .latestData(let type):
+      return try latestPeriodDate(of: type, by: now, calendar: calendar, db)
+    case .search:
+      return try cardHeadline(spec, now: now, calendar: calendar, db)?.date
+    }
+  }
+
   /// A type's readings starting in `range` (Unix milliseconds), oldest first, that match
   /// `filter`: a range of the (type, startDate) index. A covering index would save SQLite about
   /// 40% of its part, but would copy every sample's type and source again (851-3195).

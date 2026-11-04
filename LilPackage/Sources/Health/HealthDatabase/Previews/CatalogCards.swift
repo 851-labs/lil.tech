@@ -33,12 +33,21 @@ public let exampleCards: [Card] = [
 /// The catalog database, and a heart rate reading 3 minutes before each night's sleep, which
 /// its readings every 30 minutes never are (it's asleep from 23:00): for the example of heart
 /// rate before falling asleep. Its own, so no other catalog's images change.
-public let exampleCardsDatabase: any DatabaseWriter = {
+public let exampleCardsDatabase = makeExampleCardsDatabase()
+
+/// `exampleCardsDatabase` with no reading before falling asleep this week: the latest is the
+/// night of Saturday, Aug 10, while heart rate goes on every 30 minutes to today. For a card with
+/// a window whose type's latest data has none of its readings (851-3987).
+public let lapsedBeforeSleepDatabase = makeExampleCardsDatabase(firstNight: 3)
+
+/// The catalog database, with a heart rate reading 3 minutes before the sleep of each night
+/// `firstNight` to 13 nights before `previewNow`'s (0 is last night's, the night of today).
+private func makeExampleCardsDatabase(firstNight: Int = 0) -> any DatabaseWriter {
   let database = makePreviewHealthDatabase(now: previewNow, calendar: previewCalendar)
   let today = previewCalendar.startOfDay(for: previewNow)
   try! database.write { db in
     try HealthSample.insert {
-      (0..<14).map { night in
+      (firstNight..<14).map { night in
         let start = previewCalendar.date(byAdding: .day, value: -night, to: today)!
           .addingTimeInterval(-63 * 60)
         return HealthSample(
@@ -52,4 +61,4 @@ public let exampleCardsDatabase: any DatabaseWriter = {
     .execute(db)
   }
   return database
-}()
+}
