@@ -131,6 +131,7 @@ let package = Package(
       name: "HealthCLI",
       dependencies: [
         "HealthAgentAccess",
+        "HealthCards",
         "HealthCatalog",
         "HealthDatabase",
         "HealthTools",
@@ -161,6 +162,7 @@ let package = Package(
       dependencies: [
         "HealthAgentAccess",
         "HealthCards",
+        "HealthCardStore",
         "HealthCatalog",
         "HealthCLI",
         "HealthConformance",
@@ -371,8 +373,12 @@ let package = Package(
     .target(
       name: "HealthTools",
       dependencies: [
+        // The card tools' reads (851-3216).
+        "HealthCards",
+        "HealthCardStore",
         "HealthCatalog",
         "HealthDatabase",
+        "LilSync",
         .product(name: "SQLiteData", package: "sqlite-data"),
       ],
       path: "Sources/Health/HealthTools"
