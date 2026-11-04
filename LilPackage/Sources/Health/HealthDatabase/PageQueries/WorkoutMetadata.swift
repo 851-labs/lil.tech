@@ -14,16 +14,24 @@ public struct WorkoutMetadata: Equatable, Sendable {
   public var brandName: String?
   /// `HKMetadataKeyElevationAscended`, in meters.
   public var elevationAscended: Double?
+  /// The name of the WorkoutKit plan it was recorded from, unless it's blank: the iPhone keeps
+  /// the plan under its own key (`LilWorkoutPlan`, 851-4030), as `{ kind, name, activityType,
+  /// locationType }`. Custom and swim-bike-run workouts have one.
+  public var planName: String?
 
   public init(
     indoor: Bool? = nil, swimmingLocation: String? = nil, brandName: String? = nil,
-    elevationAscended: Double? = nil
+    elevationAscended: Double? = nil, planName: String? = nil
   ) {
     self.indoor = indoor
     self.swimmingLocation = swimmingLocation
     self.brandName = brandName
     self.elevationAscended = elevationAscended
+    self.planName = planName
   }
+
+  /// Its name: the app's (`brandName`), else its plan's.
+  public var name: String? { brandName ?? planName }
 
   /// From metadata as the iPhone encodes it (`HealthEncoder.json`), or nothing if it isn't an
   /// object.
@@ -40,11 +48,28 @@ public struct WorkoutMetadata: Equatable, Sendable {
       swimmingLocation: Self.number(metadata["HKSwimmingLocationType"]).flatMap {
         $0 == 1 ? "pool" : $0 == 2 ? "openWater" : nil
       },
-      // Blank is only spaces, tabs and line breaks, as on the server.
-      brandName: (metadata["HKWorkoutBrandName"] as? String).flatMap {
-        $0.unicodeScalars.allSatisfy { " \t\n\r".unicodeScalars.contains($0) } ? nil : $0
-      },
-      elevationAscended: Self.meters(metadata["HKElevationAscended"] as? String))
+      brandName: Self.unlessBlank(metadata["HKWorkoutBrandName"]),
+      elevationAscended: Self.meters(metadata["HKElevationAscended"] as? String),
+      planName: Self.unlessBlank((metadata["LilWorkoutPlan"] as? [String: Any])?["name"]))
+  }
+
+  /// A string unless it's blank: only spaces, tabs and line breaks, as on the server.
+  static func unlessBlank(_ value: Any?) -> String? {
+    (value as? String).flatMap {
+      $0.unicodeScalars.allSatisfy { " \t\n\r".unicodeScalars.contains($0) } ? nil : $0
+    }
+  }
+
+  /// Indoors or not, by an `HKWorkoutSessionLocationType` raw value: 2 indoor, 3 outdoor, and
+  /// nil for 1 (unknown) or anything else.
+  static func indoor(locationType: Double?) -> Bool? {
+    locationType == 2 ? true : locationType == 3 ? false : nil
+  }
+
+  /// `pool` or `openWater`, by an `HKWorkoutSwimmingLocationType` raw value: 1 pool, 2 open
+  /// water, and nil for 0 (unknown) or anything else.
+  static func swimmingLocation(_ type: Double?) -> String? {
+    type == 1 ? "pool" : type == 2 ? "openWater" : nil
   }
 
   /// Meters in each length unit HealthKit writes a quantity in (`HKUnit`'s unit strings).
@@ -87,17 +112,35 @@ public struct WorkoutActivityRecord: Equatable, Sendable {
   public var endDate: Double?
   /// Seconds of activity, excluding pauses.
   public var duration: Double
+  /// Its configuration's `HKWorkoutSessionLocationType` raw value (1 unknown, 2 indoor,
+  /// 3 outdoor), from iPhones since 851-4030; nil before.
+  public var locationType: Double?
+  /// Its configuration's `HKWorkoutSwimmingLocationType` raw value (0 unknown, 1 pool, 2 open
+  /// water), from iPhones since 851-4030; nil before.
+  public var swimmingLocationType: Double?
   public var metadata: WorkoutMetadata
 
   public init(
     activityType: Int, startDate: Double, endDate: Double?, duration: Double,
-    metadata: WorkoutMetadata
+    locationType: Double? = nil, swimmingLocationType: Double? = nil, metadata: WorkoutMetadata
   ) {
     self.activityType = activityType
     self.startDate = startDate
     self.endDate = endDate
     self.duration = duration
+    self.locationType = locationType
+    self.swimmingLocationType = swimmingLocationType
     self.metadata = metadata
+  }
+
+  /// Whether it was indoors: as its metadata says, else as its configuration does.
+  public var indoor: Bool? {
+    metadata.indoor ?? WorkoutMetadata.indoor(locationType: locationType)
+  }
+
+  /// `pool` or `openWater`: as its metadata says, else as its configuration does.
+  public var swimmingLocation: String? {
+    metadata.swimmingLocation ?? WorkoutMetadata.swimmingLocation(swimmingLocationType)
   }
 }
 
@@ -130,25 +173,37 @@ extension HealthWorkout {
         guard let value = WorkoutMetadata.number(value) else { return [] }
         endDate = value
       }
+      // Missing or null, or a number.
+      var locations: [Double?] = []
+      for key in ["locationType", "swimmingLocationType"] {
+        switch object[key] {
+        case nil, is NSNull: locations.append(nil)
+        case let value:
+          guard let value = WorkoutMetadata.number(value) else { return [] }
+          locations.append(value)
+        }
+      }
       let metadata = object["metadata"]
       if let metadata, !(metadata is NSNull), !(metadata is [String: Any]) { return [] }
       records.append(
         WorkoutActivityRecord(
           activityType: Int(activityType), startDate: startDate, endDate: endDate,
-          duration: duration, metadata: WorkoutMetadata(metadata)))
+          duration: duration, locationType: locations[0], swimmingLocationType: locations[1],
+          metadata: WorkoutMetadata(metadata)))
     }
     return records
   }
 
   /// Where it was, indoors or not, and in a pool or open water: as its `metadata` says or, if it
-  /// doesn't, as its `activities` say, if they agree. A workout of one activity may only say on
-  /// its activity, and a multisport workout's transitions don't say.
+  /// doesn't, as its `activities` say (their metadata, else their configurations), if they
+  /// agree. A workout of one activity may only say on its activity, and a multisport workout's
+  /// transitions don't say.
   public static func location(metadata: WorkoutMetadata, activities: [WorkoutActivityRecord])
     -> (indoor: Bool?, swimmingLocation: String?)
   {
     (
-      metadata.indoor ?? agreed(activities.map(\.metadata.indoor)),
-      metadata.swimmingLocation ?? agreed(activities.map(\.metadata.swimmingLocation))
+      metadata.indoor ?? agreed(activities.map(\.indoor)),
+      metadata.swimmingLocation ?? agreed(activities.map(\.swimmingLocation))
     )
   }
 

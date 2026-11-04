@@ -13,6 +13,7 @@ import Testing
 private let temperature = HealthBackfillType(id: "HKQuantityTypeIdentifierBodyTemperature")
 private let sleep = HealthBackfillType(id: "HKCategoryTypeIdentifierSleepAnalysis")
 private let heartRate = HealthBackfillType(id: "HKQuantityTypeIdentifierHeartRate")
+private let workouts = HealthBackfillType(id: "HKWorkoutTypeIdentifier")
 
 /// A fake HealthKit: each type's history is `pages` pages of `perPage` records. Anchors are the
 /// number of pages read so far.
@@ -181,6 +182,39 @@ struct HealthBackfillTests {
     try await backfill.run()
     #expect(health.reads.value.count == 5)
     #expect(server.accepted.value.count == 3)
+  }
+
+  @Test
+  func workoutsReadWithAnOlderEncodingAreReadAgainOnce() async throws {
+    let health = FakeHealth(pages: [workouts.id: 2, temperature.id: 1])
+    let server = FakeServer()
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = makeBackfill(
+      [workouts, temperature], health: health, server: server, storage: storage)
+    // A new backfill reads them once, with the encoding it has.
+    try await backfill.run()
+    // The fake names a type by what follows "Identifier", which is nothing for workouts.
+    #expect(health.reads.value == ["@0", "@1", "BodyTemperature@0"])
+    #expect(try storage.loadState()?.workoutEncoding == HealthEncoder.workoutEncoding)
+
+    // Workouts an earlier release read (one with no `workoutEncoding`) are read from the
+    // start, and only they.
+    var state = try #require(try storage.loadState())
+    state.workoutEncoding = 0
+    try storage.saveState(state)
+    health.reads.setValue([])
+    try await backfill.run()
+    #expect(health.reads.value == ["@0", "@1", "BodyTemperature@1"])
+    let after = try #require(try storage.loadState())
+    #expect(after.workoutEncoding == HealthEncoder.workoutEncoding)
+    #expect(after.finished == [workouts.id, temperature.id])
+    #expect(after.uploadedByType[workouts.id] == 6)
+    #expect(after.uploadedRecords == 9)
+
+    // Once.
+    health.reads.setValue([])
+    try await backfill.run()
+    #expect(health.reads.value == ["@2", "BodyTemperature@1"])
   }
 
   @Test

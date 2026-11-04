@@ -42,10 +42,15 @@ const WorkoutActivities = Schema.fromJsonString(
       startDate: Schema.Finite,
       endDate: Schema.NullOr(Schema.Finite),
       duration: Schema.Finite,
+      /** Its configuration's `HKWorkoutSessionLocationType`, from iPhones since 851-4030. */
+      locationType: Schema.optionalKey(Schema.NullOr(Schema.Finite)),
+      /** Its configuration's `HKWorkoutSwimmingLocationType`, from iPhones since 851-4030. */
+      swimmingLocationType: Schema.optionalKey(Schema.NullOr(Schema.Finite)),
       metadata: Schema.optionalKey(Schema.NullOr(Metadata)),
     }),
   ),
 );
+type WorkoutActivity = (typeof WorkoutActivities)["Type"][number];
 const decodeActivities = Schema.decodeUnknownOption(WorkoutActivities);
 
 /** `HKMetadataKeyIndoorWorkout`: a Boolean, or 0 or 1 from apps that write it as a number. */
@@ -61,13 +66,41 @@ const swimmingLocation = (metadata: Metadata | null | undefined): string | null 
   return value === 1 ? "pool" : value === 2 ? "openWater" : null;
 };
 
+/** A string unless it's blank: only spaces, tabs and line breaks, which the Mac counts the same. */
+const unlessBlank = (value: unknown): string | null =>
+  Predicate.isString(value) && !/^[ \t\n\r]*$/.test(value) ? value : null;
+
 /**
- * `HKMetadataKeyWorkoutBrandName`, unless it's blank: only spaces, tabs and line breaks, which
- * the Mac counts the same (`WorkoutMetadata`).
+ * The workout's name: `HKMetadataKeyWorkoutBrandName`, else the name of the WorkoutKit plan it was
+ * recorded from, which the iPhone keeps in its metadata (`LilWorkoutPlan`, 851-4030), unless
+ * they're blank (`WorkoutMetadata` on the Mac).
  */
-const brandName = (metadata: Metadata | null): string | null => {
-  const value = metadata?.["HKWorkoutBrandName"];
-  return Predicate.isString(value) && !/^[ \t\n\r]*$/.test(value) ? value : null;
+const workoutName = (metadata: Metadata | null): string | null => {
+  const plan = metadata?.["LilWorkoutPlan"];
+  return (
+    unlessBlank(metadata?.["HKWorkoutBrandName"]) ??
+    (Predicate.isObject(plan) ? unlessBlank(plan["name"]) : null)
+  );
+};
+
+/**
+ * Whether an activity was indoors: as its metadata says, else as its configuration's
+ * `HKWorkoutSessionLocationType` does (2 indoor, 3 outdoor, 1 unknown).
+ */
+const activityIndoor = (activity: WorkoutActivity): boolean | null => {
+  const type = activity.locationType;
+  return indoor(activity.metadata) ?? (type === 2 ? true : type === 3 ? false : null);
+};
+
+/**
+ * An activity's pool or open water: as its metadata says, else as its configuration's
+ * `HKWorkoutSwimmingLocationType` does (1 pool, 2 open water, 0 unknown).
+ */
+const activitySwimmingLocation = (activity: WorkoutActivity): string | null => {
+  const type = activity.swimmingLocationType;
+  return (
+    swimmingLocation(activity.metadata) ?? (type === 1 ? "pool" : type === 2 ? "openWater" : null)
+  );
 };
 
 /** Meters in each length unit HealthKit writes a quantity in (`HKUnit`'s unit strings). */
@@ -151,14 +184,11 @@ export const healthWorkouts = Effect.fn("healthWorkouts")(function* (
       const sum = (type: string) => statistics[type]?.sum ?? null;
       const metadata = Option.getOrNull(decodeMetadata(workout.metadata));
       const activities = Option.getOrElse(decodeActivities(workout.activities), () => []);
-      // A workout that doesn't say is where its activities say they were, if they agree: a
-      // workout of one activity may only say so on its activity.
-      const activityMetadata = activities.map((activity) => activity.metadata);
       return {
         id: workout.id,
         activityType: workout.activityType,
         activity: workoutActivityName(workout.activityType),
-        name: brandName(metadata),
+        name: workoutName(metadata),
         start: localTime(workout.startDate, zone),
         end: localTime(workout.endDate, zone),
         duration: workout.duration,
@@ -166,8 +196,11 @@ export const healthWorkouts = Effect.fn("healthWorkouts")(function* (
         distance: distanceTypes.map(sum).find((distance) => distance !== null) ?? null,
         averageHeartRate: statistics["HKQuantityTypeIdentifierHeartRate"]?.average ?? null,
         elevationAscended: elevationAscended(metadata),
-        indoor: indoor(metadata) ?? agreed(activityMetadata, indoor),
-        swimmingLocation: swimmingLocation(metadata) ?? agreed(activityMetadata, swimmingLocation),
+        // A workout that doesn't say is where its activities say they were, if they agree: a
+        // workout of one activity may only say so on its activity, or its configuration.
+        indoor: indoor(metadata) ?? agreed(activities, activityIndoor),
+        swimmingLocation:
+          swimmingLocation(metadata) ?? agreed(activities, activitySwimmingLocation),
         hasRoute: withRoutes.has(workout.id),
         source: workout.sourceName,
         activities:
@@ -179,8 +212,8 @@ export const healthWorkouts = Effect.fn("healthWorkouts")(function* (
                 start: localTime(activity.startDate, zone),
                 end: activity.endDate === null ? null : localTime(activity.endDate, zone),
                 duration: activity.duration,
-                indoor: indoor(activity.metadata),
-                swimmingLocation: swimmingLocation(activity.metadata),
+                indoor: activityIndoor(activity),
+                swimmingLocation: activitySwimmingLocation(activity),
               })),
       };
     }),

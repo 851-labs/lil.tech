@@ -52,6 +52,9 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
   /// (`HealthReader.SeriesUnavailable`). Past `HealthBackfill.seriesAttempts`, the type skips
   /// unreadable series.
   public var seriesFailures: [String: Int] = [:]
+  /// The ``HealthEncoder/workoutEncoding`` the workouts uploaded so far were read with; 0 before
+  /// it was kept. Older ones are read again (`HealthBackfill.readWorkoutsAgainIfOlder`).
+  public var workoutEncoding = 0
 
   public init() {}
 
@@ -85,6 +88,7 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
       Date.self, forKey: .activitySummariesUploadedAt)
     seriesFailures =
       try container.decodeIfPresent([String: Int].self, forKey: .seriesFailures) ?? [:]
+    workoutEncoding = try container.decodeIfPresent(Int.self, forKey: .workoutEncoding) ?? 0
   }
 
   /// A page written to batch files. Its anchor is committed once every file is accepted.
@@ -491,6 +495,7 @@ public actor HealthBackfill {
       if let pending = state.pending {
         try await upload(pending, &state)
       }
+      try readWorkoutsAgainIfOlder(&state)
       repeat {
         while syncAllRequested || !requestedTypes.isEmpty {
           let wanted: Set<String>
@@ -906,6 +911,27 @@ public actor HealthBackfill {
       state.uploadedByType[type.id] = nil
       BackfillLog.write("reading \(BackfillLog.name(type.id)) again: medications shared since")
     }
+  }
+
+  /// Forgets how far workouts were read if they were read with an older encoding, so the next
+  /// read of them starts over and every workout goes up again with what's new: their activities'
+  /// locations and their plans (851-4030). Workouts are few (hundreds, a few thousand at most),
+  /// and the server and the Mac take each again as a change. Only after any pending page went up,
+  /// since committing it would move the anchor back.
+  private func readWorkoutsAgainIfOlder(_ state: inout HealthBackfillState) throws {
+    guard state.workoutEncoding < HealthEncoder.workoutEncoding else { return }
+    for type in types
+    where type.entity == HealthEncoder.workoutEntity && state.anchors[type.id] != nil {
+      state.anchors[type.id] = nil
+      state.finished.remove(type.id)
+      state.uploadedRecords = max(
+        0, state.uploadedRecords - state.uploadedByType[type.id, default: 0])
+      state.uploadedByType[type.id] = nil
+      BackfillLog.write("reading \(BackfillLog.name(type.id)) again: read with an older encoding")
+    }
+    state.workoutEncoding = HealthEncoder.workoutEncoding
+    try storage.saveState(state)
+    updateCounts(state)
   }
 
   /// Undoes `readDosesAgain` since `before`, if the medications didn't go up after it.

@@ -6518,11 +6518,11 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutActivityItem/duration`.
             public var duration: Swift.Double
-            /// Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or null if it doesn't say.
+            /// Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout) or, failing that, as it was set up (its workout configuration's location), or null if neither says.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutActivityItem/indoor`.
             public var indoor: Swift.Bool?
-            /// For swims: pool or openWater (HKMetadataKeySwimmingLocationType), or null if it doesn't say.
+            /// For swims: pool or openWater (HKMetadataKeySwimmingLocationType, else its workout configuration's), or null if neither says.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutActivityItem/swimmingLocation`.
             public var swimmingLocation: Swift.String?
@@ -6536,8 +6536,8 @@ extension Components {
             ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
             ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
             ///   - duration: Seconds of activity, excluding pauses.
-            ///   - indoor: Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or null if it doesn't say.
-            ///   - swimmingLocation: For swims: pool or openWater (HKMetadataKeySwimmingLocationType), or null if it doesn't say.
+            ///   - indoor: Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout) or, failing that, as it was set up (its workout configuration's location), or null if neither says.
+            ///   - swimmingLocation: For swims: pool or openWater (HKMetadataKeySwimmingLocationType, else its workout configuration's), or null if neither says.
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 activityType: Swift.Int,
@@ -6654,7 +6654,7 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/activity`.
             public var activity: Swift.String
-            /// The workout's own name, from the app that recorded it (HKMetadataKeyWorkoutBrandName). Apple's Workout app doesn't name workouts, so it's usually null.
+            /// The workout's own name, from the app that recorded it (HKMetadataKeyWorkoutBrandName), else the name of the planned workout it followed (a custom or swim-bike-run workout made in an app with WorkoutKit). Usually null: the Workout app doesn't name its own.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/name`.
             public var name: Swift.String?
@@ -6686,11 +6686,11 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/elevationAscended`.
             public var elevationAscended: Swift.Double?
-            /// Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or as its activities say, if they agree. Null if it doesn't say: then hasRoute is the best hint.
+            /// Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or as its activities say (their metadata, else how each was set up: its workout configuration's location), if they agree. Null if none says: then hasRoute is the best hint.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/indoor`.
             public var indoor: Swift.Bool?
-            /// For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or its activities say, if they agree, or null if they don't say.
+            /// For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or its activities say (their metadata, else their workout configurations), if they agree, or null if none says.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/swimmingLocation`.
             public var swimmingLocation: Swift.String?
@@ -6714,7 +6714,7 @@ extension Components {
             ///   - id: HealthKit's UUID for the workout.
             ///   - activityType: HKWorkoutActivityType's raw value, e.g. 37 for running.
             ///   - activity: The activity's name, e.g. Running.
-            ///   - name: The workout's own name, from the app that recorded it (HKMetadataKeyWorkoutBrandName). Apple's Workout app doesn't name workouts, so it's usually null.
+            ///   - name: The workout's own name, from the app that recorded it (HKMetadataKeyWorkoutBrandName), else the name of the planned workout it followed (a custom or swim-bike-run workout made in an app with WorkoutKit). Usually null: the Workout app doesn't name its own.
             ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
             ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
             ///   - duration: Seconds of activity, excluding pauses.
@@ -6722,8 +6722,8 @@ extension Components {
             ///   - distance: Meters.
             ///   - averageHeartRate: Beats per minute.
             ///   - elevationAscended: Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended).
-            ///   - indoor: Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or as its activities say, if they agree. Null if it doesn't say: then hasRoute is the best hint.
-            ///   - swimmingLocation: For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or its activities say, if they agree, or null if they don't say.
+            ///   - indoor: Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or as its activities say (their metadata, else how each was set up: its workout configuration's location), if they agree. Null if none says: then hasRoute is the best hint.
+            ///   - swimmingLocation: For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or its activities say (their metadata, else their workout configurations), if they agree, or null if none says.
             ///   - hasRoute: Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't.
             ///   - source: The app or device that recorded it.
             ///   - activities: A multisport workout's activities (e.g. swim, transition, bike, run), in order. Empty for a workout of one activity.
