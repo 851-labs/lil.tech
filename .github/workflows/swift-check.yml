@@ -238,3 +238,15 @@ jobs:
           name: iphone-healthkit
           path: LilPackage/.build/healthkit-tests
           retention-days: 7
+
+      # The script deletes its simulator however it ends, unless the run is killed first
+      # (cancelled by a newer push, or past the timeout): then this does, so no booted simulator
+      # stays on the mini.
+      - name: Delete the simulator
+        if: always()
+        run: |
+          file=LilPackage/.build/healthkit-tests/simulator
+          if [ -f "$file" ]; then
+            xcrun simctl shutdown "$(cat "$file")" >/dev/null 2>&1 || true
+            xcrun simctl delete "$(cat "$file")" >/dev/null 2>&1 || true
+          fi

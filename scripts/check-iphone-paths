@@ -1,59 +1,67 @@
 #!/bin/sh
-# Checks that the paths which run the iPhone's snapshot tests on a pull request (`IPHONE` in
-# `.github/actions/changes/action.yml`, 851-3070) cover everything those tests are built from: the
-# package products `PhoneSnapshots.xcodeproj` links, with the package targets they depend on (from
-# `swift package dump-package`), and the files and folders it builds by reference from outside its
-# own folder. One they miss would change the iPhone's images without their tests running before the
-# merge. `scripts/check --swift` runs it.
+# Checks that the paths which run the iPhone's simulator tests on a pull request cover everything
+# those tests are built from: `IPHONE` in `.github/actions/changes/action.yml` the snapshot tests'
+# (`PhoneSnapshots.xcodeproj`, 851-3070), and `HEALTHKIT` the HealthKit tests'
+# (`PhoneHealthKit.xcodeproj`, 851-3201). That's the package products each project links, with the
+# package targets they depend on (from `swift package dump-package`), and the files and folders it
+# builds by reference from outside its own folder. One they miss would change what those tests
+# check without their running before the merge. `scripts/check --swift` runs it.
 set -eu
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 package=$(mktemp)
 trap 'rm -f "$package"' EXIT
 (cd "$root/LilPackage" && swift package dump-package) >"$package"
-python3 -I - "$package" "$root/LilPackage/Tests/Health/PhoneSnapshots/PhoneSnapshots.xcodeproj/project.pbxproj" \
-  "$root/.github/actions/changes/action.yml" <<'EOF'
+python3 -I - "$package" "$root/.github/actions/changes/action.yml" \
+  "IPHONE=$root/LilPackage/Tests/Health/PhoneSnapshots/PhoneSnapshots.xcodeproj/project.pbxproj" \
+  "HEALTHKIT=$root/LilPackage/Tests/Health/PhoneHealthKit/PhoneHealthKit.xcodeproj/project.pbxproj" <<'EOF'
 import json, re, sys
 
-package_path, project_path, action_path = sys.argv[1:]
+package_path, action_path, *checks = sys.argv[1:]
 targets = {target["name"]: target for target in json.load(open(package_path))["targets"]}
-project = open(project_path).read()
 action = open(action_path).read()
 
-pattern = re.search(r"^\s*IPHONE: '(.*)'$", action, re.MULTILINE)
-if not pattern:
-    sys.exit(f"error: no IPHONE paths in {action_path}")
-iphone = re.compile(pattern.group(1).replace("''", "'"))
+failed = False
+for check in checks:
+    name, project_path = check.split("=", 1)
+    project = open(project_path).read()
+    pattern = re.search(rf"^\s*{name}: '(.*)'$", action, re.MULTILINE)
+    if not pattern:
+        sys.exit(f"error: no {name} paths in {action_path}")
+    paths = re.compile(pattern.group(1).replace("''", "'"))
 
-# The products the project links that are the package's own targets (not TCA's or SnapshotTesting's).
-roots = [name for name in re.findall(r"productName = (\w+);", project) if name in targets]
-modules = set()
-def visit(name):
-    if name in modules or name not in targets:
-        return
-    modules.add(name)
-    for dependency in targets[name]["dependencies"]:
-        for kind in ("byName", "target"):
-            if kind in dependency:
-                visit(dependency[kind][0])
-for name in roots:
-    visit(name)
+    # The products the project links that are the package's own targets (not TCA's or
+    # SnapshotTesting's).
+    roots = [module for module in re.findall(r"productName = (\w+);", project) if module in targets]
+    modules = set()
+    def visit(module):
+        if module in modules or module not in targets:
+            return
+        modules.add(module)
+        for dependency in targets[module]["dependencies"]:
+            for kind in ("byName", "target"):
+                if kind in dependency:
+                    visit(dependency[kind][0])
+    for module in roots:
+        visit(module)
 
-missing = []
-for name in sorted(modules):
-    path = targets[name].get("path") or f"Sources/{name}"
-    if not iphone.search(f"LilPackage/{path}/Example.swift"):
-        missing.append(f"LilPackage/{path}/")
-# Paths are from the project's folder, `LilPackage/Tests/Health/PhoneSnapshots`.
-for reference in sorted(set(re.findall(r"path = \.\./([^;\"]+);", project))):
-    path = f"LilPackage/Tests/Health/{reference}"
-    probe = path if reference.endswith(".swift") else f"{path}/Example.swift"
-    if not iphone.search(probe):
-        missing.append(path)
-if missing:
-    print("error: the iPhone's snapshot tests are built from these, which IPHONE in "
-          ".github/actions/changes/action.yml doesn't cover, so a pull request changing them "
-          "wouldn't run those tests:", *missing, sep="\n  ", file=sys.stderr)
-    sys.exit(1)
-print(f"The iPhone's snapshot paths cover its {len(modules)} modules and the files it shares.")
+    missing = []
+    for module in sorted(modules):
+        path = targets[module].get("path") or f"Sources/{module}"
+        if not paths.search(f"LilPackage/{path}/Example.swift"):
+            missing.append(f"LilPackage/{path}/")
+    # Paths are from the project's folder, a sibling of the others in `LilPackage/Tests/Health`.
+    for reference in sorted(set(re.findall(r"path = \.\./([^;\"]+);", project))):
+        path = f"LilPackage/Tests/Health/{reference}"
+        probe = path if reference.endswith(".swift") else f"{path}/Example.swift"
+        if not paths.search(probe):
+            missing.append(path)
+    if missing:
+        print(f"error: {project_path.rsplit('/', 2)[-2]}'s tests are built from these, which {name} "
+              "in .github/actions/changes/action.yml doesn't cover, so a pull request changing them "
+              "wouldn't run those tests:", *missing, sep="\n  ", file=sys.stderr)
+        failed = True
+    else:
+        print(f"The {name} paths cover its {len(modules)} modules and the files it shares.")
+sys.exit(1 if failed else 0)
 EOF

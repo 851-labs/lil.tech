@@ -6,7 +6,9 @@
 # usage: scripts/test-iphone-healthkit [<test>…]
 #
 #   <test>  A suite, or a suite's test, e.g. `HealthKitCardsTests` or
-#           `HealthKitCardsTests/aSampleAcrossMidnightIsShared`. Every test without one.
+#           `HealthKitCardsTests/aSampleAcrossMidnightIsShared`. Every test without one. A test
+#           with parameters takes their labels, as Swift Testing names it:
+#           `HealthKitConformanceTests/conformanceCase(_:)`.
 #
 # - It makes a new iPhone simulator (`LIL_HEALTHKIT_DEVICE_TYPE`, default iPhone 18 Pro, on the
 #   newest iOS installed), boots it while the tests build, and deletes it when it exits, however
@@ -49,6 +51,9 @@ if [ -z "$device" ]; then
   trap 'xcrun simctl shutdown "$device" >/dev/null 2>&1 || true
     xcrun simctl delete "$device" >/dev/null 2>&1 && echo "Deleted the simulator ($device)."' EXIT
   trap 'exit 130' INT TERM
+  # For CI's cleanup step, which deletes it if the run is killed before the trap does
+  # (`swift-check.yml`).
+  echo "$device" >"$output/simulator"
 fi
 
 # While the build runs.
@@ -128,9 +133,7 @@ test() {
 # The conformance source apps: a copy of the host for each of the dataset's sources (samples' and
 # workouts', as `ConformanceSamples` reads them), with the next of `ConformanceSourceApps`' bundle
 # IDs, installed beside it.
-apps=""
-if [ -n "$conformance" ]; then
-  source_count=$(python3 -I - "$root/Services/api/test/health/cards/conformance/dataset.json" <<'EOF'
+source_count=$(python3 -I - "$root/Services/api/test/health/cards/conformance/dataset.json" <<'EOF'
 import json, os, sys
 
 def batches(path):
@@ -141,7 +144,9 @@ def batches(path):
 print(len({line["row"]["sourceBundleId"] for batch in batches(sys.argv[1]) for line in batch["lines"]
            if line["entity"] in ("health_sample", "health_workout") and line["op"] == "upsert"}))
 EOF
-  )
+)
+apps=""
+if [ -n "$conformance" ]; then
   host="$derived/Build/Products/Debug-iphonesimulator/HealthKitTestHost.app"
   host_id=tech.lil.healthkit-test-host
   mkdir -p "$output/sources"
@@ -169,11 +174,14 @@ EOF
   echo "Installed $source_count conformance source apps."
 fi
 
-# sources <write|delete>: has each source app write its part of the dataset, or delete it.
+# sources <write|delete> <bundle ID…>: has each source app write its part of the dataset, or delete
+# it.
 sources() {
-  for id in $apps; do
+  mode=$1
+  shift
+  for id in "$@"; do
     said=$(xcrun simctl launch --console-pty --terminate-running-process "$device" "$id" \
-      "-$1Conformance" 2>&1 | tr -d '\r' | tee -a "$output/sources.log" | grep -E "^(Wrote|Deleted|error:)" || true)
+      "-${mode}Conformance" 2>&1 | tr -d '\r' | tee -a "$output/sources.log" | grep -E "^(Wrote|Deleted|error:)" || true)
     case "$said" in
       Wrote* | Deleted*) ;;
       *)
@@ -188,16 +196,29 @@ sources() {
 export TEST_RUNNER_LIL_HEALTHKIT_SOURCE_APPS="${apps# }"
 test grant -only-testing:HealthKitAuthorizationUITests
 if [ -n "$others" ]; then
-  # A simulator used before may still hold the source apps' samples.
-  sources delete
+  # A simulator used before may still hold the source apps' samples, from a run that stopped before
+  # they deleted them: those still installed, granted then, delete them now.
+  installed=""
+  number=1
+  while [ "$number" -le "$source_count" ]; do
+    id=$(printf 'tech.lil.healthkit-source-%02d' "$number")
+    if xcrun simctl get_app_container "$device" "$id" >/dev/null 2>&1; then
+      installed="$installed $id"
+    fi
+    number=$((number + 1))
+  done
+  # shellcheck disable=SC2086
+  sources delete $installed
   # shellcheck disable=SC2086
   test tests $others
 fi
 if [ -n "$conformance" ]; then
-  sources write
+  # shellcheck disable=SC2086
+  sources write $apps
   echo "The source apps wrote the conformance dataset."
   # shellcheck disable=SC2086
   test conformance $conformance
-  sources delete
+  # shellcheck disable=SC2086
+  sources delete $apps
 fi
 echo "Passed."

@@ -26,7 +26,12 @@ final class GrantHealthAccess: XCTestCase {
     let topics = sheet.navigationBars["Health Access"]
     for attempt in 1...4 {
       app.launch()
-      XCTAssertTrue(status.waitForExistence(timeout: 30))
+      // A slow launch is tried again, like a request that times out.
+      guard status.waitForExistence(timeout: 30) else {
+        app.terminate()
+        if attempt == 4 { XCTFail("\(app.description) never showed its status.") }
+        continue
+      }
       // The host starts idle, then asks: the sheet comes, or the request ends without one.
       var shown = false
       let deadline = Date.now.addingTimeInterval(60)

@@ -56,7 +56,8 @@ public struct ConformanceSamples: Sendable {
   }
 
   public init(_ batches: [ConformanceBatch]) throws {
-    var provenance: [String: Device] = [:]
+    // Each record's device, if it has one.
+    var provenance: [String: Device?] = [:]
     // By entity and ID, in the order they were first written.
     var rows: [String: (order: Int, entity: String, id: String, row: [String: Any])] = [:]
     var sources: Set<String> = []
@@ -73,12 +74,13 @@ public struct ConformanceSamples: Sendable {
         switch op {
         case "delete":
           rows[key] = nil
+          if entity == "health_provenance" { provenance[id] = nil }
         case "upsert":
           guard let row = line["row"] as? [String: Any] else {
             throw ConformanceError("\(entity) \(id) has no row")
           }
           if entity == "health_provenance" {
-            provenance[id] = (row["device"] as? [String: Any]).map(Device.init)
+            provenance[id] = .some((row["device"] as? [String: Any]).map(Device.init))
             continue
           }
           guard let source = row["sourceBundleId"] as? String else {
