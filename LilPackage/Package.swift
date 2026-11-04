@@ -338,6 +338,7 @@ let package = Package(
         "HealthUI",
         "LilAuth",
         "LilSync",
+        "LilTestSupport",
         "LilUI",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),

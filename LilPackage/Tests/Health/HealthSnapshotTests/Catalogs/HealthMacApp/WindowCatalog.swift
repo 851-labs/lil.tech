@@ -4,6 +4,7 @@
   import HealthCatalog
   import HealthDatabase
   import LilAuth
+  import LilTestSupport
   @testable import HealthMacApp
   import LilSync
   import SwiftUI
@@ -27,6 +28,9 @@
     func window(_ state: CatalogState) {
       withDependencies {
         $0.fetchesFirstValueAtOnce = true
+        // Summary's headlines' observation reads it when its task starts (851-3237). Never
+        // advanced: the headlines are read at once, in the view's init.
+        $0.continuousClock = ManualClock()
       } operation: {
         state.assertMacSnapshots()
       }
