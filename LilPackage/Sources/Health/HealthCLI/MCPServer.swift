@@ -1,6 +1,7 @@
 import Foundation
 import GRDB
 import HealthAgentAccess
+import HealthCards
 import HealthCatalog
 import HealthDatabase
 import HealthTools
@@ -14,10 +15,13 @@ import MCP
 /// commands' `--json` does. Like the commands, every call checks access on this Mac
 /// and logs itself first (851-2840): with access off, a call answers with the error that says
 /// where to turn it on. It also serves the catalog of categories and types as a resource.
+///
+/// The card tools' reads (851-3216, docs/decisions/cards.md › MCP tools) run here too, on the
+/// cards synced to this Mac and with its engine: `list_cards`, `get_card` and `preview_card`.
 enum HealthMCPServer {
-  /// The tools, decoded from the toolkit's definitions, without the card tools, which the remote
-  /// server answers and this one doesn't yet (851-3216). `HealthMCPServerTests` checks they decode
-  /// and list exactly as the file has them.
+  /// The tools, decoded from the toolkit's definitions, without the card tools' writes, which the
+  /// remote server answers and this one doesn't yet (851-4014). `HealthMCPServerTests` checks they
+  /// decode and list exactly as the file has them.
   static let tools: [Tool] = {
     do {
       return try JSONDecoder().decode([Tool].self, from: Data(mcpToolsJSON.utf8))
@@ -27,11 +31,10 @@ enum HealthMCPServer {
     }
   }()
 
-  /// The tools in `mcp-tools.json` this server doesn't list: the card tools (851-3215), until it
-  /// answers them through the app (851-3216).
+  /// The tools in `mcp-tools.json` this server doesn't list: the card tools' writes (851-3215),
+  /// until it answers them through the app (851-4014).
   static let remoteOnlyTools: Set<String> = [
-    "list_cards", "get_card", "preview_card", "create_card", "update_card", "delete_card",
-    "reorder_cards",
+    "create_card", "update_card", "delete_card", "reorder_cards",
   ]
 
   /// The tools' input properties by name: what a call's log entry keeps of its arguments.
@@ -58,8 +61,9 @@ enum HealthMCPServer {
   /// What the server tells agents when they connect.
   static let instructions = """
     Reads the person's Apple Health data that lil health has synced to this Mac, read-only and \
-    offline. Start with summary; find types with list_types or search. Every call is logged in \
-    lil health › Settings… › Agents, and fails while Allow access on this Mac is off \
+    offline. Start with summary; find types with list_types or search. list_cards, get_card and \
+    preview_card read the cards on lil health's Summary and preview new ones. Every call is \
+    logged in lil health › Settings… › Agents, and fails while Allow access on this Mac is off \
     there.
     """
 
@@ -119,8 +123,7 @@ enum HealthMCPServer {
       // Before every call, not once: turning access off stops the next one.
       try AgentAccessStore(directory: context.directory)
         .authorize(
-          command: logEntry(
-            name, arguments.filter { toolArguments[name]?.contains($0.key) == true }),
+          command: logEntry(name, loggedArguments(name, arguments)),
           process: context.process)
       // The Mac's time zone as it is now, not when the server started: it may run for days, and
       // the Mac may move.
@@ -131,10 +134,11 @@ enum HealthMCPServer {
         at: context.directory.appending(path: "Health.sqlite"))
       let tools = HealthTools(now: context.now(), defaultTimeZone: context.timeZone)
       let output = try database.read { db in try query(tools, db) }
-      // As the commands' `--json` and the remote server write it: `Europe/London`, not
-      // `Europe\/London`.
+      // As the commands' `--json` writes it: keys sorted, so the text is the same from one run
+      // to the next (`JSONEncoder` keeps no order of its own), and `Europe/London`, not
+      // `Europe\/London`, as the remote server writes it.
       let encoder = JSONEncoder()
-      encoder.outputFormatting = .withoutEscapingSlashes
+      encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
       let json = try encoder.encode(output)
       let structured: Value? = try JSONDecoder().decode(Value.self, from: json)
       return CallTool.Result(
@@ -145,6 +149,23 @@ enum HealthMCPServer {
         content: [.text(text: error.localizedDescription, annotations: nil, _meta: nil)],
         isError: true)
     }
+  }
+
+  /// What a call's log entry keeps of its arguments: those the tool takes, but never a card's
+  /// spec, which stands in as its types and range, e.g. `preview_card {"range":"W","types":
+  /// ["HKQuantityTypeIdentifierHeartRate"]}` (docs/decisions/cards.md › The access log).
+  static func loggedArguments(_ name: String, _ arguments: [String: Value]) -> [String: Value] {
+    var logged = arguments.filter { toolArguments[name]?.contains($0.key) == true }
+    if let spec = logged.removeValue(forKey: "spec") {
+      let json = CardJSON(toolArgument: spec)
+      if let types = json.flatMap(HealthTools.cardTypes) {
+        logged["types"] = .array(types.map(Value.string))
+      }
+      if logged["range"] == nil, let range = json.flatMap(HealthTools.cardRange) {
+        logged["range"] = .string(range)
+      }
+    }
+    return logged
   }
 
   /// The access log's entry for a call: the tool and the arguments it takes as JSON, e.g.
@@ -227,6 +248,39 @@ private struct ToolCall {
     case "sync_status":
       let timeZone = try timeZone()
       query = { tools, db in try tools.syncStatus(timeZone: timeZone, db) }
+    case "list_cards":
+      let timeZone = try timeZone()
+      query = { tools, db in try tools.listCards(timeZone: timeZone, db) }
+    case "get_card":
+      let id = try arguments.required("id", arguments.string)
+      let range = try arguments.cardRange("range")
+      let date = try arguments.string("date")
+      let timeZone = try timeZone()
+      let firstWeekday = try arguments.weekday("firstWeekday")
+      query = { tools, db in
+        try tools.getCard(
+          id: id, range: range, date: date, timeZone: timeZone, firstWeekday: firstWeekday, db)
+      }
+    case "preview_card":
+      // Any JSON: what isn't a spec comes back as the validator's errors, as on the remote server.
+      guard let value = arguments.values["spec"] else {
+        throw MCPError.invalidParams("spec is required")
+      }
+      let range = try arguments.cardRange("range")
+      let date = try arguments.string("date")
+      let timeZone = try timeZone()
+      let firstWeekday = try arguments.weekday("firstWeekday")
+      query = { tools, db in
+        guard let spec = CardJSON(toolArgument: value) else {
+          throw HealthToolError(
+            HealthTools.specErrorsMessage([
+              CardSpecError(path: "", code: .invalidJSON, message: "The spec isn't valid JSON.")
+            ]))
+        }
+        return try tools.previewCard(
+          spec: spec, range: range, date: date, timeZone: timeZone, firstWeekday: firstWeekday,
+          db)
+      }
     default:
       throw MCPError.invalidParams("Unknown tool: \(name)")
     }
@@ -259,6 +313,15 @@ private struct Arguments {
     try oneOf(name, ToolRange.allCases.map(\.rawValue)).flatMap(ToolRange.init(rawValue:))
   }
 
+  /// A card tool's range: the same five, in the card engine's terms.
+  func cardRange(_ name: String) throws -> CardRange? {
+    try oneOf(name, CardRange.allCases.map(\.rawValue)).flatMap(CardRange.init(rawValue:))
+  }
+
+  func weekday(_ name: String) throws -> ToolWeekday? {
+    try oneOf(name, ToolWeekday.allCases.map(\.rawValue)).flatMap(ToolWeekday.init(rawValue:))
+  }
+
   func integer(_ name: String, in bounds: ClosedRange<Int>) throws -> Int? {
     guard let value = values[name] else { return nil }
     let integer =
@@ -278,5 +341,21 @@ private struct Arguments {
       throw MCPError.invalidParams("\(name) is required")
     }
     return argument
+  }
+}
+
+extension CardJSON {
+  /// A tool's spec argument as JSON: as given, or parsed when it's a string, since some agents
+  /// send objects as JSON text, as the remote server does. `nil` for text that isn't JSON.
+  init?(toolArgument value: MCP.Value) {
+    if case .string(let text) = value {
+      guard let json = try? CardJSON(parsing: Data(text.utf8)) else { return nil }
+      self = json
+      return
+    }
+    guard let data = try? JSONEncoder().encode(value),
+      let json = try? JSONDecoder().decode(CardJSON.self, from: data)
+    else { return nil }
+    self = json
   }
 }
