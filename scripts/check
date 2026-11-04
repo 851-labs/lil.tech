@@ -82,8 +82,11 @@ if $swift; then
   # The package's tests are Swift Testing's. `--disable-xctest` saves each test bundle an empty
   # XCTest run, with its three lines (851-3229), so an XCTest would never run: refuse one.
   # (The iPhone's HealthKit tests' UI test, in an Xcode project, isn't the package's.)
+  # `import XCTest`, with attributes (`@testable`, `@_exported`), an access level, or a kind
+  # (`import class XCTest.XCTestCase`).
+  attributes='(@[A-Za-z_]+[[:space:]]+)*([a-z]+[[:space:]]+)?'
   xctest=$(grep -rlE --include='*.swift' \
-    '^[[:space:]]*(@[A-Za-z]+[[:space:]]+)*([a-z]+[[:space:]]+)?import[[:space:]]+XCTest' \
+    "^[[:space:]]*${attributes}import[[:space:]]+([a-z]+[[:space:]]+)?XCTest([.[:space:]]|\$)" \
     LilPackage/Tests LilPackage/Sources |
     grep -v '^LilPackage/Tests/Health/PhoneHealthKit/' || true)
   if [ -n "$xctest" ]; then

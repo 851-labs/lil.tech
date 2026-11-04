@@ -50,7 +50,7 @@ actor AppServer {
 
   init(
     app: String, tool: URL, environment: [String: String], timeout: Duration,
-    report: @escaping @Sendable (String) -> Void = LilMCPServer.reportOnStandardError
+    report: @escaping @Sendable (String) -> Void
   ) {
     self.app = app
     self.tool = tool
