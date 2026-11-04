@@ -120,7 +120,7 @@
     state.$consentedPolicyVersion.withLock {
       $0 = consented ? HealthConsentClient.policyVersion : nil
     }
-    // `EmptyReducer`: the view's task would replace the state with the real backfill's.
+    // `EmptyReducer`, so nothing replaces the state, as the real backfill's progress would.
     // `ifLet`: closing an alert clears it, as the feature does.
     // Pushed from Summary (851-3211).
     return NavigationStack {

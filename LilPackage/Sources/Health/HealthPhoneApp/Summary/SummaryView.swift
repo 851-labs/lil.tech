@@ -23,6 +23,8 @@ public struct SummaryView: View {
   /// have new data.
   @State private var generation = 0
   @State private var wasInBackground = false
+  /// The rows' headlines, kept here so a row scrolled away and back shows its own at once.
+  @State private var headlines = CardHeadlines()
   @Environment(\.scenePhase) private var scenePhase
   @Dependency(\.date) private var date
   @Dependency(\.calendar) private var calendar
@@ -38,7 +40,7 @@ public struct SummaryView: View {
         cards: SummaryLoad(cards.state), syncStatus: syncStatus.status,
         showSettings: { syncStatus.send(.settingsPresented(true)) }
       ) { card in
-        CardPreview(card: card, day: day, generation: generation)
+        CardPreview(card: card, day: day, generation: generation, headlines: headlines)
       }
       .navigationDestination(for: SummaryPage.self) { page in
         switch page {
@@ -50,7 +52,8 @@ public struct SummaryView: View {
         SettingsSheet(store: syncStatus)
       }
     }
-    .task {
+    // Again when the app comes back to the front, so cards that couldn't be read are read again.
+    .task(id: generation) {
       day = calendar.startOfDay(for: date.now)
       await cards.send(.task).finish()
     }
@@ -161,38 +164,44 @@ struct SummaryContent<Row: View>: View {
 
 /// A card's row, its headline run on this iPhone's HealthKit: again when the card's query changes,
 /// at midnight, and when the app comes back to the front (`generation`). The last headline stays
-/// while the next runs, so a row only reads "–" before its first.
+/// while the next runs, so a row only reads "–" before its first. Each run's headline is kept in
+/// `headlines`, so a row the list made again (scrolled away and back) shows it without running
+/// the card again.
 struct CardPreview: View {
   let card: Card
   /// `nil` until Summary knows it: the row waits.
   let day: Date?
   let generation: Int
-  @State private var headline: CardRow.Headline = .loading
+  let headlines: CardHeadlines
+  @State private var headline: CardRow.Headline?
   @Dependency(\.healthKitCards) private var healthKitCards
   @Dependency(\.date) private var date
   @Dependency(\.calendar) private var calendar
 
   var body: some View {
-    CardRow(card: card, headline: headline, now: date.now, calendar: calendar)
-      .task(id: Run(spec: card.spec, day: day, generation: generation)) {
-        guard let spec = card.spec, day != nil else { return }
-        do {
-          let result = try await Self.headline(
-            of: spec, in: healthKitCards, now: date.now, calendar: calendar)
-          guard !Task.isCancelled else { return }
-          headline = .loaded(result)
-        } catch {
-          guard !Task.isCancelled, !(error is CancellationError) else { return }
-          headline = .failed(error.localizedDescription)
-        }
+    let run = CardHeadlines.Run(spec: card.spec, day: day, generation: generation)
+    CardRow(
+      card: card, headline: headline ?? headlines[card.id]?.headline ?? .loading, now: date.now,
+      calendar: calendar
+    )
+    .task(id: run) {
+      if let kept = headlines[card.id], kept.run == run {
+        headline = kept.headline
+        return
       }
-  }
-
-  /// What makes a row run its card again.
-  private struct Run: Equatable {
-    var spec: CardSpec?
-    var day: Date?
-    var generation: Int
+      guard let spec = card.spec, day != nil else { return }
+      let result: CardRow.Headline
+      do {
+        result = .loaded(
+          try await Self.headline(of: spec, in: healthKitCards, now: date.now, calendar: calendar))
+      } catch {
+        guard !(error is CancellationError) else { return }
+        result = .failed(error.localizedDescription)
+      }
+      guard !Task.isCancelled else { return }
+      headline = result
+      headlines[card.id] = (run, result)
+    }
   }
 
   /// Off the main actor: the engine weighs and aggregates the readings HealthKit returns.
@@ -246,5 +255,24 @@ extension SyncStatusFeature.State.Status {
     case .upToDate: "checkmark.icloud"
     default: "icloud"
     }
+  }
+}
+
+/// Summary's headlines, the last of each card's and the run it's from, while Summary shows. Not
+/// observed: a row reads it when it's made, and writes it when its run ends.
+@MainActor
+final class CardHeadlines {
+  /// What makes a row run its card again.
+  struct Run: Equatable {
+    var spec: CardSpec?
+    var day: Date?
+    var generation: Int
+  }
+
+  private var byCard: [Card.ID: (run: Run, headline: CardRow.Headline)] = [:]
+
+  subscript(id: Card.ID) -> (run: Run, headline: CardRow.Headline)? {
+    get { byCard[id] }
+    set { byCard[id] = newValue }
   }
 }

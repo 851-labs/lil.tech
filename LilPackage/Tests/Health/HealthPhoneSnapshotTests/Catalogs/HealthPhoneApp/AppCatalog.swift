@@ -6,7 +6,7 @@
   import Testing
 
   // The app's root (`AppView`): launching, signed out, the setup screens it shows after signing in
-  // (consent, then Health access), signed in (Sync Status), and the alert about other iPhones
+  // (consent, then Health access), signed in (Summary, 851-3211), and the alert about other iPhones
   // uploading to the account. `EmptyReducer`, so the view's task doesn't replace the state with the
   // real session's; `ifLet`, so closing an alert clears it, as the feature does. Synthetic data
   // only.
