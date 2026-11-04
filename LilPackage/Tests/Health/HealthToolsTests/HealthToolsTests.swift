@@ -355,8 +355,86 @@ struct HealthToolsTests {
         == HealthWorkoutItem(
           id: "w1", activityType: 37, activity: "Running", start: "2026-10-20T07:00:00+00:00",
           end: "2026-10-20T07:30:00+00:00", duration: 1800, activeEnergy: 310, distance: 5200,
-          averageHeartRate: 148, source: "Synthetic Watch"))
+          averageHeartRate: 148, hasRoute: false, source: "Synthetic Watch", activities: []))
     #expect(workouts.workouts[1].activity == "Workout" && workouts.workouts[1].distance == nil)
+  }
+
+  @Test
+  func workoutsSayWhereTheyWereAndWhetherTheyHaveARoute() throws {
+    try database.write { db in
+      try HealthWorkout.insert {
+        // A treadmill run, and an outdoor one with a route, a name and elevation in feet.
+        workout("treadmill", at: utc(7), duration: 1800, metadata: #"{"HKIndoorWorkout":true}"#)
+        workout(
+          "outdoor", at: utc(9), duration: 1800,
+          metadata: #"""
+            {"HKIndoorWorkout":0,"HKWorkoutBrandName":"Synthetic Intervals",\#
+            "HKElevationAscended":"100 ft"}
+            """#)
+        // A pool swim that only says so on its one activity.
+        workout(
+          "swim", at: utc(11), duration: 1800, activityType: 46,
+          activities: #"""
+            [{"activityType":46,"startDate":1792494000000,"endDate":1792495800000,\#
+            "duration":1800,"metadata":{"HKSwimmingLocationType":1,"HKIndoorWorkout":true}}]
+            """#)
+        // A multisport race: a transition that doesn't say, between outdoor legs.
+        workout(
+          "race", at: utc(13), duration: 3600, activityType: 82,
+          activities: #"""
+            [{"activityType":46,"startDate":1792501200000,"endDate":1792503000000,\#
+            "duration":1800,"metadata":{"HKSwimmingLocationType":2}},\#
+            {"activityType":83,"startDate":1792503000000,"endDate":1792503300000,\#
+            "duration":300,"metadata":null},\#
+            {"activityType":37,"startDate":1792503300000,"endDate":1792504800000,\#
+            "duration":1500,"metadata":{"HKIndoorWorkout":false}}]
+            """#)
+        // Metadata that isn't what HealthKit writes says nothing.
+        workout(
+          "odd", at: utc(5), duration: 600,
+          metadata:
+            #"{"HKIndoorWorkout":"yes","HKWorkoutBrandName":" ","HKElevationAscended":"5 s"}"#,
+          activities: #"[{"activityType":"running"}]"#)
+      }
+      .execute(db)
+      try HealthWorkoutRoute.insert {
+        route("r1", for: "outdoor", at: utc(9), duration: 1800, locations: "hash")
+        // Empty, so it doesn't count.
+        route("r2", for: "treadmill", at: utc(7), duration: 1800, locations: nil)
+        // Not linked to a workout, but recorded during the race.
+        route("r3", for: nil, at: utc(13.5), duration: 600, locations: "hash")
+      }
+      .execute(db)
+    }
+    let workouts = try database.read { try tools.workouts(range: .day, timeZone: "UTC", $0) }
+      .workouts
+    let byID = Dictionary(uniqueKeysWithValues: workouts.map { ($0.id, $0) })
+    #expect(byID["treadmill"]?.indoor == true && byID["treadmill"]?.hasRoute == false)
+    let outdoor = try #require(byID["outdoor"])
+    #expect(outdoor.indoor == false && outdoor.hasRoute && outdoor.name == "Synthetic Intervals")
+    #expect(outdoor.elevationAscended.map { abs($0 - 30.48) < 1e-9 } == true)
+    let swim = try #require(byID["swim"])
+    #expect(swim.indoor == true && swim.swimmingLocation == "pool" && swim.activities.isEmpty)
+    let race = try #require(byID["race"])
+    #expect(race.indoor == false && race.swimmingLocation == "openWater" && race.hasRoute)
+    #expect(
+      race.activities
+        == [
+          HealthWorkoutActivityItem(
+            activityType: 46, activity: "Swimming", start: "2026-10-20T13:00:00+00:00",
+            end: "2026-10-20T13:30:00+00:00", duration: 1800, indoor: nil,
+            swimmingLocation: "openWater"),
+          HealthWorkoutActivityItem(
+            activityType: 83, activity: "Transition", start: "2026-10-20T13:30:00+00:00",
+            end: "2026-10-20T13:35:00+00:00", duration: 300),
+          HealthWorkoutActivityItem(
+            activityType: 37, activity: "Running", start: "2026-10-20T13:35:00+00:00",
+            end: "2026-10-20T14:00:00+00:00", duration: 1500, indoor: false),
+        ])
+    let odd = try #require(byID["odd"])
+    #expect(
+      odd.indoor == nil && odd.name == nil && odd.elevationAscended == nil
+        && odd.activities.isEmpty)
   }
 
   @Test
@@ -519,13 +597,23 @@ struct HealthToolsTests {
 
 private func workout(
   _ id: String, at start: Date, duration: Double, activityType: Int = 37,
-  statistics: String = "{}"
+  statistics: String = "{}", metadata: String? = nil, activities: String = "[]"
 ) -> HealthWorkout {
   HealthWorkout(
     id: id, activityType: activityType, startDate: start.unixMilliseconds,
     endDate: start.addingTimeInterval(duration).unixMilliseconds, duration: duration,
-    activities: "[]", events: "[]", statistics: statistics, sourceName: "Synthetic Watch",
-    sourceBundleID: "com.example")
+    activities: activities, events: "[]", statistics: statistics, sourceName: "Synthetic Watch",
+    sourceBundleID: "com.example", metadata: metadata)
+}
+
+private func route(
+  _ id: String, for workout: String?, at start: Date, duration: Double, locations: String?
+) -> HealthWorkoutRoute {
+  HealthWorkoutRoute(
+    id: id, startDate: start.unixMilliseconds,
+    endDate: start.addingTimeInterval(duration).unixMilliseconds, workout: workout,
+    locationCount: locations == nil ? 0 : 10, locations: locations,
+    sourceName: "Synthetic Watch", sourceBundleID: "com.example")
 }
 
 private func dose(_ id: String, due: Date, status: Int) -> HealthMedicationDose {

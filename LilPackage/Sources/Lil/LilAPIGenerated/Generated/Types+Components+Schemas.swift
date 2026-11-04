@@ -6484,6 +6484,150 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutActivityItem`.
+        public struct HealthWorkoutActivityItem: Codable, Hashable, Sendable {
+            /// HKWorkoutActivityType's raw value.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutActivityItem/activityType`.
+            public var activityType: Swift.Int
+            /// The activity's name, e.g. Swimming.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutActivityItem/activity`.
+            public var activity: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutActivityItem/start`.
+            public var start: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutActivityItem/end`.
+            public var end: Swift.String?
+            /// Seconds of activity, excluding pauses.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutActivityItem/duration`.
+            public var duration: Swift.Double
+            /// Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or null if it doesn't say.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutActivityItem/indoor`.
+            public var indoor: Swift.Bool?
+            /// For swims: pool or openWater (HKMetadataKeySwimmingLocationType), or null if it doesn't say.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutActivityItem/swimmingLocation`.
+            public var swimmingLocation: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutActivityItem`.
+            ///
+            /// - Parameters:
+            ///   - activityType: HKWorkoutActivityType's raw value.
+            ///   - activity: The activity's name, e.g. Swimming.
+            ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - duration: Seconds of activity, excluding pauses.
+            ///   - indoor: Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or null if it doesn't say.
+            ///   - swimmingLocation: For swims: pool or openWater (HKMetadataKeySwimmingLocationType), or null if it doesn't say.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                activityType: Swift.Int,
+                activity: Swift.String,
+                start: Swift.String,
+                end: Swift.String? = nil,
+                duration: Swift.Double,
+                indoor: Swift.Bool? = nil,
+                swimmingLocation: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.activityType = activityType
+                self.activity = activity
+                self.start = start
+                self.end = end
+                self.duration = duration
+                self.indoor = indoor
+                self.swimmingLocation = swimmingLocation
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case activityType
+                case activity
+                case start
+                case end
+                case duration
+                case indoor
+                case swimmingLocation
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.activityType = try container.decode(
+                    Swift.Int.self,
+                    forKey: .activityType
+                )
+                self.activity = try container.decode(
+                    Swift.String.self,
+                    forKey: .activity
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.duration = try container.decode(
+                    Swift.Double.self,
+                    forKey: .duration
+                )
+                self.indoor = try container.decodeIfPresent(
+                    Swift.Bool.self,
+                    forKey: .indoor
+                )
+                self.swimmingLocation = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .swimmingLocation
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "activityType",
+                    "activity",
+                    "start",
+                    "end",
+                    "duration",
+                    "indoor",
+                    "swimmingLocation"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.activityType,
+                    forKey: .activityType
+                )
+                try container.encode(
+                    self.activity,
+                    forKey: .activity
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encodeIfPresent(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.duration,
+                    forKey: .duration
+                )
+                try container.encodeIfPresent(
+                    self.indoor,
+                    forKey: .indoor
+                )
+                try container.encodeIfPresent(
+                    self.swimmingLocation,
+                    forKey: .swimmingLocation
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem`.
         public struct HealthWorkoutItem: Codable, Hashable, Sendable {
             /// HealthKit's UUID for the workout.
@@ -6498,6 +6642,10 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/activity`.
             public var activity: Swift.String
+            /// The workout's own name, from the app that recorded it (HKMetadataKeyWorkoutBrandName). Apple's Workout app doesn't name workouts, so it's usually null.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/name`.
+            public var name: Swift.String?
             /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/start`.
@@ -6522,10 +6670,30 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/averageHeartRate`.
             public var averageHeartRate: Swift.Double?
+            /// Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/elevationAscended`.
+            public var elevationAscended: Swift.Double?
+            /// Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or as its activities say, if they agree. Null if it doesn't say: then hasRoute is the best hint.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/indoor`.
+            public var indoor: Swift.Bool?
+            /// For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or its activities say, if they agree, or null if they don't say.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/swimmingLocation`.
+            public var swimmingLocation: Swift.String?
+            /// Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/hasRoute`.
+            public var hasRoute: Swift.Bool
             /// The app or device that recorded it.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/source`.
             public var source: Swift.String
+            /// A multisport workout's activities (e.g. swim, transition, bike, run), in order. Empty for a workout of one activity.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/activities`.
+            public var activities: [Components.Schemas.HealthWorkoutActivityItem]
             /// A container of undocumented properties.
             public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
             /// Creates a new `HealthWorkoutItem`.
@@ -6534,50 +6702,74 @@ extension Components {
             ///   - id: HealthKit's UUID for the workout.
             ///   - activityType: HKWorkoutActivityType's raw value, e.g. 37 for running.
             ///   - activity: The activity's name, e.g. Running.
+            ///   - name: The workout's own name, from the app that recorded it (HKMetadataKeyWorkoutBrandName). Apple's Workout app doesn't name workouts, so it's usually null.
             ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
             ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
             ///   - duration: Seconds of activity, excluding pauses.
             ///   - activeEnergy: Kilocalories.
             ///   - distance: Meters.
             ///   - averageHeartRate: Beats per minute.
+            ///   - elevationAscended: Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended).
+            ///   - indoor: Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or as its activities say, if they agree. Null if it doesn't say: then hasRoute is the best hint.
+            ///   - swimmingLocation: For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or its activities say, if they agree, or null if they don't say.
+            ///   - hasRoute: Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't.
             ///   - source: The app or device that recorded it.
+            ///   - activities: A multisport workout's activities (e.g. swim, transition, bike, run), in order. Empty for a workout of one activity.
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 id: Swift.String,
                 activityType: Swift.Int,
                 activity: Swift.String,
+                name: Swift.String? = nil,
                 start: Swift.String,
                 end: Swift.String,
                 duration: Swift.Double,
                 activeEnergy: Swift.Double? = nil,
                 distance: Swift.Double? = nil,
                 averageHeartRate: Swift.Double? = nil,
+                elevationAscended: Swift.Double? = nil,
+                indoor: Swift.Bool? = nil,
+                swimmingLocation: Swift.String? = nil,
+                hasRoute: Swift.Bool,
                 source: Swift.String,
+                activities: [Components.Schemas.HealthWorkoutActivityItem],
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
                 self.id = id
                 self.activityType = activityType
                 self.activity = activity
+                self.name = name
                 self.start = start
                 self.end = end
                 self.duration = duration
                 self.activeEnergy = activeEnergy
                 self.distance = distance
                 self.averageHeartRate = averageHeartRate
+                self.elevationAscended = elevationAscended
+                self.indoor = indoor
+                self.swimmingLocation = swimmingLocation
+                self.hasRoute = hasRoute
                 self.source = source
+                self.activities = activities
                 self.additionalProperties = additionalProperties
             }
             public enum CodingKeys: String, CodingKey {
                 case id
                 case activityType
                 case activity
+                case name
                 case start
                 case end
                 case duration
                 case activeEnergy
                 case distance
                 case averageHeartRate
+                case elevationAscended
+                case indoor
+                case swimmingLocation
+                case hasRoute
                 case source
+                case activities
             }
             public init(from decoder: any Swift.Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -6592,6 +6784,10 @@ extension Components {
                 self.activity = try container.decode(
                     Swift.String.self,
                     forKey: .activity
+                )
+                self.name = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .name
                 )
                 self.start = try container.decode(
                     Swift.String.self,
@@ -6617,21 +6813,47 @@ extension Components {
                     Swift.Double.self,
                     forKey: .averageHeartRate
                 )
+                self.elevationAscended = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .elevationAscended
+                )
+                self.indoor = try container.decodeIfPresent(
+                    Swift.Bool.self,
+                    forKey: .indoor
+                )
+                self.swimmingLocation = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .swimmingLocation
+                )
+                self.hasRoute = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .hasRoute
+                )
                 self.source = try container.decode(
                     Swift.String.self,
                     forKey: .source
+                )
+                self.activities = try container.decode(
+                    [Components.Schemas.HealthWorkoutActivityItem].self,
+                    forKey: .activities
                 )
                 additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
                     "id",
                     "activityType",
                     "activity",
+                    "name",
                     "start",
                     "end",
                     "duration",
                     "activeEnergy",
                     "distance",
                     "averageHeartRate",
-                    "source"
+                    "elevationAscended",
+                    "indoor",
+                    "swimmingLocation",
+                    "hasRoute",
+                    "source",
+                    "activities"
                 ])
             }
             public func encode(to encoder: any Swift.Encoder) throws {
@@ -6647,6 +6869,10 @@ extension Components {
                 try container.encode(
                     self.activity,
                     forKey: .activity
+                )
+                try container.encodeIfPresent(
+                    self.name,
+                    forKey: .name
                 )
                 try container.encode(
                     self.start,
@@ -6672,9 +6898,29 @@ extension Components {
                     self.averageHeartRate,
                     forKey: .averageHeartRate
                 )
+                try container.encodeIfPresent(
+                    self.elevationAscended,
+                    forKey: .elevationAscended
+                )
+                try container.encodeIfPresent(
+                    self.indoor,
+                    forKey: .indoor
+                )
+                try container.encodeIfPresent(
+                    self.swimmingLocation,
+                    forKey: .swimmingLocation
+                )
+                try container.encode(
+                    self.hasRoute,
+                    forKey: .hasRoute
+                )
                 try container.encode(
                     self.source,
                     forKey: .source
+                )
+                try container.encode(
+                    self.activities,
+                    forKey: .activities
                 )
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }

@@ -224,21 +224,41 @@ public struct HealthTools: Sendable {
     let totals = try HealthDatabase.workoutTotals(in: period.interval, db)
     let workouts = try HealthDatabase.workouts(
       in: period.interval, limit: Self.workoutsLimit, db)
+    let withRoutes = try HealthDatabase.workoutsWithRoutes(workouts, db)
     return HealthWorkoutsResult(
       timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
       end: time.localTime(period.end), count: totals.count, duration: totals.duration,
       workouts: workouts.map { workout in
         let statistics = workout.decodedStatistics
+        let metadata = workout.decodedMetadata
+        let activities = workout.decodedActivities
+        let location = HealthWorkout.location(metadata: metadata, activities: activities)
         return HealthWorkoutItem(
           id: workout.id, activityType: workout.activityType,
           activity: HealthCatalog.workoutActivityName(workout.activityType),
+          name: metadata.brandName,
           start: time.localTime(Date(unixMilliseconds: workout.startDate)),
           end: time.localTime(Date(unixMilliseconds: workout.endDate)),
           duration: workout.duration,
           activeEnergy: statistics[HealthWorkout.activeEnergyType]?.sum,
           distance: HealthWorkout.distance(in: statistics),
           averageHeartRate: statistics[HealthWorkout.heartRateType]?.average,
-          source: workout.sourceName)
+          elevationAscended: metadata.elevationAscended, indoor: location.indoor,
+          swimmingLocation: location.swimmingLocation,
+          hasRoute: withRoutes.contains(workout.id), source: workout.sourceName,
+          activities: activities.count < 2
+            ? []
+            : activities.map { activity in
+              HealthWorkoutActivityItem(
+                activityType: activity.activityType,
+                activity: HealthCatalog.workoutActivityName(activity.activityType),
+                start: time.localTime(Date(timeIntervalSince1970: activity.startDate / 1000)),
+                end: activity.endDate.map {
+                  time.localTime(Date(timeIntervalSince1970: $0 / 1000))
+                },
+                duration: activity.duration, indoor: activity.metadata.indoor,
+                swimmingLocation: activity.metadata.swimmingLocation)
+            })
       })
   }
 

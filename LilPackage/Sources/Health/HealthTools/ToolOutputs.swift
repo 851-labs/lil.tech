@@ -182,6 +182,8 @@ public struct HealthWorkoutItem: Codable, Equatable, Sendable {
   public var id: String
   public var activityType: Int
   public var activity: String
+  /// `HKMetadataKeyWorkoutBrandName`, from the app that recorded it.
+  public var name: String?
   public var start: String
   public var end: String
   /// Seconds, pauses left out.
@@ -192,20 +194,60 @@ public struct HealthWorkoutItem: Codable, Equatable, Sendable {
   public var distance: Double?
   /// Beats per minute.
   public var averageHeartRate: Double?
+  /// Meters.
+  public var elevationAscended: Double?
+  public var indoor: Bool?
+  /// `pool` or `openWater`.
+  public var swimmingLocation: String?
+  /// Whether a route with locations was recorded with it.
+  public var hasRoute: Bool
   public var source: String
+  /// A multisport workout's activities; empty for a workout of one.
+  public var activities: [HealthWorkoutActivityItem]
 
   public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(id, .id)
     try container.encode(activityType, .activityType)
     try container.encode(activity, .activity)
+    try container.encode(name, .name)
     try container.encode(start, .start)
     try container.encode(end, .end)
     try container.encode(duration, .duration)
     try container.encode(activeEnergy, .activeEnergy)
     try container.encode(distance, .distance)
     try container.encode(averageHeartRate, .averageHeartRate)
+    try container.encode(elevationAscended, .elevationAscended)
+    try container.encode(indoor, .indoor)
+    try container.encode(swimmingLocation, .swimmingLocation)
+    try container.encode(hasRoute, .hasRoute)
     try container.encode(source, .source)
+    try container.encode(activities, .activities)
+  }
+}
+
+/// One of a multisport workout's activities.
+public struct HealthWorkoutActivityItem: Codable, Equatable, Sendable {
+  public var activityType: Int
+  public var activity: String
+  public var start: String
+  /// `nil` while it was still going.
+  public var end: String?
+  /// Seconds, pauses left out.
+  public var duration: Double
+  public var indoor: Bool?
+  /// `pool` or `openWater`.
+  public var swimmingLocation: String?
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(activityType, .activityType)
+    try container.encode(activity, .activity)
+    try container.encode(start, .start)
+    try container.encode(end, .end)
+    try container.encode(duration, .duration)
+    try container.encode(indoor, .indoor)
+    try container.encode(swimmingLocation, .swimmingLocation)
   }
 }
 

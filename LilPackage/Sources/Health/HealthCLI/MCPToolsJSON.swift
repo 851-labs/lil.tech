@@ -616,7 +616,7 @@ let mcpToolsJSON = #"""
   },
   {
     "name": "workouts",
-    "description": "Workouts that started in a period, newest first, with their activity, duration, energy, distance and average heart rate, and the period's count and total time.",
+    "description": "Workouts that started in a period, newest first, with their activity and name, duration, energy, distance, average heart rate and elevation, whether they were indoors and had a GPS route (to tell a treadmill run from an outdoor one), and the period's count and total time.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -692,6 +692,72 @@ let mcpToolsJSON = #"""
       ],
       "additionalProperties": true,
       "$defs": {
+        "HealthWorkoutActivityItem": {
+          "type": "object",
+          "properties": {
+            "activityType": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "HKWorkoutActivityType's raw value."
+            },
+            "activity": {
+              "type": "string",
+              "description": "The activity's name, e.g. Swimming."
+            },
+            "start": {
+              "type": "string",
+              "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+            },
+            "end": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "duration": {
+              "type": "number",
+              "description": "Seconds of activity, excluding pauses."
+            },
+            "indoor": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or null if it doesn't say."
+            },
+            "swimmingLocation": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "For swims: pool or openWater (HKMetadataKeySwimmingLocationType), or null if it doesn't say."
+            }
+          },
+          "required": [
+            "activityType",
+            "activity",
+            "start",
+            "end",
+            "duration",
+            "indoor",
+            "swimmingLocation"
+          ],
+          "additionalProperties": true
+        },
         "HealthWorkoutItem": {
           "type": "object",
           "properties": {
@@ -708,6 +774,17 @@ let mcpToolsJSON = #"""
             "activity": {
               "type": "string",
               "description": "The activity's name, e.g. Running."
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The workout's own name, from the app that recorded it (HKMetadataKeyWorkoutBrandName). Apple's Workout app doesn't name workouts, so it's usually null."
             },
             "start": {
               "type": "string",
@@ -754,22 +831,72 @@ let mcpToolsJSON = #"""
               ],
               "description": "Beats per minute."
             },
+            "elevationAscended": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended)."
+            },
+            "indoor": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or as its activities say, if they agree. Null if it doesn't say: then hasRoute is the best hint."
+            },
+            "swimmingLocation": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or its activities say, if they agree, or null if they don't say."
+            },
+            "hasRoute": {
+              "type": "boolean",
+              "description": "Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't."
+            },
             "source": {
               "type": "string",
               "description": "The app or device that recorded it."
+            },
+            "activities": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/HealthWorkoutActivityItem"
+              },
+              "description": "A multisport workout's activities (e.g. swim, transition, bike, run), in order. Empty for a workout of one activity."
             }
           },
           "required": [
             "id",
             "activityType",
             "activity",
+            "name",
             "start",
             "end",
             "duration",
             "activeEnergy",
             "distance",
             "averageHeartRate",
-            "source"
+            "elevationAscended",
+            "indoor",
+            "swimmingLocation",
+            "hasRoute",
+            "source",
+            "activities"
           ],
           "additionalProperties": true
         }
