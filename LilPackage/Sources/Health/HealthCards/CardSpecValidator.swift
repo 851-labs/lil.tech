@@ -19,6 +19,10 @@ struct CardSpecValidator {
   typealias Code = CardSpecError.Code
 
   private var errors: [CardSpecError] = []
+  /// The version the input says, which decides the fields it may have: the latest when it doesn't
+  /// say one this reads, so its other errors are the latest version's. The canonical form's is
+  /// the lowest that has what the spec uses (`CardSpec.version`).
+  private var inputVersion = HealthCards.specVersion
 
   static func canonicalize(
     _ input: CardJSON, sizeLimit: Int
@@ -88,22 +92,24 @@ struct CardSpecValidator {
     // Version
     switch input["version"] {
     case nil, .null?:
-      fail("version", .required, "version is required: the spec's format, 1.")
+      fail(
+        "version", .required, "version is required: the spec's format, \(Self.versions("or")).")
     case .number(let version)?:
       if !(Self.isWhole(version, in: 0...1_000_000)
         && HealthCards.readableVersions.contains(Int(version)))
       {
-        // Every other rule is version 1's: this is the one error.
+        // Every other rule is a version's: this is the one error.
         errors = [
           CardSpecError(
             path: "version", code: .unsupportedVersion,
             message: "version \(CardJSON.text(of: version)) isn't supported. This server reads "
-              + "card spec version \(HealthCards.specVersion).")
+              + "card spec versions \(Self.versions("and")).")
         ]
         return nil
       }
+      inputVersion = Int(version)
     case _?:
-      fail("version", .invalidType, "version must be a whole number: 1.")
+      fail("version", .invalidType, "version must be a whole number: \(Self.versions("or")).")
     }
 
     // Display
@@ -305,7 +311,6 @@ struct CardSpecValidator {
     guard errors.isEmpty, let name, let symbol, let color, let bucket, let range, let style
     else { return nil }
     return CardSpec(
-      version: HealthCards.specVersion,
       display: CardSpec.Display(name: name, symbol: symbol, color: color, unit: unit),
       series: series.map {
         CardSpec.Series(
@@ -517,17 +522,20 @@ struct CardSpecValidator {
         )
       }
     case .workout:
-      allowed = ["kind", "activities"]
+      allowed = ["kind", "activities", "location"]
+      var activities: [Int]??
       switch json["activities"] {
-      case nil, .null?: window = .workout(activities: nil)
+      case nil, .null?: activities = .some(nil)
       case .array(let items)?:
-        if let activities = activities(items, path: "\(path).activities") {
-          window = .workout(activities: activities)
-        }
+        activities = self.activities(items, path: "\(path).activities").map(Optional.some)
       case _?:
         fail(
           "\(path).activities", .invalidType,
           "\(path).activities must be an array of workout activities, or null for every workout.")
+      }
+      let location = workoutLocation(json["location"], path: "\(path).location")
+      if let activities, let location {
+        window = .workout(activities: activities, location: location)
       }
     case .timeOfDay:
       allowed = ["kind", "from", "to"]
@@ -566,10 +574,36 @@ struct CardSpecValidator {
         }
       }
     case nil:
-      allowed = ["kind", "minutes", "activities", "from", "to"]
+      allowed = ["kind", "minutes", "activities", "location", "from", "to"]
     }
     unknownFields(json, path: path, allowed: allowed)
     return (window, kind)
+  }
+
+  /// A workout window's `location` (version 2): `.some(nil)` for anywhere, `nil` for an error.
+  private mutating func workoutLocation(
+    _ json: CardJSON?, path: String
+  ) -> CardWorkoutLocation?? {
+    if inputVersion < 2, json != nil {
+      fail(
+        path, .unknownField,
+        "\(path) needs card spec version 2: set \"version\": 2 to keep indoor or outdoor "
+          + "workouts only.")
+      return nil
+    }
+    switch json {
+    case nil, .null?:
+      return .some(nil)
+    case .string(let text)?:
+      if let location = CardWorkoutLocation(rawValue: text) { return location }
+      fail(
+        path, .unknownValue,
+        "\(CardJSON.quoted(text)) isn't a workout location. Use indoor or outdoor, or null for "
+          + "every workout.")
+    case _?:
+      fail(path, .invalidType, "\(path) must be \"indoor\", \"outdoor\" or null.")
+    }
+    return nil
   }
 
   private mutating func activities(_ items: [CardJSON], path: String) -> [Int]? {
@@ -1027,6 +1061,13 @@ struct CardSpecValidator {
   static func isWhole(_ value: Double, in range: ClosedRange<Int>) -> Bool {
     value == value.rounded() && value >= Double(range.lowerBound)
       && value <= Double(range.upperBound)
+  }
+
+  /// The versions this reads, "1 or 2" (or "1 and 2").
+  static func versions(_ word: String) -> String {
+    let versions = HealthCards.readableVersions.sorted().map(String.init)
+    guard versions.count > 1 else { return versions.first ?? "" }
+    return versions.dropLast().joined(separator: ", ") + " \(word) " + versions.last!
   }
 
   /// "a, b or c"

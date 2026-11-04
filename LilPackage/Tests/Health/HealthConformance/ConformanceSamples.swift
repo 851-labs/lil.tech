@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 /// The cards' dataset as a HealthKit would hold it, for the iPhone's side of the conformance cases
 /// (851-3201): its samples and workouts, each with its source and device, after every batch's
@@ -37,6 +37,27 @@ public struct ConformanceSamples: Sendable {
     public var start: Int
     public var end: Int
     public var source: String
+    /// Its metadata's `HKIndoorWorkout`, as the dataset has it (a Boolean, or 0 or 1).
+    public var indoor: NSNumber?
+    /// Its activities, as the Mac and the server read them: all of them, or none if one can't
+    /// be read.
+    public var activities: [Activity] = []
+  }
+
+  /// One of a workout's activities, with what says where it was.
+  public struct Activity: Sendable {
+    /// `HKWorkoutActivityType`'s raw value.
+    public var activityType: Int
+    public var start: Int
+    /// `nil` while it was still going.
+    public var end: Int?
+    /// Its configuration's `HKWorkoutSessionLocationType` raw value.
+    public var locationType: Int?
+    /// Its configuration's `HKWorkoutSwimmingLocationType` raw value, else its metadata's
+    /// `HKSwimmingLocationType`: HealthKit needs a swimming activity's.
+    public var swimmingLocationType: Int?
+    /// Its metadata's `HKIndoorWorkout`.
+    public var indoor: NSNumber?
   }
 
   /// What a sample says of the device that recorded it, as `HKDevice` has it.
@@ -105,7 +126,10 @@ public struct ConformanceSamples: Sendable {
           throw ConformanceError("workout \(id) has no activity type")
         }
         workouts.append(
-          Workout(id: id, activityType: activityType, start: start, end: end, source: source))
+          Workout(
+            id: id, activityType: activityType, start: start, end: end, source: source,
+            indoor: (row["metadata"] as? [String: Any])?["HKIndoorWorkout"] as? NSNumber,
+            activities: Self.activities(row["activities"])))
         continue
       }
       guard let type = row["type"] as? String else {
@@ -125,6 +149,47 @@ public struct ConformanceSamples: Sendable {
           categoryValue: row["categoryValue"] as? Int, source: source, device: device))
     }
     self.sources = sources.sorted()
+  }
+
+  /// A workout's activities as the Mac reads them (`HealthWorkout.decodedActivities`): all of
+  /// them, or none if one can't be read, such as a location type written as a string.
+  static func activities(_ value: Any?) -> [Activity] {
+    guard let items = value as? [Any] else { return [] }
+    var activities: [Activity] = []
+    for element in items {
+      guard let item = element as? [String: Any] else { return [] }
+      // A JSON number, not a Boolean.
+      func number(_ value: Any?) -> Double? {
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+          number.doubleValue.isFinite
+        else { return nil }
+        return number.doubleValue
+      }
+      // Missing or null, or a number: `.some(nil)` for none, `nil` for anything else.
+      func optionalNumber(_ key: String) -> Double?? {
+        switch item[key] {
+        case nil, is NSNull: .some(nil)
+        case let value: number(value).map(Optional.some)
+        }
+      }
+      guard let activityType = number(item["activityType"]),
+        activityType.rounded() == activityType, let start = number(item["startDate"]),
+        number(item["duration"]) != nil, let end = optionalNumber("endDate"),
+        let locationType = optionalNumber("locationType"),
+        let swimmingLocationType = optionalNumber("swimmingLocationType")
+      else { return [] }
+      let metadata = item["metadata"]
+      if let metadata, !(metadata is NSNull), !(metadata is [String: Any]) { return [] }
+      activities.append(
+        Activity(
+          activityType: Int(activityType), start: Int(start), end: end.map { Int($0) },
+          locationType: locationType.flatMap { Int(exactly: $0) },
+          swimmingLocationType: swimmingLocationType.flatMap { Int(exactly: $0) }.flatMap {
+            $0 == 0 ? nil : $0
+          } ?? ((metadata as? [String: Any])?["HKSwimmingLocationType"] as? Int),
+          indoor: (metadata as? [String: Any])?["HKIndoorWorkout"] as? NSNumber))
+    }
+    return activities
   }
 
   /// The samples and workouts of one source.

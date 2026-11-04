@@ -10,10 +10,11 @@ public import HealthCatalog
 /// writes `Services/api/card-spec.schema.json`, `card-seed.json` and the validation cases the
 /// server's port must pass.
 public enum HealthCards {
-  /// The spec version this code writes.
-  public static let specVersion = 1
+  /// The latest spec version this code reads and writes. A spec is written at the lowest version
+  /// that has what it uses (`CardSpec.version`): 2 only for a workout window's `location`.
+  public static let specVersion = 2
   /// The versions it reads. A card of another shows as "Update lil health to show this card".
-  public static let readableVersions: Set<Int> = [1]
+  public static let readableVersions: Set<Int> = [1, 2]
 
   /// At most this many errors are returned for one spec.
   public static let maxErrors = 20
@@ -79,7 +80,8 @@ extension CardSpec {
           CardSpecError(
             path: "", code: .notCanonical,
             message: "The spec isn't in canonical form (a default left out, a type or activity "
-              + "by name, or a name or label not trimmed): apps and tools write it canonicalized.")
+              + "by name, a name or label not trimmed, or a version later than it needs): apps "
+              + "and tools write it canonicalized.")
         ]
       }
       return []

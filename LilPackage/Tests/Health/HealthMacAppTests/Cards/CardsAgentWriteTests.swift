@@ -123,7 +123,7 @@ struct CardsAgentWriteTests {
   func replacesASpecItCantReadKeepingItsPlace() async throws {
     var later = seedCards[1]
     later.spec = nil
-    later.storedSpec = ["version": 2, "display": ["name": "Later"]]
+    later.storedSpec = ["version": 3, "display": ["name": "Later"]]
     let store = store(cards: [seedCards[0], later])
     let replaced = try later.replaced(with: spec("Heart, asleep"), now: now)
     let (request, answers) = agentRequest(.updateCard(id: later.id, spec: spec("Heart, asleep")))

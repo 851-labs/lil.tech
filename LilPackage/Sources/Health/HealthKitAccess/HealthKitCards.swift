@@ -223,15 +223,29 @@ public struct HealthKitCardEngine: Sendable {
   }
 
   /// Workouts of every activity that end after `range` starts and start before it ends (Unix
-  /// milliseconds), from every source, by start, with their overall activity.
+  /// milliseconds), from every source, by start, with their overall activity and whether they
+  /// were indoors, as the Mac and the server read it from what the iPhone uploads.
   public func workouts(overlapping range: Range<Int>) async throws -> [CardWorkout] {
     try await samples(of: HKWorkoutType.workoutType(), overlapping: range) { sample in
       (sample as? HKWorkout).map {
         CardWorkout(
           start: $0.startDate.milliseconds, end: $0.endDate.milliseconds,
-          activityType: Int($0.workoutActivityType.rawValue))
+          activityType: Int($0.workoutActivityType.rawValue), indoor: Self.indoor($0))
       }
     }
+  }
+
+  /// Whether a workout was indoors: as its `HKMetadataKeyIndoorWorkout` says, else as its
+  /// activities do (each one's metadata, else its configuration's `locationType`), if they
+  /// agree; `nil` when nothing says.
+  public static func indoor(_ workout: HKWorkout) -> Bool? {
+    CardWorkout.indoor(
+      workout: CardWorkout.indoor(metadataValue: workout.metadata?[HKMetadataKeyIndoorWorkout]),
+      activities: workout.workoutActivities.map { activity in
+        CardWorkout.indoor(metadataValue: activity.metadata?[HKMetadataKeyIndoorWorkout])
+          ?? CardWorkout.indoor(
+            locationType: Double(activity.workoutConfiguration.locationType.rawValue))
+      })
   }
 
   /// Samples of `type` that end after `range` starts and start before it ends, by start, made

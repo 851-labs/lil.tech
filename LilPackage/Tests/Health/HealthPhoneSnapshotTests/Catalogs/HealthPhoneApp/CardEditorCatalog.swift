@@ -241,10 +241,10 @@
 
   private var heartRateDuringWorkoutsActions: [CardEditorFeature.Action] {
     [.typeChosen(series: "a", type: heartRate)]
-      + looks("Heart Rate in Runs and Rides", "figure.run", .red)
+      + looks("Heart Rate in Outdoor Runs", "figure.run", .red)
       + [
         series(type: heartRate) {
-          $0.window = .workout(activities: [37, 13])
+          $0.window = .workout(activities: [37, 13], location: .outdoor)
           $0.filter = CardSpec.Filter(deviceModels: ["Watch"])
         },
         .bucketChosen(.day),

@@ -88,11 +88,11 @@ extension CardSpec {
         ? "in the minute before falling asleep" : "in the \(minutes) minutes before falling asleep"
     case .afterWaking(let minutes):
       return minutes == 1 ? "in the minute after waking" : "in the \(minutes) minutes after waking"
-    case .workout(nil):
-      return "during workouts"
-    case .workout(let activities?):
+    case .workout(let activities, let location):
+      let place = location.map { "\($0.rawValue) " } ?? ""
+      guard let activities else { return "during \(place)workouts" }
       let names = activities.map { lowercased(HealthCatalog.workoutActivityName($0)) }
-      return "during \(list(names, joinedBy: "or")) workouts"
+      return "during \(place)\(list(names, joinedBy: "or")) workouts"
     case .timeOfDay(let time):
       func clock(_ time: CardClockTime) -> String {
         time.hour == 12 && time.minute == 0 ? "noon" : time.description

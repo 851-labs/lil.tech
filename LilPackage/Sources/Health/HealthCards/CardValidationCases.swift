@@ -24,13 +24,15 @@ enum CardValidationCases {
   static let bodyTemperature: CardJSON = "HKQuantityTypeIdentifierBodyTemperature"
   static let restingHeartRate: CardJSON = "HKQuantityTypeIdentifierRestingHeartRate"
 
-  /// A spec of version 1 named "Card", with the series given and the other fields only if given.
+  /// A spec of version 1 (or `version`) named "Card", with the series given and the other
+  /// fields only if given.
   static func spec(
     _ series: CardJSON..., formulas: CardJSON? = nil, bucket: CardJSON? = nil,
-    range: CardJSON? = nil, chart: CardJSON? = nil, display: CardJSON = ["name": "Card"]
+    range: CardJSON? = nil, chart: CardJSON? = nil, display: CardJSON = ["name": "Card"],
+    version: CardJSON = 1
   ) -> CardJSON {
     var members: [(key: String, value: CardJSON)] = [
-      ("version", 1), ("display", display), ("series", .array(series)),
+      ("version", version), ("display", display), ("series", .array(series)),
     ]
     if let formulas { members.append(("formulas", formulas)) }
     if let bucket { members.append(("bucket", bucket)) }
@@ -106,6 +108,21 @@ enum CardValidationCases {
     input(
       "Every workout",
       spec(["type": heartRate, "window": ["kind": "workout"]], display: ["name": "Workout HR"])),
+    input(
+      "Version 2: outdoor runs, and every workout's location",
+      spec(
+        [
+          "type": heartRate,
+          "window": ["kind": "workout", "activities": ["Running"], "location": "outdoor"],
+        ],
+        ["type": heartRate, "aggregation": "max", "window": ["kind": "workout"]],
+        ["type": heartRate, "aggregation": "min", "window": ["kind": "asleep"]],
+        bucket: "week", display: ["name": "Outdoor Runs"], version: 2)),
+    input(
+      "Version 2 without a location is written as version 1",
+      spec(
+        ["type": heartRate, "window": ["kind": "workout", "activities": [37], "location": nil]],
+        display: ["name": "Runs"], version: 2)),
     input(
       "A filter of sources and device models",
       spec([
@@ -282,7 +299,7 @@ enum CardValidationCases {
         ["type": heartRate, "window": ["kind": "nap"]],
         formulas: [["kind": "ratio", "of": "a"]], bucket: "year", range: "2W",
         chart: ["style": "area"])),
-    input("Version 2", .object([("version", 2), ("display", ["name": 1]), ("bogus", true)])),
+    input("Version 3", .object([("version", 3), ("display", ["name": 1]), ("bogus", true)])),
     input("Version 1.5", .object([("version", 1.5), ("display", ["name": "Card"])])),
     input("Version 0", .object([("version", 0)])),
 
@@ -453,6 +470,25 @@ enum CardValidationCases {
         ["type": heartRate, "window": ["kind": "timeOfDay", "from": "00:00", "to": "06:00"]],
         bucket: "night")),
     input("The first of steps", spec(["type": steps, "aggregation": "first"])),
+    input(
+      "A location in version 1",
+      spec(
+        ["type": heartRate, "window": ["kind": "workout", "location": "indoor"]],
+        ["type": heartRate, "window": ["kind": "workout", "location": nil]])),
+    input(
+      "Locations that don't exist",
+      spec(
+        ["type": heartRate, "window": ["kind": "workout", "location": "inside"]],
+        ["type": heartRate, "window": ["kind": "workout", "location": true]],
+        [
+          "type": heartRate, "window": ["kind": "workout", "activities": [], "location": "Indoor"],
+        ],
+        version: 2)),
+    input(
+      "A location on a sleep window",
+      spec(
+        ["type": heartRate, "window": ["kind": "asleep", "location": "indoor"]], bucket: "night",
+        version: 2)),
     input(
       "Activities that aren't a list",
       spec(["type": heartRate, "window": ["kind": "workout", "activities": "Running"]])),
@@ -721,7 +757,55 @@ enum CardValidationCases {
         ("formulas", []), ("bucket", "auto"), ("range", "W"),
         ("chart", ["style": "ranges", "goal": nil]),
       ])),
-    stored("A later version", .object([("version", 2), ("display", ["name": "From the future"])])),
+    stored(
+      "Version 2, canonical",
+      (try? CardSpec(
+        input: spec(
+          ["type": heartRate, "window": ["kind": "workout", "location": "indoor"]],
+          ["type": heartRate, "aggregation": "max", "window": ["kind": "workout"]],
+          display: ["name": "Indoor Workouts"], version: 2)))?.json ?? nil),
+    stored(
+      "Version 2 without a location",
+      .object([
+        ("version", 2),
+        ("display", ["name": "Runs", "symbol": "heart.fill", "color": "red", "unit": nil]),
+        (
+          "series",
+          [
+            [
+              "id": "a", "type": heartRate, "aggregation": "avg",
+              "window": ["kind": "workout", "activities": [37], "location": nil], "filter": nil,
+              "label": nil, "hidden": false,
+            ]
+          ]
+        ),
+        ("formulas", []), ("bucket", "auto"), ("range", "W"),
+        ("chart", ["style": "ranges", "goal": nil]),
+      ])),
+    stored(
+      "Version 2 with a workout window missing its location",
+      .object([
+        ("version", 2),
+        ("display", ["name": "Runs", "symbol": "heart.fill", "color": "red", "unit": nil]),
+        (
+          "series",
+          [
+            [
+              "id": "a", "type": heartRate, "aggregation": "avg",
+              "window": ["kind": "workout", "activities": [37], "location": "outdoor"],
+              "filter": nil, "label": nil, "hidden": false,
+            ],
+            [
+              "id": "b", "type": heartRate, "aggregation": "max",
+              "window": ["kind": "workout", "activities": nil], "filter": nil, "label": nil,
+              "hidden": false,
+            ],
+          ]
+        ),
+        ("formulas", []), ("bucket", "auto"), ("range", "W"),
+        ("chart", ["style": "ranges", "goal": nil]),
+      ])),
+    stored("A later version", .object([("version", 3), ("display", ["name": "From the future"])])),
     stored("Invalid", spec(["type": heartRate, "aggregation": "sum"])),
     stored(
       "Over 8 KB, under the store's 16 KB",

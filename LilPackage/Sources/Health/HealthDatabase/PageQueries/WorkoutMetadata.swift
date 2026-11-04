@@ -1,4 +1,5 @@
 import Foundation
+import HealthCards
 public import SQLiteData
 
 /// What a workout's or one of its activities' metadata says of it, by HealthKit's keys, read as
@@ -40,11 +41,8 @@ public struct WorkoutMetadata: Equatable, Sendable {
       self.init()
       return
     }
-    let indoor = metadata["HKIndoorWorkout"]
     self.init(
-      indoor: Self.isBoolean(indoor)
-        ? (indoor as? Bool)
-        : Self.number(indoor).flatMap { $0 == 1 ? true : $0 == 0 ? false : nil },
+      indoor: CardWorkout.indoor(metadataValue: metadata["HKIndoorWorkout"]),
       swimmingLocation: Self.swimmingLocation(Self.number(metadata["HKSwimmingLocationType"])),
       brandName: Self.unlessBlank(metadata["HKWorkoutBrandName"]),
       elevationAscended: Self.meters(metadata["HKElevationAscended"] as? String),
@@ -61,7 +59,7 @@ public struct WorkoutMetadata: Equatable, Sendable {
   /// Indoors or not, by an `HKWorkoutSessionLocationType` raw value: 2 indoor, 3 outdoor, and
   /// nil for 1 (unknown) or anything else.
   static func indoor(locationType: Double?) -> Bool? {
-    locationType == 2 ? true : locationType == 3 ? false : nil
+    CardWorkout.indoor(locationType: locationType)
   }
 
   /// `pool` or `openWater`, by an `HKWorkoutSwimmingLocationType` raw value, as the metadata's
@@ -145,14 +143,26 @@ public struct WorkoutActivityRecord: Equatable, Sendable {
 
 extension HealthWorkout {
   /// What its metadata says (``WorkoutMetadata``).
-  public var decodedMetadata: WorkoutMetadata {
+  public var decodedMetadata: WorkoutMetadata { Self.decodedMetadata(metadata) }
+
+  /// Its activities, often none (`HealthWorkout` on the server). Read like its statistics: all
+  /// of them or, if one can't be read, none.
+  public var decodedActivities: [WorkoutActivityRecord] { Self.decodedActivities(activities) }
+
+  /// Whether a workout was indoors, from its `metadata` and `activities` columns, as the
+  /// `workouts` tools say (`location(metadata:activities:)`): what cards' workout windows keep
+  /// by (851-4031).
+  static func indoor(metadata: String?, activities: String) -> Bool? {
+    location(metadata: decodedMetadata(metadata), activities: decodedActivities(activities))
+      .indoor
+  }
+
+  static func decodedMetadata(_ metadata: String?) -> WorkoutMetadata {
     WorkoutMetadata(
       metadata.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) })
   }
 
-  /// Its activities, often none (`HealthWorkout` on the server). Read like its statistics: all
-  /// of them or, if one can't be read, none.
-  public var decodedActivities: [WorkoutActivityRecord] {
+  static func decodedActivities(_ activities: String) -> [WorkoutActivityRecord] {
     guard
       let array = (try? JSONSerialization.jsonObject(with: Data(activities.utf8))) as? [Any]
     else { return [] }
@@ -202,7 +212,7 @@ extension HealthWorkout {
     -> (indoor: Bool?, swimmingLocation: String?)
   {
     (
-      metadata.indoor ?? agreed(activities.map(\.indoor)),
+      CardWorkout.indoor(workout: metadata.indoor, activities: activities.map(\.indoor)),
       metadata.swimmingLocation ?? agreed(activities.map(\.swimmingLocation))
     )
   }

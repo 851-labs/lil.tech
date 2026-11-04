@@ -171,12 +171,12 @@ public struct CardRun: Sendable {
             span.contains($0.day) && ($0.day >= interval.start || $0.day < firstBucket)
           }, calendar: calendar)
         windows[index] = Stretches(stretches: stretches, nights: days)
-      case .workout(let activities):
+      case .workout(let activities, let location):
         // Up to the longest weight past the period, which is all its last readings' weights need.
         let end = interval.end.unixMilliseconds + Int(CardWeights.maxSampleWeight * 1000)
         windows[index] = Stretches(
           stretches: CardWindows.workoutStretches(
-            activities: activities, workouts: workouts,
+            activities: activities, location: location, workouts: workouts,
             in: span.lowerBound.unixMilliseconds..<end),
           nights: nil)
       case .timeOfDay:

@@ -25,6 +25,7 @@ import type {
 } from "./CardEngine.ts";
 import { type CardSleepRecord, sleepAnalysisType } from "./CardNights.ts";
 import type { CardFilter } from "./CardSpec.ts";
+import { storedWorkoutIndoor } from "../WorkoutMetadata.ts";
 
 // The server engine's reads of the user's store (851-3197): the Mac's `CardQueries` over the
 // store's tables. Totals come from the statistics source's buckets and the samples past them
@@ -139,15 +140,16 @@ export const cardSleepRecords = (sql: StoreSql, range: CardInterval): Array<Card
 export const cardWorkouts = (sql: StoreSql, range: CardInterval): Array<CardWorkout> =>
   sql
     .rows(
-      `SELECT start_date, end_date, activity_type FROM health_workout
+      `SELECT start_date, end_date, activity_type, metadata, activities FROM health_workout
       WHERE start_date < ? AND end_date > ? ORDER BY start_date, id`,
       range.end,
       range.start,
     )
-    .map(([start, end, activityType]) => ({
+    .map(([start, end, activityType, metadata, activities]) => ({
       start: Number(start),
       end: Number(end),
       activityType: Number(activityType),
+      indoor: storedWorkoutIndoor(metadata, activities),
     }));
 
 /** What a window fetch asks for, from the store. */

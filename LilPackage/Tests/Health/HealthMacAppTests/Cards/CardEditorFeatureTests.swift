@@ -159,7 +159,7 @@ struct CardEditorFeatureTests {
   func aLaterVersionsCardCantBeEdited() {
     let card = Card(
       HealthCard(
-        id: "card_later", spec: #"{"version":2,"display":{"name":"Later"}}"#, position: "a0",
+        id: "card_later", spec: #"{"version":3,"display":{"name":"Later"}}"#, position: "a0",
         createdAt: 0, updatedAt: 0))
     #expect(CardEditorFeature.State(editing: card) == nil)
   }

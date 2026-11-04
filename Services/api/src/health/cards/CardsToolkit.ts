@@ -92,9 +92,9 @@ export const cardSpecExamples = {
 
 /** The spec in brief, for the descriptions: enough to write a valid one with the input schema. */
 const specGuide = [
-  "A card spec is JSON. Only version (1), display.name and each series' type are required: " +
-    "leave the rest out for their defaults. Outputs give the canonical form, every default " +
-    "filled in.",
+  "A card spec is JSON. Only version (1, or 2 for a workout window's location), display.name " +
+    "and each series' type are required: leave the rest out for their defaults. Outputs give the " +
+    "canonical form, every default filled in, at the lowest version that has what it uses.",
   "- display: name (1-40 characters), symbol (one of the schema's SF Symbols; default the " +
     `type's), color (${cardColors.join(", ")}; default the type's), unit (e.g. kg, lb, degF, ` +
     "km; null for the person's locale).",
@@ -107,8 +107,11 @@ const specGuide = [
     '{"kind": "asleep"}, {"kind": "beforeSleep", "minutes": 5} or ' +
     '{"kind": "afterWaking", "minutes": 30} (1-240 minutes, around each night\'s main sleep), ' +
     '{"kind": "workout", "activities": [37]} (HKWorkoutActivityType values or names; null for ' +
-    'every workout), {"kind": "timeOfDay", "from": "00:00", "to": "12:00"} (the local clock; ' +
-    'may cross midnight). filter: {"sources": [bundle IDs], "deviceModels": ["Watch"]}.',
+    'every workout; with version 2, "location": "indoor" or "outdoor" keeps only workouts the ' +
+    "workouts tool's indoor says were there, leaving out those that don't say, e.g. " +
+    '{"kind": "workout", "activities": ["Running"], "location": "outdoor"} for outdoor runs), ' +
+    '{"kind": "timeOfDay", "from": "00:00", "to": "12:00"} (the local clock; may cross ' +
+    'midnight). filter: {"sources": [bundle IDs], "deviceModels": ["Watch"]}.',
   `- bucket, what one point covers (${cardBuckets.join(", ")}): auto (the default) is hours at ` +
     "D, days at W and M, weeks at 6M and months at Y. hour takes ranges D and W; day W, M, 6M " +
     "and Y; week M, 6M and Y; month 6M and Y; night (a point per night) any, and needs a series " +

@@ -149,7 +149,7 @@ struct CardEditorTests {
     var later = Card(
       id: "card_later", spec: seedCards[0].spec!, position: "b0", createdAt: 0, updatedAt: 0)
     later.spec = nil
-    later.storedSpec = ["version": 2, "display": ["name": "Later"]]
+    later.storedSpec = ["version": 3, "display": ["name": "Later"]]
     let store = try store(cards: seedCards + [later])
     await store.send(.editCardButtonTapped(id: later.id))
     #expect(store.state.editor == nil)

@@ -142,19 +142,64 @@ struct CardSpecTests {
     #expect(try JSONDecoder().decode(CardSpec.self, from: data) == spec)
     #expect(try CardJSON(parsing: data) == spec.json)
     // Decoding validates.
-    let invalid = Data(#"{"version": 2}"#.utf8)
+    let invalid = Data(#"{"version": 3}"#.utf8)
     #expect(throws: DecodingError.self) { try JSONDecoder().decode(CardSpec.self, from: invalid) }
+  }
+
+  /// A spec is written at the lowest version that has what it uses (851-4031): version 2 only
+  /// for a workout window's location, so a card without one stays readable by older apps.
+  @Test
+  func versionIsTheLowestThatReadsIt() throws {
+    var spec = try CardSpec(
+      input: [
+        "version": 2, "display": ["name": "Runs"],
+        "series": [["type": "Heart Rate", "window": ["kind": "workout", "activities": [37]]]],
+      ])
+    #expect(spec.version == 1)
+    #expect(spec.json["version"] == 1)
+    spec.series[0].window = .workout(activities: [37], location: .outdoor)
+    #expect(spec.version == 2)
+    #expect(try CardSpec(input: spec.json) == spec)
+    #expect(CardSpec.storedErrors(spec.json).isEmpty)
+    spec.series[0].window = .workout(activities: [37], location: nil)
+    #expect(spec.version == 1)
+    #expect(CardSpec.storedErrors(spec.json).isEmpty)
+  }
+
+  @Test
+  func workoutLocationsKeepWorkoutsThatSay() {
+    #expect(CardWorkoutLocation.indoor.contains(indoor: true))
+    #expect(!CardWorkoutLocation.indoor.contains(indoor: false))
+    #expect(!CardWorkoutLocation.indoor.contains(indoor: nil))
+    #expect(CardWorkoutLocation.outdoor.contains(indoor: false))
+    #expect(!CardWorkoutLocation.outdoor.contains(indoor: true))
+    #expect(!CardWorkoutLocation.outdoor.contains(indoor: nil))
+    // The workout's own word, else its activities', if those that say agree.
+    #expect(CardWorkout.indoor(workout: false, activities: [true]) == false)
+    #expect(CardWorkout.indoor(workout: nil, activities: [true, nil, true]) == true)
+    #expect(CardWorkout.indoor(workout: nil, activities: [true, false]) == nil)
+    #expect(CardWorkout.indoor(workout: nil, activities: []) == nil)
+    #expect(CardWorkout.indoor(locationType: 2) == true)
+    #expect(CardWorkout.indoor(locationType: 3) == false)
+    #expect(CardWorkout.indoor(locationType: 1) == nil)
   }
 
   @Test
   func everyWindowAndFormulaWritesItsFields() {
-    #expect(CardSpec.Window.asleep.json.text() == #"{"kind":"asleep"}"#)
+    #expect(CardSpec.Window.asleep.json(version: 1).text() == #"{"kind":"asleep"}"#)
     #expect(
-      CardSpec.Window.afterWaking(minutes: 30).json.text()
+      CardSpec.Window.afterWaking(minutes: 30).json(version: 1).text()
         == #"{"kind":"afterWaking","minutes":30}"#)
     #expect(
-      CardSpec.Window.workout(activities: nil).json.text()
+      CardSpec.Window.workout(activities: nil).json(version: 1).text()
         == #"{"kind":"workout","activities":null}"#)
+    // Version 2's workout windows all have a location (851-4031).
+    #expect(
+      CardSpec.Window.workout(activities: nil).json(version: 2).text()
+        == #"{"kind":"workout","activities":null,"location":null}"#)
+    #expect(
+      CardSpec.Window.workout(activities: [37], location: .outdoor).json(version: 2).text()
+        == #"{"kind":"workout","activities":[37],"location":"outdoor"}"#)
     #expect(CardSpec.Window.workout(activities: [37]).isSleep == false)
     #expect(CardSpec.Window.beforeSleep(minutes: 5).isSleep)
     #expect(

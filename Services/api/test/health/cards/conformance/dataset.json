@@ -4,6 +4,7 @@
     "Times in lines are Unix milliseconds. Most cases are in Europe/London, which is UTC+1 (BST) until 01:00Z on Sunday 25 October 2026, when its clocks go back to UTC+0 (GMT). The cases are in cases.json.",
     "Nights: 20 October's is the tools' (the Watch's stages and the iPhone's estimate). 21 October has the Watch's stages, a wake and the iPhone's shorter estimate; 22 October the iPhone's estimate, longer than the Watch's; 23 October only an afternoon nap (a day's sleep, no night); 24 October a night and a nap after it; 25 October the night the clocks go back; 26 October a night in the next week.",
     "Heart rate comes from the Watch (its device through its provenance record, model Watch; the tools' dataset's Watch samples have no device), and twice from a chest strap (org.example.strap, model Strap, a sample's own device): the filtered source. Around each night: readings before sleep, asleep, awake in the night and after waking; in workouts (runs, and a strength workout overlapping a run).",
+    "Workouts say where they were as the workouts tool's indoor reads it (851-4031): 22 October's run indoors in its metadata (HKIndoorWorkout true), 24 October's run outdoors only through its one activity's configuration (locationType 3), and 24 October's strength workout nothing. The tools' dataset's 20 October run says outdoors as a number (HKIndoorWorkout 0).",
     "Weight comes from a scale (org.example.scale): weigh-ins before and after noon, one at noon exactly, on both sides of the clock change, and ties for first and latest. HRV, resting heart rate and body temperature have a few readings each, and environmental sound two readings of different lengths.",
     "The second batch (851-4043) is America/Los_Angeles over both of its changes of clock in 2025, away from every other case's period: Sunday 9 March, when 02:00 PST (10:00Z) becomes 03:00 PDT (a day of 23 hours), and Sunday 2 November, when 02:00 PDT (09:00Z) becomes 01:00 PST (25 hours, 01:00 twice). Around each, from the Watch: the nights ending the day before, on the day and the day after, and one in the next week (and in November one in the last week of October), with heart rate before sleep, asleep, awake in the night and after waking. 9 March's night is asleep across the skipped hour; on 2 November the Watch lies awake through the first 01:00 and falls asleep 2 minutes into the second, so its 5 minutes before sleep straddle the change. From the scale, weigh-ins at 19:30Z on either side of each change: 11:30 on the clock on one side, 12:30 on the other; and in November, mornings in the week before, for a moving average."
   ],
@@ -807,6 +808,7 @@
             "activities": [],
             "events": [],
             "statistics": {},
+            "metadata": { "HKIndoorWorkout": true },
             "sourceName": "Test Apple Watch",
             "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
           }
@@ -836,7 +838,19 @@
             "startDate": 1792837800000,
             "endDate": 1792839600000,
             "duration": 1800,
-            "activities": [],
+            "activities": [
+              {
+                "id": "0ca7d000-0000-4000-8000-000000000153",
+                "activityType": 37,
+                "startDate": 1792837800000,
+                "endDate": 1792839600000,
+                "duration": 1800,
+                "locationType": 3,
+                "swimmingLocationType": 0,
+                "metadata": null,
+                "statistics": {}
+              }
+            ],
             "events": [],
             "statistics": {},
             "sourceName": "Test Apple Watch",

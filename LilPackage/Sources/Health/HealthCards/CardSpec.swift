@@ -1,11 +1,10 @@
 import Foundation
 public import HealthCatalog
 
-/// What a card charts and how it looks: the card spec, version 1 (docs/decisions/cards.md, The card
-/// spec, v1). A value is always canonical, every default filled in: make one from input with
-/// `init(input:)`, which validates it, and write it with `json`.
+/// What a card charts and how it looks: the card spec, versions 1 and 2 (docs/decisions/cards.md,
+/// The card spec, v1, and Version 2). A value is always canonical, every default filled in: make
+/// one from input with `init(input:)`, which validates it, and write it with `json`.
 public struct CardSpec: Hashable, Sendable {
-  public var version: Int
   public var display: Display
   public var series: [Series]
   public var formulas: [Formula]
@@ -14,16 +13,25 @@ public struct CardSpec: Hashable, Sendable {
   public var chart: Chart
 
   public init(
-    version: Int = HealthCards.specVersion, display: Display, series: [Series],
-    formulas: [Formula] = [], bucket: Bucket = .auto, range: CardRange, chart: Chart
+    display: Display, series: [Series], formulas: [Formula] = [], bucket: Bucket = .auto,
+    range: CardRange, chart: Chart
   ) {
-    self.version = version
     self.display = display
     self.series = series
     self.formulas = formulas
     self.bucket = bucket
     self.range = range
     self.chart = chart
+  }
+
+  /// The spec's format: the lowest version that has everything it uses, so a card that doesn't
+  /// need version 2 stays readable by apps that only read version 1. Version 2 adds a workout
+  /// window's `location` (851-4031).
+  public var version: Int {
+    let usesLocation = series.contains {
+      if case .workout(_, .some) = $0.window { true } else { false }
+    }
+    return usesLocation ? 2 : 1
   }
 
   public struct Display: Hashable, Sendable {
@@ -111,8 +119,8 @@ public struct CardSpec: Hashable, Sendable {
     /// `[W, W + minutes)`, where `W` is when the night's sleep ended.
     case afterWaking(minutes: Int)
     /// Each workout, of the activities given (`HKWorkoutActivityType` raw values), or of every
-    /// activity when `nil`.
-    case workout(activities: [Int]?)
+    /// activity when `nil`, and only those indoors or outdoors when `location` says (version 2).
+    case workout(activities: [Int]?, location: CardWorkoutLocation? = nil)
     /// Readings whose start is within hours of the local clock, every day.
     case timeOfDay(CardTimeOfDay)
 
@@ -298,6 +306,22 @@ public enum CardValueUnit: Hashable, Sendable, CustomStringConvertible {
   }
 }
 
+/// Where a workout window's workouts were (spec version 2, 851-4031): as the workout's
+/// `HKMetadataKeyIndoorWorkout` says, else as its activities' configurations do, if they agree,
+/// as the Health tools' `indoor` has it. A workout that doesn't say is in neither.
+public enum CardWorkoutLocation: String, CaseIterable, Hashable, Sendable {
+  case indoor
+  case outdoor
+
+  /// Whether a workout indoors (`true`), outdoors (`false`) or that doesn't say (`nil`) is here.
+  public func contains(indoor: Bool?) -> Bool {
+    switch self {
+    case .indoor: indoor == true
+    case .outdoor: indoor == false
+    }
+  }
+}
+
 /// A `timeOfDay` window: from `from` up to `to` on the local clock, every day, crossing midnight
 /// when `from` is later than `to` (`22:00` to `06:00`). A reading is in it by its start's clock
 /// time in the engine's calendar, so on the day clocks go forward a window over the skipped hour
@@ -373,7 +397,7 @@ extension CardSpec {
         "color": .string(display.color.rawValue),
         "unit": display.unit.map(CardJSON.string) ?? .null,
       ],
-      "series": .array(series.map(\.json)),
+      "series": .array(series.map { $0.json(version: version) }),
       "formulas": .array(formulas.map(\.json)),
       "bucket": .string(bucket.rawValue),
       "range": .string(range.rawValue),
@@ -389,12 +413,13 @@ extension CardSpec {
 }
 
 extension CardSpec.Series {
-  var json: CardJSON {
+  /// In a spec of `version`, whose workout windows all have `location` from version 2.
+  func json(version: Int) -> CardJSON {
     [
       "id": .string(id),
       "type": .string(type),
       "aggregation": .string(aggregation.rawValue),
-      "window": window?.json ?? .null,
+      "window": window?.json(version: version) ?? .null,
       "filter": filter?.json ?? .null,
       "label": label.map(CardJSON.string) ?? .null,
       "hidden": .bool(hidden),
@@ -403,16 +428,20 @@ extension CardSpec.Series {
 }
 
 extension CardSpec.Window {
-  var json: CardJSON {
+  /// In a spec of `version`: a workout window has `location` from version 2, `null` for
+  /// anywhere.
+  func json(version: Int) -> CardJSON {
     switch self {
     case .asleep: ["kind": "asleep"]
     case .beforeSleep(let minutes): ["kind": "beforeSleep", "minutes": .number(Double(minutes))]
     case .afterWaking(let minutes): ["kind": "afterWaking", "minutes": .number(Double(minutes))]
-    case .workout(let activities):
-      [
-        "kind": "workout",
-        "activities": activities.map { .array($0.map { .number(Double($0)) }) } ?? .null,
-      ]
+    case .workout(let activities, let location):
+      .object(
+        [
+          ("kind", "workout"),
+          ("activities", activities.map { .array($0.map { .number(Double($0)) }) } ?? .null),
+        ]
+          + (version >= 2 ? [("location", location.map { .string($0.rawValue) } ?? .null)] : []))
     case .timeOfDay(let window):
       [
         "kind": "timeOfDay", "from": .string(window.from.description),

@@ -1,13 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Card spec",
-  "description": "A lil health card spec, version 1, in canonical form (docs/decisions/cards.md). Generated from HealthCards by scripts/generate-health-cards: don't edit.",
+  "description": "A lil health card spec, version 1 or 2, in canonical form (docs/decisions/cards.md). Generated from HealthCards by scripts/generate-health-cards: don't edit.",
   "type": "object",
   "properties": {
     "version": {
       "type": "integer",
       "enum": [
-        1
+        1,
+        2
       ]
     },
     "display": {
@@ -451,6 +452,20 @@
                             "minItems": 1,
                             "maxItems": 10,
                             "uniqueItems": true
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "location": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "indoor",
+                              "outdoor"
+                            ]
                           },
                           {
                             "type": "null"

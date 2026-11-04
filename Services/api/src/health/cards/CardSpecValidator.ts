@@ -38,6 +38,7 @@ import {
   cardRanges,
   cardSpecVersion,
   cardSymbols,
+  cardWorkoutLocations,
   cardWindowKinds,
   chartableTypes,
   defaultRange,
@@ -146,8 +147,9 @@ export const storedCardSpecErrors = (spec: Json): ReadonlyArray<CardSpecError> =
           path: "",
           code: "notCanonical",
           message:
-            "The spec isn't in canonical form (a default left out, a type or activity by name, or " +
-            "a name or label not trimmed): apps and tools write it canonicalized.",
+            "The spec isn't in canonical form (a default left out, a type or activity by name, a " +
+            "name or label not trimmed, or a version later than it needs): apps and tools write " +
+            "it canonicalized.",
         },
       ];
 };
@@ -385,10 +387,24 @@ const clockTime = (text: string): number | undefined => {
 const clockText = (minutes: number) =>
   `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 
+/** The versions this reads, "1 or 2" (or "1 and 2"). */
+const versions = (word: string) => {
+  const sorted = [...readableCardSpecVersions].sort((a, b) => a - b).map(String);
+  return sorted.length > 1
+    ? `${sorted.slice(0, -1).join(", ")} ${word} ${sorted.at(-1)!}`
+    : (sorted[0] ?? "");
+};
+
 // MARK: - The validator
 
 class Validator {
   errors: Array<CardSpecError> = [];
+  /**
+   * The version the input says, which decides the fields it may have: the latest when it doesn't
+   * say one this reads, so its other errors are the latest version's. The canonical form's is the
+   * lowest that has what the spec uses.
+   */
+  inputVersion: number = cardSpecVersion;
 
   fail(path: string, code: CardSpecErrorCode, message: string) {
     this.errors.push({ path, code, message });
@@ -403,23 +419,28 @@ class Validator {
     // Version
     const version = member(input, "version");
     if (version === undefined || version === null) {
-      this.fail("version", "required", "version is required: the spec's format, 1.");
+      this.fail(
+        "version",
+        "required",
+        `version is required: the spec's format, ${versions("or")}.`,
+      );
     } else if (typeof version === "number") {
       if (!(isWhole(version, 0, 1_000_000) && readableCardSpecVersions.includes(version))) {
-        // Every other rule is version 1's: this is the one error.
+        // Every other rule is a version's: this is the one error.
         this.errors = [
           {
             path: "version",
             code: "unsupportedVersion",
             message:
-              `version ${String(version)} isn't supported. This server reads card spec version ` +
-              `${cardSpecVersion}.`,
+              `version ${String(version)} isn't supported. This server reads card spec versions ` +
+              `${versions("and")}.`,
           },
         ];
         return undefined;
       }
+      this.inputVersion = version;
     } else {
-      this.fail("version", "invalidType", "version must be a whole number: 1.");
+      this.fail("version", "invalidType", `version must be a whole number: ${versions("or")}.`);
     }
 
     // Display
@@ -666,14 +687,27 @@ class Validator {
     ) {
       return undefined;
     }
+    // The lowest version that has what it uses: 2 for a workout window's location. A version 1
+    // spec's workout windows have none, and a version 2 spec's all have one.
+    const canonicalVersion = series.some(
+      (item) => item.window?.["kind"] === "workout" && item.window["location"] !== null,
+    )
+      ? 2
+      : 1;
+    const canonicalWindow = (window: JsonObject | undefined): Json => {
+      if (window === undefined) return null;
+      if (window["kind"] !== "workout" || canonicalVersion >= 2) return window;
+      const { location: _location, ...rest } = window;
+      return rest as JsonObject;
+    };
     return {
-      version: cardSpecVersion,
+      version: canonicalVersion,
       display: { name, symbol, color, unit: unit ?? null },
       series: series.map((item) => ({
         id: item.id!,
         type: item.type!.id,
         aggregation: item.aggregation!,
-        window: item.window ?? null,
+        window: canonicalWindow(item.window),
         filter: item.filter ?? null,
         label: item.label,
         hidden: item.hidden,
@@ -911,19 +945,23 @@ class Validator {
         break;
       }
       case "workout": {
-        allowed = ["kind", "activities"];
+        allowed = ["kind", "activities", "location"];
         const activities = member(json, "activities");
+        let known: Array<number> | null | undefined;
         if (activities === undefined || activities === null) {
-          window = { kind, activities: null };
+          known = null;
         } else if (Array.isArray(activities)) {
-          const known = this.activities(activities, `${path}.activities`);
-          if (known !== undefined) window = { kind, activities: known };
+          known = this.activities(activities, `${path}.activities`);
         } else {
           this.fail(
             `${path}.activities`,
             "invalidType",
             `${path}.activities must be an array of workout activities, or null for every workout.`,
           );
+        }
+        const location = this.workoutLocation(member(json, "location"), `${path}.location`);
+        if (known !== undefined && location !== undefined) {
+          window = { kind, activities: known, location };
         }
         break;
       }
@@ -968,10 +1006,36 @@ class Validator {
         break;
       }
       default:
-        allowed = ["kind", "minutes", "activities", "from", "to"];
+        allowed = ["kind", "minutes", "activities", "location", "from", "to"];
     }
     this.unknownFields(json, path, allowed);
     return [window, kind];
+  }
+
+  /** A workout window's `location` (version 2): null for anywhere, undefined for an error. */
+  private workoutLocation(json: Json | undefined, path: string): string | null | undefined {
+    if (this.inputVersion < 2 && json !== undefined) {
+      this.fail(
+        path,
+        "unknownField",
+        `${path} needs card spec version 2: set "version": 2 to keep indoor or outdoor ` +
+          "workouts only.",
+      );
+      return undefined;
+    }
+    if (json === undefined || json === null) return null;
+    if (typeof json === "string") {
+      if ((cardWorkoutLocations as ReadonlyArray<string>).includes(json)) return json;
+      this.fail(
+        path,
+        "unknownValue",
+        `${quoted(json)} isn't a workout location. Use indoor or outdoor, or null for every ` +
+          "workout.",
+      );
+      return undefined;
+    }
+    this.fail(path, "invalidType", `${path} must be "indoor", "outdoor" or null.`);
+    return undefined;
   }
 
   private activities(items: ReadonlyArray<Json>, path: string): Array<number> | undefined {

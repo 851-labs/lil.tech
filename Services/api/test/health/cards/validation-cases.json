@@ -520,6 +520,154 @@
       }
     },
     {
+      "name": "Version 2: outdoor runs, and every workout's location",
+      "mode": "input",
+      "spec": {
+        "version": 2,
+        "display": {
+          "name": "Outdoor Runs"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "workout",
+              "activities": [
+                "Running"
+              ],
+              "location": "outdoor"
+            }
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "max",
+            "window": {
+              "kind": "workout"
+            }
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "min",
+            "window": {
+              "kind": "asleep"
+            }
+          }
+        ],
+        "bucket": "week"
+      },
+      "canonical": {
+        "version": 2,
+        "display": {
+          "name": "Outdoor Runs",
+          "symbol": "heart.fill",
+          "color": "red",
+          "unit": null
+        },
+        "series": [
+          {
+            "id": "a",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "window": {
+              "kind": "workout",
+              "activities": [
+                37
+              ],
+              "location": "outdoor"
+            },
+            "filter": null,
+            "label": null,
+            "hidden": false
+          },
+          {
+            "id": "b",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "max",
+            "window": {
+              "kind": "workout",
+              "activities": null,
+              "location": null
+            },
+            "filter": null,
+            "label": null,
+            "hidden": false
+          },
+          {
+            "id": "c",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "min",
+            "window": {
+              "kind": "asleep"
+            },
+            "filter": null,
+            "label": null,
+            "hidden": false
+          }
+        ],
+        "formulas": [],
+        "bucket": "week",
+        "range": "M",
+        "chart": {
+          "style": "ranges",
+          "goal": null
+        }
+      }
+    },
+    {
+      "name": "Version 2 without a location is written as version 1",
+      "mode": "input",
+      "spec": {
+        "version": 2,
+        "display": {
+          "name": "Runs"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "workout",
+              "activities": [
+                37
+              ],
+              "location": null
+            }
+          }
+        ]
+      },
+      "canonical": {
+        "version": 1,
+        "display": {
+          "name": "Runs",
+          "symbol": "heart.fill",
+          "color": "red",
+          "unit": null
+        },
+        "series": [
+          {
+            "id": "a",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "window": {
+              "kind": "workout",
+              "activities": [
+                37
+              ]
+            },
+            "filter": null,
+            "label": null,
+            "hidden": false
+          }
+        ],
+        "formulas": [],
+        "bucket": "auto",
+        "range": "W",
+        "chart": {
+          "style": "ranges",
+          "goal": null
+        }
+      }
+    },
+    {
       "name": "A filter of sources and device models",
       "mode": "input",
       "spec": {
@@ -1786,7 +1934,7 @@
         {
           "path": "version",
           "code": "invalidType",
-          "message": "version must be a whole number: 1."
+          "message": "version must be a whole number: 1 or 2."
         },
         {
           "path": "display.name",
@@ -1957,7 +2105,7 @@
         {
           "path": "version",
           "code": "required",
-          "message": "version is required: the spec's format, 1."
+          "message": "version is required: the spec's format, 1 or 2."
         },
         {
           "path": "display.name",
@@ -2160,10 +2308,10 @@
       ]
     },
     {
-      "name": "Version 2",
+      "name": "Version 3",
       "mode": "input",
       "spec": {
-        "version": 2,
+        "version": 3,
         "display": {
           "name": 1
         },
@@ -2173,7 +2321,7 @@
         {
           "path": "version",
           "code": "unsupportedVersion",
-          "message": "version 2 isn't supported. This server reads card spec version 1."
+          "message": "version 3 isn't supported. This server reads card spec versions 1 and 2."
         }
       ]
     },
@@ -2190,7 +2338,7 @@
         {
           "path": "version",
           "code": "unsupportedVersion",
-          "message": "version 1.5 isn't supported. This server reads card spec version 1."
+          "message": "version 1.5 isn't supported. This server reads card spec versions 1 and 2."
         }
       ]
     },
@@ -2204,7 +2352,7 @@
         {
           "path": "version",
           "code": "unsupportedVersion",
-          "message": "version 0 isn't supported. This server reads card spec version 1."
+          "message": "version 0 isn't supported. This server reads card spec versions 1 and 2."
         }
       ]
     },
@@ -3792,6 +3940,127 @@
           "path": "series[0].aggregation",
           "code": "aggregationNotAllowed",
           "message": "Steps adds up, so it takes \"sum\" only (avg, min, max, first, latest and count are for types measured at points in time). For an average day over weeks or months, use bucket \"auto\" at 6M or Y."
+        }
+      ]
+    },
+    {
+      "name": "A location in version 1",
+      "mode": "input",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Card"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "workout",
+              "location": "indoor"
+            }
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "workout",
+              "location": null
+            }
+          }
+        ]
+      },
+      "errors": [
+        {
+          "path": "series[0].window.location",
+          "code": "unknownField",
+          "message": "series[0].window.location needs card spec version 2: set \"version\": 2 to keep indoor or outdoor workouts only."
+        },
+        {
+          "path": "series[1].window.location",
+          "code": "unknownField",
+          "message": "series[1].window.location needs card spec version 2: set \"version\": 2 to keep indoor or outdoor workouts only."
+        }
+      ]
+    },
+    {
+      "name": "Locations that don't exist",
+      "mode": "input",
+      "spec": {
+        "version": 2,
+        "display": {
+          "name": "Card"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "workout",
+              "location": "inside"
+            }
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "workout",
+              "location": true
+            }
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "workout",
+              "activities": [],
+              "location": "Indoor"
+            }
+          }
+        ]
+      },
+      "errors": [
+        {
+          "path": "series[0].window.location",
+          "code": "unknownValue",
+          "message": "\"inside\" isn't a workout location. Use indoor or outdoor, or null for every workout."
+        },
+        {
+          "path": "series[1].window.location",
+          "code": "invalidType",
+          "message": "series[1].window.location must be \"indoor\", \"outdoor\" or null."
+        },
+        {
+          "path": "series[2].window.activities",
+          "code": "activityCount",
+          "message": "series[2].window.activities must have 1 to 10 activities (it has 0), or be null for every workout."
+        },
+        {
+          "path": "series[2].window.location",
+          "code": "unknownValue",
+          "message": "\"Indoor\" isn't a workout location. Use indoor or outdoor, or null for every workout."
+        }
+      ]
+    },
+    {
+      "name": "A location on a sleep window",
+      "mode": "input",
+      "spec": {
+        "version": 2,
+        "display": {
+          "name": "Card"
+        },
+        "series": [
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "window": {
+              "kind": "asleep",
+              "location": "indoor"
+            }
+          }
+        ],
+        "bucket": "night"
+      },
+      "errors": [
+        {
+          "path": "series[0].window.location",
+          "code": "unknownField",
+          "message": "Unknown field \"location\" in series[0].window. Allowed: kind."
         }
       ]
     },
@@ -5697,7 +5966,7 @@
         {
           "path": "",
           "code": "notCanonical",
-          "message": "The spec isn't in canonical form (a default left out, a type or activity by name, or a name or label not trimmed): apps and tools write it canonicalized."
+          "message": "The spec isn't in canonical form (a default left out, a type or activity by name, a name or label not trimmed, or a version later than it needs): apps and tools write it canonicalized."
         }
       ]
     },
@@ -5735,7 +6004,7 @@
         {
           "path": "",
           "code": "notCanonical",
-          "message": "The spec isn't in canonical form (a default left out, a type or activity by name, or a name or label not trimmed): apps and tools write it canonicalized."
+          "message": "The spec isn't in canonical form (a default left out, a type or activity by name, a name or label not trimmed, or a version later than it needs): apps and tools write it canonicalized."
         }
       ]
     },
@@ -5773,7 +6042,156 @@
         {
           "path": "",
           "code": "notCanonical",
-          "message": "The spec isn't in canonical form (a default left out, a type or activity by name, or a name or label not trimmed): apps and tools write it canonicalized."
+          "message": "The spec isn't in canonical form (a default left out, a type or activity by name, a name or label not trimmed, or a version later than it needs): apps and tools write it canonicalized."
+        }
+      ]
+    },
+    {
+      "name": "Version 2, canonical",
+      "mode": "stored",
+      "spec": {
+        "version": 2,
+        "display": {
+          "name": "Indoor Workouts",
+          "symbol": "heart.fill",
+          "color": "red",
+          "unit": null
+        },
+        "series": [
+          {
+            "id": "a",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "window": {
+              "kind": "workout",
+              "activities": null,
+              "location": "indoor"
+            },
+            "filter": null,
+            "label": null,
+            "hidden": false
+          },
+          {
+            "id": "b",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "max",
+            "window": {
+              "kind": "workout",
+              "activities": null,
+              "location": null
+            },
+            "filter": null,
+            "label": null,
+            "hidden": false
+          }
+        ],
+        "formulas": [],
+        "bucket": "auto",
+        "range": "W",
+        "chart": {
+          "style": "ranges",
+          "goal": null
+        }
+      },
+      "errors": []
+    },
+    {
+      "name": "Version 2 without a location",
+      "mode": "stored",
+      "spec": {
+        "version": 2,
+        "display": {
+          "name": "Runs",
+          "symbol": "heart.fill",
+          "color": "red",
+          "unit": null
+        },
+        "series": [
+          {
+            "id": "a",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "window": {
+              "kind": "workout",
+              "activities": [
+                37
+              ],
+              "location": null
+            },
+            "filter": null,
+            "label": null,
+            "hidden": false
+          }
+        ],
+        "formulas": [],
+        "bucket": "auto",
+        "range": "W",
+        "chart": {
+          "style": "ranges",
+          "goal": null
+        }
+      },
+      "errors": [
+        {
+          "path": "",
+          "code": "notCanonical",
+          "message": "The spec isn't in canonical form (a default left out, a type or activity by name, a name or label not trimmed, or a version later than it needs): apps and tools write it canonicalized."
+        }
+      ]
+    },
+    {
+      "name": "Version 2 with a workout window missing its location",
+      "mode": "stored",
+      "spec": {
+        "version": 2,
+        "display": {
+          "name": "Runs",
+          "symbol": "heart.fill",
+          "color": "red",
+          "unit": null
+        },
+        "series": [
+          {
+            "id": "a",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "window": {
+              "kind": "workout",
+              "activities": [
+                37
+              ],
+              "location": "outdoor"
+            },
+            "filter": null,
+            "label": null,
+            "hidden": false
+          },
+          {
+            "id": "b",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "max",
+            "window": {
+              "kind": "workout",
+              "activities": null
+            },
+            "filter": null,
+            "label": null,
+            "hidden": false
+          }
+        ],
+        "formulas": [],
+        "bucket": "auto",
+        "range": "W",
+        "chart": {
+          "style": "ranges",
+          "goal": null
+        }
+      },
+      "errors": [
+        {
+          "path": "",
+          "code": "notCanonical",
+          "message": "The spec isn't in canonical form (a default left out, a type or activity by name, a name or label not trimmed, or a version later than it needs): apps and tools write it canonicalized."
         }
       ]
     },
@@ -5781,7 +6199,7 @@
       "name": "A later version",
       "mode": "stored",
       "spec": {
-        "version": 2,
+        "version": 3,
         "display": {
           "name": "From the future"
         }
@@ -5790,7 +6208,7 @@
         {
           "path": "version",
           "code": "unsupportedVersion",
-          "message": "version 2 isn't supported. This server reads card spec version 1."
+          "message": "version 3 isn't supported. This server reads card spec versions 1 and 2."
         }
       ]
     },

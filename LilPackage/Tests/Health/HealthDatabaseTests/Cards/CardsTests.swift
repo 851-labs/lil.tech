@@ -99,7 +99,7 @@ struct CardWritesTests {
 
   @Test
   func aCardOfALaterVersionCantBeEditedButMovesAsItIs() throws {
-    let later = #"{"version":2,"display":{"name":"From the future"},"series":[]}"#
+    let later = #"{"version":3,"display":{"name":"From the future"},"series":[]}"#
     let card = Card(
       HealthCard(
         id: "card_seed_steps", spec: later, position: "a0", createdAt: 1, updatedAt: 1,
@@ -257,7 +257,7 @@ struct CardReorderTests {
   func replacingASpecKeepsItsPlaceAndAnUnreadableOneToo() throws {
     var later = card("card_later", at: "a3")
     later.spec = nil
-    later.storedSpec = ["version": 2]
+    later.storedSpec = ["version": 3]
     later.updatedAt = nowMilliseconds + 5000
     let replaced = try later.replaced(with: spec("Fixed"), now: now)
     #expect(replaced.spec?.display.name == "Fixed")
