@@ -163,11 +163,35 @@ struct CardEngineTests {
     let first = run(
       try weightCard("first"), .week, on: date(10, 20), readings: [bodyMass: readings])
     #expect(first.series[0].points.map(\.value) == [72])
-    #expect(first.summary == CardSummary(kind: .first, value: 72))
+    // A week of days: the header is the average of the days' points (851-3244).
+    #expect(first.summary == CardSummary(kind: .average, value: 72))
     let latest = run(
       try weightCard("latest"), .week, on: date(10, 20), readings: [bodyMass: readings])
     #expect(latest.series[0].points.map(\.value) == [81])
-    #expect(latest.summary == CardSummary(kind: .latest, value: 81))
+    #expect(latest.summary == CardSummary(kind: .average, value: 81))
+  }
+
+  @Test
+  func firstAndLatestHeadWithTheirReadingOnlyForOneBucketOrADayAtD() throws {
+    let readings = [
+      reading(date(10, 20, 8), 72),
+      reading(date(10, 20, 8, 30), 74),
+      reading(date(10, 20, 20), 80),
+    ]
+    func header(_ aggregation: String, _ bucket: String, _ range: CardRange) throws
+      -> CardSummary?
+    {
+      run(
+        try weightCard(aggregation, bucket: bucket, range: range.rawValue), range, on: date(10, 20),
+        readings: [bodyMass: readings]
+      ).summary
+    }
+    // At D by the hour, the day's first and latest, not the average of the hours'.
+    #expect(try header("first", "auto", .day) == CardSummary(kind: .first, value: 72))
+    #expect(try header("latest", "auto", .day) == CardSummary(kind: .latest, value: 80))
+    // More buckets: the average of the points, each once.
+    #expect(try header("first", "hour", .day) == CardSummary(kind: .average, value: 76))
+    #expect(try header("latest", "day", .week) == CardSummary(kind: .average, value: 80))
   }
 
   @Test
@@ -283,7 +307,10 @@ struct CardEngineTests {
     // Oct 8's window is Oct 2–8, without Oct 5: 70.7, 70.8, 70.9, 71.1, 71.2, 71.3.
     let october8 = try #require(trend.points.first { $0.start == date(10, 8) })
     #expect(abs(october8.value - (70.7 + 70.8 + 70.9 + 71.1 + 71.2 + 71.3) / 6) < 1e-9)
-    #expect(data.summary == CardSummary(kind: .first, value: 70.6))
+    // The header is the average of the 13 mornings shown, 70.6 to 71.9 without Oct 5's 71.0, not
+    // the month's first weigh-in (851-3244).
+    #expect(data.summary?.kind == .average)
+    #expect(abs((data.summary?.value ?? 0) - (14 * 71.25 - 71) / 13) < 1e-9)
   }
 
   /// Example 1, and example 3's dots with a 7-point moving average.

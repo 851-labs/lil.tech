@@ -2,6 +2,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { DateTime, Schema } from "effect";
 import {
   CardRun,
+  type CardSummaryKind,
   type CardTotal,
   cardWeights,
   cardWindowWeights,
@@ -10,7 +11,7 @@ import {
   leadPoints,
   readingsInStretches,
 } from "../../../src/health/cards/CardEngine.ts";
-import { CardSpec } from "../../../src/health/cards/CardSpec.ts";
+import { type CardRange, CardSpec } from "../../../src/health/cards/CardSpec.ts";
 import { welcomeSeed } from "../../../src/health/cards/WelcomeSeed.ts";
 import {
   addDays,
@@ -156,8 +157,9 @@ describe("aggregations and buckets", () => {
       first.series[0]!.points.map((point) => point.value),
       [72],
     );
+    // A week of days: the header is the average of the days' points (851-3244).
     assert.deepStrictEqual(first.summary, {
-      kind: "first",
+      kind: "average",
       value: 72,
       minimum: null,
       maximum: null,
@@ -170,11 +172,35 @@ describe("aggregations and buckets", () => {
       [81],
     );
     assert.deepStrictEqual(latest.summary, {
-      kind: "latest",
+      kind: "average",
       value: 81,
       minimum: null,
       maximum: null,
     });
+  });
+
+  it("heads first and latest with their reading only for one bucket, or a day at D", () => {
+    const readings = [
+      reading(date(10, 20, 8), 72, { minutes: 1 }),
+      reading(date(10, 20, 8, 30), 74, { minutes: 1 }),
+      reading(date(10, 20, 20), 80, { minutes: 1 }),
+    ];
+    const header = (aggregation: string, bucket: string, range: CardRange) =>
+      run(weightCard(aggregation, bucket, range), range, date(10, 20), {
+        readings: { [bodyMass]: readings },
+      }).summary;
+    const summary = (kind: CardSummaryKind, value: number) => ({
+      kind,
+      value,
+      minimum: null,
+      maximum: null,
+    });
+    // At D by the hour, the day's first and latest, not the average of the hours'.
+    assert.deepStrictEqual(header("first", "auto", "D"), summary("first", 72));
+    assert.deepStrictEqual(header("latest", "auto", "D"), summary("latest", 80));
+    // More buckets: the average of the points, each once.
+    assert.deepStrictEqual(header("first", "hour", "D"), summary("average", 76));
+    assert.deepStrictEqual(header("latest", "day", "W"), summary("average", 80));
   });
 
   it("follows the calendar", () => {
@@ -357,12 +383,10 @@ describe("formulas and summaries", () => {
       trend.points.find((point) => point.start === date(10, 8))?.value,
       (70.7 + 70.8 + 70.9 + 71.1 + 71.2 + 71.3) / 6,
     );
-    assert.deepStrictEqual(data.summary, {
-      kind: "first",
-      value: 70.6,
-      minimum: null,
-      maximum: null,
-    });
+    // The header is the average of the 13 mornings shown, 70.6 to 71.9 without Oct 5's 71.0, not
+    // the month's first weigh-in (851-3244).
+    assert.strictEqual(data.summary?.kind, "average");
+    close(data.summary?.value ?? undefined, (14 * 71.25 - 71) / 13);
   });
 
   it("chart body temperature, and HRV's dots with a 7-point moving average", () => {

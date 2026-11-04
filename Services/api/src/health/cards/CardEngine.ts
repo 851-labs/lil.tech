@@ -1153,12 +1153,45 @@ export class CardRun {
       case "max":
         return summary("highest", period.maximum);
       case "first":
-        return summary("first", period.first?.value ?? null);
       case "latest":
-        return summary("latest", period.latest?.value ?? null);
+        return this.pickedSummary(lead.series.aggregation, series);
       case "count":
         return summary("count", period.count);
     }
+  }
+
+  /**
+   * The header of a series that picks one reading per bucket: that reading when the period is
+   * one bucket (or a day, at D, as a total's), else the average of the points shown, each once,
+   * since a month's first weigh-in says nothing about the month's mornings (851-3244).
+   */
+  private pickedSummary(aggregation: "first" | "latest", computed: Computed): CardSummary | null {
+    const period = computed.period;
+    const points = computed.points;
+    if (period === undefined || points.length === 0) return null;
+    const summary = (kind: CardSummaryKind, value: number | null): CardSummary => ({
+      kind,
+      value,
+      minimum: null,
+      maximum: null,
+    });
+    if (this.isOneBucket()) {
+      return aggregation === "first"
+        ? summary("first", period.first?.value ?? null)
+        : summary("latest", period.latest?.value ?? null);
+    }
+    return summary(
+      "average",
+      points.reduce((total, point) => total + point.value, 0) / points.length,
+    );
+  }
+
+  /** Whether the header speaks for a single bucket: `auto` at D (the day), or a period of one of the spec's buckets. */
+  private isOneBucket(): boolean {
+    if (this.spec.bucket === "auto" && this.range !== null) return this.range === "D";
+    return (
+      bucketStarts(this.calendar, this.grain, this.interval.start, this.interval.end).length === 1
+    );
   }
 
   /**
@@ -1176,25 +1209,11 @@ export class CardRun {
       minimum: null,
       maximum: null,
     });
-    if (this.spec.bucket === "auto" && this.range !== null) {
-      switch (this.range) {
-        case "D":
-          return summary("total", total);
-        case "W":
-        case "M":
-          return summary("average", average);
-        case "6M":
-        case "Y":
-          return summary("dailyAverage", average);
-      }
+    if (this.isOneBucket()) return summary("total", total);
+    if (this.spec.bucket === "auto" && (this.range === "6M" || this.range === "Y")) {
+      return summary("dailyAverage", average);
     }
-    const buckets = bucketStarts(
-      this.calendar,
-      this.grain,
-      this.interval.start,
-      this.interval.end,
-    ).length;
-    return buckets === 1 ? summary("total", total) : summary("average", average);
+    return summary("average", average);
   }
 }
 

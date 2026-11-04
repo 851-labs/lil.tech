@@ -180,7 +180,8 @@ struct CardQueriesTests {
     }
     #expect(data.series[0].points.map(\.value) == [70, 72])
     #expect(data.formulas[0].points.map(\.value) == [69, 70])
-    #expect(data.summary == CardSummary(kind: .first, value: 70))
+    // The average of the days' first weigh-ins (851-3244).
+    #expect(data.summary == CardSummary(kind: .average, value: 71))
     // Its headline searches back from now for the latest day with a morning weigh-in.
     let headline = try database.read { db in
       try HealthDatabase.cardHeadline(card, now: date(10, 21, 9), calendar: calendar, db)
