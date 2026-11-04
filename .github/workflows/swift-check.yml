@@ -1,4 +1,4 @@
-name: Swift check
+name: swift
 
 # Lints and tests the Swift code, builds the apps, and checks Pixelbook's manifests and graphs
 # (`scripts/check --swift --pixelbook`), on our Mac minis
@@ -43,6 +43,7 @@ defaults:
 
 jobs:
   check:
+    name: lint, test and build
     # Shared with Codevisor, in the "Mac minis" runner group.
     runs-on: [self-hosted, macOS, ARM64, codevisor-macos-arm64]
     timeout-minutes: 60
@@ -61,13 +62,14 @@ jobs:
           set-safe-directory: false
 
       # The packages need Swift 6.4 or later. Through DEVELOPER_DIR, never `xcode-select`.
-      - uses: ./.github/actions/select-xcode
+      - name: select xcode
+        uses: ./.github/actions/select-xcode
 
       # The minis' disks are shared with Codevisor: builds kept from older Xcodes and branches are
       # started over once they pass 40 GB. The builds also replay compiles from the runner's
       # compilation cache (`scripts/compilation-cache`, 851-3235), which bounds itself at about
       # 20 GB, in `~/Library/Caches/lil.tech/CompilationCache`.
-      - name: Limit the kept builds
+      - name: limit the kept builds
         run: |
           if [ -d "$LIL_CHECK_SCRATCH" ] &&
             [ "$(du -sk "$LIL_CHECK_SCRATCH" | cut -f1)" -gt $((40 * 1024 * 1024)) ]; then
@@ -84,7 +86,7 @@ jobs:
       # Pixelbook's graphs and the state catalogs' manifests (`--pixelbook`). The snapshot tests
       # write every image they take to `LIL_SNAPSHOT_OUTPUT`, with a report, as `scripts/snapshot`
       # has them do.
-      - name: Check
+      - name: run swift lint, tests and builds
         env:
           LIL_SNAPSHOT_OUTPUT: ${{ runner.temp }}/snapshots
         run: |
@@ -96,14 +98,14 @@ jobs:
 
       # The images that differ from their references, and the references and manifests the tests
       # wrote (new states, stale manifests), for `scripts/fetch-snapshots`, with a summary saying so.
-      - name: Collect the changed snapshots
+      - name: collect changed snapshots
         if: failure()
         run: |
           rm -rf "$RUNNER_TEMP/snapshot-references" "$RUNNER_TEMP/snapshot-changes"
           scripts/collect-snapshots "$RUNNER_TEMP/snapshot-references" \
             "$RUNNER_TEMP/snapshot-changes" "$RUNNER_TEMP/snapshots"
 
-      - name: Upload the new references
+      - name: upload new references
         if: failure()
         uses: actions/upload-artifact@v7
         with:
@@ -112,7 +114,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Upload the changed images
+      - name: upload changed images
         if: failure()
         uses: actions/upload-artifact@v7
         with:
@@ -125,6 +127,7 @@ jobs:
   # deleted at the end. Beside `check`, on another mini when one is free. When it fails, it uploads
   # what changed, as `check` does, and every image and log.
   iphone-snapshots:
+    name: iphone snapshots
     if: inputs.iphone
     runs-on: [self-hosted, macOS, ARM64, codevisor-macos-arm64]
     # Past the script's own worst case (a 30-minute build, three boots and two 10-minute test
@@ -142,10 +145,11 @@ jobs:
         with:
           set-safe-directory: false
 
-      - uses: ./.github/actions/select-xcode
+      - name: select xcode
+        uses: ./.github/actions/select-xcode
 
       # As `check`'s: started over past 20 GB, since the disks are Codevisor's too.
-      - name: Limit the kept build
+      - name: limit the kept build
         run: |
           if [ -d "$LIL_SNAPSHOT_DERIVED_DATA" ] &&
             [ "$(du -sk "$LIL_SNAPSHOT_DERIVED_DATA" | cut -f1)" -gt $((20 * 1024 * 1024)) ]; then
@@ -155,7 +159,7 @@ jobs:
 
       # A run that times out is tried again, which would pass against references the first try
       # recorded into the checkout: `--check` fails on any.
-      - name: Snapshot the iPhone's state catalogs
+      - name: run iphone snapshot tests
         run: |
           status=0
           scripts/snapshot --iphone || status=$?
@@ -163,14 +167,14 @@ jobs:
           exit "$status"
 
       # As `check`'s, under names of their own.
-      - name: Collect the changed snapshots
+      - name: collect changed snapshots
         if: failure()
         run: |
           rm -rf "$RUNNER_TEMP/snapshot-references" "$RUNNER_TEMP/snapshot-changes"
           scripts/collect-snapshots "$RUNNER_TEMP/snapshot-references" \
             "$RUNNER_TEMP/snapshot-changes" LilPackage/.build/snapshots-iphone
 
-      - name: Upload the new references
+      - name: upload new references
         if: failure()
         uses: actions/upload-artifact@v7
         with:
@@ -179,7 +183,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Upload the changed images
+      - name: upload changed images
         if: failure()
         uses: actions/upload-artifact@v7
         with:
@@ -188,7 +192,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Upload the images
+      - name: upload images
         if: failure()
         uses: actions/upload-artifact@v7
         with:
@@ -196,7 +200,7 @@ jobs:
           path: LilPackage/.build/snapshots-iphone
           retention-days: 7
 
-      - name: Delete the simulator
+      - name: delete the simulator
         if: always()
         run: scripts/snapshot --iphone --delete-simulator
 
@@ -204,6 +208,7 @@ jobs:
   # engine and the cards' conformance cases against a simulator's HealthKit, in a simulator the
   # script makes and always deletes. Beside `check`, on another mini when one is free.
   iphone-healthkit:
+    name: iphone healthkit tests
     if: inputs.healthkit
     runs-on: [self-hosted, macOS, ARM64, codevisor-macos-arm64]
     timeout-minutes: 45
@@ -216,10 +221,11 @@ jobs:
         with:
           set-safe-directory: false
 
-      - uses: ./.github/actions/select-xcode
+      - name: select xcode
+        uses: ./.github/actions/select-xcode
 
       # As `check`'s: started over past 20 GB, since the disks are Codevisor's too.
-      - name: Limit the kept build
+      - name: limit the kept build
         run: |
           if [ -d "$LIL_HEALTHKIT_DERIVED_DATA" ] &&
             [ "$(du -sk "$LIL_HEALTHKIT_DERIVED_DATA" | cut -f1)" -gt $((20 * 1024 * 1024)) ]; then
@@ -227,11 +233,11 @@ jobs:
             rm -rf "$LIL_HEALTHKIT_DERIVED_DATA"
           fi
 
-      - name: Run the HealthKit tests
+      - name: run healthkit tests
         run: scripts/test-iphone-healthkit
 
       # The logs and result bundles, with the screenshots of the access sheet.
-      - name: Upload the logs
+      - name: upload logs
         if: failure()
         uses: actions/upload-artifact@v7
         with:
@@ -242,7 +248,7 @@ jobs:
       # The script deletes its simulator however it ends, unless the run is killed first
       # (cancelled by a newer push, or past the timeout): then this does, so no booted simulator
       # stays on the mini.
-      - name: Delete the simulator
+      - name: delete the simulator
         if: always()
         run: |
           file=LilPackage/.build/healthkit-tests/simulator
