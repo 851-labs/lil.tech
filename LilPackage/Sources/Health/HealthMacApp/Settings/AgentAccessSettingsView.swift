@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import HealthAgentAccess
+import HealthCards
 import HealthCatalog
 import LilAPI
 import LilAuth
@@ -245,7 +246,10 @@ struct AgentAccessLogSheet: View {
   }
 }
 
-/// A query in the log: the command or tool, what asked, and when.
+/// A query in the log: the command or tool, what asked, and when. A card tool's write says what
+/// it asked to change, as the remote log's rows do (`CardToolChange`, 851-4011): "Create card
+/// “Morning Weight”". The log records a call as it comes, before the app answers, so not whether
+/// it went through.
 struct AgentAccessEntryRow: View {
   let entry: AgentAccessEntry
 
@@ -254,10 +258,15 @@ struct AgentAccessEntryRow: View {
       Text(entry.date, format: .dateTime.month(.abbreviated).day().hour().minute())
         .monospacedDigit()
     } label: {
-      Text(entry.command)
-        .font(.body.monospaced())
-        .lineLimit(1)
-        .truncationMode(.middle)
+      if let (change, cardName) = CardToolChange.logged(entry.command) {
+        Text(change.sentence(cardName: cardName, done: false))
+          .lineLimit(1)
+      } else {
+        Text(entry.command)
+          .font(.body.monospaced())
+          .lineLimit(1)
+          .truncationMode(.middle)
+      }
       Text(entry.process)
     }
   }
@@ -435,7 +444,8 @@ struct RemoteAccessLogSheet: View {
   var body: some View {
     AgentLogSheet(
       title: "Remote Access Log",
-      description: "What your connected agents read. The data itself isn't logged."
+      description:
+        "What your connected agents read, and the cards they changed. The data itself isn't logged."
     ) {
       if store.log.isEmpty, store.isLoadingLog {
         DelayedProgressView()
@@ -534,7 +544,8 @@ private struct AgentLabel: View {
   }
 }
 
-/// A read in the remote access log: the tool with what it asked for, which agent, and when.
+/// A read in the remote access log: the tool with what it asked for, which agent, and when. A card
+/// tool's write says what changed instead (851-4011): "Created card “Morning Weight”".
 struct RemoteAccessRow: View {
   let entry: RemoteAgentAccess
 
@@ -543,10 +554,15 @@ struct RemoteAccessRow: View {
       Text(entry.at, format: .dateTime.month(.abbreviated).day().hour().minute())
         .monospacedDigit()
     } label: {
-      Text(entry.request { id in HealthCatalog.type(id: id)?.name ?? id })
-        .font(.body.monospaced())
-        .lineLimit(1)
-        .truncationMode(.middle)
+      if let change = CardToolChange(tool: entry.tool) {
+        Text(change.sentence(cardName: entry.cardName, done: entry.outcome == "ok"))
+          .lineLimit(1)
+      } else {
+        Text(entry.request { id in HealthCatalog.type(id: id)?.name ?? id })
+          .font(.body.monospaced())
+          .lineLimit(1)
+          .truncationMode(.middle)
+      }
       Text(entry.agentAndOutcome)
     }
   }

@@ -97,6 +97,16 @@ export class AgentAccessEntry extends Schema.Class<AgentAccessEntry>(
   outcome: Schema.String,
   /** How many rows the answer held. */
   rows: Schema.Int,
+  /**
+   * The card a card tool read, created, changed or deleted (`card_…`), if any (851-4011): left
+   * out for other tools, and for a card that wasn't there.
+   */
+  cardId: Schema.optionalKey(Schema.String),
+  /**
+   * That card's name, the person's own words (or for a create or update, the spec's), so the
+   * apps can say what changed: "Created card “Morning Weight”". Left out without one.
+   */
+  cardName: Schema.optionalKey(Schema.String),
 }) {}
 
 export class AgentAccessLog extends Schema.Class<AgentAccessLog>("lil/api/oauth/AgentAccessLog")({

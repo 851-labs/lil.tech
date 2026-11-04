@@ -60,7 +60,9 @@ const setup = Effect.gen(function* () {
       .pipe(Effect.map((page) => page.changes.map(({ op, id, row }) => ({ op, id, row }))));
   const log = () =>
     sql.exec("SELECT tool, types, range, date, outcome, rows FROM agent_access_log ORDER BY id");
-  return { sql, store, call, cardChanges, log };
+  const cardLog = () =>
+    sql.exec("SELECT tool, outcome, card_id, card_name FROM agent_access_log ORDER BY id");
+  return { sql, store, call, cardChanges, log, cardLog };
 });
 
 /** Heart rate every 10 minutes on October 19 and 20, 2026, from 60 to 70 bpm. */
@@ -440,6 +442,46 @@ describe("the card tools", () => {
           outcome: "ok",
           rows: 1,
         },
+      ]);
+    }),
+  );
+});
+
+describe("the card tools' log", () => {
+  it.effect("names the card each call read or changed, never one an agent made up (851-4011)", () =>
+    Effect.gen(function* () {
+      const { call, cardLog } = yield* setup;
+      const created = (yield* call("create_card", { spec: restingHeartRate })).value.card.id;
+      yield* call("get_card", { id: created });
+      const renamed = { ...restingHeartRate, display: { name: "Resting Pulse" } };
+      yield* call("update_card", { id: created, spec: renamed });
+      yield* call("list_cards");
+      yield* call("preview_card", { spec: restingHeartRate });
+      const ids = (yield* call("list_cards")).value.cards.map(
+        ({ id }: { readonly id: string }) => id,
+      );
+      yield* call("reorder_cards", { ids: ids.toReversed() });
+      yield* call("delete_card", { id: created });
+      // Refused: the spec's name, and only a card that's there.
+      const invalid = { version: 1, display: { name: "Bad Card" }, series: [{ type: "nope" }] };
+      yield* call("create_card", { spec: invalid });
+      yield* call("update_card", { id: "card_made_up", spec: renamed });
+      yield* call("get_card", { id: "card_made_up" });
+      yield* call("delete_card", { id: created });
+      assert.deepStrictEqual(cardLog(), [
+        { tool: "create_card", outcome: "ok", card_id: created, card_name: "Resting Heart Rate" },
+        { tool: "get_card", outcome: "ok", card_id: created, card_name: "Resting Heart Rate" },
+        { tool: "update_card", outcome: "ok", card_id: created, card_name: "Resting Pulse" },
+        { tool: "list_cards", outcome: "ok", card_id: null, card_name: null },
+        { tool: "preview_card", outcome: "ok", card_id: null, card_name: null },
+        { tool: "list_cards", outcome: "ok", card_id: null, card_name: null },
+        { tool: "reorder_cards", outcome: "ok", card_id: null, card_name: null },
+        // Its name as it was, read before it went.
+        { tool: "delete_card", outcome: "ok", card_id: created, card_name: "Resting Pulse" },
+        { tool: "create_card", outcome: "error", card_id: null, card_name: "Bad Card" },
+        { tool: "update_card", outcome: "error", card_id: null, card_name: "Resting Pulse" },
+        { tool: "get_card", outcome: "error", card_id: null, card_name: null },
+        { tool: "delete_card", outcome: "error", card_id: null, card_name: null },
       ]);
     }),
   );

@@ -111,6 +111,8 @@ export const AgentsHandlers = HttpApiBuilder.group(
                   date: row.date,
                   outcome: row.outcome,
                   rows: row.rows,
+                  ...(row.cardId === null ? {} : { cardId: row.cardId }),
+                  ...(row.cardName === null ? {} : { cardName: row.cardName }),
                 }),
             ),
             nextBefore: rows.length > agentAccessLogPageSize ? (page.at(-1)?.id ?? null) : null,

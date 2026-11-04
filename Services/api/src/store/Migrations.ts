@@ -341,6 +341,14 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
       "seed" TEXT
     ) STRICT;`,
   },
+  {
+    version: 28,
+    name: "agent_access_log_card",
+    // The card a card tool named, created or changed (851-4011, `AgentAccess.cardId`), so the
+    // apps can say what an agent changed: "Created card “Morning Weight”".
+    sql: `ALTER TABLE agent_access_log ADD COLUMN card_id TEXT;
+    ALTER TABLE agent_access_log ADD COLUMN card_name TEXT;`,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import HealthCards
 import HealthCatalog
 import LilAuth
 import LilUI
@@ -59,16 +60,23 @@ struct RecentAccessView: View {
 }
 
 /// A read in the remote access log: the tool with what it asked for, which agent (and how it
-/// went, unless it went fine), and when.
+/// went, unless it went fine), and when. A card tool's write says what changed instead
+/// (851-4011): "Created card “Morning Weight”".
 struct RecentAccessRow: View {
   let entry: RemoteAgentAccess
 
   var body: some View {
     VStack(alignment: .leading, spacing: 3) {
-      Text(entry.request { id in HealthCatalog.type(id: id)?.name ?? id })
-        .font(.callout.monospaced())
-        .lineLimit(1)
-        .truncationMode(.middle)
+      if let change = CardToolChange(tool: entry.tool) {
+        Text(change.sentence(cardName: entry.cardName, done: entry.outcome == "ok"))
+          .font(.callout)
+          .lineLimit(1)
+      } else {
+        Text(entry.request { id in HealthCatalog.type(id: id)?.name ?? id })
+          .font(.callout.monospaced())
+          .lineLimit(1)
+          .truncationMode(.middle)
+      }
       HStack(alignment: .firstTextBaseline) {
         Text(entry.agentAndOutcome)
           .lineLimit(1)

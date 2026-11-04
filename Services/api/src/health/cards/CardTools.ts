@@ -415,12 +415,27 @@ export const storeCardTools = (sql: StoreSql, write: CardWrite): CardToolImpleme
 // The access log
 // -------------------------------------------------------------------------------------------------
 
+/** The card a call named, created or changed, as the access log keeps it (851-4011). */
+export interface LoggedCard {
+  readonly cardId: string | null;
+  readonly cardName: string | null;
+}
+
 /** What the access log keeps of a call (`AgentAccess`), beside its tool, outcome and rows. */
-export interface AskedFor {
+export interface AskedFor extends LoggedCard {
   readonly types: ReadonlyArray<string> | null;
   readonly range: string | null;
   readonly date: string | null;
 }
+
+/** A call that asked for nothing the log keeps. */
+export const askedForNothing: AskedFor = {
+  types: null,
+  range: null,
+  date: null,
+  cardId: null,
+  cardName: null,
+};
 
 /** A spec's series' types, by their catalog identifiers: the ones the catalog has. */
 const typesOf = (spec: Json | undefined): ReadonlyArray<string> | null => {
@@ -433,6 +448,32 @@ const typesOf = (spec: Json | undefined): ReadonlyArray<string> | null => {
     return known === undefined ? [] : [known.id];
   });
   return types.length === 0 ? null : [...new Set(types)];
+};
+
+/** A spec's name (`display.name`), if it has one. */
+const nameOf = (spec: Json | undefined): string | null => {
+  const display = spec !== undefined && isJsonObject(spec) ? spec["display"] : undefined;
+  const name = display !== undefined && isJsonObject(display) ? display["name"] : undefined;
+  return typeof name === "string" ? name : null;
+};
+
+/**
+ * An input spec's name: its canonical form's, or, with errors, the one it gives, as the Mac's
+ * server logs it (`HealthTools.cardName`), so a refused create still says which card it was.
+ */
+const inputName = (input: unknown) => {
+  const result = canonicalOf(input);
+  return nameOf(result.spec ?? specJson(input));
+};
+
+/** The card an answer holds (`HealthCardResult`'s `card`), encoded. */
+const answeredCard = (encoded: unknown): LoggedCard | undefined => {
+  if (!Predicate.hasProperty(encoded, "card") || !Predicate.isObject(encoded.card))
+    return undefined;
+  const card = encoded.card;
+  const id = Predicate.hasProperty(card, "id") && typeof card.id === "string" ? card.id : null;
+  const spec = Predicate.hasProperty(card, "spec") ? (card.spec as Json) : undefined;
+  return { cardId: id, cardName: nameOf(spec) };
 };
 
 /** An input spec's types: its canonical form's, or, with errors, those of its series named. */
@@ -465,8 +506,9 @@ const points = (encoded: unknown) => {
 /**
  * What the access log keeps of each card tool's calls (`docs/decisions/cards.md`, The access log):
  * the types of the spec it's given or of the card it names, read before the call runs (so a
- * deleted card's are known), `range` and `date` for runs, and `rows` the points or cards returned.
- * Never the spec or a card's name.
+ * deleted card's are known), `range` and `date` for runs, `rows` the points or cards returned,
+ * and the card it read, created, changed or deleted, with its name (851-4011): the stored card's,
+ * the input spec's, or for a write that went through, the card it wrote. Never the spec.
  */
 export const cardToolLogs = (
   sql: StoreSql,
@@ -474,36 +516,48 @@ export const cardToolLogs = (
   readonly [Name in keyof Tools]: {
     readonly askedFor: (params: object) => AskedFor;
     readonly rows?: (encoded: unknown) => number;
+    /** The card an answer holds, which a write made: the ID a create gave it. */
+    readonly card?: (encoded: unknown) => LoggedCard | undefined;
   };
 } => {
-  const storedSpec = (params: object) => {
+  const stored = (params: object) => {
     const id = field(params, "id");
-    return id === null ? undefined : readCard(sql, id)?.spec;
+    return id === null ? undefined : readCard(sql, id);
   };
+  const storedSpec = (params: object) => stored(params)?.spec;
   const storedTypes = (params: object) => typesOf(storedSpec(params));
+  /** A card the call names, if there is one: never an ID an agent made up. */
+  const storedCard = (params: object): LoggedCard => {
+    const card = stored(params);
+    return { cardId: card?.id ?? null, cardName: nameOf(card?.spec) };
+  };
   const rangeOf = (spec: Json | undefined) => {
     const range = spec !== undefined && isJsonObject(spec) ? spec["range"] : undefined;
     return typeof range === "string" ? range : null;
   };
   const inputRange = (params: object) =>
     rangeOf(Predicate.hasProperty(params, "spec") ? canonicalOf(params.spec).spec : undefined);
-  const none: AskedFor = { types: null, range: null, date: null };
+  const none = askedForNothing;
   const one = () => 1;
+  const specName = (params: object) =>
+    Predicate.hasProperty(params, "spec") ? inputName(params.spec) : null;
   return {
     list_cards: { askedFor: () => none },
     get_card: {
       askedFor: (params) => {
-        const spec = storedSpec(params);
+        const card = stored(params);
         return {
-          types: typesOf(spec),
-          range: field(params, "range") ?? rangeOf(spec),
+          types: typesOf(card?.spec),
+          range: field(params, "range") ?? rangeOf(card?.spec),
           date: dayField(params),
+          ...storedCard(params),
         };
       },
       rows: points,
     },
     preview_card: {
       askedFor: (params) => ({
+        ...none,
         types: Predicate.hasProperty(params, "spec") ? inputTypes(params.spec) : null,
         range: field(params, "range") ?? inputRange(params),
         date: dayField(params),
@@ -514,17 +568,25 @@ export const cardToolLogs = (
       askedFor: (params) => ({
         ...none,
         types: Predicate.hasProperty(params, "spec") ? inputTypes(params.spec) : null,
+        cardName: specName(params),
       }),
       rows: one,
+      card: answeredCard,
     },
     update_card: {
       askedFor: (params) => ({
         ...none,
         types: Predicate.hasProperty(params, "spec") ? inputTypes(params.spec) : null,
+        cardId: storedCard(params).cardId,
+        cardName: specName(params),
       }),
       rows: one,
+      card: answeredCard,
     },
-    delete_card: { askedFor: (params) => ({ ...none, types: storedTypes(params) }), rows: one },
+    delete_card: {
+      askedFor: (params) => ({ ...none, types: storedTypes(params), ...storedCard(params) }),
+      rows: one,
+    },
     reorder_cards: { askedFor: () => none },
   };
 };

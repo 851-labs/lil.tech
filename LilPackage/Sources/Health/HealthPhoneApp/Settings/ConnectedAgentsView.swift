@@ -77,7 +77,7 @@ struct ConnectedAgentsView: View {
           RecentAccessView(store: store)
         }
       } footer: {
-        Text("What your connected agents read, and when.")
+        Text("What your connected agents read, and the cards they changed.")
       }
 
       MCPServerSection(

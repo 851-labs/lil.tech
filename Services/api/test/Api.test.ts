@@ -1686,6 +1686,8 @@ describe("data exports", () => {
             date: "2026-10-20",
             outcome: "ok",
             rows: 7,
+            cardId: null,
+            cardName: null,
           },
           Date.UTC(2026, 9, 20),
         );
@@ -1768,6 +1770,8 @@ describe("data exports", () => {
               date: "2026-10-20",
               outcome: "ok",
               rows: 7,
+              cardId: null,
+              cardName: null,
             },
           ],
         );

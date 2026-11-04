@@ -86,10 +86,15 @@ public struct RemoteAgentAccess: Equatable, Identifiable, Sendable {
   /// How it went (`ok`, or why not), and how many rows it read.
   public var outcome: String
   public var rows: Int
+  /// The card a card tool read, created, changed or deleted, if any (851-4011).
+  public var cardID: String?
+  /// That card's name, the person's own words, so settings can say what an agent changed.
+  public var cardName: String?
 
   public init(
     id: Int, at: Date, agentID: String, agentName: String, tool: String, types: [String] = [],
-    range: String? = nil, date: String? = nil, outcome: String, rows: Int
+    range: String? = nil, date: String? = nil, outcome: String, rows: Int, cardID: String? = nil,
+    cardName: String? = nil
   ) {
     self.id = id
     self.at = at
@@ -101,6 +106,8 @@ public struct RemoteAgentAccess: Equatable, Identifiable, Sendable {
     self.date = date
     self.outcome = outcome
     self.rows = rows
+    self.cardID = cardID
+    self.cardName = cardName
   }
 
   /// The tool and what it asked for, as settings show it: "get_metric Steps W". `typeName` names
@@ -118,7 +125,8 @@ public struct RemoteAgentAccess: Equatable, Identifiable, Sendable {
     self.init(
       id: entry.id, at: Date(unixMilliseconds: entry.at), agentID: entry.agentId,
       agentName: entry.agentName, tool: entry.tool, types: entry.types ?? [], range: entry.range,
-      date: entry.date, outcome: entry.outcome, rows: entry.rows)
+      date: entry.date, outcome: entry.outcome, rows: entry.rows, cardID: entry.cardId,
+      cardName: entry.cardName)
   }
 }
 
