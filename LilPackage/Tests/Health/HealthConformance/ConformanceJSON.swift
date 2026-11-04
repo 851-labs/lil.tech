@@ -1,3 +1,5 @@
+public import Foundation
+
 /// A JSON value, to compare outputs as the server's conformance harnesses do.
 public enum ConformanceJSON: Codable, Equatable, Sendable {
   case null
