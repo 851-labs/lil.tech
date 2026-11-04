@@ -82,30 +82,21 @@
   }
 
   /// What `LoadedContent` reads.
-  private let contentLabels = ["Loaded", "Summary", "UIKit Button"]
+  private let contentLabels = ["Loaded", "Summary"]
 
-  /// A page with a list (UIKit's collection view) and a UIKit view of its own.
+  /// A page with a list, which is UIKit's collection view. (Not a `UIViewRepresentable` of its
+  /// own: on the minis' simulator, a representable `UIButton`'s element is never read, even
+  /// without `delayedProgress`, so checking it hidden would check nothing. The Mac's test holds
+  /// an AppKit view.)
   private struct LoadedContent: View {
     var body: some View {
       VStack {
         Text("Loaded")
-        UIKitButton()
-          .frame(height: 44)
         List {
           Text("Summary")
         }
         .frame(height: 200)
       }
     }
-  }
-
-  private struct UIKitButton: UIViewRepresentable {
-    func makeUIView(context: Context) -> UIButton {
-      let button = UIButton(type: .system)
-      button.setTitle("UIKit Button", for: .normal)
-      return button
-    }
-
-    func updateUIView(_ button: UIButton, context: Context) {}
   }
 #endif
