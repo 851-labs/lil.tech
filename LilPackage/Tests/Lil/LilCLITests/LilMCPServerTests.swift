@@ -93,7 +93,8 @@ struct LilMCPServerTests {
     var own: [(app: String, tool: Tool)] = []
     for app in connection.apps {
       let server = AppServer(
-        app: app.name, tool: app.server.tool, environment: environment, timeout: .seconds(10))
+        app: app.name, tool: app.server.tool, environment: environment, timeout: .seconds(10),
+        report: Reports().append)
       own += try await server.startedAndStopped().tools.map { (app.name, $0) }
     }
     #expect(tools.count == own.count)
@@ -121,7 +122,7 @@ struct LilMCPServerTests {
     #expect(types.isError == false)
     let own = try await AppServer(
       app: "health", tool: bin.appending(path: "lil-health"), environment: environment,
-      timeout: .seconds(10)
+      timeout: .seconds(10), report: Reports().append
     ).calledAndStopped("list_types", ["timeZone": "UTC"])
     // The text is the same JSON, though its keys' order may differ from one process to another.
     #expect(types.structuredContent == own.structuredContent && types.isError == own.isError)
