@@ -20,12 +20,19 @@
 #       main repo, with a message naming the ticket). Deletes its Xcode DerivedData and removes
 #       the worktree. Deletes its branch when nothing on it would be lost: it's in origin/main, or
 #       its PR is merged or closed (or its remote branch is gone) and the branch is still at the
-#       PR's last commit.
+#       PR's last commit. Then lists the simulators named for the ticket, and every booted one
+#       (see below).
 #   scripts/worktree prune [--apply]
 #       Lists every `lil.tech-*` worktree with its PR's state and whether it has uncommitted
 #       changes, and Xcode DerivedData left by worktrees that no longer exist. `--apply` removes
 #       the worktrees whose PR is merged or closed and that have no uncommitted changes, and
-#       deletes that DerivedData. Never touches the main checkout.
+#       deletes that DerivedData. Never touches the main checkout. Then lists every booted
+#       simulator (see below).
+# Booted simulators are listed, not deleted, since another agent may be using one (851-3239): an
+# idle booted iOS simulator keeps a few hundred processes and their memory. Agents make their own
+# for checks in a real app, and delete them when done (AGENTS.md › Without Xcode). The ones
+# `scripts/snapshot --iphone` keeps (`lil-snapshots*`) shut down by themselves, unless a run
+# passed `--keep-booted`, so they're listed with a note.
 # A ticket number is `2884` or `851-2884`.
 # A worktree's DerivedData is found by its `info.plist`, or by the folder's name, which Xcode derives
 # from the path of the workspace, project or package it's for. A workspace that never finished
@@ -464,6 +471,60 @@ remove_worktree() {
   fi
 }
 
+# Lists the simulators left booted, and with a ticket number,
+# every simulator named for it (`lil-3239`), booted or not, with how long ago each booted.
+report_simulators() {
+  command -v xcrun >/dev/null 2>&1 || return 0
+  # Under load, `simctl` can stop answering.
+  if ! devices=$(perl -e 'alarm 60; exec @ARGV' xcrun simctl list -j devices 2>/dev/null); then
+    echo "warning: couldn't list the simulators (\`xcrun simctl list\` failed)." >&2
+    return 0
+  fi
+  printf '%s' "$devices" | python3 -I -c '
+import json, re, subprocess, sys
+ticket = sys.argv[1]
+# How long each booted simulator has run: its oldest `launchd_sim`, whose command names its folder.
+processes = subprocess.run(["ps", "-Ao", "etime=,command="], capture_output=True, text=True).stdout
+uptimes = {}
+for line in processes.splitlines():
+    elapsed, _, command = line.strip().partition(" ")
+    match = re.search(r"/Devices/([0-9A-F-]{36})/", command)
+    if "launchd_sim" not in command or not match:
+        continue
+    days, _, clock = elapsed.rpartition("-")
+    parts = [int(part) for part in clock.split(":")]
+    while len(parts) < 3:
+        parts.insert(0, 0)
+    seconds = int(days or 0) * 86400 + parts[0] * 3600 + parts[1] * 60 + parts[2]
+    uptimes[match.group(1)] = max(seconds, uptimes.get(match.group(1), 0))
+def age(seconds):
+    if seconds >= 7200:
+        return f"{seconds // 3600} h"
+    return f"{max(seconds // 60, 1)} min"
+named = re.compile(rf"(?<![0-9]){ticket}(?![0-9])") if ticket else None
+rows = []
+for runtime, devices in json.load(sys.stdin)["devices"].items():
+    for device in devices:
+        name, udid, state = device["name"], device["udid"], device["state"]
+        mine = bool(named and named.search(name))
+        if state != "Booted" and not mine:
+            continue
+        if state == "Booted":
+            status = f"booted {age(uptimes[udid])} ago" if udid in uptimes else "booted"
+        else:
+            status = state.lower()
+        if name.startswith("lil-snapshots"):
+            status += (", kept by scripts/snapshot --iphone, which shuts it down 10 minutes after the last run,"
+                " unless that run passed --keep-booted")
+        rows.append(f"  {name} ({udid}), {status}" + (f", named for 851-{ticket}" if mine else ""))
+if rows:
+    print("Simulators left " + ("booted, or named for this ticket" if ticket else "booted") +
+        ". Delete yours when done (xcrun simctl delete <id>); another agent may be using the rest:")
+    print("\n".join(rows))
+' "${1:-}" ||
+    echo "warning: couldn't list the simulators (python3 failed)." >&2
+}
+
 cmd_remove() {
   [ $# -ge 1 ] || usage
   n=$(number "$1")
@@ -477,6 +538,7 @@ cmd_remove() {
   done
   fetch
   remove_worktree "$prefix$n" "$stash"
+  report_simulators "$n"
 }
 
 cmd_prune() {
@@ -565,6 +627,7 @@ cmd_prune() {
       echo "Run 'scripts/worktree prune --apply' to remove the merged or closed, clean worktrees" \
         "and the build data of worktrees that are gone."
     fi
+    report_simulators
     return 0
   fi
   [ -z "$removable" ] || fetch
@@ -576,6 +639,7 @@ cmd_prune() {
     echo "Deleting $dir"
     rm -rf "$dir"
   done
+  report_simulators
 }
 
 [ $# -ge 1 ] || usage
