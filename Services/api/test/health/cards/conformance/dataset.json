@@ -5,7 +5,7 @@
     "Nights: 20 October's is the tools' (the Watch's stages and the iPhone's estimate). 21 October has the Watch's stages, a wake and the iPhone's shorter estimate; 22 October the iPhone's estimate, longer than the Watch's; 23 October only an afternoon nap (a day's sleep, no night); 24 October a night and a nap after it; 25 October the night the clocks go back; 26 October a night in the next week.",
     "Heart rate comes from the Watch (its device through its provenance record, model Watch; the tools' dataset's Watch samples have no device), and twice from a chest strap (org.example.strap, model Strap, a sample's own device): the filtered source. Around each night: readings before sleep, asleep, awake in the night and after waking; in workouts (runs, and a strength workout overlapping a run).",
     "Weight comes from a scale (org.example.scale): weigh-ins before and after noon, one at noon exactly, on both sides of the clock change, and ties for first and latest. HRV, resting heart rate and body temperature have a few readings each, and environmental sound two readings of different lengths.",
-    "The second batch (851-4043) is America/Los_Angeles over both of its changes of clock in 2025, away from every other case's period: Sunday 9 March, when 02:00 PST (10:00Z) becomes 03:00 PDT (a day of 23 hours), and Sunday 2 November, when 02:00 PDT (09:00Z) becomes 01:00 PST (25 hours, 01:00 twice). Around each, from the Watch: the nights ending the day before, on the day and the day after, and one in the next week, with heart rate before sleep, asleep, awake in the night and after waking. 9 March's night is asleep across the skipped hour; on 2 November the Watch lies awake through the first 01:00 and falls asleep 2 minutes into the second, so its 5 minutes before sleep straddle the change. From the scale, weigh-ins at 19:30Z on either side of each change: 11:30 on the clock on one side, 12:30 on the other."
+    "The second batch (851-4043) is America/Los_Angeles over both of its changes of clock in 2025, away from every other case's period: Sunday 9 March, when 02:00 PST (10:00Z) becomes 03:00 PDT (a day of 23 hours), and Sunday 2 November, when 02:00 PDT (09:00Z) becomes 01:00 PST (25 hours, 01:00 twice). Around each, from the Watch: the nights ending the day before, on the day and the day after, and one in the next week (and in November one in the last week of October), with heart rate before sleep, asleep, awake in the night and after waking. 9 March's night is asleep across the skipped hour; on 2 November the Watch lies awake through the first 01:00 and falls asleep 2 minutes into the second, so its 5 minutes before sleep straddle the change. From the scale, weigh-ins at 19:30Z on either side of each change: 11:30 on the clock on one side, 12:30 on the other; and in November, mornings in the week before, for a moving average."
   ],
   "extends": "../../tools/conformance/dataset.json",
   "batches": [
@@ -1468,21 +1468,6 @@
           "id": "0ca7d000-0000-4000-8000-000000000109",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
-            "startDate": 1741417020000,
-            "endDate": 1741417020000,
-            "value": 64,
-            "unit": "count/min",
-            "sourceName": "Test Apple Watch",
-            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
-            "provenance": "0ca7d000000000000000000000000001"
-          }
-        },
-        {
-          "entity": "health_sample",
-          "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-00000000010a",
-          "row": {
-            "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1741431600000,
             "endDate": 1741431600000,
             "value": 53,
@@ -1495,7 +1480,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-00000000010b",
+          "id": "0ca7d000-0000-4000-8000-00000000010a",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1741505220000,
@@ -1510,7 +1495,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-00000000010c",
+          "id": "0ca7d000-0000-4000-8000-00000000010b",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1741509600000,
@@ -1525,7 +1510,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-00000000010d",
+          "id": "0ca7d000-0000-4000-8000-00000000010c",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1741513800000,
@@ -1540,7 +1525,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-00000000010e",
+          "id": "0ca7d000-0000-4000-8000-00000000010d",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1741514700000,
@@ -1555,7 +1540,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-00000000010f",
+          "id": "0ca7d000-0000-4000-8000-00000000010e",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1741515300000,
@@ -1570,7 +1555,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000110",
+          "id": "0ca7d000-0000-4000-8000-00000000010f",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1741518000000,
@@ -1585,7 +1570,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000111",
+          "id": "0ca7d000-0000-4000-8000-000000000110",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1741528800000,
@@ -1600,7 +1585,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000112",
+          "id": "0ca7d000-0000-4000-8000-000000000111",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1741586220000,
@@ -1615,7 +1600,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000113",
+          "id": "0ca7d000-0000-4000-8000-000000000112",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1741599000000,
@@ -1630,7 +1615,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000114",
+          "id": "0ca7d000-0000-4000-8000-000000000113",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1742119200000,
@@ -1645,7 +1630,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000115",
+          "id": "0ca7d000-0000-4000-8000-000000000114",
           "row": {
             "type": "HKQuantityTypeIdentifierBodyMass",
             "startDate": 1741462200000,
@@ -1664,7 +1649,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000116",
+          "id": "0ca7d000-0000-4000-8000-000000000115",
           "row": {
             "type": "HKQuantityTypeIdentifierBodyMass",
             "startDate": 1741548600000,
@@ -1683,7 +1668,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000117",
+          "id": "0ca7d000-0000-4000-8000-000000000116",
           "row": {
             "type": "HKQuantityTypeIdentifierBodyMass",
             "startDate": 1741618800000,
@@ -1702,7 +1687,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000118",
+          "id": "0ca7d000-0000-4000-8000-000000000117",
           "row": {
             "type": "HKQuantityTypeIdentifierBodyMass",
             "startDate": 1741632300000,
@@ -1724,6 +1709,20 @@
           "id": "0ca7d000-0000-4000-8000-000000000201",
           "row": {
             "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1761804000000,
+            "endDate": 1761832800000,
+            "categoryValue": 3,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000202",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
             "startDate": 1761976800000,
             "endDate": 1762005600000,
             "categoryValue": 3,
@@ -1735,7 +1734,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000202",
+          "id": "0ca7d000-0000-4000-8000-000000000203",
           "row": {
             "type": "HKCategoryTypeIdentifierSleepAnalysis",
             "startDate": 1762068600000,
@@ -1749,7 +1748,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000203",
+          "id": "0ca7d000-0000-4000-8000-000000000204",
           "row": {
             "type": "HKCategoryTypeIdentifierSleepAnalysis",
             "startDate": 1762074120000,
@@ -1763,7 +1762,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000204",
+          "id": "0ca7d000-0000-4000-8000-000000000205",
           "row": {
             "type": "HKCategoryTypeIdentifierSleepAnalysis",
             "startDate": 1762081200000,
@@ -1777,7 +1776,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000205",
+          "id": "0ca7d000-0000-4000-8000-000000000206",
           "row": {
             "type": "HKCategoryTypeIdentifierSleepAnalysis",
             "startDate": 1762082400000,
@@ -1791,7 +1790,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000206",
+          "id": "0ca7d000-0000-4000-8000-000000000207",
           "row": {
             "type": "HKCategoryTypeIdentifierSleepAnalysis",
             "startDate": 1762086600000,
@@ -1805,7 +1804,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000207",
+          "id": "0ca7d000-0000-4000-8000-000000000208",
           "row": {
             "type": "HKCategoryTypeIdentifierSleepAnalysis",
             "startDate": 1762151400000,
@@ -1819,7 +1818,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000208",
+          "id": "0ca7d000-0000-4000-8000-000000000209",
           "row": {
             "type": "HKCategoryTypeIdentifierSleepAnalysis",
             "startDate": 1762671600000,
@@ -1833,12 +1832,12 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000209",
+          "id": "0ca7d000-0000-4000-8000-00000000020a",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
-            "startDate": 1761976620000,
-            "endDate": 1761976620000,
-            "value": 63,
+            "startDate": 1761818400000,
+            "endDate": 1761818400000,
+            "value": 58,
             "unit": "count/min",
             "sourceName": "Test Apple Watch",
             "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
@@ -1848,7 +1847,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-00000000020a",
+          "id": "0ca7d000-0000-4000-8000-00000000020b",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1761991200000,
@@ -1863,7 +1862,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-00000000020b",
+          "id": "0ca7d000-0000-4000-8000-00000000020c",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1762072200000,
@@ -1878,7 +1877,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-00000000020c",
+          "id": "0ca7d000-0000-4000-8000-00000000020d",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1762073880000,
@@ -1893,7 +1892,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-00000000020d",
+          "id": "0ca7d000-0000-4000-8000-00000000020e",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1762074060000,
@@ -1908,7 +1907,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-00000000020e",
+          "id": "0ca7d000-0000-4000-8000-00000000020f",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1762075800000,
@@ -1923,7 +1922,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-00000000020f",
+          "id": "0ca7d000-0000-4000-8000-000000000210",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1762081800000,
@@ -1938,7 +1937,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000210",
+          "id": "0ca7d000-0000-4000-8000-000000000211",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1762084800000,
@@ -1953,7 +1952,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000211",
+          "id": "0ca7d000-0000-4000-8000-000000000212",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1762093800000,
@@ -1968,7 +1967,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000212",
+          "id": "0ca7d000-0000-4000-8000-000000000213",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1762151220000,
@@ -1983,7 +1982,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000213",
+          "id": "0ca7d000-0000-4000-8000-000000000214",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1762162200000,
@@ -1998,7 +1997,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000214",
+          "id": "0ca7d000-0000-4000-8000-000000000215",
           "row": {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "startDate": 1762682400000,
@@ -2013,7 +2012,45 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000215",
+          "id": "0ca7d000-0000-4000-8000-000000000216",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "startDate": 1761577200000,
+            "endDate": 1761577200000,
+            "value": 71.0,
+            "unit": "kg",
+            "sourceName": "Test Scale",
+            "sourceBundleId": "org.example.scale",
+            "device": {
+              "name": "Test Scale",
+              "manufacturer": "Example",
+              "model": "Scale"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000217",
+          "row": {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "startDate": 1761636600000,
+            "endDate": 1761636600000,
+            "value": 70.9,
+            "unit": "kg",
+            "sourceName": "Test Scale",
+            "sourceBundleId": "org.example.scale",
+            "device": {
+              "name": "Test Scale",
+              "manufacturer": "Example",
+              "model": "Scale"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000218",
           "row": {
             "type": "HKQuantityTypeIdentifierBodyMass",
             "startDate": 1761921000000,
@@ -2032,7 +2069,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000216",
+          "id": "0ca7d000-0000-4000-8000-000000000219",
           "row": {
             "type": "HKQuantityTypeIdentifierBodyMass",
             "startDate": 1762025400000,
@@ -2051,7 +2088,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000217",
+          "id": "0ca7d000-0000-4000-8000-00000000021a",
           "row": {
             "type": "HKQuantityTypeIdentifierBodyMass",
             "startDate": 1762111800000,
@@ -2070,7 +2107,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000218",
+          "id": "0ca7d000-0000-4000-8000-00000000021b",
           "row": {
             "type": "HKQuantityTypeIdentifierBodyMass",
             "startDate": 1762183800000,
@@ -2089,7 +2126,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-000000000219",
+          "id": "0ca7d000-0000-4000-8000-00000000021c",
           "row": {
             "type": "HKQuantityTypeIdentifierBodyMass",
             "startDate": 1762185600000,
@@ -2108,7 +2145,7 @@
         {
           "entity": "health_sample",
           "op": "upsert",
-          "id": "0ca7d000-0000-4000-8000-00000000021a",
+          "id": "0ca7d000-0000-4000-8000-00000000021d",
           "row": {
             "type": "HKQuantityTypeIdentifierBodyMass",
             "startDate": 1762374600000,
