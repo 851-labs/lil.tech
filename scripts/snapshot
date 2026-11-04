@@ -180,6 +180,8 @@ if $iphone; then
       exit 2
       ;;
   esac
+  # Without leading zeros, which the shell's arithmetic reads as octal.
+  idle=$(echo "$idle" | sed 's/^0*\([0-9]\)/\1/')
   host=tech.lil.phone-snapshot-host
   output="$package/.build/snapshots-iphone"
 
@@ -283,7 +285,13 @@ for entry in sorted(entries, key=lambda entry: not entry.get("isAvailable", True
     fi
   }
 
+  # The file naming the run that last scheduled the simulator's shutdown (`schedule_shutdown`).
+  stamp_path() {
+    echo "${TMPDIR:-/tmp}/lil-snapshot-iphone-$1.idle"
+  }
+
   delete_device() {
+    rm -f "$(stamp_path "$1")"
     limit 120 xcrun simctl shutdown "$1" 2>/dev/null || true
     limit 120 xcrun simctl delete "$1"
   }
@@ -297,7 +305,6 @@ for entry in sorted(entries, key=lambda entry: not entry.get("isAvailable", True
     # Every one, even when deleting another fails.
     status=0
     for device in $(echo "$devices" | cut -d " " -f 1); do
-      rm -f "${TMPDIR:-/tmp}/lil-snapshot-iphone-$device.idle"
       if delete_device "$device"; then
         echo "Deleted the simulator $simulator ($device)."
       else
@@ -331,23 +338,57 @@ for entry in sorted(entries, key=lambda entry: not entry.get("isAvailable", True
     create_device
   fi
 
-  # When the run ends, however it ends, the simulator shuts down once it's been idle for `$idle`
-  # seconds (851-3239): a detached process waits that long, then takes the lock, so never while a
-  # run uses the simulator, and shuts it down unless another run has ended since. A stamp, a file
-  # per simulator, names the last run to end. A run waiting for the lock takes it as this one
-  # ends, so back-to-back runs find it booted. `--keep-booted` only cancels any shutdown an
-  # earlier run scheduled.
+  # The simulator shuts down once it's been idle for `$idle` seconds (851-3239): a detached process
+  # waits that long, then takes the lock, so never while a run uses the simulator, and shuts it
+  # down unless another run has scheduled a shutdown since. A stamp, a file per simulator, names
+  # the run that scheduled the last one. A run schedules one as it starts, which covers a run
+  # that's killed, and again as it ends, however it ends, which counts the wait from then. A run
+  # waiting for the lock takes it as this one ends, so back-to-back runs find it booted.
+  # `--keep-booted` only cancels any shutdown an earlier run scheduled.
+  schedule_shutdown() {
+    stamp=$(stamp_path "$device")
+    run="$$ $(now)"
+    echo "$run" >"$stamp" || true
+    if $keep_booted || [ "$idle" = 0 ]; then
+      return 0
+    fi
+    perl -MFcntl=:flock -MPOSIX=setsid -e '
+      my ($idle, $lock, $stamp, $run, $device) = @ARGV;
+      my $pid = fork() // die "fork: $!\n";
+      exit 0 if $pid;
+      setsid();
+      chdir "/";
+      sleep $idle;
+      open(my $lockfile, "<", $lock) or exit 0;
+      # Waits while a run has the simulator, which then leaves its own stamp.
+      flock($lockfile, LOCK_EX) or exit 0;
+      open(my $file, "<", $stamp) or exit 0;
+      my $last = <$file> // "";
+      chomp $last;
+      exit 0 if $last ne $run;
+      my $shutdown = fork() // exit 1;
+      if ($shutdown == 0) { exec "xcrun", "simctl", "shutdown", $device; exit 127; }
+      local $SIG{ALRM} = sub { kill "KILL", $shutdown };
+      alarm 120;
+      waitpid($shutdown, 0);
+      alarm 0;
+      my $status = $? & 127 ? 128 + ($? & 127) : $? >> 8;
+      # A shutdown that failed keeps the stamp, so the next run'"'"'s end tries again.
+      unlink $stamp if $status == 0;
+      printf "%s: %s %s down after %d s without a run (status %d)\n", scalar(localtime),
+        $status == 0 ? "shut" : "couldn'"'"'t shut", $device, $idle, $status;
+    ' "$idle" "$lock" "$stamp" "$run" "$device" </dev/null >>"${TMPDIR:-/tmp}/lil-snapshot-iphone-idle.log" 2>&1 ||
+      true
+  }
   # shellcheck disable=SC2329 # The EXIT trap calls it.
   release_simulator() {
     status=$?
-    trap - EXIT INT TERM HUP
-    # Stopped by a signal, this runs inside the stopped command's redirections, so what it says
+    trap - EXIT INT
+    # Stopped by Control-C, this runs inside the stopped command's redirections, so what it says
     # goes to that command's log (`test.log`). Saving the output's descriptors for it would leave
-    # them open in the processes the run starts, the detached one below included, which would
-    # hold the caller's pipe open.
-    stamp="${TMPDIR:-/tmp}/lil-snapshot-iphone-$device.idle"
-    run="$$ $(now)"
-    echo "$run" >"$stamp" || true
+    # them open in the processes the run starts, the detached one included, which would hold the
+    # caller's pipe open.
+    schedule_shutdown
     if $keep_booted; then
       echo "Left the simulator $simulator booted (--keep-booted)."
     elif [ "$idle" = 0 ]; then
@@ -355,31 +396,6 @@ for entry in sorted(entries, key=lambda entry: not entry.get("isAvailable", True
       rm -f "$stamp"
       echo "Shut the simulator $simulator down."
     else
-      perl -MFcntl=:flock -MPOSIX=setsid -e '
-        my ($idle, $lock, $stamp, $run, $device) = @ARGV;
-        my $pid = fork() // die "fork: $!\n";
-        exit 0 if $pid;
-        setsid();
-        chdir "/";
-        sleep $idle;
-        open(my $lockfile, "<", $lock) or exit 0;
-        # Waits while a run has the simulator, which then leaves its own stamp.
-        flock($lockfile, LOCK_EX) or exit 0;
-        open(my $file, "<", $stamp) or exit 0;
-        my $last = <$file> // "";
-        chomp $last;
-        exit 0 if $last ne $run;
-        my $shutdown = fork() // exit 1;
-        if ($shutdown == 0) { exec "xcrun", "simctl", "shutdown", $device; exit 127; }
-        local $SIG{ALRM} = sub { kill "KILL", $shutdown };
-        alarm 120;
-        waitpid($shutdown, 0);
-        alarm 0;
-        unlink $stamp;
-        printf "%s: shut %s down after %d s without a run (status %d)\n", scalar(localtime), $device,
-          $idle, $? >> 8;
-      ' "$idle" "$lock" "$stamp" "$run" "$device" </dev/null >>"${TMPDIR:-/tmp}/lil-snapshot-iphone-idle.log" 2>&1 ||
-        true
       if [ $((idle % 60)) = 0 ]; then
         wait_for="$((idle / 60)) min"
       else
@@ -390,10 +406,12 @@ for entry in sorted(entries, key=lambda entry: not entry.get("isAvailable", True
     fi
     exit "$status"
   }
+  schedule_shutdown
   trap release_simulator EXIT
+  # Control-C reaches the whole run, and `limit` stops its command. Not TERM or HUP, which only
+  # reach this shell: a trap waits for the command running, up to a build's 30 minutes, while
+  # without one the shell stops at once, and the shutdown scheduled as it started still comes.
   trap 'exit 130' INT
-  trap 'exit 143' TERM
-  trap 'exit 129' HUP
 
   # Whether the simulator answers: under load, one can be booted and hang every request.
   responds() {

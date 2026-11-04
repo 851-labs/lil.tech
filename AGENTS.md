@@ -96,7 +96,7 @@ Building, running and inspecting the apps all work from the command line (851-29
   ```
 - **iPhone simulator:** use a simulator of your own, by its UDID, since other agents' may be booted, named for your ticket (`lil-<number>`). Its Keychain is its own, and deleting it cleans up everything. Within it, each server's session is its own too, as on the Mac. Delete it when you're done: an idle booted simulator keeps a few hundred processes and their memory (851-3239). `scripts/worktree remove` lists the simulators named for its ticket and every one left booted, and `prune` the booted ones, without deleting any.
   ```sh
-  sim=$(xcrun simctl create lil-3239 "iPhone 18 Pro")
+  sim=$(xcrun simctl create lil-<number> "iPhone 18 Pro")   # e.g. lil-3239
   xcrun simctl bootstatus "$sim" -b
   xcrun simctl install "$sim" "$PWD/.build/DerivedData/Build/Products/Debug-iphonesimulator/lil health.app"
   SIMCTL_CHILD_LIL_API_URL=https://…workers.dev SIMCTL_CHILD_LIL_SIGN_IN_TO_TEST_ACCOUNT=1 \
