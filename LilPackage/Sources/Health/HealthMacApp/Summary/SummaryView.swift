@@ -41,12 +41,21 @@ struct SummaryView: View {
       actions: SummaryCardActions(
         newCard: { store.send(.newCardButtonTapped) },
         edit: { store.send(.editCardButtonTapped(id: $0.id)) },
-        delete: { store.send(.deleteCardButtonTapped(id: $0.id)) })
+        delete: { store.send(.deleteCardButtonTapped(id: $0.id)) },
+        moveUp: { store.send(.moveCardUp(id: $0.id)) },
+        moveDown: { store.send(.moveCardDown(id: $0.id)) })
     ) { card in
       CardPreview(card: card, day: day)
     }
-    // New Card… (⌘N), while Summary shows (851-3208).
+    // Reorder Cards… (851-3210) and New Card… (⌘N, 851-3208), while Summary shows.
     .toolbar {
+      ToolbarItem(placement: .primaryAction) {
+        Button("Reorder Cards…", systemImage: "arrow.up.arrow.down") {
+          store.send(.reorderCardsButtonTapped)
+        }
+        .help("Reorder Cards")
+        .disabled(!store.canReorderCards)
+      }
       ToolbarItem(placement: .primaryAction) {
         Button("New Card…", systemImage: "plus") {
           store.send(.newCardButtonTapped)
@@ -158,19 +167,21 @@ enum SummaryLoad<Value> {
   case failed(String)
 }
 
-/// What Summary's New Card… and a row's context menu do (851-3208).
+/// What Summary's New Card… and a row's context menu do (851-3208, 851-3210).
 struct SummaryCardActions {
   var newCard: () -> Void
   var edit: (Card) -> Void
   var delete: (Card) -> Void
+  var moveUp: (Card) -> Void
+  var moveDown: (Card) -> Void
 }
 
 /// What Summary shows, however it got it: the cards, a row each from `row`, then the highlights.
 struct SummaryContent<Row: View>: View {
   let cards: SummaryLoad<[Card]>
   var highlights: SummaryLoad<[Highlight]> = .loaded([])
-  /// New Card… in the empty section, and each row's Edit… and Delete…. Without them, neither
-  /// shows.
+  /// New Card… in the empty section, and each row's Edit…, Move Up, Move Down and Delete….
+  /// Without them, none of these shows.
   var actions: SummaryCardActions?
   /// A card's row, with its headline.
   @ViewBuilder let row: (Card) -> Row
@@ -232,14 +243,21 @@ struct SummaryContent<Row: View>: View {
         }
         .contextMenu {
           if let actions {
-            // A later version's card can't be edited here, only deleted.
+            // A later version's card can't be edited here, only deleted and moved.
             Button("Edit…") { actions.edit(card) }
               .disabled(card.spec == nil)
+            Divider()
+            Button("Move Up") { actions.moveUp(card) }
+              .disabled(card.id == cards.first?.id)
+            Button("Move Down") { actions.moveDown(card) }
+              .disabled(card.id == cards.last?.id)
             Divider()
             Button("Delete…", role: .destructive) { actions.delete(card) }
           }
         }
       }
+    // No `onMove`: a grouped form isn't a table on the Mac, so its rows can't be dragged
+    // (851-3210). Reorder Cards… (the toolbar) drags them in a list instead.
     }
   }
 

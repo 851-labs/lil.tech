@@ -99,7 +99,8 @@
     NavigationStack {
       SummaryContent(
         cards: cards, highlights: highlights,
-        actions: SummaryCardActions(newCard: {}, edit: { _ in }, delete: { _ in })
+        actions: SummaryCardActions(
+          newCard: {}, edit: { _ in }, delete: { _ in }, moveUp: { _ in }, moveDown: { _ in })
       ) { card in
         CardRow(card: card, headline: headline(card), now: previewNow, calendar: previewCalendar)
       }

@@ -43,6 +43,15 @@ public struct AppView: View {
             .frame(width: CardEditorView<EmptyView>.width, height: CardEditorView<EmptyView>.height)
         }
         .alert($store.scope(\.cards.alert, action: \.cards.alert))
+        // Reorder Cards…, from Summary's toolbar (851-3210).
+        .sheet(
+          isPresented: Binding(
+            get: { store.cards.isReordering },
+            set: { if !$0 { store.send(.cards(.reorderingFinished)) } })
+        ) {
+          ReorderCardsView(store: store.scope(\.cards, action: \.cards))
+            .frame(width: ReorderCardsContent.width, height: ReorderCardsContent.height)
+        }
       }
     }
     .delayedProgress(isLoading: store.isSignedIn == nil)
