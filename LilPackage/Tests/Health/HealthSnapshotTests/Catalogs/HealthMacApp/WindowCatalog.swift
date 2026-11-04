@@ -1,5 +1,6 @@
 #if os(macOS)
   import ComposableArchitecture
+  import HealthCardEditor
   import HealthCatalog
   import HealthDatabase
   import LilAuth

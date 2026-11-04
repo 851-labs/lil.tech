@@ -140,7 +140,8 @@ let package = Package(
     ),
     // The card editor and its query builder, for both apps (851-3208, 851-3209, 851-3213): the
     // draft spec, the builder's rules, and the editor's form, which each app presents with its own
-    // live preview.
+    // live preview. And `CardsFeature`, which presents it: the account's cards and their write
+    // queue through sync, shared by both apps (851-3993).
     .target(
       name: "HealthCardEditor",
       dependencies: [
@@ -148,7 +149,9 @@ let package = Package(
         "HealthCardStore",
         "HealthCatalog",
         "HealthUI",
+        "LilSync",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
       ],
       path: "Sources/Health/HealthCardEditor"
     ),

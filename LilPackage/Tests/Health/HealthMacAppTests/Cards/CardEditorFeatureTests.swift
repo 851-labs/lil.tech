@@ -39,7 +39,7 @@ struct CardEditorFeatureTests {
   private func cardsStore(cards: [Card] = seedCards) throws -> TestStoreOf<CardsFeature> {
     let database = try HealthDatabase.make()
     let store = TestStore(initialState: CardsFeature.State(cards: cards)) {
-      CardsFeature()
+      CardsFeature.mac
     } withDependencies: { [pushed, clock] in
       $0.defaultDatabase = database
       $0.continuousClock = clock

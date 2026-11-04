@@ -1,6 +1,6 @@
 public import ComposableArchitecture
 import Dependencies
-import HealthCardEditor
+public import HealthCardEditor
 import HealthCardStore
 import HealthCards
 import HealthKitAccess

@@ -59,7 +59,7 @@ struct CardsFeatureTests {
 
   private func store(cards: [Card]? = seedCards) -> TestStoreOf<CardsFeature> {
     TestStore(initialState: CardsFeature.State(cards: cards)) {
-      CardsFeature()
+      CardsFeature.mac
     } withDependencies: { [database, pushed] in
       $0.defaultDatabase = database
       $0.sync.push = { mutations in pushed.withValue { $0.append(mutations) } }
@@ -297,7 +297,7 @@ struct CardsFeatureTests {
   func writesArePushedInOrderAndShownUntilStored() async throws {
     let clock = ManualClock()
     let store = TestStore(initialState: CardsFeature.State(cards: seedCards)) {
-      CardsFeature()
+      CardsFeature.mac
     } withDependencies: { [database, pushed] in
       $0.defaultDatabase = database
       // Each push waits, as behind a pull in progress.
@@ -350,7 +350,7 @@ struct CardsFeatureTests {
     state.isLoading = false
     state.loadFailure = "The cards couldn't be read."
     let store = TestStore(initialState: state) {
-      CardsFeature()
+      CardsFeature.mac
     }
     #expect(!store.state.canCreateCard)
     await store.send(.createCard(spec("New")))
@@ -358,7 +358,7 @@ struct CardsFeatureTests {
     await store.send(.moveCards(fromOffsets: [0], toOffset: 2))
 
     let loading = TestStore(initialState: CardsFeature.State()) {
-      CardsFeature()
+      CardsFeature.mac
     }
     await loading.send(.createCard(spec("New")))
     await loading.send(.updateCard(id: "card_seed_steps", spec: spec("Steps")))
@@ -403,7 +403,7 @@ struct CardsFeatureTests {
       LilSyncEngine(entities: HealthDatabase.syncEntities, syncSchema: HealthDatabase.syncSchema)
     }
     let store = TestStore(initialState: CardsFeature.State(cards: seedCards)) {
-      CardsFeature()
+      CardsFeature.mac
     } withDependencies: { [database] in
       $0.defaultDatabase = database
       $0.sync.push = { try await engine.push($0) }

@@ -1,5 +1,6 @@
 public import ComposableArchitecture
 import Foundation
+public import HealthCardEditor
 public import HealthCardStore
 import HealthKitAccess
 import HealthUpload
@@ -110,7 +111,7 @@ public struct AppFeature {
       SyncStatusFeature()
     }
     Scope(\.cards, action: \.cards) {
-      CardsFeature()
+      CardsFeature.phone
     }
     Reduce { state, action in
       switch action {

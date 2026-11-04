@@ -408,7 +408,7 @@ struct CardQueryBuilderTests {
         id: $0.id, spec: $0.spec, position: $0.position, createdAt: 0, updatedAt: 0, seed: $0.seed)
     }
     let store = TestStore(initialState: CardsFeature.State(cards: seed)) {
-      CardsFeature()
+      CardsFeature.mac
     } withDependencies: { [clock] in
       $0.defaultDatabase = database
       $0.continuousClock = clock
