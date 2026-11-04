@@ -11,10 +11,13 @@ import SQLiteData
 import SwiftUI
 
 /// Summary: the account's cards (851-3206), a row each in their order, then highlights. Follows
-/// the cards as `CardsFeature` reads them, and each card's headline and the highlights in the
+/// the cards as `CardsFeature` reads them, and the cards' headlines and the highlights in the
 /// local database as sync changes it.
 struct SummaryView: View {
   let store: StoreOf<CardsFeature>
+  /// The cards' headlines, as of the last fetch: every card's at once, at most once a second while
+  /// sync writes (`CardHeadlinesRequest`, 851-3237).
+  @State private var headlines: CardHeadlines
   @Fetch private var highlights: [Highlight]
   /// Whether the local data holds the cards: until a first pull, or an upgraded Mac's catch-up of
   /// them, brings them, no cards isn't an empty Summary (docs/decisions/cards.md, The welcome
@@ -24,17 +27,30 @@ struct SummaryView: View {
   @State private var day: Date
   @Dependency(\.date) private var date
   @Dependency(\.calendar) private var calendar
+  @Dependency(\.continuousClock) private var clock
+  @Dependency(\.defaultDatabase) private var database
 
   init(store: StoreOf<CardsFeature>) {
     self.store = store
     @Dependency(\.date.now) var now
     @Dependency(\.calendar) var calendar
-    _day = State(initialValue: calendar.startOfDay(for: now))
+    @Dependency(\.fetchesFirstValueAtOnce) var fetchesFirstValueAtOnce
+    @Dependency(\.defaultDatabase) var database
+    let day = calendar.startOfDay(for: now)
+    _day = State(initialValue: day)
+    // Window catalogs hold the main queue until their image is taken, so the task never runs.
+    _headlines = State(
+      initialValue: fetchesFirstValueAtOnce
+        ? (try? database.read {
+          CardHeadlinesRequest(cards: store.cards, day: day).fetch(
+            now: now, calendar: calendar, $0)
+        }) ?? CardHeadlines() : CardHeadlines())
     _highlights = Fetch(wrappedValue: [], HighlightsRequest(), scheduler: MainQueueScheduler())
     _holdsCards = Fetch(wrappedValue: false, HoldsCardsRequest(), scheduler: MainQueueScheduler())
   }
 
   var body: some View {
+    let headlinesRequest = CardHeadlinesRequest(cards: store.cards, day: day)
     SummaryContent(
       cards: cards,
       highlights: $highlights.loadError.map { .failed($0.localizedDescription) }
@@ -46,7 +62,15 @@ struct SummaryView: View {
         moveUp: { store.send(.moveCardUp(id: $0.id)) },
         moveDown: { store.send(.moveCardDown(id: $0.id)) })
     ) { card in
-      CardPreview(card: card, day: day)
+      CardRow(card: card, headline: headlines[card], now: date.now, calendar: calendar)
+    }
+    // Again when a card's spec changes, one's added, or the day does.
+    .task(id: headlinesRequest) {
+      for await headlines in headlinesRequest.observe(
+        in: database, clock: clock, now: { [date] in date.now }, calendar: calendar)
+      {
+        self.headlines = headlines
+      }
     }
     // Reorder Cards… (851-3210) and New Card… (⌘N, 851-3208), while Summary shows.
     .toolbar {
@@ -85,54 +109,71 @@ struct SummaryView: View {
   }
 }
 
-/// A card's row, with its headline from the local database, followed as sync changes it.
-struct CardPreview: View {
-  let card: Card
-  @Fetch private var headline: CardHeadlineResult?
-  /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
-  @Dependency(\.date.now) private var now
-  @Dependency(\.calendar) private var calendar
-
-  init(card: Card, day: Date) {
-    self.card = card
-    if let spec = card.spec {
-      _headline = Fetch(
-        wrappedValue: nil, CardHeadlineRequest(spec: spec, day: day),
-        scheduler: MainQueueScheduler())
-    } else {
-      _headline = Fetch(wrappedValue: nil)
-    }
-  }
-
-  var body: some View {
-    CardRow(card: card, headline: state, now: now, calendar: calendar)
-  }
-
-  private var state: CardRow.Headline {
-    if let error = $headline.loadError { return .failed(error.localizedDescription) }
-    guard let headline else { return .loading }
-    return .loaded(headline.headline)
-  }
-}
-
-/// A card's headline, once fetched: `nil` for No Data.
-struct CardHeadlineResult: Equatable, Sendable {
-  var headline: CardHeadline?
-}
-
-/// What a card's Summary row shows (`HealthDatabase.cardHeadline`), as of when it's fetched.
-struct CardHeadlineRequest: FetchKeyRequest {
-  let spec: CardSpec
+/// Summary's card headlines (`HealthDatabase.cardHeadline`), every card's in one read, each its
+/// own success or failure (851-3237). Each row following its own (`@Fetch`) ran every card again
+/// after each page a first sync or backfill wrote, on the writer, holding sync up: 100 cards made
+/// a backfill take 5 times as long. Observed with `throttledObservation`, they're read at most once
+/// a second while sync writes, off the writer, and once more after its last page.
+struct CardHeadlinesRequest: Hashable, Sendable {
+  /// The cards' specs, by ID: a new order is the same request, a new spec or card a new one. A
+  /// card this version can't read has no headline.
+  let specs: [Card.ID: CardSpec]
   /// The day it's for, so a new day is a new request.
   let day: Date
 
-  func fetch(_ db: Database) throws -> CardHeadlineResult? {
-    // The dependencies where the fetch started (SQLiteData passes them on), so snapshot
-    // catalogs fix them.
-    @Dependency(\.date.now) var now
-    @Dependency(\.calendar) var calendar
-    return CardHeadlineResult(
-      headline: try HealthDatabase.cardHeadline(spec, now: now, calendar: calendar, db))
+  init(cards: some Sequence<Card>, day: Date) {
+    specs = Dictionary(
+      cards.compactMap { card in card.spec.map { (card.id, $0) } }, uniquingKeysWith: { $1 })
+    self.day = day
+  }
+
+  /// Each card's headline, from data started by `now`.
+  func fetch(now: Date, calendar: Calendar, _ db: Database) -> CardHeadlines {
+    CardHeadlines(
+      specs: specs,
+      values: specs.mapValues { spec in
+        do {
+          return .loaded(try HealthDatabase.cardHeadline(spec, now: now, calendar: calendar, db))
+        } catch {
+          return .failed(error.localizedDescription)
+        }
+      })
+  }
+
+  /// The headlines, now and again as the tables cards read change, at most once a second. A read
+  /// that fails fails every card.
+  func observe(
+    in database: any DatabaseWriter, clock: any Clock<Duration>,
+    now: @escaping @Sendable () -> Date, calendar: Calendar
+  ) -> some AsyncSequence<CardHeadlines, Never> {
+    let specs = specs
+    return
+      throttledObservation(of: HealthDatabase.cardTables, in: database, clock: clock) { db in
+        self.fetch(now: now(), calendar: calendar, db)
+      }
+      .map { result in
+        switch result {
+        case .success(let headlines): headlines
+        case .failure(let error):
+          CardHeadlines(
+            specs: specs, values: specs.mapValues { _ in .failed(error.localizedDescription) })
+        }
+      }
+  }
+}
+
+/// Cards' headlines, each with the spec it's for.
+struct CardHeadlines: Equatable, Sendable {
+  var specs: [Card.ID: CardSpec] = [:]
+  var values: [Card.ID: CardRow.Headline] = [:]
+
+  /// The card's headline, if it's for the card's spec: an edited card's row is loading until its
+  /// new spec's is read, rather than showing the old one's under it.
+  subscript(card: Card) -> CardRow.Headline {
+    guard let spec = card.spec, specs[card.id] == spec, let value = values[card.id] else {
+      return .loading
+    }
+    return value
   }
 }
 
