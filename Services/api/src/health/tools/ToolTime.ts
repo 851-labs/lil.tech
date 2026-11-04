@@ -109,7 +109,7 @@ export const isLocalDay = (text: string) => /^\d{4}-\d{2}-\d{2}$/.test(text) && 
 /**
  * A call's `date`, which must be a day that exists, written `YYYY-MM-DD`, or the tool's error, in
  * the Mac's words (`ToolTime.day`). The input schema takes any string, so both servers refuse one
- * alike (851-4034).
+ * alike (851-4034). `toolPeriod` checks its date with it.
  */
 export const toolDate = (date: string | undefined) =>
   date === undefined || isLocalDay(date)
@@ -138,9 +138,18 @@ export interface ToolPeriod {
 /**
  * The period ending on `date` (`YYYY-MM-DD` in `zone`), or today at `now` without one: D is that
  * day in hours, W and M the 7 and 30 days ending on it in days, 6M the 26 weeks ending on it in
- * 7-day weeks, and Y the 12 calendar months ending with its month, in months.
+ * 7-day weeks, and Y the 12 calendar months ending with its month, in months. A `date` that isn't
+ * a day is the tool's error (`toolDate`), as the Mac's `ToolPeriod` throws it.
  */
 export const toolPeriod = (
+  range: ToolRange,
+  date: string | undefined,
+  now: number,
+  zone: DateTime.TimeZone,
+): Effect.Effect<ToolPeriod, HealthToolError> =>
+  Effect.map(toolDate(date), (date) => periodEnding(range, date, now, zone));
+
+const periodEnding = (
   range: ToolRange,
   date: string | undefined,
   now: number,

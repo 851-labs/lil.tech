@@ -433,7 +433,7 @@ private struct ToolCall {
 /// `Invalid parameters for tool 'metric': Expected "D" | "W" | "M" | "6M" | "Y"\n  at ["range"]`.
 struct InvalidArguments: LocalizedError {
   /// What's wrong with one argument, in Effect's words, and where it is, e.g. `["ids"][0]`.
-  struct Issue: Equatable {
+  struct Issue {
     var message: String
     var path: String
   }
@@ -572,13 +572,13 @@ private final class Arguments {
 }
 
 extension Value {
-  /// A string argument as it was sent: `Value` decodes a data URL as `.data`, which is still a
-  /// string to the remote server's schemas.
+  /// A string argument. `Value` decodes a string that's a data URL as `.data`, which is still a
+  /// string to the remote server's schemas, so it's written back as one: the SDK keeps its data,
+  /// not its text, so a data URL written another way (`data:,steps`) reads as its base64 form.
   fileprivate var argumentString: String? {
     switch self {
     case .string(let string): string
-    case .data:
-      (try? JSONEncoder().encode(self)).flatMap { try? JSONDecoder().decode(String.self, from: $0) }
+    case .data(let mimeType, let data): data.dataURLEncoded(mimeType: mimeType)
     default: nil
     }
   }

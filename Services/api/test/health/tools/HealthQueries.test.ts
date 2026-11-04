@@ -117,7 +117,7 @@ describe("tool periods", () => {
   const times = (millis: ReadonlyArray<number>) => millis.map((time) => localTime(time, london));
 
   it("have 25 hours on the day London leaves summer time", () => {
-    const period = toolPeriod("D", "2026-10-25", now, london);
+    const period = Effect.runSync(toolPeriod("D", "2026-10-25", now, london));
     assert.strictEqual(period.buckets.length, 25);
     assert.deepStrictEqual(times(period.buckets.slice(0, 3)), [
       "2026-10-25T00:00:00+01:00",
@@ -128,10 +128,10 @@ describe("tool periods", () => {
   });
 
   it("count 26 weeks for 6M, and 12 calendar months for Y", () => {
-    const sixMonths = toolPeriod("6M", "2026-10-20", now, london);
+    const sixMonths = Effect.runSync(toolPeriod("6M", "2026-10-20", now, london));
     assert.strictEqual(sixMonths.buckets.length, 26);
     assert.strictEqual(localTime(sixMonths.start, london), "2026-04-22T00:00:00+01:00");
-    const year = toolPeriod("Y", undefined, now, london);
+    const year = Effect.runSync(toolPeriod("Y", undefined, now, london));
     assert.deepStrictEqual(times([year.start, year.buckets[11]!, year.end]), [
       "2025-11-01T00:00:00+00:00",
       "2026-10-01T00:00:00+01:00",
@@ -140,7 +140,7 @@ describe("tool periods", () => {
   });
 
   it("place a time in its bucket", () => {
-    const week = toolPeriod("W", "2026-10-20", now, london);
+    const week = Effect.runSync(toolPeriod("W", "2026-10-20", now, london));
     assert.strictEqual(bucketIndex(week, week.start), 0);
     assert.strictEqual(bucketIndex(week, week.end - 1), 6);
     assert.isUndefined(bucketIndex(week, week.end));

@@ -135,7 +135,7 @@ const askedFor = (params: object): AskedFor => {
     ...askedForNothing,
     types: known === undefined ? null : [known.id],
     range: field("range"),
-    date: Predicate.isString(date) && isLocalDay(date) ? date : null,
+    date: date !== null && isLocalDay(date) ? date : null,
   };
 };
 
