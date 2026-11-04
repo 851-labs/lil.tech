@@ -17,18 +17,26 @@ cat >"$temporary/bin/xcrun" <<'EOF'
 #!/bin/sh
 echo "$FAKE_SWIFT_BIN/swift"
 EOF
-# Logs each run (quiet or loud, cached or not) to `$FAKE_SWIFT_CALLS`, then acts as
-# `$FAKE_SWIFT_MODE` says: `pass`; `error`, a compile error; `abort`, a warning whose cached replay
-# aborts; `tests`, a build that passes and tests that fail.
+# Logs each run (quiet or loud, cached or not) to `$FAKE_SWIFT_CALLS`, and its arguments to
+# `$FAKE_SWIFT_CALLS.arguments`, then acts as `$FAKE_SWIFT_MODE` says: `pass`; `error`, a compile
+# error; `abort`, a warning whose cached replay aborts; `abort-always`, one that aborts uncached too;
+# `tests`, a build that passes and tests that fail.
 cat >"$temporary/bin/swift" <<'EOF'
 #!/bin/sh
 quiet=loud
+previous=""
 for arg in "$@"; do
-  case "$arg" in -q | --quiet) quiet=quiet ;; esac
+  case "$previous,$arg" in
+    -X*,*) ;;
+    *,--) break ;;
+    *,-q | *,--quiet) quiet=quiet ;;
+  esac
+  previous=$arg
 done
 cache=uncached
 [ "${EnableSwiftCachingByDefault:-}" != YES ] || cache=cached
 echo "$quiet $cache" >>"$FAKE_SWIFT_CALLS"
+echo "$*" >>"$FAKE_SWIFT_CALLS.arguments"
 diagnostic() {
   [ "$quiet" = quiet ] || echo "Thing.swift:1:8: error: $1" >&2
   echo "error: Build failed" >&2
@@ -37,8 +45,8 @@ diagnostic() {
 case "$FAKE_SWIFT_MODE" in
   pass) echo "Build complete!" ;;
   error) diagnostic "cannot convert value of type 'String' to specified type 'Int'" ;;
-  abort)
-    if [ "$quiet $cache" = "loud cached" ]; then
+  abort | abort-always)
+    if [ "$quiet" = loud ] && { [ "$cache" = cached ] || [ "$FAKE_SWIFT_MODE" = abort-always ]; }; then
       echo "libc++abi: terminating due to uncaught exception of type std::bad_optional_access:" \
         "bad_optional_access was thrown" >&2
       echo "error: Build failed" >&2
@@ -70,12 +78,16 @@ check() {
   mode=$1 expected_status=$2 expected_calls=$3 expected_output=$4
   shift 4
   : >"$temporary/calls"
+  : >"$temporary/calls.arguments"
+  subcommand=$1
+  shift
   status=0
   PATH="$temporary/bin:$PATH" FAKE_SWIFT_BIN="$temporary/bin" FAKE_SWIFT_MODE="$mode" \
     FAKE_SWIFT_CALLS="$temporary/calls" DEVELOPER_DIR="$temporary/developer" \
     LIL_COMPILATION_CACHE="$cache" LIL_COMPILATION_CACHE_PATH="$temporary/cache" \
-    "$scripts/swift" "$@" --scratch-path "$temporary/scratch" >"$temporary/output" 2>&1 ||
-    status=$?
+    "$scripts/swift" "$subcommand" --scratch-path "$temporary/scratch" "$@" \
+    >"$temporary/output" 2>&1 || status=$?
+  set -- "$subcommand" "$@"
   calls=$(paste -sd, "$temporary/calls")
   name="$mode, $*, cache $cache"
   [ "$status" = "$expected_status" ] || fail "$name: exited $status, not $expected_status"
@@ -94,9 +106,18 @@ check abort 1 "quiet cached,loud cached,loud uncached" \
   "Thing.swift:1:8: error: public import of 'Foundation'" test --quiet
 check abort 1 "loud cached,loud uncached" "runs again without the compilation cache" build
 check tests 1 "quiet cached" "Test run with 1 test failed" test --quiet
+# `swift run`'s arguments may be the program's, so it isn't run again.
+check error 1 "quiet cached" "error: Build failed" run --quiet
 cache=0
 check error 1 "quiet uncached,loud uncached" "Thing.swift:1:8: error: cannot convert" build --quiet
 check pass 0 "quiet uncached" "" build --quiet
+# Without the cache, an abort isn't run again.
+check abort-always 1 "loud uncached" "bad_optional_access was thrown" build
+# Only swift's own `--quiet` goes: not an option's value, nor one past `--`.
+check error 1 "quiet uncached,loud uncached" "" build -Xswiftc -q --quiet -- --quiet
+arguments=$(tail -n 1 "$temporary/calls.arguments")
+[ "$arguments" = "build --scratch-path $temporary/scratch -Xswiftc -q -- --quiet" ] ||
+  fail "the run without '--quiet' had the arguments '$arguments'"
 
 if [ "$failures" -gt 0 ]; then
   exit 1

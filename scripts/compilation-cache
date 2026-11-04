@@ -92,8 +92,9 @@ quote() {
 }
 original=$(quote "$@")
 
-# The arguments without `-q` and `--quiet`, as shell words, when they have one (before a `--`, past
-# which they're someone else's), for `swift build` and `swift test`; otherwise nothing.
+# The arguments without `-q` and `--quiet`, as shell words, when they have one, for `swift build`
+# and `swift test`; otherwise nothing. Not one that's an option's value (`-Xswiftc -q`), or past a
+# `--`, where the arguments are someone else's.
 without_quiet() {
   case "${1:-}" in
     build | test) ;;
@@ -102,23 +103,36 @@ without_quiet() {
   found=false
   kept=""
   rest=false
+  previous=""
   for arg in "$@"; do
     if ! $rest; then
-      case "$arg" in
-        -q | --quiet)
+      case "$previous,$arg" in
+        -X*,*) ;;
+        *,-q | *,--quiet)
           found=true
+          previous=$arg
           continue
           ;;
-        --) rest=true ;;
+        *,--) rest=true ;;
       esac
     fi
     kept="$kept$(quote "$arg")"
+    previous=$arg
   done
   if $found; then
     echo "$kept"
   fi
 }
-loud=$(without_quiet "$@")
+# Set for `scripts/swift` (below).
+loud=""
+
+# Runs this script again, in place of this one, with the shell words given.
+again() {
+  rm -f "$log" "$log.status"
+  trap - EXIT
+  eval "set -- $1"
+  exec "$root/scripts/$tool" "$@"
+}
 
 # Runs the command, with its standard error also kept in a file, and exits with its status, unless
 # its build failed while quiet, or it aborted replaying a cached diagnostic (above): then this runs
@@ -133,25 +147,21 @@ run_or_fall_back() {
   } | tee "$log" >&2; } 3>&1
   # Missing when the command was killed before it could say.
   status=$(cat "$log.status" 2>/dev/null || echo 1)
-  if [ "$status" != 0 ] && [ -n "$loud" ] && grep -q '^error: Build failed' "$log"; then
+  [ "$status" != 0 ] || exit 0
+  if [ -n "$loud" ] && grep -q 'error: Build failed' "$log"; then
     echo "warning: the build failed, and '--quiet' hides the compiler's errors and warnings" \
       "(Swift Build, 851-3988), so it runs again without '--quiet' to show them." >&2
-    rm -f "$log" "$log.status"
-    trap - EXIT
-    eval "set -- $loud"
-    exec "$root/scripts/$tool" "$@"
+    again "$loud"
   fi
-  if [ "$status" != 0 ] && [ "${LIL_COMPILATION_CACHE:-1}" != 0 ] &&
-    grep -q 'bad_optional_access was thrown' "$log"; then
+  # Not without the cache, which would only run the same build again.
+  if [ "${LIL_COMPILATION_CACHE:-1}" != 0 ] && grep -q 'bad_optional_access was thrown' "$log"; then
     echo "warning: the build aborted replaying a cached warning (a toolchain bug, 851-3238)," \
       "so it runs again without the compilation cache. Once the warning is fixed, builds use the" \
       "cache again." >&2
-    rm -f "$log" "$log.status"
-    trap - EXIT
-    eval "set -- $original"
     unset EnableSwiftCachingByDefault EnableClangCachingByDefault CompilationCachingCASPath \
       CompilationCachingDiskSizeLimit
-    LIL_COMPILATION_CACHE=0 exec "$root/scripts/$tool" "$@"
+    export LIL_COMPILATION_CACHE=0
+    again "$original"
   fi
   exit "$status"
 }
@@ -165,6 +175,7 @@ case "$tool" in
       build | test | run) ;;
       *) exec "$swift" "$@" ;;
     esac
+    loud=$(without_quiet "$@")
     # Without the cache, a quiet build still shows its diagnostics when it fails (above).
     if [ "${LIL_COMPILATION_CACHE:-1}" = 0 ]; then
       [ -n "$loud" ] || exec "$swift" "$@"
