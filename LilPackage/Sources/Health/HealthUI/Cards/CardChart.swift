@@ -255,6 +255,7 @@ public struct CardChart: View {
     let style = spec.chart.style
     let unit = data.grain.component
     let isEmpty = series.allSatisfy(\.points.isEmpty) && formulas.allSatisfy(\.points.isEmpty)
+    let span = PeriodFormat.span(data.interval, range: range, calendar: calendar)
     let goal = data.goal.map { shown.convert($0) }
     let yDomain = yDomain(
       data, spec: spec, series: series, formulas: formulas, isEmpty: isEmpty, unit: shown)
@@ -311,10 +312,8 @@ public struct CardChart: View {
       }
     #endif
     .valueAxis(shown, domain: yDomain)
-    .emptyChartAccessibility(
-      isEmpty,
-      label: PeriodFormat.noData(PeriodFormat.span(data.interval, range: range, calendar: calendar))
-    )
+    .chartAccessibility(
+      "\(spec.display.name), \(span)", isEmpty: isEmpty, emptyLabel: PeriodFormat.noData(span))
   }
 
   /// A series' point in the card's style, in the card's color at the series' opacity: a bar from

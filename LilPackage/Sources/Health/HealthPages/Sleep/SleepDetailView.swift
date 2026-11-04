@@ -402,7 +402,9 @@ struct SleepDetailContent: View {
           SleepWeeksChart(period: period, calendar: calendar)
         }
       }
-      .emptyChartAccessibility(period.nights.isEmpty, label: ChartFormat.noData(span))
+      .chartAccessibility(
+        "\(type.name), \(span)", isEmpty: period.nights.isEmpty,
+        emptyLabel: ChartFormat.noData(span))
     }
   }
 

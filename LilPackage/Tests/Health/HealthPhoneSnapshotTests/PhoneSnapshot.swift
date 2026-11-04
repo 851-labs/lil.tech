@@ -123,7 +123,7 @@
   /// The host app's window, once its scene is connected and the window key: the first test can
   /// start before that.
   @MainActor
-  private func hostWindow() -> UIWindow? {
+  func hostWindow() -> UIWindow? {
     let deadline = Date().addingTimeInterval(30)
     while Date() < deadline {
       let window = UIApplication.shared.connectedScenes

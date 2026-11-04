@@ -306,14 +306,19 @@ struct SymptomContent: View {
       }
       // Nothing over an empty period's plot: the header says No Data, or Not Present for
       // entries saying it wasn't there, which are listed, not charted (851-3102).
-      .emptyChartAccessibility(chart.points.isEmpty, label: emptyLabel(chart))
+      .chartAccessibility(
+        "\(type.name), \(span(chart))", isEmpty: chart.points.isEmpty,
+        emptyLabel: emptyLabel(chart))
   }
 
   /// What VoiceOver reads for a period with nothing charted: "No data for Oct 2025", or "Not
   /// present in Oct 2025" when its entries say it wasn't there.
   private func emptyLabel(_ chart: SymptomChart) -> String {
-    let span = ChartFormat.span(chart.interval, range: range, calendar: calendar)
-    return chart.entries.isEmpty ? ChartFormat.noData(span) : ChartFormat.notPresent(span)
+    chart.entries.isEmpty ? ChartFormat.noData(span(chart)) : ChartFormat.notPresent(span(chart))
+  }
+
+  private func span(_ chart: SymptomChart) -> String {
+    ChartFormat.span(chart.interval, range: range, calendar: calendar)
   }
 
   /// A bar: an entry over its time (a day), a day's highest level, or a week's or month's days.

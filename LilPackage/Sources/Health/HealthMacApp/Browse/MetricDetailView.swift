@@ -431,6 +431,7 @@ struct MetricDetailContent: View {
     case .loaded(let loaded, _):
       let chart = loaded.chart
       let shown = displayUnit
+      let span = ChartFormat.span(chart.interval, range: range, calendar: calendar)
       // Fitted in the unit plotted. An empty period keeps a scale of the type's, in it too
       // (851-3102).
       let yDomain =
@@ -480,10 +481,9 @@ struct MetricDetailContent: View {
       .chartPlotStyle { $0.clipped() }
       .chartXSelection(value: $hovered)
       .valueAxis(shown, domain: yDomain)
-      .emptyChartAccessibility(
-        chart.points.isEmpty,
-        label: ChartFormat.noData(
-          ChartFormat.span(chart.interval, range: range, calendar: calendar)))
+      .chartAccessibility(
+        "\(type.name), \(span)", isEmpty: chart.points.isEmpty,
+        emptyLabel: ChartFormat.noData(span))
     }
   }
 
