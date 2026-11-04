@@ -103,7 +103,9 @@
   /// it did first, then at its own frame again, where every layer gets its final geometry and
   /// bitmap, byte for byte as when nothing was skipped. Every item, every time, rather than the
   /// stale ones found: the result doesn't depend on finding them. Those found are printed, and an
-  /// issue is recorded if any are left.
+  /// issue is recorded if any are left. `layout()` is called itself: `layoutSubtreeIfNeeded()`
+  /// has the toolbar's constraints put the item's frame back before SwiftUI lays it out at zero.
+  /// The window's layout is brought up to date after, so nothing is left for a later pass.
   @MainActor
   func layOutToolbarItemsAgain(in window: NSWindow) {
     let stale = staleToolbarImages(in: window)
@@ -114,12 +116,13 @@
       view.frame = frame
       view.layout()
     }
+    window.contentView?.superview?.layoutSubtreeIfNeeded()
+    let left = staleToolbarImages(in: window)
     if !stale.isEmpty {
       print(
-        "Drew stale toolbar images again in \(window.title): \(stale.map(\.description).joined(separator: ", "))"
+        "Laid out stale toolbar items again in \(window.title)\(left.isEmpty ? "" : ", not all fixed"): \(stale.map(\.description).joined(separator: ", "))"
       )
     }
-    let left = staleToolbarImages(in: window)
     if !left.isEmpty {
       Issue.record(
         """
@@ -130,17 +133,14 @@
     }
   }
 
-  /// SwiftUI's hosting view for each item in the window's toolbar.
+  /// SwiftUI's hosting view for each item in the window's toolbar. `staleToolbarImagesAreLaidOutAgain`
+  /// fails if SwiftUI renames it.
   @MainActor
   func toolbarItemHostingViews(in window: NSWindow) -> [NSView] {
-    guard
-      let titleBar = window.contentView?.superview?.subviews.first(where: {
-        "\(type(of: $0))" == "NSTitlebarContainerView"
-      })
-    else { return [] }
+    guard let titleBar = titleBarContainer(of: window) else { return [] }
     var views: [NSView] = []
     func visit(_ view: NSView) {
-      if "\(type(of: view))".hasPrefix("ToolbarItemHostingView") {
+      if isToolbarItemHostingView(view) {
         views.append(view)
       } else {
         view.subviews.forEach(visit)
@@ -166,9 +166,11 @@
       let isRedrawn =
         abs(CGFloat(image.width) - expected.width) < 1
         && abs(CGFloat(image.height) - expected.height) < 1
+      // A point of slack: a stale position is about 16 points off.
       let isPlaced =
-        toolbarItemLayer(of: layer).map { $0.bounds.contains(layer.convert(layer.bounds, to: $0)) }
-        ?? true
+        toolbarItemLayer(of: layer).map {
+          $0.bounds.insetBy(dx: -1, dy: -1).contains(layer.convert(layer.bounds, to: $0))
+        } ?? true
       guard !isRedrawn || !isPlaced else { return nil }
       let origin = layer.convert(CGPoint.zero, to: window.contentView!.superview!.layer!)
       return (
@@ -186,21 +188,26 @@
     var owner = layer.superlayer
     while let current = owner, !(current.delegate is NSView) { owner = current.superlayer }
     var view = owner?.delegate as? NSView
-    while let current = view, !"\(type(of: current))".hasPrefix("ToolbarItemHostingView") {
-      view = current.superview
-    }
+    while let current = view, !isToolbarItemHostingView(current) { view = current.superview }
     return view?.layer
+  }
+
+  @MainActor
+  private func isToolbarItemHostingView(_ view: NSView) -> Bool {
+    "\(type(of: view))".hasPrefix("ToolbarItemHostingView")
+  }
+
+  /// The window's title bar, with its buttons and toolbar.
+  @MainActor
+  private func titleBarContainer(of window: NSWindow) -> NSView? {
+    window.contentView?.superview?.subviews.first { "\(type(of: $0))" == "NSTitlebarContainerView" }
   }
 
   /// SwiftUI's image layers in the window's title bar (its toolbar's and its buttons'), and none
   /// of the content's, even under the title bar.
   @MainActor
   func titleBarImageLayers(in window: NSWindow) -> [CALayer] {
-    guard
-      let titleBar = window.contentView?.superview?.subviews.first(where: {
-        "\(type(of: $0))" == "NSTitlebarContainerView"
-      })?.layer
-    else { return [] }
+    guard let titleBar = titleBarContainer(of: window)?.layer else { return [] }
     var layers: [CALayer] = []
     func visit(_ layer: CALayer) {
       if "\(type(of: layer))" == "ImageLayer" { layers.append(layer) }

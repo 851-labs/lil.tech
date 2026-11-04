@@ -45,21 +45,35 @@
     /// A toolbar image left as SwiftUI first drew it, before the toolbar sized its item, is found,
     /// and laying the items out again has the window come out as it should: a bitmap drawn for
     /// another size, as Sleep › Week's ‹ had on the minis (851-3230), or the first position, as
-    /// Card Detail › HRV, week's › had (851-4046).
-    @Test(arguments: [StaleToolbarImage.bitmap, .position])
+    /// Card Detail › HRV, week's › had (851-4046). In a toolbar like a page's period controls (a
+    /// segmented picker in the middle, ‹ Today › on the trailing side), all laid out again.
+    @Test(arguments: StaleToolbarImage.allCases)
     func staleToolbarImagesAreLaidOutAgain(_ stale: StaleToolbarImage) throws {
       let window = snapshotWindow(
         of: NavigationStack {
-          Text("Synthetic page").frame(width: 400, height: 120)
+          Text("Synthetic page").frame(width: 600, height: 120)
             .toolbar {
-              ToolbarItem(placement: .primaryAction) {
+              ToolbarItem(placement: .principal) {
+                Picker("Range", selection: .constant(1)) {
+                  Text("D").tag(0)
+                  Text("W").tag(1)
+                  Text("M").tag(2)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+              }
+              ToolbarItemGroup(placement: .primaryAction) {
                 Button("Previous Week", systemImage: "chevron.left") {}
+                Button("Today") {}.disabled(true)
+                Button("Next Week", systemImage: "chevron.right") {}.disabled(true)
               }
             }
         },
         appearance: .aqua, title: "Toolbar")
       defer { window.close() }
       let frameView = try #require(window.contentView?.superview)
+      // Found by SwiftUI's class name: one per item.
+      #expect(toolbarItemHostingViews(in: window).count == 4)
       #expect(staleToolbarImages(in: window).isEmpty)
       let expected = try #require(png(Snapshotting.layerImage.snapshot(frameView)))
 
