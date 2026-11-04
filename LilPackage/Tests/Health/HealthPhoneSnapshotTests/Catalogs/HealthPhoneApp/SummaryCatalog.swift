@@ -70,7 +70,8 @@
         var cards = CardsFeature.State(cards: Card.welcomeSeed)
         cards.alert = .confirmDeleteCard(
           named: "Heart Rate", .confirmDelete(id: "card_seed_heart_rate"))
-        return CardsAlert(store: Store(initialState: cards) { EmptyReducer() }) {
+        // The feature itself, which takes the alert down when the state's view is.
+        return CardsAlert(store: Store(initialState: cards) { CardsFeature() }) {
           summary(.loaded(Card.welcomeSeed))
         }
       },

@@ -304,7 +304,10 @@
     scrolledTo: CardEditorAnchor? = nil, in database: any DatabaseReader = catalogDatabase
   ) -> some View {
     NavigationStack {
-      CardEditorView(store: Store(initialState: state) { EmptyReducer() }, scrolledTo: scrolledTo) {
+      // The editor itself, which takes its alert down when the state's view is.
+      CardEditorView(
+        store: Store(initialState: state) { CardEditorFeature() }, scrolledTo: scrolledTo
+      ) {
         spec in
         let period = spec.map { latestPeriod(of: $0, in: database) }
         CardPreviewContent(
