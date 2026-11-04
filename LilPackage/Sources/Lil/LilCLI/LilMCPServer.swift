@@ -133,7 +133,8 @@ enum LilMCPServer {
         let app = servers[app],
         app.listing.tools.contains(where: { $0.name == tool })
       else {
-        throw MCPError.invalidParams("Unknown tool: \(parameters.name)")
+        // In the remote combined server's words.
+        throw MCPError.invalidParams("Tool '\(parameters.name)' not found")
       }
       // Not forwarded: progress and cancellation, since every tool is read-only and quick.
       return try await app.server.call(tool, arguments: parameters.arguments)

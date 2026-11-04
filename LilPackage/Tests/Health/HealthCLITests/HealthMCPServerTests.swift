@@ -136,7 +136,7 @@ struct HealthMCPServerTests {
   }
 
   @Test
-  func toolFailuresAreErrorResultsAndBadArgumentsAreInvalidParams() async throws {
+  func toolFailuresAndBadArgumentsAreErrorResults() async throws {
     let folder = try AppFolder()
     try folder.access.setEnabled(true)
     let connection = try await MCPConnection(folder.directory)
@@ -147,20 +147,66 @@ struct HealthMCPServerTests {
     let zone = try await connection.call("summary", ["timeZone": "europe/london"])
     #expect(zone.isError == true && zone.text.contains("Did you mean Europe/London?"))
 
-    // Arguments outside the input schema.
-    for (name, arguments): (String, [String: Value]) in [
-      ("metric", ["type": "Steps"]),
-      ("metric", ["type": "Steps", "range": "w"]),
-      ("metric", ["type": "Steps", "range": "W", "statistic": "median"]),
-      ("samples", ["type": "Steps", "range": "D", "limit": 501]),
-      ("samples", ["type": "Steps", "range": "D", "limit": 1.5]),
-      ("summary", ["timeZone": 1]),
-      ("search", ["query": ""]),
-      ("frobnicate", [:]),
+    // Arguments outside the input schema are the tool's errors too, in the remote server's words
+    // (851-4034): each issue, where it is, in the schema's order.
+    let ranges = #"Expected "D" | "W" | "M" | "6M" | "Y""#
+    for (name, arguments, message): (String, [String: Value], String) in [
+      ("metric", ["type": "Steps"], #"Missing key\#n  at ["range"]"#),
+      ("metric", ["type": "Steps", "range": "w"], ranges + #"\#n  at ["range"]"#),
+      (
+        "metric", ["type": "Steps", "range": "W", "statistic": "median"],
+        #"Expected "sum" | "average" | "minimum" | "maximum"\#n  at ["statistic"]"#
+      ),
+      (
+        "metric", ["range": .null, "type": 1, "date": "2026-02-31"],
+        #"Expected string\#n  at ["type"]\#n"# + ranges + #"\#n  at ["range"]"#
+      ),
+      (
+        "samples", ["type": "Steps", "range": "D", "limit": 501],
+        #"Expected a value between 1 and 500\#n  at ["limit"]"#
+      ),
+      (
+        "samples", ["type": "Steps", "range": "D", "limit": 1.5],
+        #"Expected an integer\#n  at ["limit"]"#
+      ),
+      (
+        "samples", ["type": "Steps", "range": "D", "limit": -0.5],
+        #"Expected an integer\#n  at ["limit"]\#nExpected a value between 1 and 500\#n  at ["limit"]"#
+      ),
+      (
+        "samples", ["type": "Steps", "range": "D", "limit": 9_007_199_254_740_993],
+        #"Expected an integer\#n  at ["limit"]\#nExpected a value between 1 and 500\#n  at ["limit"]"#
+      ),
+      (
+        "samples", ["type": "Steps", "range": "D", "limit": "5"],
+        #"Expected number\#n  at ["limit"]"#
+      ),
+      ("summary", ["timeZone": 1], #"Expected string\#n  at ["timeZone"]"#),
+      (
+        "search", ["query": ""],
+        #"Expected a value with a length between 1 and 100\#n  at ["query"]"#
+      ),
+      // 100 UTF-16 code units, as JavaScript counts a string's length, is the most.
+      (
+        "search", ["query": .string(String(repeating: "🏃", count: 51))],
+        #"Expected a value with a length between 1 and 100\#n  at ["query"]"#
+      ),
     ] {
-      await #expect(throws: MCPError.self, "\(name) \(arguments)") {
-        try await connection.call(name, arguments)
-      }
+      let result = try await connection.call(name, arguments)
+      #expect(result.isError == true, "\(name) \(arguments)")
+      #expect(result.text == "Invalid parameters for tool '\(name)': " + message, "\(arguments)")
+    }
+    // A data URL is a string, though `Value` decodes it as data.
+    let dataURL = try await connection.call(
+      "metric", ["type": "data:text/plain;base64,QQ==", "range": "W"])
+    #expect(dataURL.text.hasPrefix("Unknown type: data:text/plain;base64,QQ==."), "\(dataURL.text)")
+    // A day that doesn't exist is the tool's own error, as on the remote server.
+    let day = try await connection.call(
+      "metric", ["type": "Steps", "range": "W", "date": "2026-02-31"])
+    #expect(day.text == "Invalid date: 2026-02-31. Use a day that exists, as YYYY-MM-DD.")
+    // Only a tool that doesn't exist is the request's error.
+    await #expect(throws: MCPError.invalidParams("Tool 'frobnicate' not found")) {
+      try await connection.call("frobnicate")
     }
     // Arguments a tool doesn't take are ignored, as the schemas allow, and aren't logged.
     #expect(try await connection.call("summary", ["extra": true]).isError == false)
@@ -169,8 +215,10 @@ struct HealthMCPServerTests {
     // Only the calls that reached a tool were logged.
     #expect(
       try folder.access.entries().map(\.command) == [
-        #"search {"query":"steps"}"#, "summary", #"summary {"timeZone":"europe/london"}"#,
-        #"metric {"range":"W","type":"Nope"}"#,
+        #"search {"query":"steps"}"#, "summary",
+        #"metric {"date":"2026-02-31","range":"W","type":"Steps"}"#,
+        #"metric {"range":"W","type":"data:text/plain;base64,QQ=="}"#,
+        #"summary {"timeZone":"europe/london"}"#, #"metric {"range":"W","type":"Nope"}"#,
       ])
     await connection.close()
   }

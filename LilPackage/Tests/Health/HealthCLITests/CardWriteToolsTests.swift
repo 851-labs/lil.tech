@@ -157,15 +157,33 @@ struct CardWriteToolsTests {
     #expect(app.asked.withLock { $0.isEmpty })
     #expect(try folder.access.entries().count == 6)
 
-    // Arguments outside the input schema.
-    for (name, arguments): (String, [String: Value]) in [
-      ("create_card", [:]), ("update_card", ["spec": draft]), ("delete_card", [:]),
-      ("reorder_cards", ["ids": "card_a"]), ("reorder_cards", ["ids": [1]]),
+    // Arguments outside the input schema: the tool's errors too, in the remote server's words,
+    // and neither logged nor asked of the app.
+    let tooMany = Value.array((0...HealthCards.storeMaxCards).map { .string("card_\($0)") })
+    for (name, arguments, message): (String, [String: Value], String) in [
+      ("create_card", [:], #"Missing key\#n  at ["spec"]"#),
+      ("update_card", ["spec": draft], #"Missing key\#n  at ["id"]"#),
+      (
+        "update_card", ["timeZone": 1],
+        #"Missing key\#n  at ["id"]\#nMissing key\#n  at ["spec"]\#nExpected string\#n  at ["timeZone"]"#
+      ),
+      ("delete_card", [:], #"Missing key\#n  at ["id"]"#),
+      ("reorder_cards", ["ids": "card_a"], #"Expected array\#n  at ["ids"]"#),
+      (
+        "reorder_cards", ["ids": [1, "card_a", false]],
+        #"Expected string\#n  at ["ids"][0]\#nExpected string\#n  at ["ids"][2]"#
+      ),
+      (
+        "reorder_cards", ["ids": tooMany],
+        #"Expected a value with a length of at most 200\#n  at ["ids"]"#
+      ),
     ] {
-      await #expect(throws: MCPError.self, "\(name) \(arguments)") {
-        try await connection.call(name, arguments)
-      }
+      let result = try await connection.call(name, arguments)
+      #expect(result.isError == true, "\(name) \(arguments)")
+      #expect(result.text == "Invalid parameters for tool '\(name)': " + message, "\(name)")
     }
+    #expect(app.asked.withLock { $0.isEmpty })
+    #expect(try folder.access.entries().count == 6)
     await connection.close()
   }
 

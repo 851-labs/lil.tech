@@ -41,11 +41,14 @@ export const isDay = (day: string) => {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(day);
 };
 
+/**
+ * Any string, as the Mac's `lil-health mcp` takes it: the tool checks it's a day that exists
+ * (`toolPeriod`), so both servers refuse one that isn't with the same message, `Invalid date: …`
+ * (851-4034), and its description and type list in `mcp-tools.json`, which a checked string's
+ * don't.
+ */
 const date = Schema.optionalKey(
-  Schema.String.check(
-    Schema.isPattern(/^\d{4}-\d{2}-\d{2}$/),
-    Schema.makeFilter((day: string) => isDay(day) || "must be a day that exists"),
-  ).annotate({
+  Schema.String.annotate({
     description: "The last day of the period, as YYYY-MM-DD in `timeZone`. Defaults to today.",
   }),
 );

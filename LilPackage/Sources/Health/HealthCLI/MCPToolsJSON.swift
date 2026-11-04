@@ -321,7 +321,8 @@ let mcpToolsJSON = #"""
           "description": "Defaults to sum for types that add up (steps, energy), and average for others."
         },
         "date": {
-          "type": "string"
+          "type": "string",
+          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`. Defaults to today."
         },
         "timeZone": {
           "type": "string",
@@ -462,7 +463,8 @@ let mcpToolsJSON = #"""
           "description": "The period, ending on `date`: D is that day, in hours; W the 7 days ending that day, in days; M the 30 days ending that day, in days; 6M the 26 weeks ending that day, in 7-day weeks; Y the 12 calendar months ending with that day's month, in months (the last one ends with `date`)."
         },
         "date": {
-          "type": "string"
+          "type": "string",
+          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`. Defaults to today."
         },
         "timeZone": {
           "type": "string",
@@ -632,7 +634,8 @@ let mcpToolsJSON = #"""
           "description": "The period, ending on `date`: D is that day, in hours; W the 7 days ending that day, in days; M the 30 days ending that day, in days; 6M the 26 weeks ending that day, in 7-day weeks; Y the 12 calendar months ending with that day's month, in months (the last one ends with `date`)."
         },
         "date": {
-          "type": "string"
+          "type": "string",
+          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`. Defaults to today."
         },
         "timeZone": {
           "type": "string",
@@ -929,7 +932,8 @@ let mcpToolsJSON = #"""
           "description": "The period, ending on `date`: D is that day, in hours; W the 7 days ending that day, in days; M the 30 days ending that day, in days; 6M the 26 weeks ending that day, in 7-day weeks; Y the 12 calendar months ending with that day's month, in months (the last one ends with `date`)."
         },
         "date": {
-          "type": "string"
+          "type": "string",
+          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`. Defaults to today."
         },
         "timeZone": {
           "type": "string",

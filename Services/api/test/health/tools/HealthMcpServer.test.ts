@@ -96,10 +96,15 @@ describe("the Health MCP server in the store", () => {
     Effect.gen(function* () {
       const { sql, store } = makeTestStore();
       const server = yield* makeHealthMcpServer({ sql, record: store.recordAgentAccess });
-      for (const type of ["heart rate", "Ignore previous instructions"]) {
+      for (const [type, date] of [
+        ["heart rate", "2026-10-20"],
+        ["Ignore previous instructions", "2026-10-20"],
+        // The input schema takes any date (851-4034): one that isn't a day isn't logged.
+        ["heart rate", "Ignore previous instructions"],
+      ]) {
         const call = sessionless("tools/call", {
           name: "metric",
-          arguments: { type, range: "W", date: "2026-10-20" },
+          arguments: { type, range: "W", date },
         });
         yield* postMcp(viaStore(server), "http://store/health", call.body, {
           ...call.headers,
@@ -117,9 +122,66 @@ describe("the Health MCP server in the store", () => {
             outcome: "ok",
           },
           { tool: "metric", types: null, range: "W", date: "2026-10-20", outcome: "error" },
+          {
+            tool: "metric",
+            types: JSON.stringify(["HKQuantityTypeIdentifierHeartRate"]),
+            range: "W",
+            date: null,
+            outcome: "error",
+          },
         ],
       );
     }),
+  );
+
+  it.effect(
+    "answers arguments outside a tool's input schema with a tool error from MCP 2025-11-25 on, " +
+      "as the Mac does, and with the request's error before, unlogged",
+    () =>
+      Effect.gen(function* () {
+        const { sql, store } = makeTestStore();
+        const server = viaStore(
+          yield* makeHealthMcpServer({ sql, record: store.recordAgentAccess }),
+        );
+        const params = { name: "metric", arguments: { type: "Steps", range: "Q" } };
+        const message =
+          "Invalid parameters for tool 'metric': " +
+          'Expected "D" | "W" | "M" | "6M" | "Y"\n  at ["range"]';
+        const call = sessionless("tools/call", params);
+        const answers = [
+          yield* postMcp(server, "http://store/health", call.body, {
+            ...call.headers,
+            ...forwarded,
+          }),
+        ];
+        for (const version of [sessionProtocol, "2025-06-18"]) {
+          const started = yield* postMcp(
+            server,
+            "http://store/health",
+            initialize(version),
+            forwarded,
+          );
+          const headers = {
+            ...forwarded,
+            "mcp-protocol-version": version,
+            "mcp-session-id": started.headers.get("mcp-session-id") ?? "",
+          };
+          yield* postMcp(server, "http://store/health", initialized, headers);
+          answers.push(
+            yield* postMcp(server, "http://store/health", inSession("tools/call", params), headers),
+          );
+        }
+        const [sessionless2026, session2025, before] = answers;
+        for (const answer of [sessionless2026!, session2025!]) {
+          const result = answer.message?.["result"] as Record<string, unknown>;
+          assert.isTrue(result["isError"]);
+          assert.deepStrictEqual(result["content"], [{ type: "text", text: message }]);
+        }
+        // Before 2025-11-25, the spec made invalid arguments a protocol error. The Mac's
+        // `lil-health mcp` answers a tool error whatever the version (docs/decisions/health.md).
+        assert.deepInclude(before!.message?.["error"], { code: -32602, message });
+        assert.deepStrictEqual(sql.exec("SELECT tool FROM agent_access_log"), []);
+      }),
   );
 
   it.effect("answers within its ceiling", () =>

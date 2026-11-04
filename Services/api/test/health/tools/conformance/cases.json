@@ -1,8 +1,9 @@
 {
   "notes": [
-    "The Health toolkit's conformance cases (851-2841): each runs one tool call on dataset.json, with the clock at `now`, after a Mac from before pins were retired (851-2990) pushes `pins` (if any), and both MCP servers must answer `expected` (or fail, with `expectedError`).",
+    "The Health toolkit's conformance cases (851-2841): each runs one tool call on dataset.json, with the clock at `now`, after a Mac from before pins were retired (851-2990) pushes `pins` (if any), and both MCP servers must answer `expected` (or fail with the tool error `expectedError`, word for word).",
     "Outputs match as JSON, except that numbers may differ by a relative 1e-9 (sums added in another order).",
-    "Write expected outputs by hand, from the dataset and the tools' descriptions, not by copying what an implementation returns."
+    "Write expected outputs by hand, from the dataset and the tools' descriptions, not by copying what an implementation returns.",
+    "Arguments outside a tool's input schema (a range not in its list, a missing type, a limit out of bounds) are the tool's error on both servers, in the remote's words: `Invalid parameters for tool '<tool>': ` and each issue with where it is, in the schema's order (851-4034). A `date` is any string in the schema, and the tool refuses one that isn't a day: `Invalid date: …`."
   ],
   "cases": [
     {
@@ -368,7 +369,7 @@
       "arguments": {
         "timeZone": "Mars/Olympus_Mons"
       },
-      "expectedError": true
+      "expectedError": "Unknown time zone: Mars/Olympus_Mons. Use an IANA name, e.g. Europe/London."
     },
     {
       "name": "summary with a time zone in the wrong case fails",
@@ -377,7 +378,7 @@
       "arguments": {
         "timeZone": "europe/london"
       },
-      "expectedError": true
+      "expectedError": "Unknown time zone: europe/london. Did you mean Europe/London?"
     },
     {
       "name": "summary with a UTC offset instead of a time zone fails",
@@ -386,7 +387,7 @@
       "arguments": {
         "timeZone": "+01:00"
       },
-      "expectedError": true
+      "expectedError": "Unknown time zone: +01:00. Use an IANA name, e.g. Europe/London."
     },
     {
       "name": "list_types in UTC: types with data, by category then name",
@@ -1070,7 +1071,7 @@
         "range": "W",
         "statistic": "sum"
       },
-      "expectedError": true
+      "expectedError": "Heart Rate doesn't add up, so it has no sum. Use average, minimum or maximum."
     },
     {
       "name": "metric of a category type fails",
@@ -1080,7 +1081,7 @@
         "type": "HKCategoryTypeIdentifierSleepAnalysis",
         "range": "W"
       },
-      "expectedError": true
+      "expectedError": "Sleep (HKCategoryTypeIdentifierSleepAnalysis) isn't a quantity type, so it has no statistics. Use samples, or the tool for its kind (sleep, workouts, medications)."
     },
     {
       "name": "metric of an unknown type fails",
@@ -1090,7 +1091,7 @@
         "type": "HKQuantityTypeIdentifierMadeUp",
         "range": "W"
       },
-      "expectedError": true
+      "expectedError": "Unknown type: HKQuantityTypeIdentifierMadeUp. Use a HealthKit identifier, e.g. HKQuantityTypeIdentifierStepCount; search finds them."
     },
     {
       "name": "samples: the newest of today's steps, a page of one",
@@ -1210,7 +1211,7 @@
         "range": "D",
         "cursor": "page-2"
       },
-      "expectedError": true
+      "expectedError": "Invalid cursor: page-2. Pass the previous page's nextCursor."
     },
     {
       "name": "samples of workouts fails: they have their own tool",
@@ -1220,7 +1221,7 @@
         "type": "HKWorkoutTypeIdentifier",
         "range": "W"
       },
-      "expectedError": true
+      "expectedError": "Workouts (HKWorkoutTypeIdentifier) isn't a quantity or category type, so it has no samples. Use the tool for its kind (workouts, medications, health_details)."
     },
     {
       "name": "workouts of a week in UTC, newest first, with their statistics",
@@ -1959,7 +1960,7 @@
       "arguments": {
         "query": "   "
       },
-      "expectedError": true
+      "expectedError": "The query must be 1 to 100 characters, and not only spaces."
     },
     {
       "name": "sync_status: the newest sample that has started, and each iPhone",
@@ -2010,6 +2011,207 @@
           }
         ]
       }
+    },
+    {
+      "name": "metric with a range not in its list fails",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "Q"
+      },
+      "expectedError": "Invalid parameters for tool 'metric': Expected \"D\" | \"W\" | \"M\" | \"6M\" | \"Y\"\n  at [\"range\"]"
+    },
+    {
+      "name": "metric without a type fails",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W"
+      },
+      "expectedError": "Invalid parameters for tool 'metric': Missing key\n  at [\"type\"]"
+    },
+    {
+      "name": "metric with every argument wrong fails with each, in the input schema's order",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "timeZone": false,
+        "date": 20261020,
+        "statistic": "median",
+        "range": "w",
+        "type": 5
+      },
+      "expectedError": "Invalid parameters for tool 'metric': Expected string\n  at [\"type\"]\nExpected \"D\" | \"W\" | \"M\" | \"6M\" | \"Y\"\n  at [\"range\"]\nExpected \"sum\" | \"average\" | \"minimum\" | \"maximum\"\n  at [\"statistic\"]\nExpected string\n  at [\"date\"]\nExpected string\n  at [\"timeZone\"]"
+    },
+    {
+      "name": "metric on a day that doesn't exist fails",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "W",
+        "date": "2026-02-31"
+      },
+      "expectedError": "Invalid date: 2026-02-31. Use a day that exists, as YYYY-MM-DD."
+    },
+    {
+      "name": "metric with a date not written YYYY-MM-DD fails",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "W",
+        "date": "2026-2-3"
+      },
+      "expectedError": "Invalid date: 2026-2-3. Use a day that exists, as YYYY-MM-DD."
+    },
+    {
+      "name": "metric of an unknown type on a day that doesn't exist fails for the type first",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierMadeUp",
+        "range": "W",
+        "date": "2026-02-31"
+      },
+      "expectedError": "Unknown type: HKQuantityTypeIdentifierMadeUp. Use a HealthKit identifier, e.g. HKQuantityTypeIdentifierStepCount; search finds them."
+    },
+    {
+      "name": "samples with a limit over 500 fails",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "W",
+        "limit": 501
+      },
+      "expectedError": "Invalid parameters for tool 'samples': Expected a value between 1 and 500\n  at [\"limit\"]"
+    },
+    {
+      "name": "samples with a limit that isn't whole fails",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "W",
+        "limit": 2.5
+      },
+      "expectedError": "Invalid parameters for tool 'samples': Expected an integer\n  at [\"limit\"]"
+    },
+    {
+      "name": "samples with a limit of a half fails twice: not whole, and under 1",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "W",
+        "limit": 0.5
+      },
+      "expectedError": "Invalid parameters for tool 'samples': Expected an integer\n  at [\"limit\"]\nExpected a value between 1 and 500\n  at [\"limit\"]"
+    },
+    {
+      "name": "samples with a limit written as text fails",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "W",
+        "limit": "50"
+      },
+      "expectedError": "Invalid parameters for tool 'samples': Expected number\n  at [\"limit\"]"
+    },
+    {
+      "name": "samples with a null date fails: null isn't leaving it out",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "W",
+        "date": null
+      },
+      "expectedError": "Invalid parameters for tool 'samples': Expected string\n  at [\"date\"]"
+    },
+    {
+      "name": "samples on a day that doesn't exist fails",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "W",
+        "date": "2026-02-29"
+      },
+      "expectedError": "Invalid date: 2026-02-29. Use a day that exists, as YYYY-MM-DD."
+    },
+    {
+      "name": "workouts without a range fails",
+      "tool": "workouts",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {},
+      "expectedError": "Invalid parameters for tool 'workouts': Missing key\n  at [\"range\"]"
+    },
+    {
+      "name": "workouts on a day that doesn't exist fails",
+      "tool": "workouts",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "M",
+        "date": "2026-04-31"
+      },
+      "expectedError": "Invalid date: 2026-04-31. Use a day that exists, as YYYY-MM-DD."
+    },
+    {
+      "name": "sleep with a range in the wrong case fails",
+      "tool": "sleep",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "w"
+      },
+      "expectedError": "Invalid parameters for tool 'sleep': Expected \"D\" | \"W\" | \"M\" | \"6M\" | \"Y\"\n  at [\"range\"]"
+    },
+    {
+      "name": "sleep on a day that doesn't exist fails",
+      "tool": "sleep",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "date": "2026-13-01"
+      },
+      "expectedError": "Invalid date: 2026-13-01. Use a day that exists, as YYYY-MM-DD."
+    },
+    {
+      "name": "search for nothing fails",
+      "tool": "search",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "query": ""
+      },
+      "expectedError": "Invalid parameters for tool 'search': Expected a value with a length between 1 and 100\n  at [\"query\"]"
+    },
+    {
+      "name": "search for more than 100 characters fails",
+      "tool": "search",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "query": "steps steps steps steps steps steps steps steps steps steps steps steps steps steps steps steps steps "
+      },
+      "expectedError": "Invalid parameters for tool 'search': Expected a value with a length between 1 and 100\n  at [\"query\"]"
+    },
+    {
+      "name": "search without a query fails",
+      "tool": "search",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {},
+      "expectedError": "Invalid parameters for tool 'search': Missing key\n  at [\"query\"]"
+    },
+    {
+      "name": "summary with a time zone that isn't text fails",
+      "tool": "summary",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "timeZone": 0
+      },
+      "expectedError": "Invalid parameters for tool 'summary': Expected string\n  at [\"timeZone\"]"
     }
   ]
 }

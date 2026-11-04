@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { DateTime, Exit, Option, Schema } from "effect";
+import { DateTime, Effect, Exit, Option, Schema } from "effect";
 import {
   statisticsSource,
   statisticsSourceStalenessMillis,
@@ -13,6 +13,7 @@ import {
   localTime,
   startOfDay,
   startOfHour,
+  toolDate,
   toolPeriod,
 } from "../../../src/health/tools/ToolTime.ts";
 
@@ -116,7 +117,7 @@ describe("tool periods", () => {
   const times = (millis: ReadonlyArray<number>) => millis.map((time) => localTime(time, london));
 
   it("have 25 hours on the day London leaves summer time", () => {
-    const period = toolPeriod("D", "2026-10-25", now, london);
+    const period = Effect.runSync(toolPeriod("D", "2026-10-25", now, london));
     assert.strictEqual(period.buckets.length, 25);
     assert.deepStrictEqual(times(period.buckets.slice(0, 3)), [
       "2026-10-25T00:00:00+01:00",
@@ -127,10 +128,10 @@ describe("tool periods", () => {
   });
 
   it("count 26 weeks for 6M, and 12 calendar months for Y", () => {
-    const sixMonths = toolPeriod("6M", "2026-10-20", now, london);
+    const sixMonths = Effect.runSync(toolPeriod("6M", "2026-10-20", now, london));
     assert.strictEqual(sixMonths.buckets.length, 26);
     assert.strictEqual(localTime(sixMonths.start, london), "2026-04-22T00:00:00+01:00");
-    const year = toolPeriod("Y", undefined, now, london);
+    const year = Effect.runSync(toolPeriod("Y", undefined, now, london));
     assert.deepStrictEqual(times([year.start, year.buckets[11]!, year.end]), [
       "2025-11-01T00:00:00+00:00",
       "2026-10-01T00:00:00+01:00",
@@ -139,7 +140,7 @@ describe("tool periods", () => {
   });
 
   it("place a time in its bucket", () => {
-    const week = toolPeriod("W", "2026-10-20", now, london);
+    const week = Effect.runSync(toolPeriod("W", "2026-10-20", now, london));
     assert.strictEqual(bucketIndex(week, week.start), 0);
     assert.strictEqual(bucketIndex(week, week.end - 1), 6);
     assert.isUndefined(bucketIndex(week, week.end));
@@ -174,13 +175,20 @@ describe("ages", () => {
 });
 
 describe("the toolkit's dates", () => {
-  const decode = Schema.decodeUnknownExit(HealthToolkit.tools.metric.parametersSchema);
-  const call = (date: string) => ({ type: "HKQuantityTypeIdentifierStepCount", range: "W", date });
+  it("are any string to the input schema, as the Mac takes them (851-4034)", () => {
+    const decode = Schema.decodeUnknownExit(HealthToolkit.tools.metric.parametersSchema);
+    const call = { type: "HKQuantityTypeIdentifierStepCount", range: "W", date: "2026-02-29" };
+    assert.isTrue(Exit.isSuccess(decode(call)));
+  });
 
-  it("are days that exist", () => {
-    assert.isTrue(Exit.isSuccess(decode(call("2028-02-29"))));
-    assert.isTrue(Exit.isFailure(decode(call("2026-02-29"))));
-    assert.isTrue(Exit.isFailure(decode(call("2026-13-01"))));
-    assert.isTrue(Exit.isFailure(decode(call("20261020"))));
+  it("are days that exist, written YYYY-MM-DD, or the tool's error, in the Mac's words", () => {
+    assert.strictEqual(Effect.runSync(toolDate("2028-02-29")), "2028-02-29");
+    assert.isUndefined(Effect.runSync(toolDate(undefined)));
+    for (const date of ["2026-02-29", "2026-13-01", "20261020", "2026-2-3", " 2026-10-20"]) {
+      assert.strictEqual(
+        Effect.runSync(Effect.flip(toolDate(date))).message,
+        `Invalid date: ${date}. Use a day that exists, as YYYY-MM-DD.`,
+      );
+    }
   });
 });

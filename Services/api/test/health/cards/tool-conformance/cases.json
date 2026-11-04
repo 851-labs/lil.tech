@@ -5,7 +5,7 @@
     "Times in outputs are local, with their offset, in the call's time zone: UTC when it gives none (the Mac's side runs in UTC).",
     "<new card>, in an expected output, is the ID of the card the case makes, a ULID of now; in a later call's arguments or output it's that ID again.",
     "Outputs match as JSON, except that numbers may differ by a relative 1e-9. Every card's data is the answer the engine's conformance case of the same spec, period and calendar has (../conformance/cases.json), written by hand; the cards' fields follow from the seed, `cards` and the tools' rules (docs/decisions/cards.md).",
-    "Only the tools' own errors are here. Arguments outside a tool's input schema (a range not in its enum, a missing id) are refused differently by the two servers' MCP libraries (851-4034)."
+    "Arguments outside a tool's input schema (a range not in its list, a missing id or spec) are the tool's error on both servers, in the remote's words: `Invalid parameters for tool '<tool>': ` and each issue with where it is, in the schema's order (851-4034)."
   ],
   "seededAt": "2026-10-20T13:00:00Z",
   "cards": [
@@ -6135,6 +6135,365 @@
           "expected": {
             "deleted": "<new card>"
           }
+        },
+        {
+          "tool": "list_cards",
+          "arguments": {},
+          "expected": {
+            "timeZone": "UTC",
+            "cards": [
+              {
+                "id": "card_seed_steps",
+                "spec": {
+                  "version": 1,
+                  "display": {
+                    "name": "Steps",
+                    "symbol": "flame.fill",
+                    "color": "orange",
+                    "unit": null
+                  },
+                  "series": [
+                    {
+                      "id": "a",
+                      "type": "HKQuantityTypeIdentifierStepCount",
+                      "aggregation": "sum",
+                      "window": null,
+                      "filter": null,
+                      "label": null,
+                      "hidden": false
+                    }
+                  ],
+                  "formulas": [],
+                  "bucket": "auto",
+                  "range": "W",
+                  "chart": {
+                    "style": "bars",
+                    "goal": null
+                  }
+                },
+                "position": "a0",
+                "seed": "steps",
+                "createdAt": "2026-10-20T13:00:00+00:00",
+                "updatedAt": "2026-10-20T13:00:00+00:00"
+              },
+              {
+                "id": "card_seed_heart_rate",
+                "spec": {
+                  "version": 1,
+                  "display": {
+                    "name": "Heart Rate",
+                    "symbol": "heart.fill",
+                    "color": "red",
+                    "unit": null
+                  },
+                  "series": [
+                    {
+                      "id": "a",
+                      "type": "HKQuantityTypeIdentifierHeartRate",
+                      "aggregation": "avg",
+                      "window": null,
+                      "filter": null,
+                      "label": null,
+                      "hidden": false
+                    }
+                  ],
+                  "formulas": [],
+                  "bucket": "auto",
+                  "range": "W",
+                  "chart": {
+                    "style": "ranges",
+                    "goal": null
+                  }
+                },
+                "position": "a1",
+                "seed": "heart_rate",
+                "createdAt": "2026-10-20T13:00:00+00:00",
+                "updatedAt": "2026-10-20T13:00:00+00:00"
+              },
+              {
+                "id": "card_seed_active_energy",
+                "spec": {
+                  "version": 1,
+                  "display": {
+                    "name": "Active Energy",
+                    "symbol": "flame.fill",
+                    "color": "orange",
+                    "unit": null
+                  },
+                  "series": [
+                    {
+                      "id": "a",
+                      "type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+                      "aggregation": "sum",
+                      "window": null,
+                      "filter": null,
+                      "label": null,
+                      "hidden": false
+                    }
+                  ],
+                  "formulas": [],
+                  "bucket": "auto",
+                  "range": "W",
+                  "chart": {
+                    "style": "bars",
+                    "goal": null
+                  }
+                },
+                "position": "a2",
+                "seed": "active_energy",
+                "createdAt": "2026-10-20T13:00:00+00:00",
+                "updatedAt": "2026-10-20T13:00:00+00:00"
+              },
+              {
+                "id": "card_seed_walking_running_distance",
+                "spec": {
+                  "version": 1,
+                  "display": {
+                    "name": "Walking + Running Distance",
+                    "symbol": "flame.fill",
+                    "color": "orange",
+                    "unit": null
+                  },
+                  "series": [
+                    {
+                      "id": "a",
+                      "type": "HKQuantityTypeIdentifierDistanceWalkingRunning",
+                      "aggregation": "sum",
+                      "window": null,
+                      "filter": null,
+                      "label": null,
+                      "hidden": false
+                    }
+                  ],
+                  "formulas": [],
+                  "bucket": "auto",
+                  "range": "W",
+                  "chart": {
+                    "style": "bars",
+                    "goal": null
+                  }
+                },
+                "position": "a3",
+                "seed": "walking_running_distance",
+                "createdAt": "2026-10-20T13:00:00+00:00",
+                "updatedAt": "2026-10-20T13:00:00+00:00"
+              },
+              {
+                "id": "card_seed_resting_heart_rate",
+                "spec": {
+                  "version": 1,
+                  "display": {
+                    "name": "Resting Heart Rate",
+                    "symbol": "heart.fill",
+                    "color": "red",
+                    "unit": null
+                  },
+                  "series": [
+                    {
+                      "id": "a",
+                      "type": "HKQuantityTypeIdentifierRestingHeartRate",
+                      "aggregation": "avg",
+                      "window": null,
+                      "filter": null,
+                      "label": null,
+                      "hidden": false
+                    }
+                  ],
+                  "formulas": [],
+                  "bucket": "auto",
+                  "range": "W",
+                  "chart": {
+                    "style": "line",
+                    "goal": null
+                  }
+                },
+                "position": "a4",
+                "seed": "resting_heart_rate",
+                "createdAt": "2026-10-20T13:00:00+00:00",
+                "updatedAt": "2026-10-20T13:00:00+00:00"
+              },
+              {
+                "id": "card_seed_weight",
+                "spec": {
+                  "version": 1,
+                  "display": {
+                    "name": "Weight",
+                    "symbol": "figure",
+                    "color": "purple",
+                    "unit": null
+                  },
+                  "series": [
+                    {
+                      "id": "a",
+                      "type": "HKQuantityTypeIdentifierBodyMass",
+                      "aggregation": "avg",
+                      "window": null,
+                      "filter": null,
+                      "label": null,
+                      "hidden": false
+                    }
+                  ],
+                  "formulas": [],
+                  "bucket": "auto",
+                  "range": "W",
+                  "chart": {
+                    "style": "line",
+                    "goal": null
+                  }
+                },
+                "position": "a5",
+                "seed": "weight",
+                "createdAt": "2026-10-20T13:00:00+00:00",
+                "updatedAt": "2026-10-20T13:00:00+00:00"
+              },
+              {
+                "id": "card_01K8ZQ4V6W7X8Y9Z0A1B2C3D4E",
+                "spec": {
+                  "version": 1,
+                  "display": {
+                    "name": "Sleeping Heart Rate",
+                    "symbol": "moon.zzz.fill",
+                    "color": "indigo",
+                    "unit": null
+                  },
+                  "series": [
+                    {
+                      "id": "a",
+                      "type": "HKQuantityTypeIdentifierHeartRate",
+                      "aggregation": "avg",
+                      "window": {
+                        "kind": "asleep"
+                      },
+                      "filter": null,
+                      "label": null,
+                      "hidden": false
+                    }
+                  ],
+                  "formulas": [],
+                  "bucket": "night",
+                  "range": "W",
+                  "chart": {
+                    "style": "ranges",
+                    "goal": null
+                  }
+                },
+                "position": "a6",
+                "seed": null,
+                "createdAt": "2026-10-22T08:00:00+00:00",
+                "updatedAt": "2026-10-23T09:30:00+00:00"
+              },
+              {
+                "id": "card_01K8ZQ4V6W7X8Y9Z0A1B2C3D4F",
+                "spec": {
+                  "version": 1,
+                  "display": {
+                    "name": "Body Temperature by the Hour",
+                    "symbol": "waveform.path.ecg",
+                    "color": "red",
+                    "unit": null
+                  },
+                  "series": [
+                    {
+                      "id": "a",
+                      "type": "HKQuantityTypeIdentifierBodyTemperature",
+                      "aggregation": "avg",
+                      "window": null,
+                      "filter": null,
+                      "label": null,
+                      "hidden": false
+                    }
+                  ],
+                  "formulas": [],
+                  "bucket": "hour",
+                  "range": "W",
+                  "chart": {
+                    "style": "line",
+                    "goal": null
+                  }
+                },
+                "position": "a7",
+                "seed": null,
+                "createdAt": "2026-10-24T18:15:00+00:00",
+                "updatedAt": "2026-10-24T18:15:00+00:00"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "arguments outside the input schema: each tool's error, every issue in the schema's order; nothing is written",
+      "now": "2026-10-28T12:00:00Z",
+      "calls": [
+        {
+          "tool": "get_card",
+          "arguments": {},
+          "expectedError": "Invalid parameters for tool 'get_card': Missing key\n  at [\"id\"]"
+        },
+        {
+          "tool": "get_card",
+          "arguments": {
+            "id": 7
+          },
+          "expectedError": "Invalid parameters for tool 'get_card': Expected string\n  at [\"id\"]"
+        },
+        {
+          "tool": "get_card",
+          "arguments": {
+            "firstWeekday": "Monday",
+            "range": "Q",
+            "id": "card_seed_steps"
+          },
+          "expectedError": "Invalid parameters for tool 'get_card': Expected \"D\" | \"W\" | \"M\" | \"6M\" | \"Y\"\n  at [\"range\"]\nExpected \"sunday\" | \"monday\" | \"tuesday\" | \"wednesday\" | \"thursday\" | \"friday\" | \"saturday\"\n  at [\"firstWeekday\"]"
+        },
+        {
+          "tool": "preview_card",
+          "arguments": {
+            "range": "w"
+          },
+          "expectedError": "Invalid parameters for tool 'preview_card': Missing key\n  at [\"spec\"]\nExpected \"D\" | \"W\" | \"M\" | \"6M\" | \"Y\"\n  at [\"range\"]"
+        },
+        {
+          "tool": "list_cards",
+          "arguments": {
+            "timeZone": 1
+          },
+          "expectedError": "Invalid parameters for tool 'list_cards': Expected string\n  at [\"timeZone\"]"
+        },
+        {
+          "tool": "create_card",
+          "arguments": {
+            "timeZone": "UTC"
+          },
+          "expectedError": "Invalid parameters for tool 'create_card': Missing key\n  at [\"spec\"]"
+        },
+        {
+          "tool": "update_card",
+          "arguments": {
+            "timeZone": 1
+          },
+          "expectedError": "Invalid parameters for tool 'update_card': Missing key\n  at [\"id\"]\nMissing key\n  at [\"spec\"]\nExpected string\n  at [\"timeZone\"]"
+        },
+        {
+          "tool": "delete_card",
+          "arguments": {
+            "id": null
+          },
+          "expectedError": "Invalid parameters for tool 'delete_card': Expected string\n  at [\"id\"]"
+        },
+        {
+          "tool": "reorder_cards",
+          "arguments": {
+            "ids": "card_seed_steps"
+          },
+          "expectedError": "Invalid parameters for tool 'reorder_cards': Expected array\n  at [\"ids\"]"
+        },
+        {
+          "tool": "reorder_cards",
+          "arguments": {
+            "ids": [1, "card_seed_steps", false]
+          },
+          "expectedError": "Invalid parameters for tool 'reorder_cards': Expected string\n  at [\"ids\"][0]\nExpected string\n  at [\"ids\"][2]"
         },
         {
           "tool": "list_cards",

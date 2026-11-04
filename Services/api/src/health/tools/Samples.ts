@@ -58,7 +58,7 @@ export const healthSamples = Effect.fn("healthSamples")(function* (
     });
   }
   const now = yield* Clock.currentTimeMillis;
-  const period = toolPeriod(input.range, input.date, now, zone);
+  const period = yield* toolPeriod(input.range, input.date, now, zone);
   const after = input.cursor === undefined ? null : yield* parseCursor(input.cursor);
   // One more than asked for, to know whether there's another page.
   const page = samplePage(sql, type.id, { from: period.start, to: period.end }, after, limit + 1);

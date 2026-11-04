@@ -132,7 +132,7 @@ export const healthWorkouts = Effect.fn("healthWorkouts")(function* (
 ) {
   const { zone, name } = yield* toolTimeZone(input.timeZone);
   const now = yield* Clock.currentTimeMillis;
-  const period = toolPeriod(input.range, input.date, now, zone);
+  const period = yield* toolPeriod(input.range, input.date, now, zone);
   const totals = workoutTotals(sql, period.start, period.end);
   const workouts = workoutsStarting(sql, period.start, period.end, workoutsLimit);
   const withRoutes = workoutsWithRoutes(sql, workouts);

@@ -115,13 +115,19 @@ enum HealthMCPServer {
   }
 
   /// Answers a tool call as the remote server does: the output as structured content and as JSON
-  /// text, or for the tool's own failure (an unknown type, access off) an error result with its
-  /// message. Arguments that don't fit the tool's input schema are the request's error.
+  /// text, or for the tool's own failure (an unknown type, access off) and arguments that don't
+  /// fit its input schema (851-4034) an error result with its message. Only a tool that doesn't
+  /// exist is the request's error.
   static func call(
     _ name: String, arguments: [String: Value], context: HealthCLI.Context
   ) async throws -> CallTool.Result {
     if writeTools.contains(name) {
-      let write = try CardWriteCall(name: name, arguments: arguments)
+      let write: CardWriteCall
+      do {
+        write = try CardWriteCall(name: name, arguments: arguments)
+      } catch let error as InvalidArguments {
+        return failure(error)
+      }
       // It waits for the app, seconds at most, off Swift's own threads.
       return await withCheckedContinuation { continuation in
         DispatchQueue.global().async {
@@ -130,7 +136,12 @@ enum HealthMCPServer {
         }
       }
     }
-    let query = try ToolCall(name: name, arguments: arguments).query
+    let query: ToolCall.Query
+    do {
+      query = try ToolCall(name: name, arguments: arguments).query
+    } catch let error as InvalidArguments {
+      return failure(error)
+    }
     do {
       // Before every call, not once: turning access off stops the next one.
       try AgentAccessStore(directory: context.directory)
@@ -217,6 +228,11 @@ enum HealthMCPServer {
       structuredContent: structured, isError: false)
   }
 
+  /// A call of a tool that doesn't exist: the request's error, as the remote server's.
+  static func unknownTool(_ name: String) -> MCPError {
+    MCPError.invalidParams("Tool '\(name)' not found")
+  }
+
   /// A tool's own failure, with its message, which the agent reads.
   private static func failure(_ error: any Error) -> CallTool.Result {
     CallTool.Result(
@@ -270,132 +286,135 @@ enum CardWriteCall: Sendable {
   case reorder(ids: [String])
 
   init(name: String, arguments values: [String: Value]) throws {
-    let arguments = Arguments(values: values)
-    /// Any JSON: what isn't a spec comes back as the validator's errors, or JSON text that isn't
-    /// JSON as `invalidJSON`, as on the remote server.
-    func spec() throws -> CardJSON? {
-      guard let value = values["spec"] else { throw MCPError.invalidParams("spec is required") }
-      return CardJSON(toolArgument: value)
-    }
+    let arguments = Arguments(tool: name, values: values)
+    // A spec is any JSON: what isn't a spec comes back as the validator's errors, or JSON text
+    // that isn't JSON as `invalidJSON`, as on the remote server.
     switch name {
     case "create_card":
-      self = .create(spec: try spec(), timeZone: try arguments.string("timeZone"))
+      let spec = arguments.required("spec", arguments.any)
+      let timeZone = arguments.string("timeZone")
+      guard let spec, arguments.isValid else { throw arguments.invalid }
+      self = .create(spec: CardJSON(toolArgument: spec), timeZone: timeZone)
     case "update_card":
-      self = .update(
-        id: try arguments.required("id", arguments.string), spec: try spec(),
-        timeZone: try arguments.string("timeZone"))
+      let id = arguments.required("id", arguments.string)
+      let spec = arguments.required("spec", arguments.any)
+      let timeZone = arguments.string("timeZone")
+      guard let id, let spec, arguments.isValid else { throw arguments.invalid }
+      self = .update(id: id, spec: CardJSON(toolArgument: spec), timeZone: timeZone)
     case "delete_card":
-      self = .delete(id: try arguments.required("id", arguments.string))
+      let id = arguments.required("id", arguments.string)
+      guard let id, arguments.isValid else { throw arguments.invalid }
+      self = .delete(id: id)
     case "reorder_cards":
-      guard case .array(let items)? = values["ids"] else {
-        throw MCPError.invalidParams("ids must be an array of strings")
-      }
-      let ids = items.compactMap(\.stringValue)
-      guard ids.count == items.count else {
-        throw MCPError.invalidParams("ids must be an array of strings")
-      }
       // The input schema's limit, the store's (`HealthCards.storeMaxCards`).
-      guard ids.count <= HealthCards.storeMaxCards else {
-        throw MCPError.invalidParams("ids must have at most \(HealthCards.storeMaxCards) ids")
+      let ids = arguments.required("ids") {
+        arguments.strings($0, atMost: HealthCards.storeMaxCards)
       }
+      guard let ids, arguments.isValid else { throw arguments.invalid }
       self = .reorder(ids: ids)
     default:
-      throw MCPError.invalidParams("Unknown tool: \(name)")
+      throw HealthMCPServer.unknownTool(name)
     }
   }
 }
 
 /// A tool call's arguments, checked against the tool's input schema as the remote server's
-/// toolkit decodes them: required ones there, each of its type, enums and bounds respected.
-/// Arguments a tool doesn't take are ignored (the schemas allow additional properties).
+/// toolkit decodes them: required ones there, each of its type, enums and bounds respected, and
+/// every issue reported at once. Arguments a tool doesn't take are ignored (the schemas allow
+/// additional properties).
 private struct ToolCall {
   typealias Query = @Sendable (HealthTools, Database) throws -> any HealthToolOutput
 
   let query: Query
 
-  init(name: String, arguments: [String: Value]) throws {
-    let arguments = Arguments(values: arguments)
-    // Every tool but `search` takes one.
-    let timeZone = { try arguments.string("timeZone") }
+  init(name: String, arguments values: [String: Value]) throws {
+    let arguments = Arguments(tool: name, values: values)
+    // Each tool's arguments are read in its input schema's order, the order the remote server
+    // lists their issues in.
     switch name {
     case "summary":
-      let timeZone = try timeZone()
+      let timeZone = arguments.string("timeZone")
+      try arguments.check()
       query = { tools, db in try tools.summary(timeZone: timeZone, db) }
     case "list_types":
-      let timeZone = try timeZone()
+      let timeZone = arguments.string("timeZone")
+      try arguments.check()
       query = { tools, db in try tools.listTypes(timeZone: timeZone, db) }
     case "metric":
-      let type = try arguments.required("type", arguments.string)
-      let range = try arguments.required("range", arguments.range)
-      let statistic = try arguments.oneOf(
-        "statistic", HealthTools.Statistic.allCases.map(\.rawValue)
-      )
-      .flatMap(HealthTools.Statistic.init(rawValue:))
-      let date = try arguments.string("date")
-      let timeZone = try timeZone()
+      let type = arguments.required("type", arguments.string)
+      let range = arguments.required("range", arguments.range)
+      let statistic = arguments.oneOf("statistic", HealthTools.Statistic.self)
+      let date = arguments.string("date")
+      let timeZone = arguments.string("timeZone")
+      guard let type, let range, arguments.isValid else { throw arguments.invalid }
       query = { tools, db in
         try tools.metric(
           type: type, range: range, statistic: statistic, date: date, timeZone: timeZone, db)
       }
     case "samples":
-      let type = try arguments.required("type", arguments.string)
-      let range = try arguments.required("range", arguments.range)
-      let date = try arguments.string("date")
-      let cursor = try arguments.string("cursor")
-      let limit = try arguments.integer("limit", in: 1...HealthTools.samplesLimit)
-      let timeZone = try timeZone()
+      let type = arguments.required("type", arguments.string)
+      let range = arguments.required("range", arguments.range)
+      let date = arguments.string("date")
+      let timeZone = arguments.string("timeZone")
+      let cursor = arguments.string("cursor")
+      let limit = arguments.integer("limit", in: 1...HealthTools.samplesLimit)
+      guard let type, let range, arguments.isValid else { throw arguments.invalid }
       query = { tools, db in
         try tools.samples(
           type: type, range: range, date: date, timeZone: timeZone, cursor: cursor, limit: limit,
           db)
       }
     case "workouts":
-      let range = try arguments.required("range", arguments.range)
-      let date = try arguments.string("date")
-      let timeZone = try timeZone()
+      let range = arguments.required("range", arguments.range)
+      let date = arguments.string("date")
+      let timeZone = arguments.string("timeZone")
+      guard let range, arguments.isValid else { throw arguments.invalid }
       query = { tools, db in try tools.workouts(range: range, date: date, timeZone: timeZone, db) }
     case "sleep":
-      let range = try arguments.required("range", arguments.range)
-      let date = try arguments.string("date")
-      let timeZone = try timeZone()
+      let range = arguments.required("range", arguments.range)
+      let date = arguments.string("date")
+      let timeZone = arguments.string("timeZone")
+      guard let range, arguments.isValid else { throw arguments.invalid }
       query = { tools, db in try tools.sleep(range: range, date: date, timeZone: timeZone, db) }
     case "medications":
-      let timeZone = try timeZone()
+      let timeZone = arguments.string("timeZone")
+      try arguments.check()
       query = { tools, db in try tools.medications(timeZone: timeZone, db) }
     case "health_details":
-      let timeZone = try timeZone()
+      let timeZone = arguments.string("timeZone")
+      try arguments.check()
       query = { tools, db in try tools.healthDetails(timeZone: timeZone, db) }
     case "search":
-      let text = try arguments.required("query", arguments.string)
-      guard (1...100).contains(text.utf16.count) else {
-        throw MCPError.invalidParams("query must be 1 to 100 characters long")
-      }
+      let text = arguments.required("query") { arguments.string($0, length: 1...100) }
+      guard let text, arguments.isValid else { throw arguments.invalid }
       query = { tools, db in try tools.search(query: text, db) }
     case "sync_status":
-      let timeZone = try timeZone()
+      let timeZone = arguments.string("timeZone")
+      try arguments.check()
       query = { tools, db in try tools.syncStatus(timeZone: timeZone, db) }
     case "list_cards":
-      let timeZone = try timeZone()
+      let timeZone = arguments.string("timeZone")
+      try arguments.check()
       query = { tools, db in try tools.listCards(timeZone: timeZone, db) }
     case "get_card":
-      let id = try arguments.required("id", arguments.string)
-      let range = try arguments.cardRange("range")
-      let date = try arguments.string("date")
-      let timeZone = try timeZone()
-      let firstWeekday = try arguments.weekday("firstWeekday")
+      let id = arguments.required("id", arguments.string)
+      let range = arguments.oneOf("range", CardRange.self)
+      let date = arguments.string("date")
+      let timeZone = arguments.string("timeZone")
+      let firstWeekday = arguments.oneOf("firstWeekday", ToolWeekday.self)
+      guard let id, arguments.isValid else { throw arguments.invalid }
       query = { tools, db in
         try tools.getCard(
           id: id, range: range, date: date, timeZone: timeZone, firstWeekday: firstWeekday, db)
       }
     case "preview_card":
       // Any JSON: what isn't a spec comes back as the validator's errors, as on the remote server.
-      guard let value = arguments.values["spec"] else {
-        throw MCPError.invalidParams("spec is required")
-      }
-      let range = try arguments.cardRange("range")
-      let date = try arguments.string("date")
-      let timeZone = try timeZone()
-      let firstWeekday = try arguments.weekday("firstWeekday")
+      let value = arguments.required("spec", arguments.any)
+      let range = arguments.oneOf("range", CardRange.self)
+      let date = arguments.string("date")
+      let timeZone = arguments.string("timeZone")
+      let firstWeekday = arguments.oneOf("firstWeekday", ToolWeekday.self)
+      guard let value, arguments.isValid else { throw arguments.invalid }
       query = { tools, db in
         let spec = try HealthTools.parsedSpec(CardJSON(toolArgument: value))
         return try tools.previewCard(
@@ -403,65 +422,165 @@ private struct ToolCall {
           db)
       }
     default:
-      throw MCPError.invalidParams("Unknown tool: \(name)")
+      throw HealthMCPServer.unknownTool(name)
     }
   }
 }
 
-/// Reads arguments by name, failing as invalid parameters when one has the wrong type.
-private struct Arguments {
+/// Arguments outside a tool's input schema (851-4034): the tool's error, as on the remote server,
+/// which answers them with its decoding's message (Effect's `McpServer`, from MCP 2025-11-25 on),
+/// so the agent reads what to fix, e.g.
+/// `Invalid parameters for tool 'metric': Expected "D" | "W" | "M" | "6M" | "Y"\n  at ["range"]`.
+struct InvalidArguments: LocalizedError {
+  /// What's wrong with one argument, in Effect's words, and where it is, e.g. `["ids"][0]`.
+  struct Issue {
+    var message: String
+    var path: String
+  }
+
+  var tool: String
+  var issues: [Issue]
+
+  var errorDescription: String? {
+    "Invalid parameters for tool '\(tool)': "
+      + issues.map { "\($0.message)\n  at \($0.path)" }.joined(separator: "\n")
+  }
+}
+
+/// Reads a call's arguments by name, collecting what doesn't fit the tool's input schema, in the
+/// words of the remote server's decoding (Effect's `Schema`, with every issue): read them in the
+/// schema's order, then check them (`check`, or `isValid` and `invalid`). A read that finds an
+/// issue gives `nil`.
+private final class Arguments {
+  let tool: String
   let values: [String: Value]
+  private var issues: [InvalidArguments.Issue] = []
 
-  func string(_ name: String) throws -> String? {
+  init(tool: String, values: [String: Value]) {
+    self.tool = tool
+    self.values = values
+  }
+
+  /// Whether every argument read so far fits the schema.
+  var isValid: Bool { issues.isEmpty }
+
+  /// The error for the arguments read so far.
+  var invalid: InvalidArguments { InvalidArguments(tool: tool, issues: issues) }
+
+  /// Fails with `invalid` unless every argument read so far fits the schema.
+  func check() throws {
+    guard isValid else { throw invalid }
+  }
+
+  private func issue(_ message: String, at name: String, index: Int? = nil) {
+    // A path as Effect writes it: each key as JSON, in brackets.
+    let path = "[\"\(name)\"]" + (index.map { "[\($0)]" } ?? "")
+    issues.append(InvalidArguments.Issue(message: message, path: path))
+  }
+
+  func any(_ name: String) -> Value? { values[name] }
+
+  func string(_ name: String) -> String? {
     guard let value = values[name] else { return nil }
-    guard let string = value.stringValue else {
-      throw MCPError.invalidParams("\(name) must be a string")
+    guard let string = value.argumentString else {
+      issue("Expected string", at: name)
+      return nil
     }
     return string
   }
 
-  /// A string that must be one of `allowed`, in their case.
-  func oneOf(_ name: String, _ allowed: [String]) throws -> String? {
-    guard let string = try string(name) else { return nil }
-    guard allowed.contains(string) else {
-      throw MCPError.invalidParams(
-        "\(name) must be one of \(allowed.joined(separator: ", ")), not \(string)")
+  /// A string of `length` UTF-16 code units, as JavaScript counts them.
+  func string(_ name: String, length: ClosedRange<Int>) -> String? {
+    guard let string = string(name) else { return nil }
+    guard length.contains(string.utf16.count) else {
+      issue(
+        "Expected a value with a length between \(length.lowerBound) and \(length.upperBound)",
+        at: name)
+      return nil
     }
     return string
   }
 
-  func range(_ name: String) throws -> ToolRange? {
-    try oneOf(name, ToolRange.allCases.map(\.rawValue)).flatMap(ToolRange.init(rawValue:))
-  }
-
-  /// A card tool's range: the same five, in the card engine's terms.
-  func cardRange(_ name: String) throws -> CardRange? {
-    try oneOf(name, CardRange.allCases.map(\.rawValue)).flatMap(CardRange.init(rawValue:))
-  }
-
-  func weekday(_ name: String) throws -> ToolWeekday? {
-    try oneOf(name, ToolWeekday.allCases.map(\.rawValue)).flatMap(ToolWeekday.init(rawValue:))
-  }
-
-  func integer(_ name: String, in bounds: ClosedRange<Int>) throws -> Int? {
+  /// One of an enum's raw values, in its case: the input schema lists them in `allCases`' order.
+  func oneOf<Choice: RawRepresentable & CaseIterable>(
+    _ name: String, _ choice: Choice.Type
+  ) -> Choice? where Choice.RawValue == String {
     guard let value = values[name] else { return nil }
-    let integer =
-      value.intValue
-      ?? value.doubleValue.flatMap { $0.rounded() == $0 ? Int(exactly: $0) : nil }
-    guard let integer, bounds.contains(integer) else {
-      throw MCPError.invalidParams(
-        "\(name) must be an integer from \(bounds.lowerBound) to \(bounds.upperBound)")
+    guard let choice = value.argumentString.flatMap(Choice.init(rawValue:)) else {
+      let allowed = Choice.allCases.map { "\"\($0.rawValue)\"" }
+      issue("Expected " + allowed.joined(separator: " | "), at: name)
+      return nil
     }
-    return integer
+    return choice
   }
 
-  func required<Argument>(
-    _ name: String, _ read: (String) throws -> Argument?
-  ) throws -> Argument {
-    guard let argument = try read(name) else {
-      throw MCPError.invalidParams("\(name) is required")
+  func range(_ name: String) -> ToolRange? { oneOf(name, ToolRange.self) }
+
+  /// A whole number in `bounds`. Both of its checks are made, as Effect's are: 0.5 is neither.
+  func integer(_ name: String, in bounds: ClosedRange<Int>) -> Int? {
+    guard let value = values[name] else { return nil }
+    let number: Double
+    switch value {
+    case .int(let integer): number = Double(integer)
+    case .double(let double): number = double
+    default:
+      issue("Expected number", at: name)
+      return nil
     }
-    return argument
+    // A safe integer, as JavaScript's `Number.isSafeInteger`.
+    let isInteger = number.rounded() == number && abs(number) <= 9_007_199_254_740_991
+    let isInBounds = number >= Double(bounds.lowerBound) && number <= Double(bounds.upperBound)
+    if !isInteger { issue("Expected an integer", at: name) }
+    if !isInBounds {
+      issue(
+        "Expected a value between \(bounds.lowerBound) and \(bounds.upperBound)", at: name)
+    }
+    return isInteger && isInBounds ? Int(number) : nil
+  }
+
+  /// An array of strings, at most `limit` of them. Its length is checked once every item is one.
+  func strings(_ name: String, atMost limit: Int) -> [String]? {
+    guard let value = values[name] else { return nil }
+    guard case .array(let items) = value else {
+      issue("Expected array", at: name)
+      return nil
+    }
+    var strings: [String] = []
+    for (index, item) in items.enumerated() {
+      if let string = item.argumentString {
+        strings.append(string)
+      } else {
+        issue("Expected string", at: name, index: index)
+      }
+    }
+    guard strings.count == items.count else { return nil }
+    guard strings.count <= limit else {
+      issue("Expected a value with a length of at most \(limit)", at: name)
+      return nil
+    }
+    return strings
+  }
+
+  /// A required argument: `read`'s, or an issue when it's missing.
+  func required<Argument>(_ name: String, _ read: (String) -> Argument?) -> Argument? {
+    guard values[name] != nil else {
+      issue("Missing key", at: name)
+      return nil
+    }
+    return read(name)
+  }
+}
+
+extension Value {
+  /// A string argument. `Value` decodes a string that's a data URL as `.data`, which is still a
+  /// string to the remote server's schemas, so it's written back as one: the SDK keeps its data,
+  /// not its text, so a data URL written another way (`data:,steps`) reads as its base64 form.
+  fileprivate var argumentString: String? {
+    switch self {
+    case .string(let string): string
+    case .data(let mimeType, let data): data.dataURLEncoded(mimeType: mimeType)
+    default: nil
+    }
   }
 }
 
