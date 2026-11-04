@@ -26,9 +26,11 @@ struct CardPage: View {
   var body: some View {
     if let card = store.cards[id: id] {
       if let spec = card.spec {
-        CardChartPage(spec: spec, opening: opening, refresh: refresh)
-          // A new bucket offers other ranges: the page opens again, on the card's own.
-          .id(spec.bucket)
+        CardChartPage(spec: spec, opening: opening, refresh: refresh) {
+          store.send(.editCardButtonTapped(id: id))
+        }
+        // A new bucket offers other ranges: the page opens again, on the card's own.
+        .id(spec.bucket)
       } else {
         UnreadableCardPage(card: card)
       }
@@ -97,6 +99,8 @@ enum CardOpening: Equatable {
 struct CardChartPage: View {
   let spec: CardSpec
   let refresh: CardRefresh
+  /// Edit: the card's editor (851-3213).
+  let edit: () -> Void
   @State private var range: CardRange
   /// The period shown, 0 the current one: `nil` until the page knows which it opens on.
   @State private var offset: Int?
@@ -108,9 +112,13 @@ struct CardChartPage: View {
   @Dependency(\.date) private var date
   @Dependency(\.calendar) private var calendar
 
-  init(spec: CardSpec, opening: CardOpening, refresh: CardRefresh) {
+  init(
+    spec: CardSpec, opening: CardOpening, refresh: CardRefresh,
+    edit: @escaping () -> Void = {}
+  ) {
     self.spec = spec
     self.refresh = refresh
+    self.edit = edit
     let range = spec.range
     _range = State(initialValue: range)
     if case .latest(let latest) = opening {
@@ -134,7 +142,8 @@ struct CardChartPage: View {
     CardDetailContent(
       spec: spec, range: rangeSelection, offset: offset, state: state,
       previous: { offset = (offset ?? 0) - 1 },
-      next: { if let offset, offset < 0 { self.offset = offset + 1 } }
+      next: { if let offset, offset < 0 { self.offset = offset + 1 } },
+      edit: edit
     )
     .task(id: Request(spec: spec, range: range, offset: offset, refresh: refresh)) {
       await load()
@@ -215,7 +224,7 @@ struct CardChartPage: View {
 
 /// What a card's page shows, however it got it: the bucket's ranges, the header and chart (the
 /// Mac's, `CardChart`), with the legend when it draws more than one line, and About This Card.
-/// Earlier and later periods are the toolbar's ‹ and ›.
+/// Earlier and later periods are the toolbar's ‹ and ›, beside Edit.
 struct CardDetailContent: View {
   let spec: CardSpec
   /// The range chosen, which can be ahead of the one shown.
@@ -225,6 +234,7 @@ struct CardDetailContent: View {
   let state: CardChart.State
   var previous: () -> Void = {}
   var next: () -> Void = {}
+  var edit: () -> Void = {}
 
   /// The chart's height under the header: a little less than the Mac's 280, for a phone's screen.
   static let chartHeight: CGFloat = 240
@@ -270,6 +280,10 @@ struct CardDetailContent: View {
           .disabled(offset == nil)
         Button("Next \(name)", systemImage: "chevron.right", action: next)
           .disabled((offset ?? 0) >= 0)
+      }
+      ToolbarSpacer(.fixed, placement: .primaryAction)
+      ToolbarItem(placement: .primaryAction) {
+        Button("Edit", action: edit)
       }
     }
   }

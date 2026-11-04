@@ -1,6 +1,7 @@
 #if os(macOS)
   import AppKit
   import HealthPages
+  import HealthUI
   import SwiftUI
   import Testing
 

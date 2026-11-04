@@ -1,5 +1,6 @@
 public import ComposableArchitecture
 import Foundation
+public import HealthCardStore
 import HealthKitAccess
 import HealthUpload
 public import LilAuth
@@ -17,6 +18,9 @@ public struct AppFeature {
     public var syncStatus = SyncStatusFeature.State()
     /// The account's cards (851-3205), synced while signed in, for Summary (851-3211).
     public var cards = CardsFeature.State()
+    /// What Summary pushed: a card's page, or Sync Status. Deleting a card here closes its page
+    /// (851-3213), as on the Mac.
+    public var summaryPath: [SummaryPage] = []
     /// Asking for consent to processing Health data, after signing in and before Health access.
     public var healthConsent: HealthConsentFeature.State?
     /// The policy version consent was given for on this account, if any (`docs/DECISIONS.md`).
@@ -58,6 +62,7 @@ public struct AppFeature {
 
   public enum Action {
     case alert(PresentationAction<Alert>)
+    case summaryPathChanged([SummaryPage])
     /// Starts uploading the Health history, if it isn't all uploaded.
     case backfill
     case cards(CardsFeature.Action)
@@ -115,7 +120,17 @@ public struct AppFeature {
       case .backfill:
         return backfill(state, continuing: false)
 
+      // Deleted here, from its editor: back to Summary. One another device or an agent deletes
+      // still says so on its page.
+      case .cards(.deleteCard(let id)):
+        state.summaryPath.removeAll { $0 == .card(id) }
+        return .none
+
       case .cards:
+        return .none
+
+      case .summaryPathChanged(let path):
+        state.summaryPath = path
         return .none
 
       case .returnedToForeground:
@@ -213,6 +228,7 @@ public struct AppFeature {
           state.syncStatus = SyncStatusFeature.State()
           // Cards are the account's, and leave with it.
           state.cards = CardsFeature.State()
+          state.summaryPath = []
           // The next account is checked for other iPhones too, and gives its own consent.
           state.$checkedForOtherIPhones.withLock { $0 = false }
           state.setConsent(false)
@@ -425,4 +441,11 @@ extension AlertState where Action == AppFeature.Action.Alert {
       )
     }
   }
+}
+
+/// What Summary pushes.
+public enum SummaryPage: Hashable, Sendable {
+  case syncStatus
+  /// A card's page (851-3212).
+  case card(Card.ID)
 }

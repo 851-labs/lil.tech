@@ -1,16 +1,16 @@
 import ComposableArchitecture
-import HealthCards
-import HealthCatalog
-import HealthDatabase
-import HealthPages
+public import HealthCards
+public import HealthCatalog
 import HealthUI
-import SwiftUI
+public import SwiftUI
 
 // The query builder (851-3209, docs/decisions/cards.md, UI › Mac): the editor's sections that
 // write a card's query. Data, a section per series (type, value, when, sources and devices,
 // label), with Add Series; Chart (each point, the range it opens on, style, unit, goal); and
 // Formulas (moving averages and differences). Each control offers only what the rules allow, and
-// the validator's errors show in a row under the field they're about.
+// the validator's errors show in a row under the field they're about. On the iPhone (851-3213) a
+// series' type is a page the sheet pushes, and menus of several choices stay open as they're
+// picked.
 
 /// The query builder's sections, in the editor's form.
 struct CardQueryBuilderSections: View {
@@ -25,6 +25,7 @@ struct CardQueryBuilderSections: View {
       Section {
         Button("Add Series") { store.send(.addSeriesButtonTapped) }
           .disabled(!store.canAddSeries)
+          .id(CardEditorAnchor.addSeries)
         CardFieldErrors(messages: store.state.errors(for: .seriesList))
       } footer: {
         if !store.canAddSeries {
@@ -36,14 +37,26 @@ struct CardQueryBuilderSections: View {
         CardFormulaSection(store: store, formula: formula)
       }
       Section {
-        Menu("Add Formula") {
+        Menu {
           Button("Moving Average") { store.send(.addFormulaButtonTapped(.movingAverage)) }
             .disabled(!store.state.canAddFormula(.movingAverage))
           Button("Difference") { store.send(.addFormulaButtonTapped(.difference)) }
             .disabled(!store.state.canAddFormula(.difference))
+        } label: {
+          // The whole row on the iPhone, as Add Series is: its label alone is a small target.
+          #if os(iOS)
+            Text("Add Formula")
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .contentShape(.rect)
+          #else
+            Text("Add Formula")
+          #endif
         }
-        .fixedSize()
+        #if os(macOS)
+          .fixedSize()
+        #endif
         .disabled(!store.state.canAddFormula(.movingAverage))
+        .id(CardEditorAnchor.addFormula)
         CardFieldErrors(messages: store.state.errors(for: .formulaList))
       } header: {
         if store.draft.formulas.isEmpty { Text("Formulas") }
@@ -55,6 +68,24 @@ struct CardQueryBuilderSections: View {
         CardFieldErrors(messages: rest)
       }
     }
+  }
+}
+
+/// A series' or formula's label, with what it's called without one as its prompt: a labeled row
+/// on the iPhone, whose fields show no labels, as Settings' are.
+struct CardLabelField: View {
+  let text: Binding<String>
+  let prompt: String
+
+  var body: some View {
+    #if os(iOS)
+      LabeledContent("Label") {
+        TextField("Label", text: text, prompt: Text(prompt))
+          .multilineTextAlignment(.trailing)
+      }
+    #else
+      TextField("Label", text: text, prompt: Text(prompt))
+    #endif
   }
 }
 
@@ -94,6 +125,7 @@ struct CardSeriesSection: View {
   var body: some View {
     Section {
       typeRow
+        .id(CardEditorAnchor.series(series.id))
       errors(.type)
       if let type {
         Picker(
@@ -114,12 +146,11 @@ struct CardSeriesSection: View {
           CardFilterRows(store: store, series: series, change: change)
           errors(.filter)
         }
-        TextField(
-          "Label",
+        CardLabelField(
           text: Binding(
             get: { series.label ?? "" },
             set: { text in change { $0.label = text.isEmpty ? nil : text } }),
-          prompt: Text(type.name))
+          prompt: type.name)
         errors(.label)
         if store.state.hasSeveralLines {
           Toggle(
@@ -138,8 +169,23 @@ struct CardSeriesSection: View {
     }
   }
 
-  /// The type, opening a searchable list of the types this series can chart.
-  private var typeRow: some View {
+  /// The type, opening a searchable list of the types this series can chart: a popover on the
+  /// Mac, a page on the iPhone.
+  @ViewBuilder private var typeRow: some View {
+    #if os(iOS)
+      NavigationLink {
+        CardTypeList(types: store.state.types(forSeries: series.id), selection: type?.id) {
+          store.send(.typeChosen(series: series.id, type: $0))
+        }
+      } label: {
+        LabeledContent("Type", value: type?.name ?? "Choose")
+      }
+    #else
+      macTypeRow
+    #endif
+  }
+
+  private var macTypeRow: some View {
     LabeledContent("Type") {
       Button(type?.name ?? "Choose…") {
         store.send(.typePickerButtonTapped(series: series.id))
@@ -263,6 +309,9 @@ struct CardNumberField: View {
         .labelsHidden()
         .multilineTextAlignment(.trailing)
         .frame(width: 56)
+        #if os(iOS)
+          .keyboardType(.numberPad)
+        #endif
         Stepper(
           title,
           value: Binding(
@@ -345,6 +394,7 @@ struct CardActivitiesMenu: View {
       }
     }
     .fixedSize()
+    .keepsMenuOpen()
   }
 }
 
@@ -366,7 +416,7 @@ struct CardFilterRows: View {
     _isExpanded = State(initialValue: series.filter != nil)
   }
 
-  private var sources: SampleSources? { store.sources[series.type] }
+  private var sources: CardFilterChoices? { store.sources[series.type] }
 
   var body: some View {
     DisclosureGroup("Sources and Devices", isExpanded: $isExpanded) {
@@ -383,19 +433,13 @@ struct CardFilterRows: View {
       LabeledContent("Devices") {
         CardChoicesMenu(
           every: "Every Device", chosen: series.filter?.deviceModels ?? [],
-          choices: Self.models(of: sources?.devices ?? []).map { ($0, $0) }
+          choices: (sources?.deviceModels ?? []).map { ($0, $0) }
         ) { models in
           change { $0.filter = Self.filter(sources: $0.filter?.sources, deviceModels: models) }
         }
       }
       .task(id: series.type) { store.send(.sourcesNeeded(type: series.type)) }
     }
-  }
-
-  /// The device models, each once, the most common first.
-  static func models(of devices: [SampleDeviceSummary]) -> [String] {
-    var seen = Set<String>()
-    return devices.compactMap(\.device.model).filter { seen.insert($0).inserted }
   }
 
   /// A filter of these lists, `nil` for an empty one; no filter when both are.
@@ -443,16 +487,27 @@ struct CardChoicesMenu: View {
       }
     }
     .fixedSize()
+    .keepsMenuOpen()
   }
 }
 
 /// The types a series can chart, by category, with a search field matching their names as the
-/// sidebar's search does (and the names `lil-health` accepts).
-struct CardTypeList: View {
+/// sidebar's search does (and the names `lil-health` accepts): the Mac's popover, and the page the
+/// iPhone's sheet pushes, which a choice closes.
+public struct CardTypeList: View {
   let types: [HealthDataType]
   let selection: String?
   let choose: (String) -> Void
   @State private var query = ""
+  #if os(iOS)
+    @Environment(\.dismiss) private var dismiss
+  #endif
+
+  public init(types: [HealthDataType], selection: String?, choose: @escaping (String) -> Void) {
+    self.types = types
+    self.selection = selection
+    self.choose = choose
+  }
 
   private var groups: [CardTypeGroup] {
     let query = query.trimmingCharacters(in: .whitespaces)
@@ -462,31 +517,79 @@ struct CardTypeList: View {
       types.filter { $0.name.localizedStandardContains(query) || $0.id == named?.id })
   }
 
-  var body: some View {
-    VStack(spacing: 0) {
-      TextField("Search", text: $query, prompt: Text("Search"))
-        .textFieldStyle(.roundedBorder)
-        .padding(10)
-      Divider()
+  public var body: some View {
+    #if os(iOS)
       let groups = groups
-      if groups.isEmpty {
-        ContentUnavailableView.search(text: query)
-          .frame(maxHeight: .infinity)
-      } else {
-        List(
-          selection: Binding(get: { selection }, set: { id in if let id { choose(id) } })
-        ) {
-          ForEach(groups) { group in
-            Section(group.name) {
-              ForEach(group.types) { type in
-                Text(type.name).tag(type.id)
+      List {
+        ForEach(groups) { group in
+          Section(group.name) {
+            ForEach(group.types) { type in
+              Button {
+                choose(type.id)
+                dismiss()
+              } label: {
+                HStack {
+                  Text(type.name)
+                    .foregroundStyle(Color.primary)
+                  Spacer()
+                  if type.id == selection {
+                    Image(systemName: "checkmark")
+                      .fontWeight(.semibold)
+                      .foregroundStyle(.tint)
+                  }
+                }
+              }
+              .accessibilityAddTraits(type.id == selection ? .isSelected : [])
+            }
+          }
+        }
+      }
+      .overlay {
+        if groups.isEmpty {
+          ContentUnavailableView.search(text: query)
+        }
+      }
+      .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always))
+      .navigationTitle("Type")
+      .navigationBarTitleDisplayMode(.inline)
+    #else
+      VStack(spacing: 0) {
+        TextField("Search", text: $query, prompt: Text("Search"))
+          .textFieldStyle(.roundedBorder)
+          .padding(10)
+        Divider()
+        let groups = groups
+        if groups.isEmpty {
+          ContentUnavailableView.search(text: query)
+            .frame(maxHeight: .infinity)
+        } else {
+          List(
+            selection: Binding(get: { selection }, set: { id in if let id { choose(id) } })
+          ) {
+            ForEach(groups) { group in
+              Section(group.name) {
+                ForEach(group.types) { type in
+                  Text(type.name).tag(type.id)
+                }
               }
             }
           }
         }
       }
-    }
-    .frame(width: 300, height: 400)
+      .frame(width: 300, height: 400)
+    #endif
+  }
+}
+
+extension View {
+  /// A menu of several choices stays open on the iPhone while they're picked, as a Mac's closes
+  /// after each, as menus there do.
+  fileprivate func keepsMenuOpen() -> some View {
+    #if os(iOS)
+      menuActionDismissBehavior(.disabled)
+    #else
+      self
+    #endif
   }
 }
 
@@ -511,6 +614,7 @@ struct CardChartSection: View {
       ) {
         ForEach(store.state.buckets, id: \.self) { Text($0.label).tag($0) }
       }
+      .id(CardEditorAnchor.chart)
       errors(.bucket)
       Picker(
         "Opens On", selection: Binding(get: { draft.range }, set: { store.send(.rangeChosen($0)) })
@@ -564,6 +668,9 @@ struct CardChartSection: View {
         .labelsHidden()
         .multilineTextAlignment(.trailing)
         .frame(width: 90)
+        #if os(iOS)
+          .keyboardType(.decimalPad)
+        #endif
         if !label.isEmpty {
           Text(label)
             .foregroundStyle(.secondary)
@@ -632,12 +739,11 @@ struct CardFormulaSection: View {
         }
         errors(.operands)
       }
-      TextField(
-        "Label",
+      CardLabelField(
         text: Binding(
           get: { formula.label ?? "" },
           set: { text in change { $0.label = text.isEmpty ? nil : text } }),
-        prompt: Text(store.draft.description(of: formula)))
+        prompt: store.draft.description(of: formula))
       errors(.label)
       Toggle(
         "Show in Chart",
@@ -648,6 +754,7 @@ struct CardFormulaSection: View {
       }
     } header: {
       Text(formula.operation.kind == .movingAverage ? "Moving Average" : "Difference")
+        .id(CardEditorAnchor.formula(formula.id))
     }
   }
 

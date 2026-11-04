@@ -1,0 +1,189 @@
+{
+  "app" : "health-iphone",
+  "catalog" : "HealthPhoneApp/CardEditorCatalog.swift",
+  "screen" : "Card Editor",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.new-card-dark.png",
+      "id" : "card-editor.new-card",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.new-card-light.png",
+      "name" : "New card",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.new-card-heart-rate-dark.png",
+      "id" : "card-editor.new-card-heart-rate",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.new-card-heart-rate-light.png",
+      "name" : "New card, heart rate",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.new-card-heart-rate-loading-dark.png",
+      "id" : "card-editor.new-card-heart-rate-loading",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.new-card-heart-rate-loading-light.png",
+      "name" : "New card, heart rate, loading",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.editing-steps-dark.png",
+      "id" : "card-editor.editing-steps",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.editing-steps-light.png",
+      "name" : "Editing steps",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.editing-steps-loading-dark.png",
+      "id" : "card-editor.editing-steps-loading",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.editing-steps-loading-light.png",
+      "name" : "Editing steps, loading",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.editing-steps-delete-card-dark.png",
+      "id" : "card-editor.editing-steps-delete-card",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.editing-steps-delete-card-light.png",
+      "name" : "Editing steps, Delete Card",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.deleting-steps-dark.png",
+      "id" : "card-editor.deleting-steps",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.deleting-steps-light.png",
+      "name" : "Deleting steps",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.editing-morning-weight-dark.png",
+      "id" : "card-editor.editing-morning-weight",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.editing-morning-weight-light.png",
+      "name" : "Editing morning weight",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.another-symbol-and-color-dark.png",
+      "id" : "card-editor.another-symbol-and-color",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.another-symbol-and-color-light.png",
+      "name" : "Another symbol and color",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.no-name-dark.png",
+      "id" : "card-editor.no-name",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.no-name-light.png",
+      "name" : "No name",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.name-too-long-dark.png",
+      "id" : "card-editor.name-too-long",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.name-too-long-light.png",
+      "name" : "Name too long",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.too-many-cards-dark.png",
+      "id" : "card-editor.too-many-cards",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.too-many-cards-light.png",
+      "name" : "Too many cards",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.symbol-picker-dark.png",
+      "id" : "card-editor.symbol-picker",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.symbol-picker-light.png",
+      "name" : "Symbol picker",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.built-body-temperature-dark.png",
+      "id" : "card-editor.built-body-temperature",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.built-body-temperature-light.png",
+      "name" : "Built: body temperature",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.built-sleeping-heart-rate-dark.png",
+      "id" : "card-editor.built-sleeping-heart-rate",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.built-sleeping-heart-rate-light.png",
+      "name" : "Built: sleeping heart rate",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.built-hrv-dark.png",
+      "id" : "card-editor.built-hrv",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.built-hrv-light.png",
+      "name" : "Built: HRV",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.built-heart-rate-before-sleep-dark.png",
+      "id" : "card-editor.built-heart-rate-before-sleep",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.built-heart-rate-before-sleep-light.png",
+      "name" : "Built: heart rate before sleep",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.built-morning-weight-dark.png",
+      "id" : "card-editor.built-morning-weight",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.built-morning-weight-light.png",
+      "name" : "Built: morning weight",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.built-morning-weight-data-dark.png",
+      "id" : "card-editor.built-morning-weight-data",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.built-morning-weight-data-light.png",
+      "name" : "Built: morning weight, data",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.built-morning-weight-chart-dark.png",
+      "id" : "card-editor.built-morning-weight-chart",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.built-morning-weight-chart-light.png",
+      "name" : "Built: morning weight, chart",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.workout-window-and-filter-dark.png",
+      "id" : "card-editor.workout-window-and-filter",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.workout-window-and-filter-light.png",
+      "name" : "Workout window and filter",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.difference-dark.png",
+      "id" : "card-editor.difference",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.difference-light.png",
+      "name" : "Difference",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.four-series-dark.png",
+      "id" : "card-editor.four-series",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.four-series-light.png",
+      "name" : "Four series",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.errors-dark.png",
+      "id" : "card-editor.errors",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.errors-light.png",
+      "name" : "Errors",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.type-list-dark.png",
+      "id" : "card-editor.type-list",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.type-list-light.png",
+      "name" : "Type list",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.type-list-second-series-dark.png",
+      "id" : "card-editor.type-list-second-series",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/CardEditorCatalog/card-editor.type-list-second-series-light.png",
+      "name" : "Type list, second series",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/CardEditorCatalog.swift"
+    }
+  ]
+}

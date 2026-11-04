@@ -37,6 +37,11 @@
       "title": "Card"
     },
     {
+      "id": "card-editor",
+      "screen": "HealthPhoneApp/CardEditorCatalog.swift",
+      "title": "Card Editor"
+    },
+    {
       "id": "sync",
       "screen": "HealthPhoneApp/SyncStatusCatalog.swift"
     },
@@ -126,6 +131,16 @@
       "from": "summary",
       "to": "card",
       "label": "Choose a card"
+    },
+    {
+      "from": "summary",
+      "to": "card-editor",
+      "label": "New Card, or a row's Edit"
+    },
+    {
+      "from": "card",
+      "to": "card-editor",
+      "label": "Edit"
     },
     {
       "from": "summary",

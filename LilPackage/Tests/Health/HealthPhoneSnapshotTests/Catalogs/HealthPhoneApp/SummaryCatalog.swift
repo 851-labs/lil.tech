@@ -1,5 +1,7 @@
 #if os(iOS)
+  import ComposableArchitecture
   import Foundation
+  @testable import HealthCardEditor
   import HealthCardStore
   import HealthCards
   import HealthDatabase
@@ -55,9 +57,22 @@
       CatalogState("Failed") {
         summary(.failed("The database couldn't be read."))
       },
-      // Every card deleted.
+      // Every card deleted: New Card, there and in the toolbar.
       CatalogState("No cards") {
         summary(.loaded([]))
+      },
+      // Edit: the rows' handles, to drag them into another order (851-3213).
+      CatalogState("Reordering") {
+        summary(.loaded(Card.welcomeSeed), isEditing: true)
+      },
+      // A row's Delete, swiped or from its menu, asks first.
+      CatalogState("Deleting a card") {
+        var cards = CardsFeature.State(cards: Card.welcomeSeed)
+        cards.alert = .confirmDeleteCard(
+          named: "Heart Rate", .confirmDelete(id: "card_seed_heart_rate"))
+        return CardsAlert(store: Store(initialState: cards) { EmptyReducer() }) {
+          summary(.loaded(Card.welcomeSeed))
+        }
       },
       // One card's headline couldn't be computed; the others' could.
       CatalogState("A card that fails") {
@@ -94,12 +109,24 @@
     _ cards: SummaryLoad,
     status: SyncStatusFeature.State.Status = .upToDate(
       lastUpload: previewNow.addingTimeInterval(-300)),
+    isEditing: Bool = false,
     headline: @escaping (Card) -> CardRow.Headline = { headline(of: $0) }
   ) -> some View {
     NavigationStack {
       SummaryContent(cards: cards, syncStatus: status) { card in
         CardRow(card: card, headline: headline(card), now: previewNow, calendar: previewCalendar)
       }
+      .environment(\.editMode, .constant(isEditing ? .active : .inactive))
+    }
+  }
+
+  /// `content` with the cards' alert, as Summary shows it.
+  private struct CardsAlert<Content: View>: View {
+    @Bindable var store: StoreOf<CardsFeature>
+    @ViewBuilder let content: Content
+
+    var body: some View {
+      content.alert($store.scope(\.alert, action: \.alert))
     }
   }
 

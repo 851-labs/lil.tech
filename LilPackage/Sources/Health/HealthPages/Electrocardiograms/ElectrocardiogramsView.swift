@@ -1,5 +1,6 @@
 import Dependencies
 import HealthDatabase
+import HealthUI
 import LilSync
 import LilUI
 import SQLiteData

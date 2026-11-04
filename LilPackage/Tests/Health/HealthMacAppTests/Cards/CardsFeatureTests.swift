@@ -11,6 +11,7 @@ import OpenAPIRuntime
 import SQLiteData
 import Testing
 
+@testable import HealthCardEditor
 @testable import HealthMacApp
 
 private let now = Date(timeIntervalSince1970: 1_760_500_000)

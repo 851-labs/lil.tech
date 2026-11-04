@@ -1,5 +1,6 @@
 public import ComposableArchitecture
 public import Foundation
+public import HealthCardEditor
 public import HealthCards
 public import HealthDatabase
 import LilSync
@@ -311,19 +312,7 @@ public struct CardsFeature {
         let writes = state.unsaved.count
         let effect: Effect<Action>
         if let id = editor.cardID {
-          // When the person changed only how it looks, the card's query as it is now, which
-          // another device or an agent may have changed while the editor was open. A query they
-          // changed is theirs, the last writer's (851-3209).
-          var edited = spec
-          if let original = editor.original, spec.hasQuery(of: original),
-            let current = state.cards[id: id]?.spec
-          {
-            edited = current
-            edited.display.name = spec.display.name
-            edited.display.symbol = spec.display.symbol
-            edited.display.color = spec.display.color
-          }
-          effect = update(id, edited, &state)
+          effect = update(id, editor.written(spec, over: state.cards[id: id]?.spec), &state)
         } else {
           effect = create(spec, &state)
         }
@@ -350,6 +339,7 @@ public struct CardsFeature {
     }
     .ifLet(\.$editor, action: \.editor) {
       CardEditorFeature()
+        .dependency(\.cardFilterChoices, .healthDatabase)
     }
     .ifLet(\.$alert, action: \.alert)
   }
@@ -482,27 +472,19 @@ public struct CardsFeature {
   }
 }
 
-extension AlertState {
-  /// A move that was refused, saying why.
-  static func cardNotMoved(_ error: CardWriteError) -> Self {
-    Self {
-      TextState("Couldn't Move the Card")
-    } actions: {
-      ButtonState(role: .cancel) { TextState("OK") }
-    } message: {
-      TextState(error.localizedDescription)
-    }
-  }
-
-  /// Delete…'s confirmation, from the editor or a Summary row, which `delete` answers.
-  static func confirmDeleteCard(named name: String, _ delete: Action) -> Self {
-    Self {
-      TextState("Delete “\(name)”?")
-    } actions: {
-      ButtonState(role: .destructive, action: delete) { TextState("Delete") }
-      ButtonState(role: .cancel) { TextState("Cancel") }
-    } message: {
-      TextState("It's deleted on all your devices.")
+extension CardFilterChoicesClient {
+  /// The apps and device models of a type's samples in this Mac's database (`defaultDatabase`, where
+  /// the editor asks), as Data Sources reads them.
+  static var healthDatabase: Self {
+    Self { type in
+      @Dependency(\.defaultDatabase) var database
+      let sources = try await database.read { try HealthDatabase.sampleSources(of: type, $0) }
+      var seen = Set<String>()
+      return CardFilterChoices(
+        apps: sources.apps.map { CardFilterChoices.App(id: $0.id, name: $0.name) },
+        deviceModels: sources.devices.compactMap(\.device.model).filter {
+          seen.insert($0).inserted
+        })
     }
   }
 }

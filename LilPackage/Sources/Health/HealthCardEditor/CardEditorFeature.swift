@@ -1,14 +1,14 @@
 public import ComposableArchitecture
 import Foundation
+public import HealthCardStore
 public import HealthCards
 public import HealthCatalog
-public import HealthDatabase
-import SQLiteData
 
-/// The card editor (851-3208, 851-3209, docs/decisions/cards.md, UI › Mac): a card's name, symbol
-/// and color, and the query builder writing the rest of its spec (series, chart and formulas), for
-/// a new card or one of the account's, with a live preview of the card as the fields change, and
-/// the validator's errors under the fields they're about.
+/// The card editor (851-3208, 851-3209, docs/decisions/cards.md, UI): a card's name, symbol and
+/// color, and the query builder writing the rest of its spec (series, chart and formulas), for a
+/// new card or one of the account's, with a live preview of the card as the fields change, and the
+/// validator's errors under the fields they're about. Both apps' (851-3213): each runs the preview
+/// on its own engine, and gives the filters' choices (`cardFilterChoices`).
 ///
 /// The fields are a draft spec (`draft`), which `CardSpec(input:)` validates after every change.
 /// The builder offers only the choices the rules allow, given the rest of the draft (no Total for
@@ -50,7 +50,7 @@ public struct CardEditorFeature {
     /// The series whose type picker is open.
     public var typePickerSeries: String?
     /// The apps and devices each type's data came from, for the series' filters, once asked for.
-    public var sources: [String: SampleSources] = [:]
+    public var sources: [String: CardFilterChoices] = [:]
     /// Why saving was refused (`CardWriteError`): too many cards, or the card was deleted.
     public var saveError: String?
     /// Delete Card…'s confirmation.
@@ -176,7 +176,7 @@ public struct CardEditorFeature {
     /// A series' aggregation, window, filter, label or visibility.
     case seriesChanged(CardSpec.Series)
     /// A type's sources, for its series' filters.
-    case sourcesLoaded(type: String, SampleSources)
+    case sourcesLoaded(type: String, CardFilterChoices)
     /// A series' filter was shown: its type's apps and devices, unless they're loaded.
     case sourcesNeeded(type: String)
     case styleChosen(HealthDataType.ChartStyle)
@@ -206,7 +206,7 @@ public struct CardEditorFeature {
   static let previewDelay = Duration.milliseconds(300)
 
   @Dependency(\.continuousClock) var clock
-  @Dependency(\.defaultDatabase) var database
+  @Dependency(\.cardFilterChoices) var filterChoices
   @Dependency(\.dismiss) var dismiss
 
   public init() {}
@@ -304,9 +304,8 @@ public struct CardEditorFeature {
 
       case .sourcesNeeded(let type):
         guard state.sources[type] == nil, !type.isEmpty else { return .none }
-        return .run { [database] send in
-          let sources = try await database.read { try HealthDatabase.sampleSources(of: type, $0) }
-          await send(.sourcesLoaded(type: type, sources))
+        return .run { [filterChoices] send in
+          await send(.sourcesLoaded(type: type, try await filterChoices(type)))
         } catch: { _, _ in
           // Without them, the filter offers only what it has.
         }

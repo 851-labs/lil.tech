@@ -1,5 +1,6 @@
 public import ComposableArchitecture
 import Dependencies
+import HealthCardEditor
 import HealthCardStore
 import HealthCards
 import HealthKitAccess
@@ -13,9 +14,14 @@ public import SwiftUI
 /// (`healthKitCards`). Sync Status is a row at the top while an upload is under way or needs the
 /// person, and a toolbar button otherwise; Settings is a toolbar button. It runs the cards' and the
 /// upload status's tasks while it shows.
+///
+/// Cards are made and changed here (851-3213): New Card in the toolbar (and No Cards' button), Edit
+/// and Delete in a row's context menu, Delete as its swipe action, and the list's Edit mode to drag
+/// them into another order. The editor is a sheet over Summary and the card's page alike.
 public struct SummaryView: View {
-  let cards: StoreOf<CardsFeature>
+  @Bindable var cards: StoreOf<CardsFeature>
   @Bindable var syncStatus: StoreOf<SyncStatusFeature>
+  @Binding var path: [SummaryPage]
   /// Today, so headlines move at midnight: `nil` until Summary shows, so making the view reads no
   /// dependency (the app makes it again whenever its state changes).
   @State private var day: Date?
@@ -29,15 +35,24 @@ public struct SummaryView: View {
   @Dependency(\.date) private var date
   @Dependency(\.calendar) private var calendar
 
-  public init(cards: StoreOf<CardsFeature>, syncStatus: StoreOf<SyncStatusFeature>) {
+  public init(
+    cards: StoreOf<CardsFeature>, syncStatus: StoreOf<SyncStatusFeature>,
+    path: Binding<[SummaryPage]>
+  ) {
     self.cards = cards
     self.syncStatus = syncStatus
+    _path = path
   }
 
   public var body: some View {
-    NavigationStack {
+    NavigationStack(path: $path) {
       SummaryContent(
         cards: SummaryLoad(cards.state), syncStatus: syncStatus.status,
+        actions: SummaryCardActions(
+          create: { cards.send(.newCardButtonTapped) },
+          edit: { cards.send(.editCardButtonTapped(id: $0.id)) },
+          delete: { cards.send(.deleteCardButtonTapped(id: $0.id)) },
+          move: { cards.send(.moveCards(fromOffsets: $0, toOffset: $1)) }),
         showSettings: { syncStatus.send(.settingsPresented(true)) }
       ) { card in
         CardPreview(
@@ -60,6 +75,11 @@ public struct SummaryView: View {
         SettingsSheet(store: syncStatus)
       }
     }
+    // The card editor and Delete…'s confirmation, from Summary or a card's page (851-3213).
+    .sheet(item: $cards.scope(\.editor, action: \.editor)) { editor in
+      CardEditorSheet(store: editor)
+    }
+    .alert($cards.scope(\.alert, action: \.alert))
     // Again when the app comes back to the front, so cards that couldn't be read are read again.
     .task(id: generation) {
       day = calendar.startOfDay(for: date.now)
@@ -82,13 +102,6 @@ public struct SummaryView: View {
       }
     }
   }
-}
-
-/// What Summary pushes.
-enum SummaryPage: Hashable {
-  case syncStatus
-  /// A card's page (851-3212).
-  case card(Card.ID)
 }
 
 /// Summary's cards, as `CardsFeature` has them.
@@ -114,6 +127,7 @@ enum SummaryLoad: Equatable {
 struct SummaryContent<Row: View>: View {
   let cards: SummaryLoad
   let syncStatus: SyncStatusFeature.State.Status
+  var actions = SummaryCardActions()
   var showSettings: () -> Void = {}
   /// A card's row, with its headline.
   @ViewBuilder let row: (Card) -> Row
@@ -132,6 +146,14 @@ struct SummaryContent<Row: View>: View {
     }
     .navigationTitle("Summary")
     .toolbar {
+      // Reordering, by dragging the rows' handles (851-3213).
+      #if os(iOS)
+        if case .loaded(let cards) = cards, cards.count > 1 {
+          ToolbarItem(placement: .topBarLeading) {
+            EditButton()
+          }
+        }
+      #endif
       ToolbarItemGroup(placement: .primaryAction) {
         if !syncStatus.isShownAsRow {
           NavigationLink(value: SummaryPage.syncStatus) {
@@ -142,7 +164,18 @@ struct SummaryContent<Row: View>: View {
           Label("Settings", systemImage: "gearshape")
         }
       }
+      ToolbarSpacer(.fixed, placement: .primaryAction)
+      ToolbarItem(placement: .primaryAction) {
+        Button("New Card", systemImage: "plus", action: actions.create)
+          .disabled(!canCreateCard)
+      }
     }
+  }
+
+  /// Whether a card can be added: the cards are read, and there are fewer than the most.
+  private var canCreateCard: Bool {
+    guard case .loaded(let cards) = cards else { return false }
+    return cards.count < HealthCards.maxCards
   }
 
   @ViewBuilder private var cardsSection: some View {
@@ -165,6 +198,8 @@ struct SummaryContent<Row: View>: View {
         Label("No Cards", systemImage: "rectangle.stack")
       } description: {
         Text("Cards you add show here.")
+      } actions: {
+        Button("New Card", action: actions.create)
       }
     case .loaded(let cards):
       // Every row opens its card's page (851-3212), a later version's too, which says so.
@@ -172,9 +207,29 @@ struct SummaryContent<Row: View>: View {
         NavigationLink(value: SummaryPage.card(card.id)) {
           row(card)
         }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+          // It asks first, so the row stays until it's confirmed.
+          Button("Delete", systemImage: "trash", role: .destructive) { actions.delete(card) }
+        }
+        .contextMenu {
+          // A later version's card can only be deleted.
+          if card.spec != nil {
+            Button("Edit", systemImage: "pencil") { actions.edit(card) }
+          }
+          Button("Delete", systemImage: "trash", role: .destructive) { actions.delete(card) }
+        }
       }
+      .onMove(perform: actions.move)
     }
   }
+}
+
+/// What Summary's rows and toolbar do with the cards: nothing, in catalogs.
+struct SummaryCardActions {
+  var create: () -> Void = {}
+  var edit: (Card) -> Void = { _ in }
+  var delete: (Card) -> Void = { _ in }
+  var move: (IndexSet, Int) -> Void = { _, _ in }
 }
 
 /// A card's row, its headline run on this iPhone's HealthKit: again when the card's query changes,

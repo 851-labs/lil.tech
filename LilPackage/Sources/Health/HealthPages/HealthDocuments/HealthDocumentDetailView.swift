@@ -2,6 +2,7 @@ import AppKit
 import Dependencies
 import Foundation
 import HealthDatabase
+import HealthUI
 import LilSync
 import LilUI
 import SQLiteData
