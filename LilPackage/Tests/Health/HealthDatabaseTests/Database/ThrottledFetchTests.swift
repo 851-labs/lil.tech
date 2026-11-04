@@ -1,6 +1,7 @@
 import Dependencies
 import Foundation
 import GRDB
+import HealthCardStore
 import LilTestSupport
 import SQLiteData
 import Testing
@@ -96,21 +97,68 @@ struct ThrottledFetchTests {
     #expect(fetches.value == 2)
   }
 
-  /// In a window catalog, the first value is read at once, and nothing's observed.
+  /// Another request starts without the last one's failure, as `@Fetch`'s did.
   @Test
-  func windowCatalogsReadAtOnce() throws {
+  func anotherRequestClearsTheLastFailure() async throws {
+    let model = ThrottledFetchModel<Int?>(value: nil, isLoading: false)
+    await model.load(request(SampleCount(failsAt: 0)))
+    #expect(model.loadError != nil)
+    model.follow(request(SampleCount()))
+    #expect(model.loadError == nil)
+    #expect(model.isLoading)
+    try await eventually { model.value == 0 }
+  }
+
+  /// In a window catalog, the view's request is read at once, a loaded one in the background,
+  /// and neither is observed.
+  @Test
+  func windowCatalogsReadWithoutObserving() async throws {
     let model = ThrottledFetchModel<Int?>(value: nil, isLoading: true)
-    let request = withDependencies {
-      $0.fetchesFirstValueAtOnce = true
-    } operation: {
-      self.request(SampleCount())
+    let catalog = { (request: SampleCount) in
+      withDependencies {
+        $0.fetchesFirstValueAtOnce = true
+      } operation: {
+        self.request(request)
+      }
     }
-    model.readAtOnce(request)
+    model.readAtOnce(catalog(SampleCount()))
     #expect(model.value == 0)
     #expect(!model.isLoading)
-    model.follow(request)
-    try writeSample()
+    model.follow(catalog(SampleCount()))
     #expect(fetches.value == 1)
+
+    await model.load(catalog(SampleCount(type: "other")))
+    #expect(fetches.value == 2)
+    clock.advance(by: .seconds(5))
+    try writeSample()
+    try await Task.sleep(for: .milliseconds(50))
+    clock.advance(by: .seconds(5))
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(fetches.value == 2)
+  }
+
+  /// `dataTables` is every table but the cards, pins and sync's own, so a table a migration adds
+  /// for a new kind of record is followed too.
+  @Test
+  func dataTablesAreEveryRecordTable() throws {
+    try database.read { db in
+      let others: Set = [HealthCard.tableName, "healthPins"]
+      let records = try String.fetchAll(
+        db,
+        sql: """
+          SELECT name FROM sqlite_master
+          WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'grdb_%'
+            AND name NOT LIKE 'lil%'
+          """
+      )
+      .filter { !others.contains($0) }
+      let region = { (tables: [any DatabaseRegionConvertible]) in
+        try tables.reduce(DatabaseRegion()) { $0.union(try $1.databaseRegion(db)) }
+      }
+      #expect(
+        try region(HealthDatabase.dataTables) == region(records.map { GRDB.Table<Row>($0) }),
+        "\(records.sorted())")
+    }
   }
 
   // MARK: - Helpers
@@ -135,13 +183,16 @@ struct ThrottledFetchTests {
     static var testValue: LockIsolated<Int> { LockIsolated(0) }
   }
 
-  func request(_ request: SampleCount) -> ThrottledFetchModel<Int?>.Request {
+  func request(
+    _ request: SampleCount,
+    tables: [any DatabaseRegionConvertible] = HealthDatabase.dataTables
+  ) -> ThrottledFetchModel<Int?>.Request {
     withDependencies {
       $0.defaultDatabase = database
       $0.continuousClock = clock
       $0[Fetches.self] = fetches
     } operation: {
-      ThrottledFetchModel<Int?>.Request(request, tables: HealthDatabase.dataTables)
+      ThrottledFetchModel<Int?>.Request(request, tables: tables)
     }
   }
 

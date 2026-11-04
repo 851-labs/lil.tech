@@ -1,7 +1,10 @@
 #if os(macOS)
   import AppKit
+  import Dependencies
+  import DependenciesTestSupport
   import HealthPages
   import HealthUI
+  import LilTestSupport
   import SwiftUI
   import Testing
 
@@ -23,7 +26,11 @@
   ]
 
   extension MacSnapshotTests {
-    @Test(arguments: layoutCheckedCatalogs.flatMap { $0.sameLayout })
+    // Never advanced: a page opened here, without `fetchesFirstValueAtOnce`, starts following
+    // sync in its task (`ThrottledFetch`, 851-4045), and the fixed data never changes.
+    @Test(
+      .dependency(\.continuousClock, ManualClock()),
+      arguments: layoutCheckedCatalogs.flatMap { $0.sameLayout })
     func loadingKeepsLayout(_ group: SameLayout) throws {
       let layouts = group.states.map { ($0, $0.anchorFrames()) }
       let (first, expected) = try #require(layouts.first)

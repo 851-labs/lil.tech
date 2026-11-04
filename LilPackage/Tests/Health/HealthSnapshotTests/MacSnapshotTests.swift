@@ -2,7 +2,6 @@
   import DependenciesTestSupport
   import Foundation
   import HealthDatabase
-  import LilTestSupport
   import LilUI
   import SQLiteData
   import Testing
@@ -31,9 +30,6 @@
       $0.locale = previewLocale
       // Loading states show their spinners in the image drawn at once (851-3086).
       $0.delayedProgressTiming = .immediate
-      // Never advanced: pages that follow sync (`ThrottledFetch`, 851-4045) read their first value
-      // at once, and fixed data never changes.
-      $0.continuousClock = ManualClock()
     })
   struct MacSnapshotTests {
     init() {

@@ -63,9 +63,10 @@ public struct ThrottledFetch<Value: Sendable>: DynamicProperty {
 }
 
 extension HealthDatabase {
-  /// The tables Health records are in, which sync writes: every one but the cards and pins. A
-  /// category page reads nearly all of them (`DataTablesTests` checks what Summary's highlights,
-  /// Metric Detail and the category pages read).
+  /// The tables Health records are in, which sync writes: every table but the cards, pins and
+  /// sync's own (`dataTablesAreEveryRecordTable`). A category page reads nearly all of them
+  /// (`DataTablesTests` checks what Summary's highlights, Metric Detail, the categories and a
+  /// card's page read). A table sync doesn't write can't change while it does.
   public static let dataTables: [any DatabaseRegionConvertible] = [
     HealthSample.tableName, HealthStatistic.tableName, HealthStatisticsDevice.tableName,
     HealthProvenance.tableName, HealthWorkout.tableName, HealthWorkoutRoute.tableName,
@@ -159,6 +160,8 @@ final class ThrottledFetchModel<Value: Sendable> {
     observed = request.id
     task?.cancel()
     if !isLoading { isLoading = true }
+    // The last request's failure isn't this one's, as `@Fetch`'s new request had none.
+    if loadError != nil { loadError = nil }
     guard !request.isCatalog else {
       task = Task { [weak self] in
         let value: Result<Value, any Error>
@@ -179,6 +182,11 @@ final class ThrottledFetchModel<Value: Sendable> {
         guard !Task.isCancelled, let self else { return }
         self.receive(value)
       }
+      // Observing failed to start (its failure was the last value): the next load of this request
+      // tries again.
+      guard !Task.isCancelled, let self else { return }
+      self.observed = nil
+      self.stopLoading()
     }
   }
 
@@ -190,6 +198,10 @@ final class ThrottledFetchModel<Value: Sendable> {
     case .failure(let error):
       loadError = error
     }
+    stopLoading()
+  }
+
+  private func stopLoading() {
     if isLoading { isLoading = false }
     let waiting = waiting
     self.waiting = []
