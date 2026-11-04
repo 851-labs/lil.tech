@@ -63,15 +63,19 @@ enum LilMCPServer {
     return environment
   }
 
+  /// Writes one of `lil mcp`'s lines to standard error, where the agent's log shows it.
+  static func reportOnStandardError(_ line: String) {
+    FileHandle.standardError.write(Data((line + "\n").utf8))
+  }
+
   /// Starts the server of each known app with a tool, all at once, in the apps' order. A tool that
-  /// has no `mcp`, or fails to start, is skipped with a line on standard error (`report`).
+  /// has no `mcp`, or fails to start, is skipped with a line on standard error (`report`), as is
+  /// one that later stops and doesn't start again.
   static func startApps(
     dispatcher: Dispatcher,
     environment: [String: String],
     timeout: Duration = startTimeout,
-    report: @escaping @Sendable (String) -> Void = {
-      FileHandle.standardError.write(Data(($0 + "\n").utf8))
-    }
+    report: @escaping @Sendable (String) -> Void = reportOnStandardError
   ) async -> [App] {
     // Only the apps `lil` knows: another `lil-<something>` on `PATH` could do anything with an
     // argument it doesn't expect.
@@ -86,7 +90,7 @@ enum LilMCPServer {
       for (index, (app, tool)) in tools.enumerated() {
         group.addTask {
           let server = AppServer(
-            app: app, tool: tool, environment: environment, timeout: timeout)
+            app: app, tool: tool, environment: environment, timeout: timeout, report: report)
           do {
             return (index, App(name: app, server: server, listing: try await server.start()))
           } catch {

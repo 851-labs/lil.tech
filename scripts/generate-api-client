@@ -24,11 +24,19 @@ hash() {
 }
 expected=$(cat Services/api/openapi.json Tools/openapi-generator-config.yaml Tools/Package.resolved | hash | cut -d' ' -f1)
 
+# The generator prints its whole configuration on standard error each run, so that's shown only
+# when it fails, with its errors (851-3229).
 generate() {
-  swift run --quiet --package-path Tools swift-openapi-generator generate \
+  log=$(mktemp)
+  if ! swift run --quiet --package-path Tools swift-openapi-generator generate \
     --config Tools/openapi-generator-config.yaml \
     --output-directory "$1" \
-    Services/api/openapi.json > /dev/null
+    Services/api/openapi.json > /dev/null 2> "$log"; then
+    cat "$log" >&2
+    rm -f "$log"
+    return 1
+  fi
+  rm -f "$log"
 }
 
 stale() {
