@@ -53,7 +53,7 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
   /// unreadable series.
   public var seriesFailures: [String: Int] = [:]
   /// The ``HealthEncoder/workoutEncoding`` the workouts uploaded so far were read with; 0 before
-  /// it was kept. Older ones are read again (`HealthBackfill.readWorkoutsAgainIfOlder`).
+  /// it was kept. Older ones are read again (`HealthBackfill.readAgainIfOlder`).
   public var workoutEncoding = 0
 
   public init() {}
@@ -495,7 +495,6 @@ public actor HealthBackfill {
       if let pending = state.pending {
         try await upload(pending, &state)
       }
-      try readWorkoutsAgainIfOlder(&state)
       repeat {
         while syncAllRequested || !requestedTypes.isEmpty {
           let wanted: Set<String>
@@ -515,7 +514,9 @@ public actor HealthBackfill {
           if medicationsDue { try await uploadMedications(&state) }
           for type in types where wanted.contains(type.id) && failures[type.id] == nil {
             do {
+              let wasRead = state.anchors[type.id] != nil
               try await sync(type, &state)
+              try await readAgainIfOlder(type, wasRead: wasRead, &state)
               unreached.remove(type.id)
             } catch {
               // Ending the run, it's still unreached.
@@ -904,34 +905,45 @@ public actor HealthBackfill {
   private func readDosesAgain(_ state: inout HealthBackfillState) {
     for type in types
     where type.entity == HealthEncoder.medicationDoseEntity && state.anchors[type.id] != nil {
-      state.anchors[type.id] = nil
-      state.finished.remove(type.id)
-      state.uploadedRecords = max(
-        0, state.uploadedRecords - state.uploadedByType[type.id, default: 0])
-      state.uploadedByType[type.id] = nil
-      BackfillLog.write("reading \(BackfillLog.name(type.id)) again: medications shared since")
+      forgetHowFarRead(type, because: "medications shared since", &state)
     }
   }
 
-  /// Forgets how far workouts were read if they were read with an older encoding, so the next
-  /// read of them starts over and every workout goes up again with what's new: their activities'
-  /// locations and their plans (851-4030). Workouts are few (hundreds, a few thousand at most),
-  /// and the server and the Mac take each again as a change. Only after any pending page went up,
-  /// since committing it would move the anchor back.
-  private func readWorkoutsAgainIfOlder(_ state: inout HealthBackfillState) throws {
-    guard state.workoutEncoding < HealthEncoder.workoutEncoding else { return }
-    for type in types
-    where type.entity == HealthEncoder.workoutEntity && state.anchors[type.id] != nil {
-      state.anchors[type.id] = nil
-      state.finished.remove(type.id)
-      state.uploadedRecords = max(
-        0, state.uploadedRecords - state.uploadedByType[type.id, default: 0])
-      state.uploadedByType[type.id] = nil
-      BackfillLog.write("reading \(BackfillLog.name(type.id)) again: read with an older encoding")
-    }
+  /// Forgets how far a type was read, so it's read from the start: what it uploaded is counted
+  /// again as it goes up again. A read from the start finds no deletions, so a type is caught up
+  /// from its anchor first, or its deletions since are lost.
+  private func forgetHowFarRead(
+    _ type: HealthBackfillType, because reason: String, _ state: inout HealthBackfillState
+  ) {
+    state.anchors[type.id] = nil
+    state.finished.remove(type.id)
+    state.uploadedRecords = max(
+      0, state.uploadedRecords - state.uploadedByType[type.id, default: 0])
+    state.uploadedByType[type.id] = nil
+    BackfillLog.write("reading \(BackfillLog.name(type.id)) again: \(reason)")
+  }
+
+  /// Reads workouts again from the start, once they're caught up from their anchor, if they were
+  /// read with an older encoding (`HealthBackfillState.workoutEncoding`), so every workout goes
+  /// up again with what's new: their activities' locations and their plans (851-4030). Workouts
+  /// are few (hundreds, a few thousand at most), and the server and the Mac take each again as a
+  /// change. After the catch-up, since a read from the start finds no deletions. Workouts that
+  /// had no anchor before it (`wasRead` false) were all just read with this encoding.
+  private func readAgainIfOlder(
+    _ type: HealthBackfillType, wasRead: Bool, _ state: inout HealthBackfillState
+  ) async throws {
+    guard type.entity == HealthEncoder.workoutEntity,
+      state.workoutEncoding < HealthEncoder.workoutEncoding
+    else { return }
+    if wasRead { forgetHowFarRead(type, because: "read with an older encoding", &state) }
+    // Before the read: one interrupted carries on from its own anchor next time.
     state.workoutEncoding = HealthEncoder.workoutEncoding
     try storage.saveState(state)
     updateCounts(state)
+    guard wasRead else { return }
+    // Counted again, as for a new backfill, unless the run's count is still going.
+    startCounting()
+    try await sync(type, &state)
   }
 
   /// Undoes `readDosesAgain` since `before`, if the medications didn't go up after it.

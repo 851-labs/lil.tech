@@ -197,14 +197,22 @@ struct HealthBackfillTests {
     #expect(health.reads.value == ["@0", "@1", "BodyTemperature@0"])
     #expect(try storage.loadState()?.workoutEncoding == HealthEncoder.workoutEncoding)
 
-    // Workouts an earlier release read (one with no `workoutEncoding`) are read from the
-    // start, and only they.
+    // Workouts an earlier release read (one with no `workoutEncoding`): a run that doesn't read
+    // them leaves them be.
     var state = try #require(try storage.loadState())
     state.workoutEncoding = 0
     try storage.saveState(state)
     health.reads.setValue([])
+    try await backfill.syncChanges(of: [temperature.id])
+    #expect(health.reads.value == ["BodyTemperature@1"])
+    #expect(try storage.loadState()?.workoutEncoding == 0)
+    #expect(try storage.loadState()?.anchors[workouts.id] == Data("2".utf8))
+
+    // One that reads them catches up from their anchor first, for deletions since, then reads
+    // them from the start.
+    health.reads.setValue([])
     try await backfill.run()
-    #expect(health.reads.value == ["@0", "@1", "BodyTemperature@1"])
+    #expect(health.reads.value == ["@2", "@0", "@1", "BodyTemperature@1"])
     let after = try #require(try storage.loadState())
     #expect(after.workoutEncoding == HealthEncoder.workoutEncoding)
     #expect(after.finished == [workouts.id, temperature.id])

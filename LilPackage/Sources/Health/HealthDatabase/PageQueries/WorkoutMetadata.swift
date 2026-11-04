@@ -45,9 +45,7 @@ public struct WorkoutMetadata: Equatable, Sendable {
       indoor: Self.isBoolean(indoor)
         ? (indoor as? Bool)
         : Self.number(indoor).flatMap { $0 == 1 ? true : $0 == 0 ? false : nil },
-      swimmingLocation: Self.number(metadata["HKSwimmingLocationType"]).flatMap {
-        $0 == 1 ? "pool" : $0 == 2 ? "openWater" : nil
-      },
+      swimmingLocation: Self.swimmingLocation(Self.number(metadata["HKSwimmingLocationType"])),
       brandName: Self.unlessBlank(metadata["HKWorkoutBrandName"]),
       elevationAscended: Self.meters(metadata["HKElevationAscended"] as? String),
       planName: Self.unlessBlank((metadata["LilWorkoutPlan"] as? [String: Any])?["name"]))
@@ -66,8 +64,9 @@ public struct WorkoutMetadata: Equatable, Sendable {
     locationType == 2 ? true : locationType == 3 ? false : nil
   }
 
-  /// `pool` or `openWater`, by an `HKWorkoutSwimmingLocationType` raw value: 1 pool, 2 open
-  /// water, and nil for 0 (unknown) or anything else.
+  /// `pool` or `openWater`, by an `HKWorkoutSwimmingLocationType` raw value, as the metadata's
+  /// `HKSwimmingLocationType` and a configuration's have it: 1 pool, 2 open water, and nil for 0
+  /// (unknown) or anything else.
   static func swimmingLocation(_ type: Double?) -> String? {
     type == 1 ? "pool" : type == 2 ? "openWater" : nil
   }
@@ -173,22 +172,23 @@ extension HealthWorkout {
         guard let value = WorkoutMetadata.number(value) else { return [] }
         endDate = value
       }
-      // Missing or null, or a number.
-      var locations: [Double?] = []
-      for key in ["locationType", "swimmingLocationType"] {
+      // Missing or null, or a number: `.some(nil)` for none, `nil` for anything else.
+      func optionalNumber(_ key: String) -> Double?? {
         switch object[key] {
-        case nil, is NSNull: locations.append(nil)
-        case let value:
-          guard let value = WorkoutMetadata.number(value) else { return [] }
-          locations.append(value)
+        case nil, is NSNull: .some(nil)
+        case let value: WorkoutMetadata.number(value).map(Optional.some)
         }
       }
+      guard let locationType = optionalNumber("locationType"),
+        let swimmingLocationType = optionalNumber("swimmingLocationType")
+      else { return [] }
       let metadata = object["metadata"]
       if let metadata, !(metadata is NSNull), !(metadata is [String: Any]) { return [] }
       records.append(
         WorkoutActivityRecord(
           activityType: Int(activityType), startDate: startDate, endDate: endDate,
-          duration: duration, locationType: locations[0], swimmingLocationType: locations[1],
+          duration: duration, locationType: locationType,
+          swimmingLocationType: swimmingLocationType,
           metadata: WorkoutMetadata(metadata)))
     }
     return records

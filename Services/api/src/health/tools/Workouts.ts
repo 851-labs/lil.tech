@@ -60,11 +60,13 @@ const indoor = (metadata: Metadata | null | undefined): boolean | null => {
   return value === 1 ? true : value === 0 ? false : null;
 };
 
-/** `HKMetadataKeySwimmingLocationType`, an `HKWorkoutSwimmingLocationType`: 1 pool, 2 open water. */
-const swimmingLocation = (metadata: Metadata | null | undefined): string | null => {
-  const value = metadata?.["HKSwimmingLocationType"];
-  return value === 1 ? "pool" : value === 2 ? "openWater" : null;
-};
+/** An `HKWorkoutSwimmingLocationType`'s name: 1 pool, 2 open water, else (0, unknown) null. */
+const swimmingLocationName = (value: unknown): string | null =>
+  value === 1 ? "pool" : value === 2 ? "openWater" : null;
+
+/** `HKMetadataKeySwimmingLocationType`, an `HKWorkoutSwimmingLocationType`. */
+const swimmingLocation = (metadata: Metadata | null | undefined): string | null =>
+  swimmingLocationName(metadata?.["HKSwimmingLocationType"]);
 
 /** A string unless it's blank: only spaces, tabs and line breaks, which the Mac counts the same. */
 const unlessBlank = (value: unknown): string | null =>
@@ -96,12 +98,8 @@ const activityIndoor = (activity: WorkoutActivity): boolean | null => {
  * An activity's pool or open water: as its metadata says, else as its configuration's
  * `HKWorkoutSwimmingLocationType` does (1 pool, 2 open water, 0 unknown).
  */
-const activitySwimmingLocation = (activity: WorkoutActivity): string | null => {
-  const type = activity.swimmingLocationType;
-  return (
-    swimmingLocation(activity.metadata) ?? (type === 1 ? "pool" : type === 2 ? "openWater" : null)
-  );
-};
+const activitySwimmingLocation = (activity: WorkoutActivity): string | null =>
+  swimmingLocation(activity.metadata) ?? swimmingLocationName(activity.swimmingLocationType);
 
 /** Meters in each length unit HealthKit writes a quantity in (`HKUnit`'s unit strings). */
 const meters: Record<string, number> = {

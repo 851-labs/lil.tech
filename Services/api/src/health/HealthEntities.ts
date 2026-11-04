@@ -123,7 +123,7 @@ export const HealthWorkout = defineEntity("health_workout", {
      * Besides HealthKit's metadata keys, `metadata` has the WorkoutKit plan the workout was
      * recorded from (`HKWorkout.workoutPlan`), if any, under `LilWorkoutPlan` (851-4030):
      * `{ kind, name, activityType, locationType }`, `kind` one of `goal`, `custom`, `pacer`,
-     * `swimBikeRun`, `name` the plan's display name or null (only custom and swim-bike-run
+     * `swimBikeRun` (or `unknown`, for a kind WorkoutKit adds later), `name` the plan's display name or null (only custom and swim-bike-run
      * workouts have one), `activityType` an `HKWorkoutActivityType`, and `locationType` an
      * `HKWorkoutSessionLocationType`, null for swim-bike-run. Kept in the metadata rather than a
      * field of its own, which every Mac would bootstrap its whole copy again to get. Earlier

@@ -58,7 +58,8 @@ public struct WorkoutRecord: Equatable, Sendable {
   /// A WorkoutKit plan (`HKWorkout.workoutPlan`): what was planned, as the Workout app on the
   /// Watch ran it.
   public struct Plan: Equatable, Sendable {
-    /// `goal`, `custom`, `pacer` or `swimBikeRun`.
+    /// `goal`, `custom`, `pacer` or `swimBikeRun`, or `unknown` for a kind WorkoutKit adds later
+    /// (whose name, if it has one, isn't read).
     public var kind: String
     /// The name the plan was given: custom and swim-bike-run workouts have one, if their app
     /// named them.
