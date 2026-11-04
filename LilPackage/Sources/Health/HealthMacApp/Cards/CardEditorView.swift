@@ -273,7 +273,7 @@ struct CardPreviewContent: View {
   var body: some View {
     if let spec {
       CardChart(
-        spec: spec, range: ChartRange(spec.range), offset: offset, state: state,
+        spec: spec, range: spec.range, offset: offset, state: state,
         chartHeight: Self.chartHeight)
     } else {
       // The space a card of one series takes, so nothing moves once a type is picked.
@@ -300,7 +300,7 @@ struct CardPreviewRequest: FetchKeyRequest {
     // catalogs fix them.
     @Dependency(\.date.now) var now
     @Dependency(\.calendar) var calendar
-    let range = ChartRange(spec.range)
+    let range = spec.range
     let latest = try spec.leadType.flatMap {
       try HealthDatabase.latestPeriodDate(of: $0, by: now, calendar: calendar, db)
     }

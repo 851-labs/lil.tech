@@ -1,4 +1,5 @@
 import HealthDatabase
+import HealthUI
 import SwiftUI
 import Testing
 

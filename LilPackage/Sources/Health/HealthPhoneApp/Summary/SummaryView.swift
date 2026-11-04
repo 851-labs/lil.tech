@@ -46,6 +46,11 @@ public struct SummaryView: View {
         switch page {
         case .syncStatus:
           SyncStatusView(store: syncStatus)
+        case .card(let id):
+          CardPage(
+            store: cards, id: id,
+            opening: CardOpening(headlines[id], spec: cards.cards[id: id]?.spec),
+            refresh: CardRefresh(day: day, generation: generation))
         }
       }
       .sheet(isPresented: $syncStatus.isShowingSettings.sending(\.settingsPresented)) {
@@ -79,6 +84,8 @@ public struct SummaryView: View {
 /// What Summary pushes.
 enum SummaryPage: Hashable {
   case syncStatus
+  /// A card's page (851-3212).
+  case card(Card.ID)
 }
 
 /// Summary's cards, as `CardsFeature` has them.
@@ -146,7 +153,9 @@ struct SummaryContent<Row: View>: View {
       // They show no date, so they read no dependency, which this view would read whenever the
       // app's state changes.
       ForEach(Card.welcomeSeed) { card in
-        CardRow(loading: card)
+        NavigationLink(value: SummaryPage.card(card.id)) {
+          CardRow(loading: card)
+        }
       }
     case .loaded(let cards) where cards.isEmpty:
       ContentUnavailableView {
@@ -155,8 +164,11 @@ struct SummaryContent<Row: View>: View {
         Text("Cards you add show here.")
       }
     case .loaded(let cards):
+      // Every row opens its card's page (851-3212), a later version's too, which says so.
       ForEach(cards) { card in
-        row(card)
+        NavigationLink(value: SummaryPage.card(card.id)) {
+          row(card)
+        }
       }
     }
   }

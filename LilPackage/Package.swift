@@ -124,13 +124,15 @@ let package = Package(
       path: "Sources/Health/HealthCatalog"
     ),
     // What both apps draw the same way (851-3211): categories' colors, values in display units
-    // (`MetricFormat`), and Summary's card rows with their sparklines.
+    // (`MetricFormat`), Summary's card rows with their sparklines, and a card's chart with its
+    // header, axes and periods (851-3212).
     .target(
       name: "HealthUI",
       dependencies: [
         "HealthCards",
         "HealthCardStore",
         "HealthCatalog",
+        "LilUI",
         .product(name: "Dependencies", package: "swift-dependencies"),
       ],
       path: "Sources/Health/HealthUI"
@@ -276,6 +278,7 @@ let package = Package(
         "LilTestSupport",
         "HealthDatabase",
         "HealthMacApp",
+        "HealthUI",
         "LilAPI",
         "LilAuth",
         "LilSync",
@@ -365,6 +368,7 @@ let package = Package(
         "HealthCatalog",
         "HealthKitAccess",
         "HealthPhoneApp",
+        "HealthUI",
         "HealthUpload",
         "LilAPI",
         "LilAuth",
