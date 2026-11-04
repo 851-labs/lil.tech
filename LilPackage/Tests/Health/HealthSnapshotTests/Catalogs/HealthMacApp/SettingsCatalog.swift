@@ -150,6 +150,10 @@
       // The Agents pane's Access Log sheet (851-3082): the latest queries on this Mac, read again
       // while the pane is open, and Turn Off Access while access is on.
       CatalogState("Access log", width: sheetWidth, minHeight: sheetHeight) { accessLog() },
+      // An agent's card changes through `lil mcp` (851-4014), logged with the card's name.
+      CatalogState("Access log: card changes", width: sheetWidth, minHeight: sheetHeight) {
+        accessLog(entries: cardChanges)
+      },
       CatalogState("Access log: off", width: sheetWidth, minHeight: sheetHeight) {
         accessLog(isEnabled: false)
       },
@@ -258,6 +262,31 @@
     AgentAccessEntry(
       id: 1, date: Date(timeIntervalSince1970: 1_760_961_600), command: "sleep --json",
       process: "zsh"),
+  ]
+
+  /// An agent making a card through `lil mcp` (851-4014): previewing it, creating it, renaming it
+  /// and moving it, then deleting another, newest first.
+  private let cardChanges = [
+    AgentAccessEntry(
+      id: 6, date: Date(timeIntervalSince1970: 1_760_973_000),
+      command: #"delete_card {"id":"card_seed_weight"}"#, process: "claude (via lil mcp)"),
+    AgentAccessEntry(
+      id: 5, date: Date(timeIntervalSince1970: 1_760_972_940),
+      command: #"reorder_cards {"count":7}"#, process: "claude (via lil mcp)"),
+    AgentAccessEntry(
+      id: 4, date: Date(timeIntervalSince1970: 1_760_972_880),
+      command: #"update_card {"id":"card_01JZ8Q4Y3W6R2N5T7V9X1B3D5F","name":"Heart Rate Asleep"}"#,
+      process: "claude (via lil mcp)"),
+    AgentAccessEntry(
+      id: 3, date: Date(timeIntervalSince1970: 1_760_972_820),
+      command: #"create_card {"name":"Sleeping Heart Rate"}"#, process: "claude (via lil mcp)"),
+    AgentAccessEntry(
+      id: 2, date: Date(timeIntervalSince1970: 1_760_972_760),
+      command: #"preview_card {"range":"M","types":["HKQuantityTypeIdentifierHeartRate"]}"#,
+      process: "claude (via lil mcp)"),
+    AgentAccessEntry(
+      id: 1, date: Date(timeIntervalSince1970: 1_760_972_700), command: "list_cards",
+      process: "claude (via lil mcp)"),
   ]
 
   @MainActor

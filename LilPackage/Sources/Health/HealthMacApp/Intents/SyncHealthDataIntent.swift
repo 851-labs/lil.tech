@@ -29,7 +29,7 @@ public struct SyncHealthDataIntent: AppIntent {
     switch result {
     case .stillSyncing: "Still syncing. lil health will finish in the background."
     case .synced: "lil health is up to date."
-    case .done, .exported: "Done."
+    case .done, .exported, .card: "Done."
     }
   }
 }

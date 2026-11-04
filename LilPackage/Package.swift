@@ -72,6 +72,8 @@ let package = Package(
     .target(
       name: "HealthAgentAccess",
       dependencies: [
+        // The card writes the local MCP server asks the app for (851-4014).
+        "HealthCards",
         // Names the pages the command line asks the app to open, for the log (851-2895).
         "HealthCatalog",
         .product(name: "GRDB", package: "GRDB.swift"),
@@ -81,7 +83,8 @@ let package = Package(
     .testTarget(
       name: "HealthAgentAccessTests",
       dependencies: [
-        "HealthAgentAccess"
+        "HealthAgentAccess",
+        "HealthCards",
       ],
       path: "Tests/Health/HealthAgentAccessTests"
     ),

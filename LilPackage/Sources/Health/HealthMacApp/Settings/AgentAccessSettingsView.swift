@@ -214,7 +214,8 @@ struct AgentAccessLogSheet: View {
   var body: some View {
     AgentLogSheet(
       title: "Access Log",
-      description: "What read your Health data on this Mac. The data itself isn't logged."
+      description:
+        "What read your Health data or changed your cards on this Mac. The data itself isn't logged."
     ) {
       if store.entries.isEmpty, store.isLoadingLog {
         DelayedProgressView()

@@ -20,11 +20,14 @@ struct MCPConnection {
   let server: Server
 
   init(
-    _ directory: URL, now: Date = now, process: String = "claude", timeZone: String = "UTC"
+    _ directory: URL, now: Date = now, process: String = "claude", timeZone: String = "UTC",
+    app: HealthCLI.AppConnection = .notInstalled,
+    timing: HealthCLI.Timing = HealthCLI.Timing(claimWait: .seconds(10), cardWait: .seconds(10))
   ) async throws {
     server = await HealthMCPServer.makeServer(
       context: HealthCLI.Context(
-        directory: directory, now: { now }, process: process, timeZone: timeZone))
+        directory: directory, now: { now }, process: process, timeZone: timeZone, app: app,
+        timing: timing))
     let (clientTransport, serverTransport) = await InMemoryTransport.createConnectedPair()
     try await server.start(transport: serverTransport)
     client = MCP.Client(name: "HealthMCPServerTests", version: "1")
@@ -69,20 +72,14 @@ struct HealthMCPServerTests {
     // As typed JSON, so a boolean that became a number shows.
     let roundTrip = try JSONDecoder().decode(
       ConformanceJSON.self, from: JSONEncoder().encode(listed))
-    // Every tool in the file but the card tools' writes, which it doesn't answer yet (851-4014).
+    // Every tool in the file, the card tools' writes too (851-4014).
     let fileJSON = try JSONDecoder().decode(ConformanceJSON.self, from: Data(committed.utf8))
     guard case .array(let fileTools) = fileJSON else {
       Issue.record("mcp-tools.json isn't a list of tools")
       return
     }
-    let answered = fileTools.filter { tool in
-      guard case .object(let fields) = tool, case .string(let name)? = fields["name"] else {
-        return true
-      }
-      return !HealthMCPServer.remoteOnlyTools.contains(name)
-    }
-    #expect(roundTrip == .array(answered))
-    #expect(listed.map(\.name).count == 13)
+    #expect(roundTrip == fileJSON)
+    #expect(listed.map(\.name).count == 17)
     #expect(fileTools.count == 17)
     await connection.close()
   }

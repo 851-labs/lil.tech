@@ -1,5 +1,6 @@
 public import Foundation
 import GRDB
+public import HealthCards
 import HealthCatalog
 
 #if os(macOS)
@@ -22,6 +23,16 @@ public enum AgentAction: Equatable, Sendable {
   case sync
   /// Exports the account's data into the folder at this absolute path.
   case export(folder: String)
+  /// The local MCP server's card writes (851-4014, docs/decisions/cards.md › MCP tools): the app
+  /// writes them as Summary's editor does, so they sync. The spec is canonical already.
+  ///
+  /// Adds a card at the end of Summary.
+  case createCard(spec: CardSpec)
+  /// Replaces a card's spec, keeping its place.
+  case updateCard(id: String, spec: CardSpec)
+  case deleteCard(id: String)
+  /// Puts the cards in this order: every card's ID, once each.
+  case reorderCards(ids: [String])
 
   /// The action as the access log shows it, the same as the app's intents log it: `open Steps`,
   /// `sync`, `export ~/Downloads`.
@@ -30,7 +41,20 @@ public enum AgentAction: Equatable, Sendable {
     case .open(let page): "open \(Self.pageName(page))"
     case .sync: "sync"
     case .export(let folder): "export \((folder as NSString).abbreviatingWithTildeInPath)"
+    case .createCard(let spec): Self.toolEntry("create_card", ["name": .string(spec.display.name)])
+    case .updateCard(let id, let spec):
+      Self.toolEntry("update_card", ["id": .string(id), "name": .string(spec.display.name)])
+    case .deleteCard(let id): Self.toolEntry("delete_card", ["id": .string(id)])
+    case .reorderCards(let ids):
+      Self.toolEntry("reorder_cards", ["count": .number(Double(ids.count))])
     }
+  }
+
+  /// A card tool's log entry, as `lil-health mcp` logs its tools, with its arguments in short:
+  /// `create_card {"name":"Sleeping Heart Rate"}`, never a spec.
+  public static func toolEntry(_ tool: String, _ arguments: [String: CardJSON]) -> String {
+    let members = arguments.sorted { $0.key < $1.key }.map { (key: $0.key, value: $0.value) }
+    return tool + " " + CardJSON.object(members).text()
   }
 
   /// The name the sidebar shows for a page ID, or the ID itself if it isn't one.
@@ -51,11 +75,14 @@ public enum AgentAction: Equatable, Sendable {
   }
 }
 
-/// Stored as `{"action": "open", "page": "type:…"}`, `{"action": "sync"}` or
-/// `{"action": "export", "folder": "/Users/…"}`.
+/// Stored as `{"action": "open", "page": "type:…"}`, `{"action": "sync"}`,
+/// `{"action": "export", "folder": "/Users/…"}`, `{"action": "createCard", "spec": {…}}`,
+/// `{"action": "updateCard", "id": "card_…", "spec": {…}}`, `{"action": "deleteCard", "id": …}` or
+/// `{"action": "reorderCards", "ids": […]}`. An app from before the card actions can't read them,
+/// and answers that it needs updating (`unsupported`).
 extension AgentAction: Codable {
   private enum CodingKeys: String, CodingKey {
-    case action, page, folder
+    case action, page, folder, spec, id, ids
   }
 
   public init(from decoder: any Decoder) throws {
@@ -64,6 +91,14 @@ extension AgentAction: Codable {
     case "open": self = .open(page: try container.decode(String.self, forKey: .page))
     case "sync": self = .sync
     case "export": self = .export(folder: try container.decode(String.self, forKey: .folder))
+    case "createCard": self = .createCard(spec: try container.decode(CardSpec.self, forKey: .spec))
+    case "updateCard":
+      self = .updateCard(
+        id: try container.decode(String.self, forKey: .id),
+        spec: try container.decode(CardSpec.self, forKey: .spec))
+    case "deleteCard": self = .deleteCard(id: try container.decode(String.self, forKey: .id))
+    case "reorderCards":
+      self = .reorderCards(ids: try container.decode([String].self, forKey: .ids))
     case let action:
       throw DecodingError.dataCorruptedError(
         forKey: .action, in: container, debugDescription: "Unknown action \(action)")
@@ -81,6 +116,19 @@ extension AgentAction: Codable {
     case .export(let folder):
       try container.encode("export", forKey: .action)
       try container.encode(folder, forKey: .folder)
+    case .createCard(let spec):
+      try container.encode("createCard", forKey: .action)
+      try container.encode(spec, forKey: .spec)
+    case .updateCard(let id, let spec):
+      try container.encode("updateCard", forKey: .action)
+      try container.encode(id, forKey: .id)
+      try container.encode(spec, forKey: .spec)
+    case .deleteCard(let id):
+      try container.encode("deleteCard", forKey: .action)
+      try container.encode(id, forKey: .id)
+    case .reorderCards(let ids):
+      try container.encode("reorderCards", forKey: .action)
+      try container.encode(ids, forKey: .ids)
     }
   }
 }
@@ -95,13 +143,17 @@ public enum AgentActionResult: Equatable, Sendable {
   case stillSyncing
   /// The archive, saved at this path.
   case exported(path: String)
+  /// The card created or updated, in the local database now, by its ID (851-4014): the tool reads
+  /// it from there.
+  case card(id: String)
 }
 
 /// Stored as `{"result": "done"}`, `{"result": "synced", "at": <seconds since 1970>}`,
-/// `{"result": "stillSyncing"}` or `{"result": "exported", "path": "/Users/…"}`.
+/// `{"result": "stillSyncing"}`, `{"result": "exported", "path": "/Users/…"}` or
+/// `{"result": "card", "id": "card_…"}`.
 extension AgentActionResult: Codable {
   private enum CodingKeys: String, CodingKey {
-    case result, at, path
+    case result, at, path, id
   }
 
   public init(from decoder: any Decoder) throws {
@@ -113,6 +165,7 @@ extension AgentActionResult: Codable {
         at: Date(timeIntervalSince1970: try container.decode(Double.self, forKey: .at)))
     case "stillSyncing": self = .stillSyncing
     case "exported": self = .exported(path: try container.decode(String.self, forKey: .path))
+    case "card": self = .card(id: try container.decode(String.self, forKey: .id))
     case let result:
       throw DecodingError.dataCorruptedError(
         forKey: .result, in: container, debugDescription: "Unknown result \(result)")
@@ -132,6 +185,9 @@ extension AgentActionResult: Codable {
     case .exported(let path):
       try container.encode("exported", forKey: .result)
       try container.encode(path, forKey: .path)
+    case .card(let id):
+      try container.encode("card", forKey: .result)
+      try container.encode(id, forKey: .id)
     }
   }
 }
@@ -284,17 +340,20 @@ extension AgentAccessStore {
   /// the request, in one transaction. Then the command signals the app (`AgentActionSignal`) or
   /// launches it, and polls `outcome(id:)`. `requester` is the process that waits for it: a
   /// request whose requester has quit before an app claims it never runs.
+  ///
+  /// `logged: false` when the caller has logged the call already (`lil-health mcp`'s card tools,
+  /// which log as they're called, as every tool does, 851-4014).
   @discardableResult
   public func requestAction(
     _ action: AgentAction, process: String, requester: AgentProcess = .current,
-    at date: Date = Date()
+    logged: Bool = true, at date: Date = Date()
   ) throws -> AgentActionRequest.ID {
     guard exists else { throw AgentAccessError.off }
     let id = AgentActionRequest.ID.random()
     let json = String(decoding: try JSONEncoder().encode(action), as: UTF8.self)
     try open().write { db in
       guard try Self.isEnabled(db) else { throw AgentAccessError.off }
-      try Self.record(command: action.command, process: process, at: date, db)
+      if logged { try Self.record(command: action.command, process: process, at: date, db) }
       try Self.sweepActions(at: date, db)
       try db.execute(
         sql: """

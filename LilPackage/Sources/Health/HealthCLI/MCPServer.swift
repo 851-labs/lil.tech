@@ -16,24 +16,25 @@ import MCP
 /// and logs itself first (851-2840): with access off, a call answers with the error that says
 /// where to turn it on. It also serves the catalog of categories and types as a resource.
 ///
-/// The card tools' reads (851-3216, docs/decisions/cards.md › MCP tools) run here too, on the
-/// cards synced to this Mac and with its engine: `list_cards`, `get_card` and `preview_card`.
+/// The card tools (docs/decisions/cards.md › MCP tools) run here too. The reads (851-3216),
+/// `list_cards`, `get_card` and `preview_card`, on the cards synced to this Mac and with its
+/// engine. The writes (851-4014), `create_card`, `update_card`, `delete_card` and
+/// `reorder_cards`, are checked here, then asked of the app (`HealthCLI.askApp`), which writes them
+/// as Summary's editor does, locally and through sync: the app's sync engine stays the only writer
+/// of its database, which this server only reads. They never write Health data.
 enum HealthMCPServer {
-  /// The tools, decoded from the toolkit's definitions, without the card tools' writes, which the
-  /// remote server answers and this one doesn't yet (851-4014). `HealthMCPServerTests` checks they
-  /// decode and list exactly as the file has them.
+  /// The tools, decoded from the toolkit's definitions: every one, as the remote server lists them.
+  /// `HealthMCPServerTests` checks they decode and list exactly as the file has them.
   static let tools: [Tool] = {
     do {
       return try JSONDecoder().decode([Tool].self, from: Data(mcpToolsJSON.utf8))
-        .filter { !remoteOnlyTools.contains($0.name) }
     } catch {
       fatalError("MCPToolsJSON.swift doesn't decode as MCP tools: \(error)")
     }
   }()
 
-  /// The tools in `mcp-tools.json` this server doesn't list: the card tools' writes (851-3215),
-  /// until it answers them through the app (851-4014).
-  static let remoteOnlyTools: Set<String> = [
+  /// The card tools that write, through the app.
+  static let writeTools: Set<String> = [
     "create_card", "update_card", "delete_card", "reorder_cards",
   ]
 
@@ -61,10 +62,11 @@ enum HealthMCPServer {
   /// What the server tells agents when they connect.
   static let instructions = """
     Reads the person's Apple Health data that lil health has synced to this Mac, read-only and \
-    offline. Start with summary; find types with list_types or search. list_cards, get_card and \
-    preview_card read the cards on lil health's Summary and preview new ones. Every call is \
-    logged in lil health › Settings… › Agents, and fails while Allow access on this Mac is off \
-    there.
+    offline. Start with summary; find types with list_types or search. The card tools manage the \
+    cards on lil health's Summary: preview a card with preview_card before creating it. They \
+    change cards only, never Health data, and their changes sync to the person's devices. Every \
+    call is logged in lil health › Settings… › Agents, and fails while Allow access on this Mac \
+    is off there.
     """
 
   /// Serves on standard input and output until the client closes them, then exits.
@@ -96,7 +98,7 @@ enum HealthMCPServer {
         tools: .init(listChanged: false)))
     await server.withMethodHandler(ListTools.self) { _ in ListTools.Result(tools: tools) }
     await server.withMethodHandler(CallTool.self) { parameters in
-      try call(parameters.name, arguments: parameters.arguments ?? [:], context: context)
+      try await call(parameters.name, arguments: parameters.arguments ?? [:], context: context)
     }
     await server.withMethodHandler(ListResources.self) { _ in
       ListResources.Result(resources: [catalog])
@@ -117,7 +119,17 @@ enum HealthMCPServer {
   /// message. Arguments that don't fit the tool's input schema are the request's error.
   static func call(
     _ name: String, arguments: [String: Value], context: HealthCLI.Context
-  ) throws -> CallTool.Result {
+  ) async throws -> CallTool.Result {
+    if writeTools.contains(name) {
+      let write = try CardWriteCall(name: name, arguments: arguments)
+      // It waits for the app, seconds at most, off Swift's own threads.
+      return await withCheckedContinuation { continuation in
+        DispatchQueue.global().async {
+          continuation.resume(
+            returning: cardWrite(write, name: name, arguments: arguments, context: context))
+        }
+      }
+    }
     let query = try ToolCall(name: name, arguments: arguments).query
     do {
       // Before every call, not once: turning access off stops the next one.
@@ -133,30 +145,91 @@ enum HealthMCPServer {
       let database = try HealthDatabase.openForReading(
         at: context.directory.appending(path: "Health.sqlite"))
       let tools = HealthTools(now: context.now(), defaultTimeZone: context.timeZone)
-      let output = try database.read { db in try query(tools, db) }
-      // As the commands' `--json` writes it: keys sorted, so the text is the same from one run
-      // to the next (`JSONEncoder` keeps no order of its own), and `Europe/London`, not
-      // `Europe\/London`, as the remote server writes it.
-      let encoder = JSONEncoder()
-      encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-      let json = try encoder.encode(output)
-      let structured: Value? = try JSONDecoder().decode(Value.self, from: json)
-      return CallTool.Result(
-        content: [.text(text: String(decoding: json, as: UTF8.self), annotations: nil, _meta: nil)],
-        structuredContent: structured, isError: false)
+      return try result(try await database.read { db in try query(tools, db) })
     } catch {
-      return CallTool.Result(
-        content: [.text(text: error.localizedDescription, annotations: nil, _meta: nil)],
-        isError: true)
+      return failure(error)
     }
   }
 
+  /// A card write (851-4014): logged and checked for access as every call is, then checked on the
+  /// cards synced to this Mac, then asked of the app, which answers once it's stored; the answer
+  /// is read back from the database, so it's what the app wrote.
+  static func cardWrite(
+    _ write: CardWriteCall, name: String, arguments: [String: Value], context: HealthCLI.Context
+  ) -> CallTool.Result {
+    do {
+      try AgentAccessStore(directory: context.directory)
+        .authorize(
+          command: logEntry(name, loggedArguments(name, arguments)), process: context.process)
+      NSTimeZone.resetSystemTimeZone()
+      let url = context.directory.appending(path: "Health.sqlite")
+      let tools = HealthTools(now: context.now(), defaultTimeZone: context.timeZone)
+      func read<T>(_ value: (Database) throws -> T) throws -> T {
+        try HealthDatabase.openForReading(at: url).read { db in try value(db) }
+      }
+      switch write {
+      case .create(let input, let timeZone):
+        let input = try HealthTools.parsedSpec(input)
+        let spec = try read { db in try tools.checkCreate(spec: input, timeZone: timeZone, db) }
+        guard case .card(let id) = try HealthCLI.askApp(.createCard(spec: spec), context: context)
+        else { throw HealthCLI.ActionError.notAnswered }
+        return try result(try read { db in try tools.cardResult(id: id, timeZone: timeZone, db) })
+      case .update(let id, let input, let timeZone):
+        let input = try HealthTools.parsedSpec(input)
+        let spec = try read { db in
+          try tools.checkUpdate(id: id, spec: input, timeZone: timeZone, db)
+        }
+        _ = try HealthCLI.askApp(.updateCard(id: id, spec: spec), context: context)
+        return try result(try read { db in try tools.cardResult(id: id, timeZone: timeZone, db) })
+      case .delete(let id):
+        try read { db in try tools.checkDelete(id: id, db) }
+        _ = try HealthCLI.askApp(.deleteCard(id: id), context: context)
+        return try result(HealthCardDeletedResult(deleted: id))
+      case .reorder(let ids):
+        try read { db in try tools.checkReorder(ids: ids, db) }
+        _ = try HealthCLI.askApp(.reorderCards(ids: ids), context: context)
+        return try result(try read { db in try tools.cardOrder(db) })
+      }
+    } catch {
+      return failure(error)
+    }
+  }
+
+  /// A tool's output as structured content and as JSON text: as the commands' `--json` writes it,
+  /// keys sorted, so the text is the same from one run to the next (`JSONEncoder` keeps no order
+  /// of its own), and `Europe/London`, not `Europe\/London`, as the remote server writes it.
+  private static func result(_ output: any HealthToolOutput) throws -> CallTool.Result {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+    let json = try encoder.encode(output)
+    let structured: Value? = try JSONDecoder().decode(Value.self, from: json)
+    return CallTool.Result(
+      content: [.text(text: String(decoding: json, as: UTF8.self), annotations: nil, _meta: nil)],
+      structuredContent: structured, isError: false)
+  }
+
+  /// A tool's own failure, with its message, which the agent reads.
+  private static func failure(_ error: any Error) -> CallTool.Result {
+    CallTool.Result(
+      content: [.text(text: error.localizedDescription, annotations: nil, _meta: nil)],
+      isError: true)
+  }
+
   /// What a call's log entry keeps of its arguments: those the tool takes, but never a card's
-  /// spec, which stands in as its types and range, e.g. `preview_card {"range":"W","types":
-  /// ["HKQuantityTypeIdentifierHeartRate"]}` (docs/decisions/cards.md › The access log).
+  /// spec, which stands in as its types and range for a preview, e.g. `preview_card {"range":"W",
+  /// "types":["HKQuantityTypeIdentifierHeartRate"]}`, and as its name for a write, e.g.
+  /// `create_card {"name":"Sleeping Heart Rate"}`, and `reorder_cards`' IDs as how many
+  /// (docs/decisions/cards.md › The access log).
   static func loggedArguments(_ name: String, _ arguments: [String: Value]) -> [String: Value] {
     var logged = arguments.filter { toolArguments[name]?.contains($0.key) == true }
-    if let spec = logged.removeValue(forKey: "spec") {
+    if case .array(let ids)? = logged.removeValue(forKey: "ids") {
+      logged["count"] = .int(ids.count)
+    }
+    if writeTools.contains(name), let spec = logged.removeValue(forKey: "spec") {
+      if let name = CardJSON(toolArgument: spec).flatMap(HealthTools.cardName) {
+        logged["name"] = .string(name)
+      }
+    } else if let spec = logged.removeValue(forKey: "spec") {
       let json = CardJSON(toolArgument: spec)
       if let types = json.flatMap(HealthTools.cardTypes) {
         logged["types"] = .array(types.map(Value.string))
@@ -176,6 +249,46 @@ enum HealthMCPServer {
     encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
     guard let json = try? encoder.encode(arguments) else { return name }
     return name + " " + String(decoding: json, as: UTF8.self)
+  }
+}
+
+/// A card write's arguments, checked against its input schema as `ToolCall` checks the others'.
+enum CardWriteCall: Sendable {
+  /// A spec that's `nil` is JSON text that isn't JSON.
+  case create(spec: CardJSON?, timeZone: String?)
+  case update(id: String, spec: CardJSON?, timeZone: String?)
+  case delete(id: String)
+  case reorder(ids: [String])
+
+  init(name: String, arguments values: [String: Value]) throws {
+    let arguments = Arguments(values: values)
+    /// Any JSON: what isn't a spec comes back as the validator's errors, or JSON text that isn't
+    /// JSON as `invalidJSON`, as on the remote server.
+    func spec() throws -> CardJSON? {
+      guard let value = values["spec"] else { throw MCPError.invalidParams("spec is required") }
+      return CardJSON(toolArgument: value)
+    }
+    switch name {
+    case "create_card":
+      self = .create(spec: try spec(), timeZone: try arguments.string("timeZone"))
+    case "update_card":
+      self = .update(
+        id: try arguments.required("id", arguments.string), spec: try spec(),
+        timeZone: try arguments.string("timeZone"))
+    case "delete_card":
+      self = .delete(id: try arguments.required("id", arguments.string))
+    case "reorder_cards":
+      guard case .array(let items)? = values["ids"] else {
+        throw MCPError.invalidParams("ids must be an array of strings")
+      }
+      let ids = items.compactMap(\.stringValue)
+      guard ids.count == items.count, ids.count <= 200 else {
+        throw MCPError.invalidParams("ids must be an array of at most 200 strings")
+      }
+      self = .reorder(ids: ids)
+    default:
+      throw MCPError.invalidParams("Unknown tool: \(name)")
+    }
   }
 }
 
@@ -271,12 +384,7 @@ private struct ToolCall {
       let timeZone = try timeZone()
       let firstWeekday = try arguments.weekday("firstWeekday")
       query = { tools, db in
-        guard let spec = CardJSON(toolArgument: value) else {
-          throw HealthToolError(
-            HealthTools.specErrorsMessage([
-              CardSpecError(path: "", code: .invalidJSON, message: "The spec isn't valid JSON.")
-            ]))
-        }
+        let spec = try HealthTools.parsedSpec(CardJSON(toolArgument: value))
         return try tools.previewCard(
           spec: spec, range: range, date: date, timeZone: timeZone, firstWeekday: firstWeekday,
           db)

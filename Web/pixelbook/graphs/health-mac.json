@@ -75,6 +75,7 @@
       "title": "Access Log",
       "states": [
         "Access log",
+        "Access log: card changes",
         "Access log: off",
         "Access log: empty",
         "Access log: loading",

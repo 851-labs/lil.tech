@@ -25,6 +25,11 @@ import SQLiteData
 /// It presents the card editor (851-3208): New Card…, Edit… and Delete…, from Summary and a
 /// card's page, write through it. And Reorder Cards… (851-3210), a list to drag the cards into
 /// order, since Summary's grouped form can't reorder its rows by dragging.
+///
+/// It also performs the local MCP server's card writes (851-4014, ``Action/agentRequested(_:)``):
+/// each is a write like the editor's, shown at once, and answered once sync has stored it locally,
+/// so the tool reads it back from the database. A refused one is answered with why, in the remote
+/// server's words, and never shows in the app's alerts.
 @Reducer
 public struct CardsFeature {
   @ObservableState
@@ -45,6 +50,8 @@ public struct CardsFeature {
     @Presents public var alert: AlertState<Action.Alert>?
     /// Whether Reorder Cards… is open (851-3210).
     public var isReordering = false
+    /// Agents' card writes that came before the cards were read, done once they are.
+    var waitingAgentRequests: [AgentRequest] = []
 
     /// Cards given, e.g. in catalogs, are shown at once; otherwise they're read (``Action/task``).
     public init(cards: [Card]? = nil) {
@@ -71,6 +78,18 @@ public struct CardsFeature {
       var mutations: [SyncMutation]
       var upserted: [Card] = []
       var deleted: [Card.ID] = []
+      /// The agent's request it does, answered with `answer` once it's stored.
+      var agent: AgentRequest?
+      var answer: HealthAppActionResult = .done
+    }
+
+    /// An agent's card write (``HealthAppActionRequest``), told apart by its ID: who to answer
+    /// isn't state the cards show.
+    struct AgentRequest: Equatable, Identifiable {
+      let id: UUID
+      let request: HealthAppActionRequest
+
+      static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
     }
 
     /// `cards` with `writes` over them, in order.
@@ -88,6 +107,9 @@ public struct CardsFeature {
   public enum Action {
     /// Reads the cards, then follows their changes, until cancelled.
     case task
+    /// An agent's card write, from the local MCP server (851-4014): `createCard`, `updateCard`,
+    /// `deleteCard` or `reorderCards`. Answered once it's stored, or with why it was refused.
+    case agentRequested(HealthAppActionRequest)
     case cardsLoaded([Card])
     case cardsFailedToLoad(String)
     /// Adds a card with `spec` at the end.
@@ -141,6 +163,7 @@ public struct CardsFeature {
   @Dependency(\.date.now) var now
   @Dependency(\.defaultDatabase) var database
   @Dependency(\.sync) var sync
+  @Dependency(\.uuid) var uuid
   @Dependency(\.withRandomNumberGenerator) var withRandomNumberGenerator
 
   public init() {}
@@ -159,18 +182,36 @@ public struct CardsFeature {
         }
         .cancellable(id: CancelID.observation, cancelInFlight: true)
 
+      case .agentRequested(let request):
+        let agent = State.AgentRequest(id: uuid(), request: request)
+        if let failure = state.loadFailure {
+          return Self.answer(agent, .failure(HealthAppActionError.cardNotSaved(failure)))
+        }
+        guard state.isLoaded else {
+          state.waitingAgentRequests.append(agent)
+          return .none
+        }
+        return perform(agent, &state)
+
       case .cardsLoaded(let cards):
         state.cards = State.merged(cards, state.unsaved)
         state.isLoading = false
         state.loadFailure = nil
-        return .none
+        let waiting = state.waitingAgentRequests
+        state.waitingAgentRequests = []
+        var effects: [Effect<Action>] = []
+        for agent in waiting { effects.append(perform(agent, &state)) }
+        return .merge(effects)
 
       case .cardsFailedToLoad(let message):
         state.isLoading = false
         state.loadFailure = message
         // Nothing to reorder any more: Summary says why.
         state.isReordering = false
-        return .none
+        let waiting = state.waitingAgentRequests
+        state.waitingAgentRequests = []
+        return .merge(
+          waiting.map { Self.answer($0, .failure(HealthAppActionError.cardNotSaved(message))) })
 
       case .createCard(let spec):
         return create(spec, &state)
@@ -219,14 +260,20 @@ public struct CardsFeature {
 
       case .pushFinished:
         guard !state.unsaved.isEmpty else { return .none }
-        state.unsaved.removeFirst()
-        return pushNext(state)
+        let write = state.unsaved.removeFirst()
+        return .merge(
+          write.agent.map { Self.answer($0, .success(write.answer)) } ?? .none, pushNext(state))
 
       case .pushFailed(let stored):
         guard !state.unsaved.isEmpty else { return .none }
-        state.unsaved.removeFirst()
+        let write = state.unsaved.removeFirst()
         if let stored { state.cards = State.merged(stored, state.unsaved) }
-        return pushNext(state)
+        return .merge(
+          write.agent.map {
+            Self.answer(
+              $0, .failure(HealthAppActionError.cardNotSaved("lil health couldn't save the card.")))
+          } ?? .none,
+          pushNext(state))
 
       case .newCardButtonTapped:
         guard state.canCreateCard else { return .none }
@@ -305,6 +352,67 @@ public struct CardsFeature {
       CardEditorFeature()
     }
     .ifLet(\.$alert, action: \.alert)
+  }
+
+  /// An agent's card write (851-4014), on the cards as they show, with what's not yet stored: shown
+  /// and queued like the editor's, or answered at once when it's refused or changes nothing.
+  private func perform(_ agent: State.AgentRequest, _ state: inout State) -> Effect<Action> {
+    let cards = Array(state.cards)
+    let now = now
+    var write: State.Write
+    do throws(CardWriteError) {
+      switch agent.request.action {
+      case .createCard(let spec):
+        let id = withRandomNumberGenerator { CardID.make(at: now, using: &$0) }
+        let card = try Card.new(spec, after: cards, id: id, now: now)
+        write = State.Write(mutations: [], upserted: [card], answer: .card(id: id))
+      case .updateCard(let id, let spec):
+        guard let card = state.cards[id: id] else { throw .notFound }
+        write = State.Write(
+          mutations: [], upserted: [try card.replaced(with: spec, now: now)],
+          answer: .card(id: id))
+      case .deleteCard(let id):
+        guard let card = state.cards[id: id] else { throw .notFound }
+        write = State.Write(mutations: [card.delete], deleted: [id])
+      case .reorderCards(let ids):
+        let moved = try Card.reordering(cards, to: ids, now: now)
+        guard !moved.isEmpty else { return Self.answer(agent, .success(.done)) }
+        write = State.Write(mutations: [], upserted: moved)
+      case .open, .sync, .export:
+        return Self.answer(
+          agent, .failure(HealthAppActionError.cardNotSaved("That isn't a card change.")))
+      }
+    } catch {
+      return Self.answer(
+        agent, .failure(HealthAppActionError.cardNotSaved(Self.agentMessage(error, agent))))
+    }
+    do {
+      write.mutations += try write.upserted.map { try $0.upsert() }
+    } catch {
+      reportIssue(error)
+      return Self.answer(
+        agent, .failure(HealthAppActionError.cardNotSaved("lil health couldn't save the card.")))
+    }
+    write.agent = agent
+    return enqueue(write, &state)
+  }
+
+  /// Why an agent's write was refused, as the remote server's card tools say it.
+  private static func agentMessage(_ error: CardWriteError, _ agent: State.AgentRequest) -> String {
+    switch (error, agent.request.action) {
+    case (.notFound, .updateCard(let id, _)), (.notFound, .deleteCard(let id)):
+      "No card with the id \(CardJSON.string(id).text()). list_cards lists them."
+    case (.invalidSpec(let errors), _):
+      errors.description
+    default:
+      error.localizedDescription
+    }
+  }
+
+  private static func answer(
+    _ agent: State.AgentRequest, _ result: Result<HealthAppActionResult, any Error>
+  ) -> Effect<Action> {
+    .run { _ in agent.request.finish(result) }
   }
 
   /// Adds a card with `spec` at the end.

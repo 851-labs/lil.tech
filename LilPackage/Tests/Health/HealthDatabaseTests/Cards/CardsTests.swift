@@ -200,6 +200,73 @@ struct CardWritesTests {
 
 /// Syncing cards (851-3204): pulled into `healthCards`, written through `LilSyncEngine.push` as
 /// whole rows, the last writer winning per card, and caught up by a Mac synced before cards.
+/// An agent's new order (851-4014): as the remote server does, the most cards already in order
+/// keep their positions, and the others get one between their new neighbors'.
+struct CardReorderTests {
+  private func order(_ cards: [Card], _ moved: [Card]) -> [String] {
+    var byID = Dictionary(uniqueKeysWithValues: cards.map { ($0.id, $0) })
+    for card in moved { byID[card.id] = card }
+    return byID.values.sorted { $0.precedes($1) }.map(\.id)
+  }
+
+  @Test
+  func movesOnlyWhatsOutOfOrder() throws {
+    let ids = seedCards.map(\.id)
+    // The last first: only it moves, before the first.
+    let lastFirst = [ids[5]] + ids[0..<5]
+    let moved = try Card.reordering(seedCards, to: lastFirst, now: now)
+    #expect(moved.map(\.id) == [ids[5]])
+    #expect(moved[0].position.utf8.lexicographicallyPrecedes("a0".utf8))
+    #expect(moved[0].updatedAt == nowMilliseconds)
+    #expect(order(seedCards, moved) == lastFirst)
+
+    // Reversed: one keeps its place, the rest move around it.
+    let reversed = Array(ids.reversed())
+    let all = try Card.reordering(seedCards, to: reversed, now: now)
+    #expect(all.count == 5)
+    #expect(order(seedCards, all) == reversed)
+
+    // In order already: nothing to write.
+    #expect(try Card.reordering(seedCards, to: ids, now: now).isEmpty)
+  }
+
+  @Test
+  func cardsTiedOnAPositionAreToldApart() throws {
+    let cards = [card("card_a", at: "a1"), card("card_b", at: "a1"), card("card_c", at: "a2")]
+    let moved = try Card.reordering(cards, to: ["card_b", "card_a", "card_c"], now: now)
+    #expect(moved.count == 1)
+    #expect(order(cards, moved) == ["card_b", "card_a", "card_c"])
+  }
+
+  @Test
+  func needsEveryCardOnce() {
+    let ids = seedCards.map(\.id)
+    let error = CardWriteError.notEveryCard(
+      missing: Array(ids[2...]), unknown: ["card_nope"], repeated: [ids[0]])
+    #expect(throws: error) {
+      try Card.reordering(
+        seedCards, to: [ids[0], ids[1], ids[0], "card_nope", "card_nope"], now: now)
+    }
+    #expect(
+      error.localizedDescription
+        == "reorder_cards needs every card's id once: missing \(ids[2...].joined(separator: ", ")); "
+        + "unknown card_nope; more than once \(ids[0]). list_cards lists them.")
+  }
+
+  @Test
+  func replacingASpecKeepsItsPlaceAndAnUnreadableOneToo() throws {
+    var later = card("card_later", at: "a3")
+    later.spec = nil
+    later.storedSpec = ["version": 2]
+    later.updatedAt = nowMilliseconds + 5000
+    let replaced = try later.replaced(with: spec("Fixed"), now: now)
+    #expect(replaced.spec?.display.name == "Fixed")
+    #expect(replaced.position == "a3" && replaced.createdAt == later.createdAt)
+    // Never back in time, as on the remote server.
+    #expect(replaced.updatedAt == nowMilliseconds + 5000)
+  }
+}
+
 @Suite
 struct CardSyncTests {
   let server = CardSyncServer()

@@ -60,6 +60,9 @@ extension HealthCLI {
     /// For `open` to answer once claimed: the app's wait for sign-in after a launch
     /// (`HealthAppActions.signInWait`, 10 s), then a little more. 15 s.
     public var openWait: Duration
+    /// For a card write from `lil-health mcp` to answer once claimed (851-4014): the app's wait
+    /// for sign-in after a launch, then a little more, as for `open`. 15 s.
+    public var cardWait: Duration
     /// Between looks at the request.
     public var pollInterval: Duration
     /// Between looks at an export the app has claimed, which can take minutes: the request's
@@ -68,12 +71,14 @@ extension HealthCLI {
 
     public init(
       claimWait: Duration = .seconds(15), syncWait: Duration = .seconds(75),
-      openWait: Duration = .seconds(15), pollInterval: Duration = .milliseconds(200),
+      openWait: Duration = .seconds(15), cardWait: Duration = .seconds(15),
+      pollInterval: Duration = .milliseconds(200),
       slowPollInterval: Duration = .seconds(1)
     ) {
       self.claimWait = claimWait
       self.syncWait = syncWait
       self.openWait = openWait
+      self.cardWait = cardWait
       self.pollInterval = pollInterval
       self.slowPollInterval = slowPollInterval
     }

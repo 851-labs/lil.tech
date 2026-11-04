@@ -115,6 +115,7 @@ struct CommandLineActionsTests {
         case .open: return .done
         case .sync: throw HealthAppActionError.offline
         case .export(let folder): return .exported(folder.appending(path: "a.tar"))
+        case .createCard, .updateCard, .deleteCard, .reorderCards: return .card(id: "card_a")
         }
       }
     }

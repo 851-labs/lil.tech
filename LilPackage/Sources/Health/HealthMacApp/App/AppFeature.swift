@@ -184,6 +184,9 @@ public struct AppFeature {
           // The export Settings shows, so it's one at a time with an export started there, and
           // signing out stops it (`AccountFeature.cancel()`).
           return .send(.account(.dataExport(.exportToFolderRequested(folder, request))))
+        case .createCard, .updateCard, .deleteCard, .reorderCards:
+          // Written as Summary's are, so they show at once and sync (851-4014).
+          return .send(.cards(.agentRequested(request)))
         }
 
       case .binding:
