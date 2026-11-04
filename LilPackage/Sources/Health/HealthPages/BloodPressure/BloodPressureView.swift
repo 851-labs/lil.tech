@@ -264,9 +264,7 @@ struct BloodPressureContent: View {
             }
         }
       }
-      .chartAccessibility(
-        "Blood Pressure, \(span)", isEmpty: chart.points.isEmpty,
-        emptyLabel: ChartFormat.noData(span))
+      .chartAccessibility("Blood Pressure", period: span, isEmpty: chart.points.isEmpty)
     }
   }
 

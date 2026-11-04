@@ -21,10 +21,13 @@
       let state = try #require(cardDetailCatalog.states.first { $0.name == name })
       let window = try #require(hostWindow())
       // SwiftUI makes its elements only while accessibility is on, as VoiceOver turns it on.
-      let setAccessibility = try #require(accessibilityEnabledSetter)
-      setAccessibility(true)
-      defer { setAccessibility(false) }
-      let controller = UIHostingController(rootView: state.view())
+      let accessibility = try #require(Accessibility())
+      let wasOn = accessibility.isEnabled()
+      accessibility.setEnabled(true)
+      defer { accessibility.setEnabled(wasOn) }
+      // As `draw` shows it, in the suite's locale: these states have none of their own.
+      let controller = UIHostingController(
+        rootView: state.view().environment(\.locale, Locale(identifier: "en_US")))
       let host = window.rootViewController
       window.rootViewController = controller
       defer {
@@ -65,10 +68,17 @@
   }
 
   /// libAccessibility's switch for the app's accessibility, which VoiceOver and XCUITest turn on.
-  private let accessibilityEnabledSetter: (@convention(c) (Bool) -> Void)? = {
-    guard let library = dlopen("/usr/lib/libAccessibility.dylib", RTLD_NOW),
-      let symbol = dlsym(library, "_AXSApplicationAccessibilitySetEnabled")
-    else { return nil }
-    return unsafeBitCast(symbol, to: (@convention(c) (Bool) -> Void).self)
-  }()
+  private struct Accessibility {
+    let isEnabled: @convention(c) () -> Bool
+    let setEnabled: @convention(c) (Bool) -> Void
+
+    init?() {
+      guard let library = dlopen("/usr/lib/libAccessibility.dylib", RTLD_NOW),
+        let get = dlsym(library, "_AXSApplicationAccessibilityEnabled"),
+        let set = dlsym(library, "_AXSApplicationAccessibilitySetEnabled")
+      else { return nil }
+      isEnabled = unsafeBitCast(get, to: (@convention(c) () -> Bool).self)
+      setEnabled = unsafeBitCast(set, to: (@convention(c) (Bool) -> Void).self)
+    }
+  }
 #endif

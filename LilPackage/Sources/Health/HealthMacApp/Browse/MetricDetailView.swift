@@ -481,9 +481,7 @@ struct MetricDetailContent: View {
       .chartPlotStyle { $0.clipped() }
       .chartXSelection(value: $hovered)
       .valueAxis(shown, domain: yDomain)
-      .chartAccessibility(
-        "\(type.name), \(span)", isEmpty: chart.points.isEmpty,
-        emptyLabel: ChartFormat.noData(span))
+      .chartAccessibility(type.name, period: span, isEmpty: chart.points.isEmpty)
     }
   }
 

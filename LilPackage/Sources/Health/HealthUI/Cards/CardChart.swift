@@ -312,8 +312,7 @@ public struct CardChart: View {
       }
     #endif
     .valueAxis(shown, domain: yDomain)
-    .chartAccessibility(
-      "\(spec.display.name), \(span)", isEmpty: isEmpty, emptyLabel: PeriodFormat.noData(span))
+    .chartAccessibility(spec.display.name, period: span, isEmpty: isEmpty)
   }
 
   /// A series' point in the card's style, in the card's color at the series' opacity: a bar from

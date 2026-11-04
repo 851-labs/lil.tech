@@ -1,4 +1,5 @@
 #if os(macOS)
+  import Accessibility
   import AppKit
   import SwiftUI
   import Testing
@@ -39,23 +40,33 @@
     }
 
     /// Some of the states above as VoiceOver reads them, so the checks can't pass by reading
-    /// nothing.
-    @Test func chartAccessibilityReadsCharts() throws {
-      func labels(_ catalog: StateCatalog, _ name: String) throws -> [String: Int] {
-        let tree = try #require(catalog.states.first { $0.name == name }).accessibilityTree()
-        // What's read, by label, with the elements' children: a chart's points.
-        return Dictionary(
-          tree.filter { $0.isChart || $0.saysNoData }.map { ($0.spoken, $0.children.count) },
-          uniquingKeysWith: +)
-      }
-      // A card's page with three days of steps, and the same week with none.
-      #expect(try labels(cardDetailCatalog, "Steps, week") == ["Steps, Aug 11 – 17, 2024": 3])
+    /// nothing: each page's chart with data (its label, points and Audio Graph) and without.
+    @Test(arguments: [
+      (cardDetailCatalog, "Steps, week", "Steps, Aug 11 – 17, 2024", 3, true),
+      (cardDetailCatalog, "Steps, no data", "No data for Aug 11 – 17, 2024", 0, false),
+      (metricDetailCatalog, "Steps, week", "Steps, Aug 11 – 17, 2024", 3, true),
+      (metricDetailCatalog, "Steps, no data", "No data for Aug 11 – 17, 2024", 0, false),
+      (sleepCatalog, "Week", "Sleep, Aug 7 – 13, 2024", 114, false),
+      (sleepCatalog, "Month without sleep", "No data for Nov 14 – Dec 13, 2023", 0, false),
+      (symptomsCatalog, "Headache, week", "Headache, Aug 4 – 10, 2024", 4, true),
+      (symptomsCatalog, "Headache, not present", "Not present in Aug 4 – 10, 2024", 0, false),
+      (bloodPressureCatalog, "Blood pressure, week", "Blood Pressure, Aug 11 – 17, 2024", 1, false),
+      (bloodPressureCatalog, "No blood pressure", "No data for Aug 11 – 17, 2024", 0, false),
+    ])
+    func chartAccessibilityReads(
+      _ catalog: StateCatalog, state name: String, label: String, points: Int,
+      hasChartDescriptor: Bool
+    ) throws {
+      let state = try #require(catalog.states.first { $0.name == name })
+      let tree = state.accessibilityTree()
+      let charts = tree.filter { $0.isChart || $0.saysNoData }
+      #expect(charts.map(\.spoken) == [label], sourceLocation: state.sourceLocation)
+      #expect(charts.map(\.children.count) == [points], sourceLocation: state.sourceLocation)
+      // Swift Charts' description, which VoiceOver's Audio Graph plays, stays on the chart (Sleep's
+      // and Blood Pressure's charts never had one).
       #expect(
-        try labels(cardDetailCatalog, "Steps, no data") == ["No data for Aug 11 – 17, 2024": 0])
-      // Metric Detail's chart, its own.
-      #expect(try labels(metricDetailCatalog, "Steps, week") == ["Steps, Aug 11 – 17, 2024": 3])
-      #expect(
-        try labels(metricDetailCatalog, "Steps, no data") == ["No data for Aug 11 – 17, 2024": 0])
+        charts.map(\.hasChartDescriptor) == [hasChartDescriptor],
+        sourceLocation: state.sourceLocation)
     }
   }
 
@@ -66,6 +77,8 @@
     /// In screen coordinates.
     let frame: CGRect
     let children: [AccessibilityNode]
+    /// Whether it describes a chart for Audio Graphs (`AXChart`), as Swift Charts' charts do.
+    let hasChartDescriptor: Bool
 
     init(_ element: Any) {
       // SwiftUI's elements are of a private class that `as? NSAccessibilityProtocol` doesn't
@@ -74,6 +87,7 @@
       role = object.accessibilityRole?()?.rawValue ?? ""
       label = object.accessibilityLabel?() ?? ""
       frame = object.accessibilityFrame?() ?? .zero
+      hasChartDescriptor = (element as? any AXChart)?.accessibilityChartDescriptor != nil
       children = ((object.accessibilityChildren?()).flatMap { $0 } ?? []).map(
         AccessibilityNode.init)
     }
