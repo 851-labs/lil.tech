@@ -182,10 +182,12 @@ private struct DelayedProgressModifier: ViewModifier {
     let isVisible = progress?.isVisible ?? (isLoading && timing.followsLoad)
     // Loaded, while the spinner finishes its minimum time.
     let hidesContent = isVisible && !isLoading
+    // Its opacity hides it from VoiceOver too. Never `accessibilityHidden(hidesContent)`: its
+    // `false`, once loaded, shows what the content hid from VoiceOver, on the Mac and the iPhone
+    // (851-4047): `ContentUnavailableView`'s symbol, decorative images, a nested spinner's twin.
     content
       .opacity(hidesContent ? 0 : 1)
       .allowsHitTesting(!hidesContent)
-      .accessibilityHidden(hidesContent)
       .overlay {
         DelayedSpinner(isVisible: isVisible)
       }
