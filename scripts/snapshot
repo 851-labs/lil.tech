@@ -27,10 +27,13 @@
 #                iPhone 18 Pro simulator, so Liquid Glass renders. <test> is a test's name in
 #                `PhoneSnapshotTests`, e.g. `syncStatus`, not a regular expression.
 #                - The simulator is its own, `lil-snapshots` (`LIL_SNAPSHOT_SIMULATOR`), on iOS
-#                  27.0 (`LIL_SNAPSHOT_RUNTIME`, the identifier `simctl list runtimes` shows), so
-#                  every Mac renders the same images. It's made when missing, booted while the
-#                  build runs, and left booted for the next run. A boot that fails or takes over
-#                  5 minutes is tried again, the third time on a new simulator.
+#                  27.2 build 24B8117 (`LIL_SNAPSHOT_RUNTIME`, the identifier `simctl list
+#                  runtimes` shows, and `LIL_SNAPSHOT_RUNTIME_BUILD`), which laptops and the minis
+#                  all have, so every Mac renders the same images (851-4010). It stops if that
+#                  identifier is another build. It's made when missing, remade when it's on another
+#                  runtime, booted while the build runs, and left booted for the next run. A boot
+#                  that fails or takes over 5 minutes is tried again, the third time on a new
+#                  simulator.
 #                - It builds with `scripts/xcodebuild` (`Lil.xcworkspace`, scheme
 #                  `HealthPhoneSnapshotTests`), with the compilation cache, into
 #                  `.build/DerivedData` (`LIL_SNAPSHOT_DERIVED_DATA`), then runs the tests.
@@ -142,7 +145,15 @@ make_sheet() {
 if $iphone; then
   simulator=${LIL_SNAPSHOT_SIMULATOR:-lil-snapshots}
   device_type=com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro
-  runtime=${LIL_SNAPSHOT_RUNTIME:-com.apple.CoreSimulator.SimRuntime.iOS-27-0}
+  # The runtime by identifier and build, so a later 27.2 build installed under the same identifier
+  # can't change the images. Another identifier is checked for its build only when given one.
+  if [ -n "${LIL_SNAPSHOT_RUNTIME:-}" ]; then
+    runtime=$LIL_SNAPSHOT_RUNTIME
+    runtime_build=${LIL_SNAPSHOT_RUNTIME_BUILD:-}
+  else
+    runtime=com.apple.CoreSimulator.SimRuntime.iOS-27-2
+    runtime_build=${LIL_SNAPSHOT_RUNTIME_BUILD:-24B8117}
+  fi
   derived=${LIL_SNAPSHOT_DERIVED_DATA:-$root/.build/DerivedData}
   test_limit=${LIL_SNAPSHOT_TIMEOUT:-600}
   build_limit=${LIL_SNAPSHOT_BUILD_TIMEOUT:-1800}
@@ -177,25 +188,58 @@ if $iphone; then
     ' "$@" </dev/null
   }
 
-  # The simulators of that name, a line each with its identifier and state, booted ones first,
-  # e.g. `A5C5…432B Booted`; nothing if there's none. Two can share the name when deleting a hung
-  # one failed. Three tries, since under load `simctl` can stop answering; exits if it never does.
+  # The simulators of that name, on every runtime, a line each with its identifier, state and
+  # whether it's on the runtime (`current`, or `stale` when it's on another or one that's gone,
+  # like the 27.0 ones before 851-4010), current and booted ones first, e.g.
+  # `A5C5…432B Booted current`; nothing if there's none. Two can share the name when deleting a
+  # hung one failed. Three tries, since under load `simctl` can stop answering; exits if it never
+  # does. Leaves `simctl list`'s JSON in `$listing`, for `check_runtime`.
+  listing="${TMPDIR:-/tmp}/lil-snapshot-devices.json"
   find_devices() {
     for _ in 1 2 3; do
-      if limit 120 xcrun simctl list -j devices >"${TMPDIR:-/tmp}/lil-snapshot-devices.json" &&
+      if limit 120 xcrun simctl list -j >"$listing" &&
         python3 -I -c '
 import json, sys
 name, runtime, path = sys.argv[1:]
-devices = [device for device in json.load(open(path))["devices"].get(runtime, [])
-    if device["name"] == name and device.get("isAvailable", True)]
-for device in sorted(devices, key=lambda device: device["state"] != "Booted"):
-    print(device["udid"], device["state"])
-' "$simulator" "$runtime" "${TMPDIR:-/tmp}/lil-snapshot-devices.json"; then
+devices = [(device, key == runtime and device.get("isAvailable", True))
+    for key, devices in json.load(open(path))["devices"].items()
+    for device in devices if device["name"] == name]
+for device, current in sorted(devices, key=lambda pair: (not pair[1], pair[0]["state"] != "Booted")):
+    print(device["udid"], device["state"], "current" if current else "stale")
+' "$simulator" "$runtime" "$listing"; then
         return 0
       fi
     done
     echo "error: \`simctl list\` didn't answer in 3 tries. Is CoreSimulator stuck?" >&2
     exit 1
+  }
+
+  # Stops unless the runtime is installed, and is the build it's pinned to: a later build under
+  # the same identifier (which CoreSimulator would boot instead) draws other images.
+  check_runtime() {
+    installed=$(python3 -I -c '
+import json, sys
+runtime, path = sys.argv[1:]
+for entry in json.load(open(path))["runtimes"]:
+    if entry["identifier"] == runtime and entry.get("isAvailable", True):
+        print(entry.get("buildversion") or "unknown")
+        break
+' "$runtime" "$listing")
+    if [ -z "$installed" ]; then
+      echo "error: the runtime $runtime isn't installed (xcrun simctl list runtimes). Install it" >&2
+      echo "with Xcode, or set LIL_SNAPSHOT_RUNTIME to pick another." >&2
+      exit 1
+    elif [ -n "$runtime_build" ] && [ "$installed" != "$runtime_build" ]; then
+      echo "error: $runtime is build $installed, not $runtime_build, which the references are" >&2
+      echo "rendered with. Install that build and choose it (xcrun simctl runtime match set" >&2
+      echo "iphoneos27.2 $runtime_build), or set LIL_SNAPSHOT_RUNTIME_BUILD." >&2
+      exit 1
+    fi
+  }
+
+  delete_device() {
+    limit 120 xcrun simctl shutdown "$1" 2>/dev/null || true
+    limit 120 xcrun simctl delete "$1"
   }
 
   devices=$(find_devices) || exit 1
@@ -205,13 +249,21 @@ for device in sorted(devices, key=lambda device: device["state"] != "Booted"):
       exit 0
     fi
     for device in $(echo "$devices" | cut -d " " -f 1); do
-      limit 120 xcrun simctl shutdown "$device" 2>/dev/null || true
-      limit 120 xcrun simctl delete "$device"
+      delete_device "$device"
       echo "Deleted the simulator $simulator ($device)."
     done
     exit 0
   fi
-  info=$(echo "$devices" | head -n 1)
+  check_runtime
+  # One on another runtime is deleted, and made again on this one.
+  for device in $(echo "$devices" | grep " stale$" | cut -d " " -f 1); do
+    if delete_device "$device"; then
+      echo "Deleted the simulator $simulator ($device), which was on another runtime than $runtime."
+    else
+      echo "warning: couldn't delete the simulator $simulator ($device), on another runtime." >&2
+    fi
+  done
+  info=$(echo "$devices" | grep " current$" | head -n 1 | cut -d " " -f 1-2)
   device=${info%% *}
 
   create_device() {
