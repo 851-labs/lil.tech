@@ -5,7 +5,7 @@
     "Times in outputs are local, with their offset, in the call's time zone: UTC when it gives none (the Mac's side runs in UTC).",
     "<new card>, in an expected output, is the ID of the card the case makes, a ULID of now; in a later call's arguments or output it's that ID again.",
     "Outputs match as JSON, except that numbers may differ by a relative 1e-9. Every card's data is the answer the engine's conformance case of the same spec, period and calendar has (../conformance/cases.json), written by hand; the cards' fields follow from the seed, `cards` and the tools' rules (docs/decisions/cards.md).",
-    "Arguments outside a tool's input schema (a range not in its list, a missing id or spec) are the tool's error on both servers, in the remote's words: `Invalid parameters for tool '<tool>': ` and each issue with where it is, in the schema's order (851-4034)."
+    "Arguments outside a tool's input schema (a range not in its list, a missing id or spec) are the tool's error on both servers, in the remote's words: `Invalid parameters for tool '<tool>': ` and each issue with where it is, in the schema's order (851-4034). A `date` is any string in the schema, and a run refuses one that isn't a day from 2000-01-01 to 2999-12-31 in the Health tools' words, `Invalid date: …` (851-4044)."
   ],
   "seededAt": "2026-10-20T13:00:00Z",
   "cards": [
@@ -1390,7 +1390,7 @@
             "id": "card_seed_steps",
             "date": "2026-02-31"
           },
-          "expectedError": "Unknown date: 2026-02-31. Use a day that exists, as YYYY-MM-DD."
+          "expectedError": "Invalid date: 2026-02-31. Use a day that exists, as YYYY-MM-DD."
         },
         {
           "tool": "get_card",
@@ -1398,7 +1398,23 @@
             "id": "card_seed_steps",
             "date": "20-10-2026"
           },
-          "expectedError": "Unknown date: 20-10-2026. Use a day that exists, as YYYY-MM-DD."
+          "expectedError": "Invalid date: 20-10-2026. Use a day that exists, as YYYY-MM-DD."
+        },
+        {
+          "tool": "get_card",
+          "arguments": {
+            "id": "card_seed_steps",
+            "date": "1582-10-10"
+          },
+          "expectedError": "Invalid date: 1582-10-10. Use a day from 2000-01-01 to 2999-12-31."
+        },
+        {
+          "tool": "get_card",
+          "arguments": {
+            "id": "card_seed_steps",
+            "date": "0000-01-01"
+          },
+          "expectedError": "Invalid date: 0000-01-01. Use a day from 2000-01-01 to 2999-12-31."
         }
       ]
     },

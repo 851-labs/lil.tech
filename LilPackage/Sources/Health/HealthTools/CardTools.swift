@@ -261,11 +261,7 @@ extension HealthTools {
     calendar.firstWeekday = firstWeekday.calendarWeekday
     let day: Date
     if let date {
-      do {
-        day = try time.day(date)
-      } catch {
-        throw HealthToolError("Unknown date: \(date). Use a day that exists, as YYYY-MM-DD.")
-      }
+      day = try time.day(date)
     } else {
       // The period the card's page opens on, as the apps' pages do (851-3987).
       day =

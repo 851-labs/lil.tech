@@ -322,7 +322,7 @@ let mcpToolsJSON = #"""
         },
         "date": {
           "type": "string",
-          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`. Defaults to today."
+          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`, from 2000 to 2999. Defaults to today."
         },
         "timeZone": {
           "type": "string",
@@ -464,7 +464,7 @@ let mcpToolsJSON = #"""
         },
         "date": {
           "type": "string",
-          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`. Defaults to today."
+          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`, from 2000 to 2999. Defaults to today."
         },
         "timeZone": {
           "type": "string",
@@ -635,7 +635,7 @@ let mcpToolsJSON = #"""
         },
         "date": {
           "type": "string",
-          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`. Defaults to today."
+          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`, from 2000 to 2999. Defaults to today."
         },
         "timeZone": {
           "type": "string",
@@ -933,7 +933,7 @@ let mcpToolsJSON = #"""
         },
         "date": {
           "type": "string",
-          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`. Defaults to today."
+          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`, from 2000 to 2999. Defaults to today."
         },
         "timeZone": {
           "type": "string",
@@ -1800,7 +1800,7 @@ let mcpToolsJSON = #"""
         },
         "date": {
           "type": "string",
-          "description": "A day in the period, as YYYY-MM-DD in `timeZone`. Defaults to the period the card's page opens on: its latest value's, as its Summary row shows it (today's without one)."
+          "description": "A day in the period, as YYYY-MM-DD in `timeZone`, from 2000 to 2999. Defaults to the period the card's page opens on: its latest value's, as its Summary row shows it (today's without one)."
         },
         "timeZone": {
           "type": "string",
@@ -2849,7 +2849,7 @@ let mcpToolsJSON = #"""
         },
         "date": {
           "type": "string",
-          "description": "A day in the period, as YYYY-MM-DD in `timeZone`. Defaults to the period the card's page opens on: its latest value's, as its Summary row shows it (today's without one)."
+          "description": "A day in the period, as YYYY-MM-DD in `timeZone`, from 2000 to 2999. Defaults to the period the card's page opens on: its latest value's, as its Summary row shows it (today's without one)."
         },
         "timeZone": {
           "type": "string",
