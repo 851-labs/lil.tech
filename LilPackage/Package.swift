@@ -299,6 +299,8 @@ let package = Package(
         "LilTestSupport",
         "HealthDatabase",
         "HealthMacApp",
+        // The pages' requests, for `PageFetchesBenchmark`.
+        "HealthPages",
         "HealthUI",
         "LilAPI",
         "LilAuth",
