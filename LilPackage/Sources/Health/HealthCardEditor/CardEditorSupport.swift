@@ -31,9 +31,6 @@ extension CardFilterChoicesClient: TestDependencyKey {
   public static var testValue: Self {
     Self(load: unimplemented("CardFilterChoicesClient.load", placeholder: CardFilterChoices()))
   }
-
-  /// No choices: the filter offers only what it has.
-  public static var previewValue: Self { Self { _ in CardFilterChoices() } }
 }
 
 extension CardEditorFeature.State {
@@ -49,9 +46,12 @@ extension CardEditorFeature.State {
     return edited
   }
 
-  /// Whether closing the editor would lose something: a new card's type or name, or an edit.
+  /// Whether closing the editor would lose something: a new card's type, name, symbol or color,
+  /// or an edit.
   public var hasChanges: Bool {
-    guard let original else { return !needsType || !name.isEmpty }
+    guard let original else {
+      return !needsType || !name.isEmpty || isSymbolChosen || isColorChosen
+    }
     return draft != original
   }
 }

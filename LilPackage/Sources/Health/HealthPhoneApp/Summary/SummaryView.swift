@@ -131,6 +131,10 @@ struct SummaryContent<Row: View>: View {
   var showSettings: () -> Void = {}
   /// A card's row, with its headline.
   @ViewBuilder let row: (Card) -> Row
+  #if os(iOS)
+    @Environment(\.editMode) private var editMode
+  #endif
+
   var body: some View {
     List {
       if syncStatus.isShownAsRow {
@@ -145,10 +149,16 @@ struct SummaryContent<Row: View>: View {
       }
     }
     .navigationTitle("Summary")
+    // Fewer than two cards (another device deleted one) leave nothing to reorder, and no Done.
+    #if os(iOS)
+      .onChange(of: canReorder) { _, canReorder in
+        if !canReorder { editMode?.wrappedValue = .inactive }
+      }
+    #endif
     .toolbar {
       // Reordering, by dragging the rows' handles (851-3213).
       #if os(iOS)
-        if case .loaded(let cards) = cards, cards.count > 1 {
+        if canReorder || isEditing {
           ToolbarItem(placement: .topBarLeading) {
             EditButton()
           }
@@ -170,6 +180,20 @@ struct SummaryContent<Row: View>: View {
           .disabled(!canCreateCard)
       }
     }
+  }
+
+  /// Whether there are cards to put in another order: two or more.
+  private var canReorder: Bool {
+    guard case .loaded(let cards) = cards else { return false }
+    return cards.count > 1
+  }
+
+  private var isEditing: Bool {
+    #if os(iOS)
+      editMode?.wrappedValue.isEditing == true
+    #else
+      false
+    #endif
   }
 
   /// Whether a card can be added: the cards are read, and there are fewer than the most.
@@ -208,8 +232,10 @@ struct SummaryContent<Row: View>: View {
           row(card)
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-          // It asks first, so the row stays until it's confirmed.
-          Button("Delete", systemImage: "trash", role: .destructive) { actions.delete(card) }
+          // It asks first, so the row stays until it's confirmed: a destructive role would take
+          // it out of the list at once.
+          Button("Delete", systemImage: "trash") { actions.delete(card) }
+            .tint(.red)
         }
         .contextMenu {
           // A later version's card can only be deleted.
@@ -272,7 +298,7 @@ struct CardPreview: View {
       let result: CardRow.Headline
       do {
         result = .loaded(
-          try await Self.headline(of: spec, in: healthKitCards, now: date.now, calendar: calendar))
+          try await healthKitCards.headlineOffMain(spec, now: date.now, calendar: calendar))
       } catch {
         guard !(error is CancellationError) else { return }
         result = CardRow.Headline(failure: error)
@@ -281,14 +307,6 @@ struct CardPreview: View {
       headline = result
       headlines[card.id] = (run, result)
     }
-  }
-
-  /// Off the main actor: the engine weighs and aggregates the readings HealthKit returns.
-  @concurrent
-  private static func headline(
-    of spec: CardSpec, in cards: HealthKitCards, now: Date, calendar: Calendar
-  ) async throws -> CardHeadline? {
-    try await cards.headline(spec, now, calendar)
   }
 }
 

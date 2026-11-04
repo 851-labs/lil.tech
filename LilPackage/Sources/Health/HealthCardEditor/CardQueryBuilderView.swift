@@ -9,8 +9,7 @@ public import SwiftUI
 // label), with Add Series; Chart (each point, the range it opens on, style, unit, goal); and
 // Formulas (moving averages and differences). Each control offers only what the rules allow, and
 // the validator's errors show in a row under the field they're about. On the iPhone (851-3213) a
-// series' type is a page the sheet pushes, and menus of several choices stay open as they're
-// picked.
+// series' type is a page the sheet pushes, and numbers are sent as they're typed.
 
 /// The query builder's sections, in the editor's form.
 struct CardQueryBuilderSections: View {
@@ -302,15 +301,21 @@ struct CardNumberField: View {
   var body: some View {
     LabeledContent(title) {
       HStack(spacing: 4) {
-        TextField(
-          title, value: Binding(get: { value }, set: { change($0) }), format: .number,
-          prompt: nil
-        )
-        .labelsHidden()
-        .multilineTextAlignment(.trailing)
-        .frame(width: 56)
         #if os(iOS)
-          .keyboardType(.numberPad)
+          CardTypedNumber(title, value: Double(value), isWhole: true) {
+            if let typed = $0 { change(Int(typed)) }
+          }
+          .labelsHidden()
+          .multilineTextAlignment(.trailing)
+          .frame(width: 56)
+        #else
+          TextField(
+            title, value: Binding(get: { value }, set: { change($0) }), format: .number,
+            prompt: nil
+          )
+          .labelsHidden()
+          .multilineTextAlignment(.trailing)
+          .frame(width: 56)
         #endif
         Stepper(
           title,
@@ -323,6 +328,74 @@ struct CardNumberField: View {
     }
   }
 }
+
+#if os(iOS)
+  /// A number typed on the iPhone, sent as it's typed: a number pad has no Return to commit a
+  /// `TextField(value:format:)`, and Save in the navigation bar doesn't end editing, so a number
+  /// committed only then would never reach the card. Empty is `nil`; text that isn't a number
+  /// yet sends nothing.
+  struct CardTypedNumber: View {
+    let title: String
+    let value: Double?
+    var prompt: Text?
+    var isWhole = false
+    let change: (Double?) -> Void
+    @State private var text: String
+
+    init(
+      _ title: String, value: Double?, prompt: Text? = nil, isWhole: Bool = false,
+      change: @escaping (Double?) -> Void
+    ) {
+      self.title = title
+      self.value = value
+      self.prompt = prompt
+      self.isWhole = isWhole
+      self.change = change
+      _text = State(initialValue: Self.text(of: value, isWhole: isWhole))
+    }
+
+    var body: some View {
+      TextField(title, text: $text, prompt: prompt)
+        .keyboardType(isWhole ? .numberPad : .decimalPad)
+        .onChange(of: text) { _, text in
+          guard let typed = Self.number(in: text, isWhole: isWhole),
+            !Self.isSame(typed, value)
+          else { return }
+          change(typed)
+        }
+        // A value changed elsewhere (a stepper, a unit) shows; the one typed, converted to the
+        // card's unit and back, stays as typed.
+        .onChange(of: value) { _, value in
+          guard let typed = Self.number(in: text, isWhole: isWhole), Self.isSame(typed, value)
+          else {
+            text = Self.text(of: value, isWhole: isWhole)
+            return
+          }
+        }
+    }
+
+    /// The number typed: `.some(nil)` for nothing, `nil` for text that isn't one.
+    static func number(in text: String, isWhole: Bool) -> Double?? {
+      let text = text.trimmingCharacters(in: .whitespaces)
+      guard !text.isEmpty else { return .some(nil) }
+      if isWhole { return Int(text).map { .some(Double($0)) } }
+      return Double(text.replacingOccurrences(of: ",", with: ".")).map { .some($0) }
+    }
+
+    static func text(of value: Double?, isWhole: Bool) -> String {
+      guard let value else { return "" }
+      return isWhole ? String(Int(value)) : value.formatted(.number.grouping(.never))
+    }
+
+    static func isSame(_ a: Double?, _ b: Double?) -> Bool {
+      switch (a, b) {
+      case (nil, nil): true
+      case (let a?, let b?): abs(a - b) <= 1e-9 * max(1, abs(a))
+      default: false
+      }
+    }
+  }
+#endif
 
 /// A time of the 24-hour clock, to the minute, picked as the locale writes times.
 struct CardClockPicker: View {
@@ -394,7 +467,6 @@ struct CardActivitiesMenu: View {
       }
     }
     .fixedSize()
-    .keepsMenuOpen()
   }
 }
 
@@ -487,7 +559,6 @@ struct CardChoicesMenu: View {
       }
     }
     .fixedSize()
-    .keepsMenuOpen()
   }
 }
 
@@ -581,18 +652,6 @@ public struct CardTypeList: View {
   }
 }
 
-extension View {
-  /// A menu of several choices stays open on the iPhone while they're picked, as a Mac's closes
-  /// after each, as menus there do.
-  fileprivate func keepsMenuOpen() -> some View {
-    #if os(iOS)
-      menuActionDismissBehavior(.disabled)
-    #else
-      self
-    #endif
-  }
-}
-
 // MARK: - Chart
 
 /// What each point covers, the range the card opens on, its style, unit and goal.
@@ -658,18 +717,24 @@ struct CardChartSection: View {
       }
     return LabeledContent("Goal") {
       HStack(spacing: 6) {
-        TextField(
-          "Goal",
-          value: Binding(
-            get: { draft.chart.goal.map { shown.convert($0.value) } },
-            set: { store.send(.goalChanged($0.map { ($0 - shown.offset) / shown.scale })) }),
-          format: .number, prompt: Text("None")
-        )
-        .labelsHidden()
-        .multilineTextAlignment(.trailing)
-        .frame(width: 90)
         #if os(iOS)
-          .keyboardType(.decimalPad)
+          CardTypedNumber(
+            "Goal", value: draft.chart.goal.map { shown.convert($0.value) }, prompt: Text("None")
+          ) { store.send(.goalChanged($0.map { ($0 - shown.offset) / shown.scale })) }
+          .labelsHidden()
+          .multilineTextAlignment(.trailing)
+          .frame(width: 90)
+        #else
+          TextField(
+            "Goal",
+            value: Binding(
+              get: { draft.chart.goal.map { shown.convert($0.value) } },
+              set: { store.send(.goalChanged($0.map { ($0 - shown.offset) / shown.scale })) }),
+            format: .number, prompt: Text("None")
+          )
+          .labelsHidden()
+          .multilineTextAlignment(.trailing)
+          .frame(width: 90)
         #endif
         if !label.isEmpty {
           Text(label)

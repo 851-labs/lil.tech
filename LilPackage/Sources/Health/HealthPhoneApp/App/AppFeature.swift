@@ -122,7 +122,7 @@ public struct AppFeature {
 
       // Deleted here, from its editor: back to Summary. One another device or an agent deletes
       // still says so on its page.
-      case .cards(.deleteCard(let id)):
+      case .cards(.deleteCard(let id)) where state.cards.isLoaded:
         state.summaryPath.removeAll { $0 == .card(id) }
         return .none
 

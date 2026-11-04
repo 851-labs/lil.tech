@@ -439,7 +439,8 @@ public struct HealthKitCardEngine: Sendable {
     guard let type = HKObjectType.quantityType(forIdentifier: .init(rawValue: typeID)) else {
       return CardFilterChoices()
     }
-    let apps: [CardFilterChoices.App] = try await run { finish in
+    // Both at once: neither needs the other.
+    async let apps: [CardFilterChoices.App] = run { finish in
       HKSourceQuery(sampleType: type, samplePredicate: nil) { _, sources, error in
         guard let sources else {
           return finish(.failure(error ?? HKError(.errorHealthDataUnavailable)))
@@ -450,7 +451,7 @@ public struct HealthKitCardEngine: Sendable {
               .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }))
       }
     }
-    let models: [String] = try await run { finish in
+    async let models: [String] = run { finish in
       HKSampleQuery(
         sampleType: type, predicate: nil, limit: Self.filterChoiceSamples,
         sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
@@ -461,7 +462,7 @@ public struct HealthKitCardEngine: Sendable {
         finish(.success(Self.models(samples.compactMap { $0.device?.model })))
       }
     }
-    return CardFilterChoices(apps: apps, deviceModels: models)
+    return try await CardFilterChoices(apps: apps, deviceModels: models)
   }
 
   /// Each model once, the most common first, then by name.

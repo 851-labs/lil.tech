@@ -186,16 +186,14 @@ struct CardChartPage: View {
       guard let offset else {
         // The row hadn't found the latest data: find it, then load that period (`offset` changes
         // the task's ID, which runs it again).
-        let headline = try await Self.headline(
-          of: spec, in: healthKitCards, now: now, calendar: calendar)
+        let headline = try await healthKitCards.headlineOffMain(spec, now: now, calendar: calendar)
         try Task.checkCancellation()
         self.offset = range.openingOffset(latest: headline?.date, now: now, calendar: calendar)
         return
       }
       let period = range.interval(offset: offset, now: now, calendar: calendar)
-      let data = try await Self.data(
-        of: spec, range: range, date: period.start, in: healthKitCards, now: now,
-        calendar: calendar)
+      let data = try await healthKitCards.dataOffMain(
+        spec, range: range, date: period.start, now: now, calendar: calendar)
       try Task.checkCancellation()
       chart = CardPeriod(range: range, offset: offset, spec: spec, data: data)
       failure = nil
@@ -203,22 +201,6 @@ struct CardChartPage: View {
       guard !(error is CancellationError), !Task.isCancelled else { return }
       failure = error.localizedDescription
     }
-  }
-
-  /// Off the main actor: the engine weighs and aggregates the readings HealthKit returns.
-  @concurrent
-  private static func data(
-    of spec: CardSpec, range: CardRange, date: Date, in cards: HealthKitCards, now: Date,
-    calendar: Calendar
-  ) async throws -> CardData {
-    try await cards.data(spec, range, date, now, calendar)
-  }
-
-  @concurrent
-  private static func headline(
-    of spec: CardSpec, in cards: HealthKitCards, now: Date, calendar: Calendar
-  ) async throws -> CardHeadline? {
-    try await cards.headline(spec, now, calendar)
   }
 }
 
@@ -286,5 +268,25 @@ struct CardDetailContent: View {
         Button("Edit", action: edit)
       }
     }
+  }
+}
+
+extension HealthKitCards {
+  /// A card's period, off the main actor: the engine weighs and aggregates the readings HealthKit
+  /// returns. For a card's page and the editor's preview.
+  @concurrent
+  func dataOffMain(
+    _ spec: CardSpec, range: CardRange, date: Date, now: Date, calendar: Calendar
+  ) async throws -> CardData {
+    try await data(spec, range, date, now, calendar)
+  }
+
+  /// A card's headline, off the main actor: Summary's rows, and where a page or the editor's
+  /// preview opens.
+  @concurrent
+  func headlineOffMain(_ spec: CardSpec, now: Date, calendar: Calendar) async throws
+    -> CardHeadline?
+  {
+    try await headline(spec, now, calendar)
   }
 }

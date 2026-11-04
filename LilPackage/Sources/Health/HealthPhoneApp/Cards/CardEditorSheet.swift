@@ -66,14 +66,12 @@ struct CardEditorPreview: View {
     defer { if !Task.isCancelled { isLoading = false } }
     do {
       let range = query.range
-      let latest = try await Self.headline(
-        of: query, in: healthKitCards, now: now, calendar: calendar)
+      let latest = try await healthKitCards.headlineOffMain(query, now: now, calendar: calendar)
       try Task.checkCancellation()
       let offset = range.openingOffset(latest: latest?.date, now: now, calendar: calendar)
       let period = range.interval(offset: offset, now: now, calendar: calendar)
-      let data = try await Self.data(
-        of: query, range: range, date: period.start, in: healthKitCards, now: now,
-        calendar: calendar)
+      let data = try await healthKitCards.dataOffMain(
+        query, range: range, date: period.start, now: now, calendar: calendar)
       try Task.checkCancellation()
       chart = CardPeriod(range: range, offset: offset, spec: query, data: data)
       chartSpec = spec
@@ -81,21 +79,5 @@ struct CardEditorPreview: View {
       guard !(error is CancellationError), !Task.isCancelled else { return }
       failure = error.localizedDescription
     }
-  }
-
-  /// Off the main actor: the engine weighs and aggregates the readings HealthKit returns.
-  @concurrent
-  private static func data(
-    of spec: CardSpec, range: CardRange, date: Date, in cards: HealthKitCards, now: Date,
-    calendar: Calendar
-  ) async throws -> CardData {
-    try await cards.data(spec, range, date, now, calendar)
-  }
-
-  @concurrent
-  private static func headline(
-    of spec: CardSpec, in cards: HealthKitCards, now: Date, calendar: Calendar
-  ) async throws -> CardHeadline? {
-    try await cards.headline(spec, now, calendar)
   }
 }
