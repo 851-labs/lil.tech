@@ -242,16 +242,18 @@ const applyHealthBatch = Effect.fnUntraced(function* (
         finishedAt,
       });
       yield* files.delete(key);
-      // The apply rate, in the message itself: Workers Logs keeps only the text. The wait since
-      // the upload includes any earlier attempts.
+      // The apply rate, in the text and as fields (851-4050). The wait since the upload includes
+      // any earlier attempts.
       if (batch.status === "applied") {
         const applied = batch.applied ?? 0;
+        const lines = batch.lines ?? 0;
         const applyMs = finishedAt - startedAt;
         const rate = Math.round(applied / (Math.max(applyMs, 1) / 1000));
+        const waitMs = startedAt - receivedAt;
         yield* Effect.logInfo(
-          `Health batch applied: ${applied} of ${batch.lines ?? 0} lines in ${applyMs} ms, ` +
-            `${rate} items/s, ${startedAt - receivedAt} ms after it was received`,
-        );
+          `Health batch applied: ${applied} of ${lines} lines in ${applyMs} ms, ` +
+            `${rate} items/s, ${waitMs} ms after it was received`,
+        ).pipe(Effect.annotateLogs({ applied, lines, applyMs, itemsPerSecond: rate, waitMs }));
       }
       return bytes;
     });

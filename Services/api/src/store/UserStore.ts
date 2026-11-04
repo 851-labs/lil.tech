@@ -15,6 +15,7 @@ import { DisposableBucket } from "../Deployment.ts";
 import { makeStoreMcpServers } from "../mcp/StoreMcpServers.ts";
 import { requestPath } from "../oauth/Requests.ts";
 import type { HealthBatch } from "../health/HealthBatches.ts";
+import { WorkersLogs } from "../Logging.ts";
 import { deleteObjects, listObjects, provideRuntime } from "../Runtime.ts";
 import {
   type AgentAccess,
@@ -793,8 +794,9 @@ export const UserStoreLive = UserStore.make(
               .map(toLiveSocket),
           ),
         ),
+        // Outside any event, so with none of its services: the logger is given here.
         later: (delayMs, task) => {
-          setTimeout(() => Effect.runFork(task), delayMs);
+          setTimeout(() => Effect.runFork(Effect.provide(task, WorkersLogs)), delayMs);
         },
       };
       // Keep-alive pings are answered by the runtime without waking the object.

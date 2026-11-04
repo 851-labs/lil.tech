@@ -30,6 +30,7 @@ import {
   RateLimits,
   rateLimits,
 } from "./RateLimits.ts";
+import { WorkersLogs, WorkersLogsTelemetry } from "./Logging.ts";
 import { listObjects, objectBody, provideRuntime } from "./Runtime.ts";
 import { HealthBlobBucket, SnapshotBucket, UserStore, UserStoreLive } from "./store/UserStore.ts";
 import { type OpenedPart, type PartRange, SnapshotParts } from "./sync/SnapshotParts.ts";
@@ -341,6 +342,10 @@ export default class ApiWorker extends Cloudflare.Worker<ApiWorker>()(
       Cloudflare.RateLimitBinding,
       Cloudflare.Workers.CronEventSourceLive,
       UserStoreLive,
+      WorkersLogsTelemetry,
     ]),
+    // Around the rest, so what captures the setup's services, as the API's routes and the store
+    // do, logs as JSON too, not with the isolate's pretty logger (851-4050).
+    Effect.provide(WorkersLogs),
   ),
 ) {}
