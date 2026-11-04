@@ -6,8 +6,8 @@ import type {
   StorageFull,
 } from "../../store/Changes.ts";
 import type { StoreSql } from "../../store/StoreSql.ts";
-import { HealthToolError, isDay } from "../tools/HealthToolkit.ts";
-import { localTime, toolTimeZone } from "../tools/ToolTime.ts";
+import { HealthToolError } from "../tools/HealthToolkit.ts";
+import { isLocalDay, localTime, toolTimeZone } from "../tools/ToolTime.ts";
 import { findHealthType } from "../tools/ToolTypes.ts";
 import { isJsonObject, type Json, type JsonObject } from "./CardJson.ts";
 import { cardPositionBetween, cardPositionsBetween } from "./CardPosition.ts";
@@ -486,7 +486,7 @@ const field = (params: object, name: string): string | null =>
  */
 const dayField = (params: object): string | null => {
   const date = field(params, "date");
-  return date !== null && /^\d{4}-\d{2}-\d{2}$/.test(date) && isDay(date) ? date : null;
+  return date !== null && isLocalDay(date) ? date : null;
 };
 
 /** How many points an answer's data has, across its series and formulas. */

@@ -3,7 +3,7 @@
     "The Health toolkit's conformance cases (851-2841): each runs one tool call on dataset.json, with the clock at `now`, after a Mac from before pins were retired (851-2990) pushes `pins` (if any), and both MCP servers must answer `expected` (or fail with the tool error `expectedError`, word for word).",
     "Outputs match as JSON, except that numbers may differ by a relative 1e-9 (sums added in another order).",
     "Write expected outputs by hand, from the dataset and the tools' descriptions, not by copying what an implementation returns.",
-    "Arguments outside a tool's input schema (a range not in its list, a missing type, a limit out of bounds) are the tool's error on both servers, in the remote's words: `Invalid parameters for tool '<tool>': ` and each issue with where it is, in the schema's order (851-4034). A `date` is any string in the schema, and the tool refuses one that isn't a day: `Invalid date: …`."
+    "Arguments outside a tool's input schema (a range not in its list, a missing type, a limit out of bounds) are the tool's error on both servers, in the remote's words: `Invalid parameters for tool '<tool>': ` and each issue with where it is, in the schema's order (851-4034). A `date` is any string in the schema, and the tool refuses one that isn't a day from 2000-01-01 to 2999-12-31: `Invalid date: …` (851-4044), as the card tools do."
   ],
   "cases": [
     {
@@ -2360,6 +2360,98 @@
         "date": "2026-13-01"
       },
       "expectedError": "Invalid date: 2026-13-01. Use a day that exists, as YYYY-MM-DD."
+    },
+    {
+      "name": "metric on a day before the Gregorian calendar fails: the tools take days from 2000 (851-4044)",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "W",
+        "date": "1582-10-10"
+      },
+      "expectedError": "Invalid date: 1582-10-10. Use a day from 2000-01-01 to 2999-12-31."
+    },
+    {
+      "name": "workouts in year 0 fails",
+      "tool": "workouts",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "M",
+        "date": "0000-01-01"
+      },
+      "expectedError": "Invalid date: 0000-01-01. Use a day from 2000-01-01 to 2999-12-31."
+    },
+    {
+      "name": "sleep on the day before 2000 fails",
+      "tool": "sleep",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "date": "1999-12-31"
+      },
+      "expectedError": "Invalid date: 1999-12-31. Use a day from 2000-01-01 to 2999-12-31."
+    },
+    {
+      "name": "samples on a day that doesn't exist before 2000 fails for the year",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "D",
+        "date": "1900-02-29"
+      },
+      "expectedError": "Invalid date: 1900-02-29. Use a day from 2000-01-01 to 2999-12-31."
+    },
+    {
+      "name": "metric in 3000 fails",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "D",
+        "date": "3000-01-01"
+      },
+      "expectedError": "Invalid date: 3000-01-01. Use a day from 2000-01-01 to 2999-12-31."
+    },
+    {
+      "name": "samples on the first day the tools take, in London: none",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "D",
+        "date": "2000-01-01",
+        "timeZone": "Europe/London"
+      },
+      "expected": {
+        "timeZone": "Europe/London",
+        "range": "D",
+        "start": "2000-01-01T00:00:00+00:00",
+        "end": "2000-01-02T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "samples": [],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "samples on the last day the tools take: the period ends in 3000",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "range": "D",
+        "date": "2999-12-31"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2999-12-31T00:00:00+00:00",
+        "end": "3000-01-01T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierStepCount",
+        "samples": [],
+        "nextCursor": null
+      }
     },
     {
       "name": "search for nothing fails",

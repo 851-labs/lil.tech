@@ -375,7 +375,7 @@ describe("cardData", () => {
       for (const date of ["2026-10", "2026-02-30", "yesterday"]) {
         const malformed = yield* Effect.flip(cardData(sql, seed(1), { date }));
         assert.instanceOf(malformed, HealthToolError);
-        assert.include(malformed.message, "Unknown date");
+        assert.include(malformed.message, "Invalid date");
       }
     }),
   );

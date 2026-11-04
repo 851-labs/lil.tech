@@ -74,16 +74,29 @@ public struct ToolTime: Sendable {
     return calendar.date(byAdding: .day, value: days, to: start) ?? start
   }
 
-  /// The start of a `YYYY-MM-DD` day, which must exist (not 2026-02-31).
+  /// The years the tools take a `date` in (851-4044), as the remote server's `toolYears`. No
+  /// Health data is older than 2000, and before the 1970s Foundation's and Node's time zone data
+  /// can disagree on a zone's offset. Before 1583 the Gregorian calendar here is Julian, and it has
+  /// no year 0, unlike JavaScript's. Up to 2999, so a period's end never has a fifth digit.
+  public static let years = 2000...2999
+
+  /// The start of a `YYYY-MM-DD` day, which must exist (not 2026-02-31) and be in `years`, or the
+  /// tool's error, in the remote server's words (`toolDate`), for the Health tools and the card
+  /// tools alike. The year is checked first, so 1900-02-30 gets the same message on both.
   public func day(_ text: String) throws -> Date {
-    let parts = text.wholeMatch(of: /(\d{4})-(\d{2})-(\d{2})/)
-    guard let parts, let year = Int(parts.1), let month = Int(parts.2), let day = Int(parts.3),
-      let date = calendar.date(from: DateComponents(year: year, month: month, day: day)),
+    let invalid = HealthToolError("Invalid date: \(text). Use a day that exists, as YYYY-MM-DD.")
+    guard let parts = text.wholeMatch(of: /(\d{4})-(\d{2})-(\d{2})/),
+      let year = Int(parts.1), let month = Int(parts.2), let day = Int(parts.3)
+    else { throw invalid }
+    guard Self.years.contains(year) else {
+      throw HealthToolError(
+        "Invalid date: \(text). Use a day from \(Self.years.lowerBound)-01-01 to "
+          + "\(Self.years.upperBound)-12-31.")
+    }
+    guard let date = calendar.date(from: DateComponents(year: year, month: month, day: day)),
       calendar.dateComponents([.year, .month, .day], from: date)
         == DateComponents(year: year, month: month, day: day)
-    else {
-      throw HealthToolError("Invalid date: \(text). Use a day that exists, as YYYY-MM-DD.")
-    }
+    else { throw invalid }
     return calendar.startOfDay(for: date)
   }
 }

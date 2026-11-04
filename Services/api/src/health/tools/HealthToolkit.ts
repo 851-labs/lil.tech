@@ -35,15 +35,9 @@ const range = Schema.Literals(["D", "W", "M", "6M", "Y"]).annotate({
     "ends with `date`).",
 });
 
-/** Whether a `YYYY-MM-DD` string is a day that exists (not 2026-02-31). */
-export const isDay = (day: string) => {
-  const parsed = new Date(`${day}T00:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(day);
-};
-
 /**
- * Any string, as the Mac's `lil-health mcp` takes it: the tool checks it's a day that exists
- * (`toolPeriod`), so both servers refuse one that isn't with the same message, `Invalid date: …`
+ * Any string, as the Mac's `lil-health mcp` takes it: the tool checks it's a day the tools take
+ * (`toolDate`), so both servers refuse one that isn't with the same message, `Invalid date: …`
  * (851-4034), and its description and type list in `mcp-tools.json`, which a checked string's
  * don't.
  */

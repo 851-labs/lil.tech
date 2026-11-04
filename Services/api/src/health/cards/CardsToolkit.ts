@@ -164,9 +164,10 @@ const cardRange = Schema.optionalKey(
 );
 
 /**
- * Any string, as the Mac's `lil-health mcp` takes it: the run checks it's a day that exists
- * (`cardData`), so both servers answer one that isn't alike, `Unknown date: …` (851-3217), rather
- * than this server with its decoding's `Invalid parameters` and the Mac with the tool's message.
+ * Any string, as the Mac's `lil-health mcp` takes it: the run checks it's a day the tools take
+ * (`toolDate`, as the Health tools' `date`), so both servers answer one that isn't alike,
+ * `Invalid date: …` (851-3217, 851-4044), rather than this server with its decoding's
+ * `Invalid parameters` and the Mac with the tool's message.
  */
 const cardDate = Schema.optionalKey(
   Schema.String.annotate({

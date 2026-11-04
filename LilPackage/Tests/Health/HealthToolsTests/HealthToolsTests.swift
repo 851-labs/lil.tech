@@ -95,6 +95,29 @@ struct HealthToolsTests {
   }
 
   @Test
+  func daysAreFrom2000To2999() throws {
+    let utc = try ToolTime(timeZone: "UTC")
+    for text in ["2000-01-01", "2000-02-29", "2999-12-31"] {
+      #expect(utc.localDate(try utc.day(text)) == text)
+    }
+    // Days Foundation's Gregorian calendar has no answer for, or another than JavaScript's (Julian
+    // before 1583, no year 0), are refused for their year, as on the remote server (851-4044).
+    for text in ["1999-12-31", "1582-10-10", "0000-01-01", "1900-02-29", "3000-01-01"] {
+      #expect(
+        throws: HealthToolError(
+          "Invalid date: \(text). Use a day from 2000-01-01 to 2999-12-31.")
+      ) {
+        try utc.day(text)
+      }
+    }
+    #expect(
+      throws: HealthToolError("Invalid date: 2100-02-29. Use a day that exists, as YYYY-MM-DD.")
+    ) {
+      try utc.day("2100-02-29")
+    }
+  }
+
+  @Test
   func rangesEndOnTheirDayInBuckets() throws {
     let time = try ToolTime(timeZone: "UTC")
     func period(_ range: ToolRange, _ date: String? = nil) throws -> ToolPeriod {

@@ -13,6 +13,7 @@ import {
   localTime,
   startOfDay,
   startOfHour,
+  isLocalDay,
   toolDate,
   toolPeriod,
 } from "../../../src/health/tools/ToolTime.ts";
@@ -190,5 +191,22 @@ describe("the toolkit's dates", () => {
         `Invalid date: ${date}. Use a day that exists, as YYYY-MM-DD.`,
       );
     }
+  });
+
+  it("are from 2000 to 2999, where the Mac's calendar and time zones agree (851-4044)", () => {
+    for (const date of ["2000-01-01", "2000-02-29", "2999-12-31"]) {
+      assert.strictEqual(Effect.runSync(toolDate(date)), date);
+      assert.isTrue(isLocalDay(date));
+    }
+    // The year first, so a day that doesn't exist in another year gets the same message.
+    for (const date of ["1999-12-31", "1582-10-10", "0000-01-01", "1900-02-29", "3000-01-01"]) {
+      assert.strictEqual(
+        Effect.runSync(Effect.flip(toolDate(date))).message,
+        `Invalid date: ${date}. Use a day from 2000-01-01 to 2999-12-31.`,
+      );
+      assert.isFalse(isLocalDay(date));
+    }
+    // 2100 isn't a leap year.
+    assert.isFalse(isLocalDay("2100-02-29"));
   });
 });

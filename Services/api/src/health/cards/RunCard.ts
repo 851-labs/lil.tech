@@ -1,8 +1,7 @@
 import { Clock, Effect } from "effect";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import { latestSample } from "../tools/HealthQueries.ts";
-import { HealthToolError, isDay } from "../tools/HealthToolkit.ts";
-import { localDate, localTime, startOfLocalDay } from "../tools/ToolTime.ts";
+import { localDate, localTime, startOfLocalDay, toolDate } from "../tools/ToolTime.ts";
 import {
   type CardCalendar,
   type CardGrain,
@@ -146,9 +145,9 @@ export const runCard = (
 /**
  * A card run as a tool asks for it: over `range` (default the spec's own) for the period containing
  * `date` (`YYYY-MM-DD` in the time zone; by default the card's opening date, `cardOpeningDate`,
- * or today without one), in `timeZone` (an IANA name, default UTC)
- * with weeks from `firstWeekday` (default Monday). An unknown time zone or a malformed date is a
- * `HealthToolError`.
+ * or today without one), in `timeZone` (an IANA name, default UTC) with weeks from
+ * `firstWeekday` (default Monday). An unknown time zone, or a date the tools don't take
+ * (`toolDate`), is a `HealthToolError`.
  */
 export const cardData = Effect.fn("cardData")(function* (
   sql: StoreSql,
@@ -162,17 +161,13 @@ export const cardData = Effect.fn("cardData")(function* (
 ) {
   const calendar = yield* cardCalendar(input.timeZone, input.firstWeekday);
   const now = yield* Clock.currentTimeMillis;
-  if (input.date !== undefined && !(/^\d{4}-\d{2}-\d{2}$/.test(input.date) && isDay(input.date))) {
-    return yield* new HealthToolError({
-      message: `Unknown date: ${input.date}. Use a day that exists, as YYYY-MM-DD.`,
-    });
-  }
+  const day = yield* toolDate(input.date);
   const range = input.range ?? spec.range;
   // Without a date, the period the card's page opens on, as the apps' pages do (851-3987).
   const date =
-    input.date === undefined
+    day === undefined
       ? (cardOpeningDate(sql, spec, range, calendar, now) ?? now)
-      : startOfLocalDay(input.date, calendar.zone);
+      : startOfLocalDay(day, calendar.zone);
   return runCard(sql, spec, range, date, calendar, now);
 });
 
