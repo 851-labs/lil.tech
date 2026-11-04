@@ -85,8 +85,8 @@ public struct CardRow: View {
         sparkline(headline.data, spec: spec, color: color)
           .frame(width: 120, height: 36)
       case .loading, .loaded(nil), .failed, .needsHealthAccess:
-        // The value's line all the same, the chart's height kept, but not its width, so a
-        // failure's reason has the row's on an iPhone (851-3211).
+        // The value's line all the same, the chart's height kept, but not its width, so what the
+        // row says instead of a value has the row's width (851-3211).
         placeholder
         Spacer()
         Color.clear
@@ -108,20 +108,19 @@ public struct CardRow: View {
         .foregroundStyle(.secondary)
         .accessibilityLabel("Loading")
     case .failed(let reason):
+      // An iPhone's row is too narrow for the reason, and has no help tag (851-4020): it says
+      // only that the card failed, and the card's page, which runs it again, says why. The row
+      // keeps its height, as in every state, so a failure moves nothing. VoiceOver reads why.
       #if os(iOS)
-        // An iPhone's row is too narrow for the reason, and has no help tag (851-4020): it says
-        // only that the card failed, and the card's page, which runs it again, says why. The
-        // row keeps its height, as in every state, so a failure moves nothing.
-        Label("Couldn't load this card", systemImage: "exclamationmark.triangle")
-          .lineLimit(1)
-          .foregroundStyle(.secondary)
-          .accessibilityLabel("Couldn't load this card: \(reason)")
+        let title = "Couldn't load this card"
       #else
-        Label("Couldn't load this card: \(reason)", systemImage: "exclamationmark.triangle")
-          .lineLimit(1)
-          .foregroundStyle(.secondary)
-          .help(reason)
+        let title = "Couldn't load this card: \(reason)"
       #endif
+      Label(title, systemImage: "exclamationmark.triangle")
+        .lineLimit(1)
+        .foregroundStyle(.secondary)
+        .help(reason)
+        .accessibilityLabel("Couldn't load this card: \(reason)")
     case .needsHealthAccess:
       Label("Needs access to your Health data", systemImage: "heart.text.square")
         .lineLimit(1)
