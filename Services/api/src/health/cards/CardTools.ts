@@ -169,10 +169,18 @@ const runRange = (spec: CardSpec, range: CardRange | undefined) => {
       );
 };
 
+/**
+ * A stored spec with its keys in the design's order, as the writes return it: the store keeps its
+ * JSON with sorted keys. The values are the same, since the store only keeps canonical specs; one
+ * this server can't read (a later version) comes as it's stored.
+ */
+const inDesignOrder = (spec: Json): JsonObject =>
+  canonicalCardSpec(spec).spec ?? (spec as JsonObject);
+
 /** A card as the tools give it, times local in `zone`. */
 const cardItem = (card: StoredCard, zone: Parameters<typeof localTime>[1]) => ({
   id: card.id,
-  spec: card.spec as JsonObject,
+  spec: inDesignOrder(card.spec),
   position: card.position,
   seed: card.seed,
   createdAt: localTime(card.createdAt, zone),

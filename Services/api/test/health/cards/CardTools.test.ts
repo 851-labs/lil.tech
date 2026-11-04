@@ -140,6 +140,8 @@ describe("the card tools", () => {
 
       const got = yield* call("get_card", { id: card.id, date: "2026-10-20" });
       assert.deepStrictEqual(got.value.card, card);
+      // In the design's order, as written, though the store sorts its JSON's keys.
+      assert.strictEqual(JSON.stringify(got.value.card.spec), JSON.stringify(card.spec));
       assert.deepInclude(got.value.data, { range: "W", start: "2026-10-19", end: "2026-10-25" });
 
       yield* TestClock.adjust("1 minute");
