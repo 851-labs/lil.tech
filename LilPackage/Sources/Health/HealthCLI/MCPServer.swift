@@ -157,16 +157,25 @@ enum HealthMCPServer {
   static func cardWrite(
     _ write: CardWriteCall, name: String, arguments: [String: Value], context: HealthCLI.Context
   ) -> CallTool.Result {
+    let url = context.directory.appending(path: "Health.sqlite")
+    func read<T>(_ value: (Database) throws -> T) throws -> T {
+      try HealthDatabase.openForReading(at: url).read { db in try value(db) }
+    }
     do {
-      try AgentAccessStore(directory: context.directory)
-        .authorize(
-          command: logEntry(name, loggedArguments(name, arguments)), process: context.process)
-      NSTimeZone.resetSystemTimeZone()
-      let url = context.directory.appending(path: "Health.sqlite")
-      let tools = HealthTools(now: context.now(), defaultTimeZone: context.timeZone)
-      func read<T>(_ value: (Database) throws -> T) throws -> T {
-        try HealthDatabase.openForReading(at: url).read { db in try value(db) }
+      let access = AgentAccessStore(directory: context.directory)
+      var logged = loggedArguments(name, arguments)
+      // A delete logs the card's name too, read before it goes, so Settings can say which card
+      // (851-4011), as the remote server's log does. Only for the log, nothing reaches the agent,
+      // and only once access is known to be on: nothing is read while it's off.
+      if case .delete(let id) = write {
+        guard try access.isEnabled() else { throw AgentAccessError.off }
+        if let cardName = try? read({ db in try HealthTools.cardName(id: id, db) }) {
+          logged["name"] = .string(cardName)
+        }
       }
+      try access.authorize(command: logEntry(name, logged), process: context.process)
+      NSTimeZone.resetSystemTimeZone()
+      let tools = HealthTools(now: context.now(), defaultTimeZone: context.timeZone)
       switch write {
       case .create(let input, let timeZone):
         let input = try HealthTools.parsedSpec(input)

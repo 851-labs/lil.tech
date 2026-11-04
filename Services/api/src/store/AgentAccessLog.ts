@@ -40,6 +40,13 @@ export interface AgentAccess {
   readonly outcome: AgentAccessOutcome;
   /** How many rows went back: the items of the answer's lists. */
   readonly rows: number;
+  /**
+   * The card a card tool created, changed or deleted (`card_…`), if one (851-4011). Never its
+   * spec or values.
+   */
+  readonly cardId: string | null;
+  /** That card's name, the person's own words, so the apps can say what an agent changed. */
+  readonly cardName: string | null;
 }
 
 /** Adds a call to the log at `at`, dropping the oldest rows past `maxRows`. */
@@ -52,8 +59,8 @@ export const appendAgentAccess = (
   sql.transaction(() => {
     const [row] = sql.exec(
       `INSERT INTO agent_access_log
-        (at, grant_id, client_name, tool, types, range, date, outcome, rows)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (at, grant_id, client_name, tool, types, range, date, outcome, rows, card_id, card_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id`,
       at,
       access.grantId,
@@ -64,6 +71,8 @@ export const appendAgentAccess = (
       access.date,
       access.outcome,
       access.rows,
+      access.cardId,
+      access.cardName,
     );
     // IDs only grow, so the newest `maxRows` are the last IDs.
     sql.exec("DELETE FROM agent_access_log WHERE id <= ?", Number(row?.["id"]) - policy.maxRows);
@@ -105,7 +114,8 @@ export const readAgentAccessLog = (
 ): Array<LoggedAgentAccess> =>
   sql
     .exec(
-      `SELECT id, at, grant_id, client_name, tool, types, range, date, outcome, rows
+      `SELECT id, at, grant_id, client_name, tool, types, range, date, outcome, rows, card_id,
+          card_name
         FROM agent_access_log
         WHERE id < ?
         ORDER BY id DESC
@@ -128,4 +138,6 @@ export const readAgentAccessLog = (
       date: row["date"] as string | null,
       outcome: row["outcome"] as AgentAccessOutcome,
       rows: row["rows"] as number,
+      cardId: row["card_id"] as string | null,
+      cardName: row["card_name"] as string | null,
     }));

@@ -478,4 +478,13 @@ extension HealthTools {
     if case .string(let name)? = input["display"]?["name"] { return name }
     return nil
   }
+
+  /// A stored card's name, for the access log of a call that names it (`delete_card`, 851-4011),
+  /// read before it goes, as the remote server's log reads it. `nil` for a card that isn't there.
+  public static func cardName(id: String, _ db: Database) throws -> String? {
+    guard let card = try HealthCard.find(id).fetchOne(db),
+      let spec = try? CardJSON(parsing: Data(card.spec.utf8))
+    else { return nil }
+    return cardName(of: spec)
+  }
 }

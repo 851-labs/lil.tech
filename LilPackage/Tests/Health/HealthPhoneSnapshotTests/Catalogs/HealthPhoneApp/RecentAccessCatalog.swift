@@ -6,8 +6,9 @@
   import Testing
 
   // Recent Access (`RecentAccessView`), from Connected Agents: what agents read, newest first,
-  // nothing yet, loading, failed, loading or failing to load the next page, and a log read to its
-  // end. Times are in Los Angeles (the scheme's `TZ`). Synthetic data only (`SyntheticAgents`).
+  // nothing yet, loading, failed, loading or failing to load the next page, a log read to its
+  // end, and an agent's card changes. Times are in Los Angeles (the scheme's `TZ`). Synthetic
+  // data only (`SyntheticAgents`).
 
   extension PhoneSnapshotTests {
     @Test(arguments: recentAccessCatalog.selectedStates)
@@ -48,6 +49,12 @@
           ConnectedAgentsFeature.State(
             agents: .loaded(SyntheticAgents.agents), log: SyntheticAgents.reads(8),
             logFailure: ConnectedAgentsError.unavailable.message, logNextBefore: 992))
+      },
+      // A card tool's write says what changed, with the card's name (851-4011).
+      CatalogState("Card changes") {
+        recentAccess(
+          ConnectedAgentsFeature.State(
+            agents: .loaded(SyntheticAgents.agents), log: SyntheticAgents.cardChanges))
       },
       // Read to the end, with nothing more to show.
       CatalogState("Long log") {

@@ -17,6 +17,8 @@ import type { AgentAccess } from "../../store/AgentAccessLog.ts";
 import type { AccountDeleted } from "../../store/Changes.ts";
 import {
   type AskedFor,
+  askedForNothing,
+  type LoggedCard,
   type CardToolImplementations,
   type CardWrite,
   cardToolLogs,
@@ -127,6 +129,7 @@ const askedFor = (params: object): AskedFor => {
   const type = field("type");
   const known = type === null ? undefined : findHealthType(type);
   return {
+    ...askedForNothing,
     types: known === undefined ? null : [known.id],
     range: field("range"),
     date: field("date"),
@@ -155,6 +158,12 @@ interface ToolLog {
   readonly askedFor: (params: object) => AskedFor;
   /** From the encoded answer; by default the items of its top-level lists. */
   readonly rows?: ((encoded: unknown) => number) | undefined;
+  /**
+   * The card in the encoded answer, which replaces the one `askedFor` read: a write's, such as
+   * the ID a create gave it. From any answer the tool gave, one too large to send included, since
+   * the write happened.
+   */
+  readonly card?: ((encoded: unknown) => LoggedCard | undefined) | undefined;
 }
 
 const healthToolLog: ToolLog = { askedFor };
@@ -183,7 +192,7 @@ const logged =
       const agent = agentOf(request);
       const call = Effect.gen(function* () {
         // A row whatever it is, even if reading what the call asked for fails.
-        let asked: AskedFor = { types: null, range: null, date: null };
+        let asked: AskedFor = askedForNothing;
         try {
           asked = log.askedFor(params);
         } catch (error) {
@@ -208,6 +217,8 @@ const logged =
         if (encoded !== undefined && Exit.isFailure(encoded)) exit = Exit.die(encoded.cause);
         if (encoded !== undefined && Exit.isSuccess(encoded)) {
           bytes = encoded.value.bytes;
+          const card = log.card?.(encoded.value.value);
+          if (card !== undefined) asked = { ...asked, ...card };
           if (bytes > ceiling) {
             outcome = "too_large";
             exit = Exit.fail(

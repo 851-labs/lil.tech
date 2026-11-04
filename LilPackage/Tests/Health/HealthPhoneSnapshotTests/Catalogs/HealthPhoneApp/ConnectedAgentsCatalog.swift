@@ -135,6 +135,36 @@
     }
   }
 
+  extension SyntheticAgents {
+    /// Claude making a card through the remote server (851-4011), newest first, from two hours
+    /// before `previewNow`: listing and reading cards, previewing one, a create the spec refused,
+    /// then creating, renaming and moving it, and deleting another.
+    static let cardChanges: [RemoteAgentAccess] = [
+      card(1, "delete_card", name: "Body Temperature"),
+      card(2, "reorder_cards", rows: 7),
+      card(3, "update_card", name: "Heart Rate Asleep"),
+      card(4, "create_card", name: "Sleeping Heart Rate"),
+      card(5, "create_card", name: "Sleeping Heart Rate", outcome: "error", rows: 0),
+      card(
+        6, "preview_card", types: ["HKQuantityTypeIdentifierHeartRate"], range: "M", id: nil,
+        rows: 30),
+      card(
+        7, "get_card", types: ["HKQuantityTypeIdentifierBodyMass"], range: "M", rows: 24),
+      card(8, "list_cards", id: nil, rows: 7),
+    ]
+
+    private static func card(
+      _ index: Int, _ tool: String, name: String? = nil, types: [String] = [],
+      range: String? = nil, id: String? = "card_01JZ8Q4Y3W6R2N5T7V9X1B3D5F", outcome: String = "ok",
+      rows: Int = 1
+    ) -> RemoteAgentAccess {
+      RemoteAgentAccess(
+        id: 2_000 - index, at: ago(hours: 2 + Double(index) / 20), agentID: claude.id,
+        agentName: "Claude", tool: tool, types: types, range: range, outcome: outcome, rows: rows,
+        cardID: name == nil ? nil : id, cardName: name)
+    }
+  }
+
   /// A time before `previewNow`, so it reads as it would in the app on that day.
   private func ago(days: Double = 0, hours: Double = 0) -> Date {
     previewNow.addingTimeInterval(-(days * 86_400 + hours * 3_600))

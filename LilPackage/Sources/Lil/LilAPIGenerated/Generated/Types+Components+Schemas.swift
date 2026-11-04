@@ -170,6 +170,10 @@ extension Components {
             public var outcome: Swift.String
             /// - Remark: Generated from `#/components/schemas/AgentAccessEntry/rows`.
             public var rows: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/AgentAccessEntry/cardId`.
+            public var cardId: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/AgentAccessEntry/cardName`.
+            public var cardName: Swift.String?
             /// Creates a new `AgentAccessEntry`.
             ///
             /// - Parameters:
@@ -183,6 +187,8 @@ extension Components {
             ///   - date:
             ///   - outcome:
             ///   - rows:
+            ///   - cardId:
+            ///   - cardName:
             public init(
                 id: Swift.Int,
                 at: Swift.Int,
@@ -193,7 +199,9 @@ extension Components {
                 range: Swift.String? = nil,
                 date: Swift.String? = nil,
                 outcome: Swift.String,
-                rows: Swift.Int
+                rows: Swift.Int,
+                cardId: Swift.String? = nil,
+                cardName: Swift.String? = nil
             ) {
                 self.id = id
                 self.at = at
@@ -205,6 +213,8 @@ extension Components {
                 self.date = date
                 self.outcome = outcome
                 self.rows = rows
+                self.cardId = cardId
+                self.cardName = cardName
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -217,6 +227,8 @@ extension Components {
                 case date
                 case outcome
                 case rows
+                case cardId
+                case cardName
             }
         }
         /// - Remark: Generated from `#/components/schemas/ConnectedAgents`.

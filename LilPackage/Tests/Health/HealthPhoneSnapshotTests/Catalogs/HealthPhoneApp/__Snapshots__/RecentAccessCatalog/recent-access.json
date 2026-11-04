@@ -46,6 +46,13 @@
       "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/RecentAccessCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.card-changes-dark.png",
+      "id" : "recent-access.card-changes",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.card-changes-light.png",
+      "name" : "Card changes",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/RecentAccessCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.long-log-dark.png",
       "id" : "recent-access.long-log",
       "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/RecentAccessCatalog/recent-access.long-log-light.png",

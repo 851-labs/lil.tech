@@ -76,10 +76,11 @@ struct CardWriteToolsTests {
     #expect(deleted.text == #"{"deleted":"\#(card.card.id)"}"#)
     #expect(try cards(folder).count == 6)
 
-    // Each call logged once, with its arguments in short, never the spec.
+    // Each call logged once, with its arguments in short, never the spec; a delete with the
+    // card's name, read before it went (851-4011).
     #expect(
       try folder.access.entries().map(\.command) == [
-        #"delete_card {"id":"\#(card.card.id)"}"#,
+        #"delete_card {"id":"\#(card.card.id)","name":"Asleep"}"#,
         #"update_card {"id":"\#(card.card.id)","name":"Asleep"}"#,
         #"create_card {"name":"Sleeping Heart Rate"}"#,
       ])

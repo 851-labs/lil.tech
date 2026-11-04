@@ -371,6 +371,8 @@ describe("GET /v1/me/agents/access-log", () => {
     date: "2026-10-20",
     outcome: "ok",
     rows: 7,
+    cardId: null,
+    cardName: null,
     ...overrides,
   });
 
@@ -460,6 +462,46 @@ describe("GET /v1/me/agents/access-log", () => {
             "/v1/me/agents/access-log?before=soon",
           );
           assert.strictEqual(invalid.status, 400);
+        }),
+      preview,
+    ),
+  );
+
+  it.live("names the card a card tool changed, and leaves the fields out for other calls", () =>
+    withApi(
+      (handler) =>
+        Effect.gen(function* () {
+          const ada = yield* signIn;
+          // Opens the store, so its tables exist.
+          yield* app(handler, ada.accessToken, "GET", "/v1/me/agents/access-log");
+          const sql = (yield* TestStores).sqlFor(ada.userId)!;
+          appendAgentAccess(sql, access(), 1);
+          appendAgentAccess(
+            sql,
+            access({
+              tool: "create_card",
+              types: ["HKQuantityTypeIdentifierBodyMass"],
+              range: null,
+              date: null,
+              rows: 1,
+              cardId: "card_01jbtest000000000000000000",
+              cardName: "Morning Weight",
+            }),
+            2,
+          );
+          const { entries } = (yield* app(
+            handler,
+            ada.accessToken,
+            "GET",
+            "/v1/me/agents/access-log",
+          )).body as LogBody;
+          assert.deepInclude(entries[0], {
+            tool: "create_card",
+            cardId: "card_01jbtest000000000000000000",
+            cardName: "Morning Weight",
+          });
+          assert.notProperty(entries[1], "cardId");
+          assert.notProperty(entries[1], "cardName");
         }),
       preview,
     ),

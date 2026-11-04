@@ -90,6 +90,7 @@
       "title": "Remote Access Log",
       "states": [
         "Remote access log",
+        "Remote access log: card changes",
         "Remote access log: empty",
         "Remote access log: loading",
         "Remote access log: failed",

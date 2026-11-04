@@ -23,6 +23,8 @@ const access = (overrides: Partial<AgentAccess> = {}): AgentAccess => ({
   date: "2026-10-20",
   outcome: "ok",
   rows: 7,
+  cardId: null,
+  cardName: null,
   ...overrides,
 });
 
@@ -46,6 +48,8 @@ describe("the agents' access log", () => {
         date: "2026-10-20",
         outcome: "ok",
         rows: 7,
+        card_id: null,
+        card_name: null,
       },
       {
         id: 2,
@@ -58,8 +62,37 @@ describe("the agents' access log", () => {
         date: null,
         outcome: "ok",
         rows: 7,
+        card_id: null,
+        card_name: null,
       },
     ]);
+  });
+
+  it("keeps the card a card tool named, with its name (851-4011)", () => {
+    const { sql } = makeTestStore();
+    appendAgentAccess(
+      sql,
+      access({
+        tool: "create_card",
+        types: ["HKQuantityTypeIdentifierBodyMass"],
+        range: null,
+        date: null,
+        rows: 1,
+        cardId: "card_01jbtest000000000000000000",
+        cardName: "Morning Weight",
+      }),
+      1000,
+    );
+    assert.deepStrictEqual(
+      sql.exec("SELECT tool, card_id, card_name FROM agent_access_log ORDER BY id"),
+      [
+        {
+          tool: "create_card",
+          card_id: "card_01jbtest000000000000000000",
+          card_name: "Morning Weight",
+        },
+      ],
+    );
   });
 
   it("keeps at most its newest rows", () => {

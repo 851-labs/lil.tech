@@ -916,17 +916,33 @@ export const ExportDownloadRoute = HttpRouter.use((router) =>
         const agentAccessLog = json(
           accessLog
             .toReversed()
-            .map(({ at, grantId, clientName, tool, types, range, date, outcome, rows }) => ({
-              at: new Date(at).toISOString(),
-              agentId: grantId,
-              agentName: clientName,
-              tool,
-              types,
-              range,
-              date,
-              outcome,
-              rows,
-            })),
+            .map(
+              ({
+                at,
+                grantId,
+                clientName,
+                tool,
+                types,
+                range,
+                date,
+                outcome,
+                rows,
+                cardId,
+                cardName,
+              }) => ({
+                at: new Date(at).toISOString(),
+                agentId: grantId,
+                agentName: clientName,
+                tool,
+                types,
+                range,
+                date,
+                outcome,
+                rows,
+                cardId,
+                cardName,
+              }),
+            ),
         );
         const folder = `lil-export-${new Date(Number(requestedAt)).toISOString().slice(0, 10)}`;
         const parts = yield* SnapshotParts;

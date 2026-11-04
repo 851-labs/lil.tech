@@ -183,6 +183,10 @@
       CatalogState("Remote access log", width: sheetWidth, minHeight: sheetHeight) {
         remoteLog(ConnectedAgentsFeature.State(log: remoteReads))
       },
+      // A card tool's write says what changed (851-4011): a refused one what it asked for.
+      CatalogState("Remote access log: card changes", width: sheetWidth, minHeight: sheetHeight) {
+        remoteLog(ConnectedAgentsFeature.State(log: remoteCardChanges))
+      },
       CatalogState("Remote access log: empty", width: sheetWidth, minHeight: sheetHeight) {
         remoteLog(ConnectedAgentsFeature.State())
       },
@@ -269,7 +273,8 @@
   private let cardChanges = [
     AgentAccessEntry(
       id: 6, date: Date(timeIntervalSince1970: 1_760_973_000),
-      command: #"delete_card {"id":"card_seed_weight"}"#, process: "claude (via lil mcp)"),
+      command: #"delete_card {"id":"card_seed_weight","name":"Weight"}"#,
+      process: "claude (via lil mcp)"),
     AgentAccessEntry(
       id: 5, date: Date(timeIntervalSince1970: 1_760_972_940),
       command: #"reorder_cards {"count":7}"#, process: "claude (via lil mcp)"),
@@ -380,6 +385,32 @@
       types: index.isMultiple(of: 2) ? ["HKQuantityTypeIdentifierStepCount"] : [],
       range: index.isMultiple(of: 2) ? "W" : nil, outcome: "ok", rows: 7)
   }
+
+  /// Claude making a card through the remote server (851-4011), newest first: listing and reading
+  /// cards, previewing one, a create the spec refused, then creating, renaming and moving it, and
+  /// deleting another.
+  private let remoteCardChanges: [RemoteAgentAccess] = {
+    func card(
+      _ index: Int, _ tool: String, name: String? = nil, types: [String] = [],
+      range: String? = nil, outcome: String = "ok", rows: Int = 1
+    ) -> RemoteAgentAccess {
+      RemoteAgentAccess(
+        id: 200 - index, at: Date(timeIntervalSince1970: 1_760_972_520 - Double(index) * 120),
+        agentID: "grant-1", agentName: "Claude", tool: tool, types: types, range: range,
+        outcome: outcome, rows: rows,
+        cardID: name == nil ? nil : "card_01JZ8Q4Y3W6R2N5T7V9X1B3D5F", cardName: name)
+    }
+    return [
+      card(1, "delete_card", name: "Body Temperature"),
+      card(2, "reorder_cards", rows: 7),
+      card(3, "update_card", name: "Heart Rate Asleep"),
+      card(4, "create_card", name: "Sleeping Heart Rate"),
+      card(5, "create_card", name: "Sleeping Heart Rate", outcome: "error", rows: 0),
+      card(6, "preview_card", types: ["HKQuantityTypeIdentifierHeartRate"], range: "M", rows: 30),
+      card(7, "get_card", types: ["HKQuantityTypeIdentifierBodyMass"], range: "M", rows: 24),
+      card(8, "list_cards", rows: 7),
+    ]
+  }()
 
   /// Two days of reads, more than a page shows at first.
   private let twoDaysOfReads =

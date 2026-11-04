@@ -312,6 +312,13 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-card-changes-dark.png",
+      "id" : "settings.remote-access-log-card-changes",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-card-changes-light.png",
+      "name" : "Remote access log: card changes",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-empty-dark.png",
       "id" : "settings.remote-access-log-empty",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.remote-access-log-empty-light.png",
