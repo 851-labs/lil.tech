@@ -1,0 +1,104 @@
+#!/bin/sh
+# Checks `scripts/swift`'s reruns (`scripts/compilation-cache`, 851-3988) against a fake `swift`,
+# which fails as Swift Build does: quiet, a failed build says only `error: Build failed`; with the
+# cache and without `--quiet`, a build that replays a cached warning aborts (851-3238). So a quiet
+# build that fails runs again without `--quiet`, and then without the cache, until the compiler's
+# diagnostic shows; a quiet build that passes, or whose tests fail, runs once. `scripts/check
+# --swift` runs it.
+set -eu
+
+scripts=$(cd "$(dirname "$0")" && pwd)
+temporary=$(mktemp -d)
+trap 'rm -rf "$temporary"' EXIT
+mkdir -p "$temporary/bin" "$temporary/developer"
+
+# `xcrun --find swift` finds the fake.
+cat >"$temporary/bin/xcrun" <<'EOF'
+#!/bin/sh
+echo "$FAKE_SWIFT_BIN/swift"
+EOF
+# Logs each run (quiet or loud, cached or not) to `$FAKE_SWIFT_CALLS`, then acts as
+# `$FAKE_SWIFT_MODE` says: `pass`; `error`, a compile error; `abort`, a warning whose cached replay
+# aborts; `tests`, a build that passes and tests that fail.
+cat >"$temporary/bin/swift" <<'EOF'
+#!/bin/sh
+quiet=loud
+for arg in "$@"; do
+  case "$arg" in -q | --quiet) quiet=quiet ;; esac
+done
+cache=uncached
+[ "${EnableSwiftCachingByDefault:-}" != YES ] || cache=cached
+echo "$quiet $cache" >>"$FAKE_SWIFT_CALLS"
+diagnostic() {
+  [ "$quiet" = quiet ] || echo "Thing.swift:1:8: error: $1" >&2
+  echo "error: Build failed" >&2
+  exit 1
+}
+case "$FAKE_SWIFT_MODE" in
+  pass) echo "Build complete!" ;;
+  error) diagnostic "cannot convert value of type 'String' to specified type 'Int'" ;;
+  abort)
+    if [ "$quiet $cache" = "loud cached" ]; then
+      echo "libc++abi: terminating due to uncaught exception of type std::bad_optional_access:" \
+        "bad_optional_access was thrown" >&2
+      echo "error: Build failed" >&2
+      exit 1
+    fi
+    diagnostic "public import of 'Foundation' was not used in public declarations"
+    ;;
+  tests)
+    echo "Build complete!"
+    echo "✘ Test run with 1 test failed." >&2
+    exit 1
+    ;;
+esac
+EOF
+chmod +x "$temporary/bin/xcrun" "$temporary/bin/swift"
+
+failures=0
+fail() {
+  echo "scripts/test-compilation-cache: $1" >&2
+  failures=$((failures + 1))
+}
+
+# The cache, on (1) or off (0), for the next checks.
+cache=1
+
+# check <mode> <expected status> <expected runs, comma-separated> <expected in the output, or ""> \
+#   <scripts/swift's arguments…>
+check() {
+  mode=$1 expected_status=$2 expected_calls=$3 expected_output=$4
+  shift 4
+  : >"$temporary/calls"
+  status=0
+  PATH="$temporary/bin:$PATH" FAKE_SWIFT_BIN="$temporary/bin" FAKE_SWIFT_MODE="$mode" \
+    FAKE_SWIFT_CALLS="$temporary/calls" DEVELOPER_DIR="$temporary/developer" \
+    LIL_COMPILATION_CACHE="$cache" LIL_COMPILATION_CACHE_PATH="$temporary/cache" \
+    "$scripts/swift" "$@" --scratch-path "$temporary/scratch" >"$temporary/output" 2>&1 ||
+    status=$?
+  calls=$(paste -sd, "$temporary/calls")
+  name="$mode, $*, cache $cache"
+  [ "$status" = "$expected_status" ] || fail "$name: exited $status, not $expected_status"
+  [ "$calls" = "$expected_calls" ] || fail "$name: ran '$calls', not '$expected_calls'"
+  if [ -n "$expected_output" ] && ! grep -qF "$expected_output" "$temporary/output"; then
+    fail "$name: the output doesn't say '$expected_output':"
+    sed 's/^/  /' "$temporary/output" >&2
+  fi
+}
+
+check pass 0 "quiet cached" "" build --quiet
+check error 1 "quiet cached,loud cached" "Thing.swift:1:8: error: cannot convert" build --quiet
+check error 1 "quiet cached,loud cached" "runs again without '--quiet'" test -q
+check error 1 "loud cached" "Thing.swift:1:8: error: cannot convert" build
+check abort 1 "quiet cached,loud cached,loud uncached" \
+  "Thing.swift:1:8: error: public import of 'Foundation'" test --quiet
+check abort 1 "loud cached,loud uncached" "runs again without the compilation cache" build
+check tests 1 "quiet cached" "Test run with 1 test failed" test --quiet
+cache=0
+check error 1 "quiet uncached,loud uncached" "Thing.swift:1:8: error: cannot convert" build --quiet
+check pass 0 "quiet uncached" "" build --quiet
+
+if [ "$failures" -gt 0 ]; then
+  exit 1
+fi
+echo "scripts/test-compilation-cache: ok"

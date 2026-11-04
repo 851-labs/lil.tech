@@ -4,9 +4,10 @@
 # (`swift-check.yml`), which compare every snapshot (851-3070).
 # Usage: scripts/check [--hook] [--swift] [--services] [--pixelbook]   (every part when none is given)
 #   --swift     Swift lint (with a check that the server's copy of the Health catalog is fresh),
-#               `scripts/snapshot --sheet`'s check, that pull requests run the iPhone's snapshot
-#               tests when what they're built from changes (`scripts/check-iphone-paths`), the
-#               package's tests, and the apps' builds, with the iPhone's snapshot tests'.
+#               `scripts/snapshot --sheet`'s check, `scripts/swift`'s reruns' check, that pull
+#               requests run the iPhone's snapshot tests when what they're built from changes
+#               (`scripts/check-iphone-paths`), the package's tests, and the apps' builds, with the
+#               iPhone's snapshot tests'.
 #   --services  Format, lint and type checks (`scripts/format --lint --services`, which also checks
 #               the OpenAPI spec is fresh), the generated Swift client regenerated and compared,
 #               and every workspace package's tests.
@@ -76,7 +77,10 @@ fi
 if $swift; then
   step scripts/format --lint --swift
   step scripts/test-snapshot-sheet
+  step scripts/test-compilation-cache
   step scripts/check-iphone-paths
+  # Quiet, but a failed build runs again without `--quiet`, to show the compiler's diagnostics
+  # (`scripts/compilation-cache`, 851-3988).
   step scripts/swift test --quiet --scratch-path "$scratch/package"
   # Unsigned: this only checks that the apps build.
   step scripts/xcodebuild -workspace Lil.xcworkspace -scheme LilMessages -destination 'platform=macOS' \
