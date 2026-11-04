@@ -50,10 +50,12 @@
 
   /// A window showing `view` as a snapshot draws it, laid out and settled: in a window with a
   /// title bar (so its toolbar renders) of the given appearance, at its fitting size, at 2x. Close
-  /// it when done.
+  /// it when done. `redrawsToolbarImages: false` leaves stale toolbar images as they are, for a
+  /// test that reads no pixels.
   @MainActor
   func snapshotWindow(
-    of view: some View, appearance: NSAppearance.Name, title: String
+    of view: some View, appearance: NSAppearance.Name, title: String,
+    redrawsToolbarImages: Bool = true
   ) -> NSWindow {
     prepareSnapshotEnvironment()
     // The app's too, as Pixelbook sets it: Swift Charts' axis labels take the app's appearance,
@@ -78,7 +80,7 @@
     // Let SwiftUI lay out and draw, and charts settle.
     controller.view.layoutSubtreeIfNeeded()
     RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-    redrawStaleToolbarImages(in: window)
+    if redrawsToolbarImages { redrawStaleToolbarImages(in: window) }
     return window
   }
 

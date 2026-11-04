@@ -230,6 +230,7 @@ struct BloodPressureContent: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     case .loaded(let period, _):
       let chart = period.chart
+      let span = ChartFormat.span(chart.interval, range: range, calendar: calendar)
       let perReading = range == .day || range == .week
       Chart {
         ForEach(Array(chart.points.enumerated()), id: \.offset) { _, point in
@@ -263,10 +264,7 @@ struct BloodPressureContent: View {
             }
         }
       }
-      .emptyChartAccessibility(
-        chart.points.isEmpty,
-        label: ChartFormat.noData(
-          ChartFormat.span(chart.interval, range: range, calendar: calendar)))
+      .chartAccessibility("Blood Pressure", period: span, isEmpty: chart.points.isEmpty)
     }
   }
 
