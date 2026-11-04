@@ -53,7 +53,8 @@ public struct ConformanceSamples: Sendable {
     public var end: Int?
     /// Its configuration's `HKWorkoutSessionLocationType` raw value.
     public var locationType: Int?
-    /// Its configuration's `HKWorkoutSwimmingLocationType` raw value.
+    /// Its configuration's `HKWorkoutSwimmingLocationType` raw value, else its metadata's
+    /// `HKSwimmingLocationType`: HealthKit needs a swimming activity's.
     public var swimmingLocationType: Int?
     /// Its metadata's `HKIndoorWorkout`.
     public var indoor: NSNumber?
@@ -183,7 +184,9 @@ public struct ConformanceSamples: Sendable {
         Activity(
           activityType: Int(activityType), start: Int(start), end: end.map { Int($0) },
           locationType: locationType.flatMap { Int(exactly: $0) },
-          swimmingLocationType: swimmingLocationType.flatMap { Int(exactly: $0) },
+          swimmingLocationType: swimmingLocationType.flatMap { Int(exactly: $0) }.flatMap {
+            $0 == 0 ? nil : $0
+          } ?? ((metadata as? [String: Any])?["HKSwimmingLocationType"] as? Int),
           indoor: (metadata as? [String: Any])?["HKIndoorWorkout"] as? NSNumber))
     }
     return activities

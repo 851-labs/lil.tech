@@ -238,7 +238,7 @@ public struct HealthKitCardEngine: Sendable {
   /// Whether a workout was indoors: as its `HKMetadataKeyIndoorWorkout` says, else as its
   /// activities do (each one's metadata, else its configuration's `locationType`), if they
   /// agree; `nil` when nothing says.
-  static func indoor(_ workout: HKWorkout) -> Bool? {
+  public static func indoor(_ workout: HKWorkout) -> Bool? {
     CardWorkout.indoor(
       workout: CardWorkout.indoor(metadataValue: workout.metadata?[HKMetadataKeyIndoorWorkout]),
       activities: workout.workoutActivities.map { activity in

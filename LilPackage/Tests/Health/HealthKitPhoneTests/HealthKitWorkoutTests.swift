@@ -1,5 +1,6 @@
 import Foundation
 import HealthKit
+import HealthKitAccess
 import HealthUpload
 import Testing
 import WorkoutKit
@@ -77,6 +78,35 @@ struct HealthKitWorkoutTests {
     #expect(record.activities.count <= 1)
     #expect(record.activities.allSatisfy { $0.activityType == 37 })
     #expect(record.plan == nil)
+  }
+
+  /// A workout built with `HKWorkoutBuilder` always says where it was (851-4031): HealthKit
+  /// writes `HKIndoorWorkout`, 0 for a configuration whose location is unknown, and gives it an
+  /// outdoor activity, so the cards' engine reads it as outdoors. Only workouts saved otherwise
+  /// (older apps, imports) don't say, which is why the conformance case of a workout that doesn't
+  /// say skips the iPhone.
+  @Test
+  func aBuilderAlwaysSaysWhereAWorkoutWas() async throws {
+    let health = try await SyntheticHealthKit.empty()
+    let locations: [HKWorkoutSessionLocationType] = [.unknown, .indoor, .outdoor]
+    var said: [[Bool?]] = []
+    for (index, location) in locations.enumerated() {
+      let builder = HKWorkoutBuilder(
+        healthStore: health.store,
+        configuration: configuration(.traditionalStrengthTraining, location), device: nil)
+      let from = start.addingTimeInterval(Double(index) * 3600)
+      try await builder.beginCollection(at: from)
+      try await builder.endCollection(at: from.addingTimeInterval(1800))
+      let workout = try #require(try await builder.finishWorkout())
+      said.append([
+        (workout.metadata?[HKMetadataKeyIndoorWorkout] as? NSNumber)?.boolValue,
+        workout.workoutActivities.first.map {
+          $0.workoutConfiguration.locationType == .indoor
+        },
+        HealthKitCardEngine.indoor(workout),
+      ])
+    }
+    #expect(said == [[false, false, false], [true, true, true], [false, false, false]])
   }
 
   private func configuration(

@@ -2871,6 +2871,9 @@
           "maximum": null
         },
         "goal": null
+      },
+      "iphone": {
+        "skip": "HealthKit's workout builder writes HKIndoorWorkout 0 (and an outdoor activity) for a workout whose location is unknown, so the test writer can't make one that doesn't say: the strength workout is outdoors there, and its 120 counts (HealthKitWorkoutTests.aBuilderAlwaysSaysWhereAWorkoutWas)."
       }
     },
     {
