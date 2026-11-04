@@ -31,7 +31,8 @@ public struct AppView: View {
         } else {
           SummaryView(
             cards: store.scope(\.cards, action: \.cards),
-            syncStatus: store.scope(\.syncStatus, action: \.syncStatus))
+            syncStatus: store.scope(\.syncStatus, action: \.syncStatus),
+            path: $store.summaryPath.sending(\.summaryPathChanged))
         }
       }
     }

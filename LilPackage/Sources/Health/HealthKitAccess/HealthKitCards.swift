@@ -19,8 +19,9 @@ extension DependencyValues {
   }
 }
 
-/// Cards from this iPhone's HealthKit: a card's page (`data`) and its Summary row (`headline`).
-/// Both are cancellable: cancelling the task stops HealthKit's queries.
+/// Cards from this iPhone's HealthKit: a card's page (`data`), its Summary row (`headline`), and
+/// the editor's filter choices (`filterChoices`). Each is cancellable: cancelling the task stops
+/// HealthKit's queries.
 public struct HealthKitCards: Sendable {
   /// A card over the period of `range` containing `date`, as its page shows it. `now` places 6M's
   /// periods (`CardRun`).
@@ -31,6 +32,9 @@ public struct HealthKitCards: Sendable {
   /// What a card's Summary row shows, from data started by `now`; `nil` for No Data.
   public var headline:
     @Sendable (_ spec: CardSpec, _ now: Date, _ calendar: Calendar) async throws -> CardHeadline?
+  /// The apps and device models a type's samples came from, for a series' filter in the editor
+  /// (851-3213).
+  public var filterChoices: @Sendable (_ type: String) async throws -> CardFilterChoices
 
   public init(
     data:
@@ -39,10 +43,14 @@ public struct HealthKitCards: Sendable {
       ) async throws -> CardData,
     headline:
       @escaping @Sendable (_ spec: CardSpec, _ now: Date, _ calendar: Calendar) async throws
-      -> CardHeadline?
+      -> CardHeadline?,
+    filterChoices: @escaping @Sendable (_ type: String) async throws -> CardFilterChoices = { _ in
+      CardFilterChoices()
+    }
   ) {
     self.data = data
     self.headline = headline
+    self.filterChoices = filterChoices
   }
 }
 
@@ -85,6 +93,9 @@ extension HealthKitCards: DependencyKey {
         try await HealthAccessNeeded.converting {
           try await engine.headline(spec, now: now, calendar: calendar)
         }
+      },
+      filterChoices: { type in
+        try await HealthAccessNeeded.converting { try await engine.filterChoices(of: type) }
       }
     )
   }
@@ -92,7 +103,9 @@ extension HealthKitCards: DependencyKey {
   public static var testValue: Self {
     Self(
       data: unimplemented("HealthKitCards.data"),
-      headline: unimplemented("HealthKitCards.headline")
+      headline: unimplemented("HealthKitCards.headline"),
+      filterChoices: unimplemented(
+        "HealthKitCards.filterChoices", placeholder: CardFilterChoices())
     )
   }
 }
@@ -412,6 +425,51 @@ public struct HealthKitCardEngine: Sendable {
             Self.readings(samples, unit: unit, in: range, needsSampleIDs: needsSampleIDs)))
       }
     }
+  }
+
+  /// How many of a type's latest samples `filterChoices(of:)` reads device models from: a type can
+  /// have millions, and the devices that matter are the ones recording it now.
+  static let filterChoiceSamples = 1_000
+
+  /// The apps a type's samples came from (HealthKit's sources, by name) and the device models of
+  /// its latest samples (the most samples first), for a series' filter, as the Mac's Data Sources
+  /// lists them. A filter's sources are bundle IDs and its devices models, as `readingQuery`
+  /// matches them.
+  public func filterChoices(of typeID: String) async throws -> CardFilterChoices {
+    guard let type = HKObjectType.quantityType(forIdentifier: .init(rawValue: typeID)) else {
+      return CardFilterChoices()
+    }
+    // Both at once: neither needs the other.
+    async let apps: [CardFilterChoices.App] = run { finish in
+      HKSourceQuery(sampleType: type, samplePredicate: nil) { _, sources, error in
+        guard let sources else {
+          return finish(.failure(error ?? HKError(.errorHealthDataUnavailable)))
+        }
+        finish(
+          .success(
+            sources.map { CardFilterChoices.App(id: $0.bundleIdentifier, name: $0.name) }
+              .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }))
+      }
+    }
+    async let models: [String] = run { finish in
+      HKSampleQuery(
+        sampleType: type, predicate: nil, limit: Self.filterChoiceSamples,
+        sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
+      ) { _, samples, error in
+        guard let samples else {
+          return finish(.failure(error ?? HKError(.errorHealthDataUnavailable)))
+        }
+        finish(.success(Self.models(samples.compactMap { $0.device?.model })))
+      }
+    }
+    return try await CardFilterChoices(apps: apps, deviceModels: models)
+  }
+
+  /// Each model once, the most common first, then by name.
+  static func models(_ models: [String]) -> [String] {
+    var counts: [String: Int] = [:]
+    for model in models { counts[model, default: 0] += 1 }
+    return counts.sorted { ($0.value, $1.key) > ($1.value, $0.key) }.map(\.key)
   }
 
   /// A type's latest reading started by `now`, in its catalog unit; `nil` without one.

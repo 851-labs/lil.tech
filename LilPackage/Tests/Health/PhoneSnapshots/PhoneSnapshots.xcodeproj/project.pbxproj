@@ -25,6 +25,7 @@
 		3D000000000000000000001C /* HealthCardStore in Frameworks */ = {isa = PBXBuildFile; productRef = 3D000000000000000000000C /* HealthCardStore */; };
 		3D000000000000000000001D /* HealthUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3D000000000000000000000D /* HealthUI */; };
 		3D000000000000000000001E /* HealthKitAccess in Frameworks */ = {isa = PBXBuildFile; productRef = 3D000000000000000000000E /* HealthKitAccess */; };
+		3D000000000000000000001F /* HealthCardEditor in Frameworks */ = {isa = PBXBuildFile; productRef = 3D000000000000000000000F /* HealthCardEditor */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -86,6 +87,7 @@
 				3D000000000000000000001C /* HealthCardStore in Frameworks */,
 				3D000000000000000000001D /* HealthUI in Frameworks */,
 				3D000000000000000000001E /* HealthKitAccess in Frameworks */,
+				3D000000000000000000001F /* HealthCardEditor in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -177,6 +179,7 @@
 				3D000000000000000000000C /* HealthCardStore */,
 				3D000000000000000000000D /* HealthUI */,
 				3D000000000000000000000E /* HealthKitAccess */,
+				3D000000000000000000000F /* HealthCardEditor */,
 			);
 			productName = HealthPhoneSnapshotTests;
 			productReference = 3B0000000000000000000004 /* HealthPhoneSnapshotTests.xctest */;
@@ -447,6 +450,10 @@
 		3D000000000000000000000E /* HealthKitAccess */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = HealthKitAccess;
+		};
+		3D000000000000000000000F /* HealthCardEditor */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HealthCardEditor;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

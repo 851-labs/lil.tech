@@ -60,6 +60,20 @@
       "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.reordering-dark.png",
+      "id" : "summary.reordering",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.reordering-light.png",
+      "name" : "Reordering",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.deleting-a-card-dark.png",
+      "id" : "summary.deleting-a-card",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.deleting-a-card-light.png",
+      "name" : "Deleting a card",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.a-card-that-fails-dark.png",
       "id" : "summary.a-card-that-fails",
       "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.a-card-that-fails-light.png",

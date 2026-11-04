@@ -9,6 +9,7 @@ import LilTestSupport
 import SQLiteData
 import Testing
 
+@testable import HealthCardEditor
 @testable import HealthMacApp
 
 private let heartRate = "HKQuantityTypeIdentifierHeartRate"

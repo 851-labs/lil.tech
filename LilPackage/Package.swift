@@ -10,6 +10,7 @@ let package = Package(
   ],
   products: [
     .library(name: "HealthAgentAccess", targets: ["HealthAgentAccess"]),
+    .library(name: "HealthCardEditor", targets: ["HealthCardEditor"]),
     .library(name: "HealthCards", targets: ["HealthCards"]),
     .library(name: "HealthCardStore", targets: ["HealthCardStore"]),
     .library(name: "HealthCatalog", targets: ["HealthCatalog"]),
@@ -137,6 +138,20 @@ let package = Package(
       ],
       path: "Sources/Health/HealthUI"
     ),
+    // The card editor and its query builder, for both apps (851-3208, 851-3209, 851-3213): the
+    // draft spec, the builder's rules, and the editor's form, which each app presents with its own
+    // live preview.
+    .target(
+      name: "HealthCardEditor",
+      dependencies: [
+        "HealthCards",
+        "HealthCardStore",
+        "HealthCatalog",
+        "HealthUI",
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+      ],
+      path: "Sources/Health/HealthCardEditor"
+    ),
     // `lil-health`, lil health for Mac's command-line tool: the Health toolkit's queries on the
     // Mac's database, read-only, while access on this Mac is on (851-2843), as
     // commands and as a local MCP server (`lil-health mcp`, 851-2844).
@@ -253,6 +268,7 @@ let package = Package(
     .target(
       name: "HealthMacApp",
       dependencies: [
+        "HealthCardEditor",
         "HealthAgentAccess",
         "LilCLIInstaller",
         "HealthCards",
@@ -272,6 +288,7 @@ let package = Package(
     .testTarget(
       name: "HealthMacAppTests",
       dependencies: [
+        "HealthCardEditor",
         "HealthAgentAccess",
         "HealthCards",
         "HealthCatalog",
@@ -307,6 +324,7 @@ let package = Package(
     .testTarget(
       name: "HealthSnapshotTests",
       dependencies: [
+        "HealthCardEditor",
         "HealthAgentAccess",
         "HealthCatalog",
         "HealthDatabase",
@@ -343,6 +361,7 @@ let package = Package(
     .target(
       name: "HealthPhoneApp",
       dependencies: [
+        "HealthCardEditor",
         // The account's cards, synced alone (851-3205).
         "HealthCards",
         "HealthCardStore",
@@ -363,6 +382,7 @@ let package = Package(
     .testTarget(
       name: "HealthPhoneAppTests",
       dependencies: [
+        "HealthCardEditor",
         "HealthCards",
         "HealthCardStore",
         "HealthCatalog",

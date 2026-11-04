@@ -2,6 +2,7 @@
   import ComposableArchitecture
   import Foundation
   import HealthCards
+  @testable import HealthCardEditor
   import HealthCatalog
   import HealthDatabase
   @testable import HealthMacApp
@@ -96,13 +97,9 @@
       // Heart rate during runs and rides, from a Watch: the activities and the filter's menus.
       CatalogState("Workout window and filter") {
         var state = built(heartRateDuringWorkoutsActions)
-        state.sources[heartRate] = SampleSources(
-          apps: [SampleSource(id: "com.apple.health.watch", name: "Apple Watch", count: 1200)],
-          devices: [
-            SampleDeviceSummary(
-              device: SampleDevice(name: "Apple Watch", manufacturer: "Apple Inc.", model: "Watch"),
-              count: 1200)
-          ])
+        state.sources[heartRate] = CardFilterChoices(
+          apps: [CardFilterChoices.App(id: "com.apple.health.watch", name: "Apple Watch")],
+          deviceModels: ["Watch"])
         return editor(state)
       },
       // Sleeping heart rate above resting: two hidden series and their difference.
