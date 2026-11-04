@@ -46,16 +46,45 @@ public struct HealthKitCards: Sendable {
   }
 }
 
+/// HealthKit hasn't been asked for a type a card reads (851-4035): the person hasn't been through
+/// Health access yet (a new install, or Not Now). HealthKit says so (`errorAuthorizationNotDetermined`)
+/// rather than returning nothing, as it does for a type that was asked about and not allowed.
+public struct HealthAccessNeeded: LocalizedError, Equatable {
+  public init() {}
+
+  public var errorDescription: String? {
+    "lil health needs access to your Health data to show this card."
+  }
+
+  /// `error` as this, when it's HealthKit saying it hasn't been asked; otherwise `error`.
+  public static func converting(_ error: any Error) -> any Error {
+    (error as? HKError)?.code == .errorAuthorizationNotDetermined ? HealthAccessNeeded() : error
+  }
+
+  /// `body`'s value, or its error, converted.
+  static func converting<Value>(_ body: () async throws -> Value) async throws -> Value {
+    do {
+      return try await body()
+    } catch {
+      throw converting(error)
+    }
+  }
+}
+
 extension HealthKitCards: DependencyKey {
   public static var liveValue: Self {
     let engine = HealthKitCardEngine(store: HKHealthStore())
     return Self(
       data: { spec, range, date, now, calendar in
-        try await engine.data(
-          CardRun(spec: spec, range: range, date: date, now: now, calendar: calendar))
+        try await HealthAccessNeeded.converting {
+          try await engine.data(
+            CardRun(spec: spec, range: range, date: date, now: now, calendar: calendar))
+        }
       },
       headline: { spec, now, calendar in
-        try await engine.headline(spec, now: now, calendar: calendar)
+        try await HealthAccessNeeded.converting {
+          try await engine.headline(spec, now: now, calendar: calendar)
+        }
       }
     )
   }

@@ -62,10 +62,13 @@ struct UnreadableCardPage: View {
 }
 
 /// What makes a card's page run its card again, as Summary's rows do (`CardHeadlines.Run`): the
-/// day, and the app coming back to the front.
+/// day, the app coming back to the front, and what Health access is known.
 struct CardRefresh: Equatable {
   var day: Date?
   var generation: Int
+  /// Whether Health still has types to ask about: `nil` while it's being checked, and the page
+  /// waits, loading, as the rows do (851-4035).
+  var needsHealthAccess: Bool?
 }
 
 /// Which period a card's page opens on (851-3188): the one with the card's latest data, which its
@@ -163,6 +166,8 @@ struct CardChartPage: View {
   }
 
   private func load() async {
+    // Until Health access is checked, HealthKit may not answer for minutes (851-4035).
+    guard refresh.needsHealthAccess != nil else { return }
     let now = date.now
     isLoading = true
     // A failure is the last run's: this one shows the period loaded last, updating, or loading.

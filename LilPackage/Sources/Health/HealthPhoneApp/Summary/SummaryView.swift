@@ -40,7 +40,9 @@ public struct SummaryView: View {
         cards: SummaryLoad(cards.state), syncStatus: syncStatus.status,
         showSettings: { syncStatus.send(.settingsPresented(true)) }
       ) { card in
-        CardPreview(card: card, day: day, generation: generation, headlines: headlines)
+        CardPreview(
+          card: card, day: day, generation: generation,
+          needsHealthAccess: syncStatus.needsHealthAccess, headlines: headlines)
       }
       .navigationDestination(for: SummaryPage.self) { page in
         switch page {
@@ -50,7 +52,8 @@ public struct SummaryView: View {
           CardPage(
             store: cards, id: id,
             opening: CardOpening(headlines[id], spec: cards.cards[id: id]?.spec),
-            refresh: CardRefresh(day: day, generation: generation))
+            refresh: CardRefresh(
+              day: day, generation: generation, needsHealthAccess: syncStatus.needsHealthAccess))
         }
       }
       .sheet(isPresented: $syncStatus.isShowingSettings.sending(\.settingsPresented)) {
@@ -175,15 +178,23 @@ struct SummaryContent<Row: View>: View {
 }
 
 /// A card's row, its headline run on this iPhone's HealthKit: again when the card's query changes,
-/// at midnight, and when the app comes back to the front (`generation`). The last headline stays
-/// while the next runs, so a row only reads "–" before its first. Each run's headline is kept in
-/// `headlines`, so a row the list made again (scrolled away and back) shows it without running
-/// the card again.
+/// at midnight, when the app comes back to the front (`generation`), and when what Health access
+/// is known changes. The last headline stays while the next runs, so a row only reads "–" before
+/// its first. Each run's headline is kept in `headlines`, so a row the list made again (scrolled
+/// away and back) shows it without running the card again.
+///
+/// A row waits for Health access to be checked (851-4035): Summary can show before it is, e.g.
+/// right after signing in, and a fresh install's HealthKit can take minutes to answer, then answers
+/// that it wasn't asked. A type it wasn't asked about reads "Needs access to your Health data"
+/// (`HealthAccessNeeded`), until Health access is given and the row runs again.
 struct CardPreview: View {
   let card: Card
   /// `nil` until Summary knows it: the row waits.
   let day: Date?
   let generation: Int
+  /// Whether Health still has types to ask about (`SyncStatusFeature`): `nil` while it's being
+  /// checked, and the row waits.
+  let needsHealthAccess: Bool?
   let headlines: CardHeadlines
   @State private var headline: CardRow.Headline?
   @Dependency(\.healthKitCards) private var healthKitCards
@@ -191,7 +202,8 @@ struct CardPreview: View {
   @Dependency(\.calendar) private var calendar
 
   var body: some View {
-    let run = CardHeadlines.Run(spec: card.spec, day: day, generation: generation)
+    let run = CardHeadlines.Run(
+      spec: card.spec, day: day, generation: generation, needsHealthAccess: needsHealthAccess)
     CardRow(
       card: card, headline: headline ?? headlines[card.id]?.headline ?? .loading, now: date.now,
       calendar: calendar
@@ -201,14 +213,14 @@ struct CardPreview: View {
         headline = kept.headline
         return
       }
-      guard let spec = card.spec, day != nil else { return }
+      guard let spec = card.spec, run.isReady else { return }
       let result: CardRow.Headline
       do {
         result = .loaded(
           try await Self.headline(of: spec, in: healthKitCards, now: date.now, calendar: calendar))
       } catch {
         guard !(error is CancellationError) else { return }
-        result = .failed(error.localizedDescription)
+        result = CardRow.Headline(failure: error)
       }
       guard !Task.isCancelled else { return }
       headline = result
@@ -279,6 +291,12 @@ final class CardHeadlines {
     var spec: CardSpec?
     var day: Date?
     var generation: Int
+    /// Whether Health still has types to ask about, once known: a row runs again when Health
+    /// access is checked, or given.
+    var needsHealthAccess: Bool?
+
+    /// Whether a row can run its card: Summary knows the day, and Health access was checked.
+    var isReady: Bool { day != nil && needsHealthAccess != nil }
   }
 
   private var byCard: [Card.ID: (run: Run, headline: CardRow.Headline)] = [:]
@@ -286,5 +304,13 @@ final class CardHeadlines {
   subscript(id: Card.ID) -> (run: Run, headline: CardRow.Headline)? {
     get { byCard[id] }
     set { byCard[id] = newValue }
+  }
+}
+
+extension CardRow.Headline {
+  /// What a row shows when its card couldn't be run: that Health access is needed, when HealthKit
+  /// wasn't asked for its types (851-4035), or why it failed.
+  init(failure error: any Error) {
+    self = error is HealthAccessNeeded ? .needsHealthAccess : .failed(error.localizedDescription)
   }
 }

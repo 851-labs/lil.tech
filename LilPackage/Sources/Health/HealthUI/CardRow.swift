@@ -21,6 +21,9 @@ public struct CardRow: View {
     /// `nil` for No Data.
     case loaded(CardHeadline?)
     case failed(String)
+    /// The iPhone hasn't been given access to the card's Health data yet (851-4035): what the
+    /// row says instead of a value, until it is.
+    case needsHealthAccess
   }
 
   public let card: Card
@@ -81,7 +84,7 @@ public struct CardRow: View {
         Spacer()
         sparkline(headline.data, spec: spec, color: color)
           .frame(width: 120, height: 36)
-      case .loading, .loaded(nil), .failed:
+      case .loading, .loaded(nil), .failed, .needsHealthAccess:
         // The value's line all the same, the chart's height kept, but not its width, so a
         // failure's reason has the row's on an iPhone (851-3211).
         placeholder
@@ -109,6 +112,10 @@ public struct CardRow: View {
         .lineLimit(1)
         .foregroundStyle(.secondary)
         .help(reason)
+    case .needsHealthAccess:
+      Label("Needs access to your Health data", systemImage: "heart.text.square")
+        .lineLimit(1)
+        .foregroundStyle(.secondary)
     case .loaded:
       Text("No Data")
         .foregroundStyle(.secondary)

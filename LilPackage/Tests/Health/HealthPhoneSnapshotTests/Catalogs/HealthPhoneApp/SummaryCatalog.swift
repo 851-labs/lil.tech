@@ -39,6 +39,11 @@
       CatalogState("Health access needed") {
         summary(.loaded(Card.welcomeSeed), status: .needsHealthAccess)
       },
+      // Health access not asked for yet (a new install, or Not Now): HealthKit says so, and the
+      // rows say what they need rather than loading (851-4035).
+      CatalogState("Health access not given") {
+        summary(.loaded(Card.welcomeSeed), status: .needsHealthAccess) { _ in .needsHealthAccess }
+      },
       // A new account, or Health access to its types not allowed: HealthKit doesn't say which.
       CatalogState("No data") {
         summary(.loaded(Card.welcomeSeed)) { _ in .loaded(nil) }
