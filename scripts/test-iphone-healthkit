@@ -45,7 +45,11 @@ mkdir -p "$output"
 
 device=${LIL_HEALTHKIT_SIMULATOR:-}
 if [ -z "$device" ]; then
-  device=$(xcrun simctl create "lil-healthkit-$$" "$device_type")
+  # On the newest runtime, which `simctl` says it picked, on standard error: shown only if it fails.
+  if ! device=$(xcrun simctl create "lil-healthkit-$$" "$device_type" 2>"$output/create.log"); then
+    cat "$output/create.log" >&2
+    exit 1
+  fi
   echo "Made the simulator lil-healthkit-$$ ($device)."
   # Never left behind, booted or not.
   trap 'xcrun simctl shutdown "$device" >/dev/null 2>&1 || true

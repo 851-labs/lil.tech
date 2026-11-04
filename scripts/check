@@ -79,16 +79,33 @@ if $swift; then
   step scripts/test-snapshot-sheet
   step scripts/test-compilation-cache
   step scripts/check-iphone-paths
+  # The package's tests are Swift Testing's. `--disable-xctest` saves each test bundle an empty
+  # XCTest run, with its three lines (851-3229), so an XCTest would never run: refuse one.
+  # (The iPhone's HealthKit tests' UI test, in an Xcode project, isn't the package's.)
+  # `import XCTest`, with attributes (`@testable`, `@_exported`), an access level, or a kind
+  # (`import class XCTest.XCTestCase`).
+  attributes='(@[A-Za-z_]+[[:space:]]+)*([a-z]+[[:space:]]+)?'
+  xctest=$(grep -rlE --include='*.swift' \
+    "^[[:space:]]*${attributes}import[[:space:]]+([a-z]+[[:space:]]+)?XCTest([.[:space:]]|\$)" \
+    LilPackage/Tests LilPackage/Sources |
+    grep -v '^LilPackage/Tests/Health/PhoneHealthKit/' || true)
+  if [ -n "$xctest" ]; then
+    echo "error: these import XCTest, whose tests scripts/check doesn't run. Use Swift Testing:" >&2
+    echo "$xctest" >&2
+    status=1
+  fi
   # Quiet, but a failed build runs again without `--quiet`, to show the compiler's diagnostics
   # (`scripts/compilation-cache`, 851-3988).
-  step scripts/swift test --quiet --scratch-path "$scratch/package"
+  step scripts/swift test --quiet --disable-xctest --scratch-path "$scratch/package"
   # Unsigned: this only checks that the apps build.
-  step scripts/xcodebuild -workspace Lil.xcworkspace -scheme LilMessages -destination 'platform=macOS' \
-    -derivedDataPath "$scratch/DerivedData" -skipMacroValidation \
-    -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO build -quiet
-  step scripts/xcodebuild -workspace Lil.xcworkspace -scheme LilHealth -destination 'platform=macOS' \
-    -derivedDataPath "$scratch/DerivedData" -skipMacroValidation \
-    -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO build -quiet
+  step scripts/xcodebuild -workspace Lil.xcworkspace -scheme LilMessages \
+    -destination 'platform=macOS,arch=arm64' -derivedDataPath "$scratch/DerivedData" \
+    -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO \
+    build -quiet
+  step scripts/xcodebuild -workspace Lil.xcworkspace -scheme LilHealth \
+    -destination 'platform=macOS,arch=arm64' -derivedDataPath "$scratch/DerivedData" \
+    -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO \
+    build -quiet
   step scripts/xcodebuild -workspace Lil.xcworkspace -scheme LilHealthiOS \
     -destination 'generic/platform=iOS Simulator' -derivedDataPath "$scratch/DerivedData" \
     -skipMacroValidation -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO \
