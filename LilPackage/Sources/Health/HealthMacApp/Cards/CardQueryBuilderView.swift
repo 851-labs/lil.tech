@@ -3,6 +3,7 @@ import HealthCards
 import HealthCatalog
 import HealthDatabase
 import HealthPages
+import HealthUI
 import SwiftUI
 
 // The query builder (851-3209, docs/decisions/cards.md, UI › Mac): the editor's sections that

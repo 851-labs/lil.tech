@@ -5,7 +5,7 @@ import HealthUpload
 public import LilAuth
 import LilSync
 
-/// lil health on the iPhone: sign in, consent, Health access, then the home screen. Syncs the
+/// lil health on the iPhone: sign in, consent, Health access, then Summary (851-3211). Syncs the
 /// account's cards while signed in.
 @Reducer
 public struct AppFeature {

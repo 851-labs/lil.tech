@@ -1,0 +1,91 @@
+{
+  "app" : "health-iphone",
+  "catalog" : "HealthPhoneApp/SummaryCatalog.swift",
+  "screen" : "Summary",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.loaded-dark.png",
+      "id" : "summary.loaded",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.loaded-light.png",
+      "name" : "Loaded",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.uploading-dark.png",
+      "id" : "summary.uploading",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.uploading-light.png",
+      "name" : "Uploading",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.health-access-needed-dark.png",
+      "id" : "summary.health-access-needed",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.health-access-needed-light.png",
+      "name" : "Health access needed",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.no-data-dark.png",
+      "id" : "summary.no-data",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.no-data-light.png",
+      "name" : "No data",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.loading-dark.png",
+      "id" : "summary.loading",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.loading-light.png",
+      "name" : "Loading",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.failed-dark.png",
+      "id" : "summary.failed",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.failed-light.png",
+      "name" : "Failed",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.no-cards-dark.png",
+      "id" : "summary.no-cards",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.no-cards-light.png",
+      "name" : "No cards",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.a-card-that-fails-dark.png",
+      "id" : "summary.a-card-that-fails",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.a-card-that-fails-light.png",
+      "name" : "A card that fails",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.a-card-from-a-later-version-dark.png",
+      "id" : "summary.a-card-from-a-later-version",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.a-card-from-a-later-version-light.png",
+      "name" : "A card from a later version",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.example-cards-dark.png",
+      "id" : "summary.example-cards",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.example-cards-light.png",
+      "name" : "Example cards",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.example-cards-loading-dark.png",
+      "id" : "summary.example-cards-loading",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.example-cards-loading-light.png",
+      "name" : "Example cards, loading",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.morning-weight-in-pounds-dark.png",
+      "id" : "summary.morning-weight-in-pounds",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.morning-weight-in-pounds-light.png",
+      "name" : "Morning weight in pounds",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
+    }
+  ]
+}

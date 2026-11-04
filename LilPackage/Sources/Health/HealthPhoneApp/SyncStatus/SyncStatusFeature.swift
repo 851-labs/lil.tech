@@ -5,7 +5,8 @@ public import HealthKitAccess
 public import HealthUpload
 public import LilAuth
 
-/// The iPhone's main screen: what's uploaded and what isn't.
+/// Sync Status: what's uploaded and what isn't, which Summary pushes (851-3211) and sums up in its
+/// row or toolbar button. It keeps Settings' state too, since Settings is a sheet over Summary.
 @Reducer
 public struct SyncStatusFeature {
   @ObservableState

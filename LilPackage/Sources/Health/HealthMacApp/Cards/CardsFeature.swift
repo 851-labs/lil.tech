@@ -374,16 +374,6 @@ public struct CardsFeature {
   }
 }
 
-extension Card {
-  /// The card's name, as far as this version can read its stored spec, else "Card": a card of a
-  /// later version's too.
-  var storedName: String {
-    if let spec { return spec.display.name }
-    if case .string(let name)? = storedSpec["display"]?["name"] { return name }
-    return "Card"
-  }
-}
-
 extension AlertState {
   /// A move that was refused, saying why.
   static func cardNotMoved(_ error: CardWriteError) -> Self {

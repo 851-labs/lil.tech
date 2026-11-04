@@ -1,6 +1,7 @@
 import Foundation
 import HealthCards
 import HealthPages
+import HealthUI
 import Testing
 
 /// en_US's formats, with metric units, as the snapshot catalogs use.

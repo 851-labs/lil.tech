@@ -2,6 +2,7 @@
   import Dependencies
   import DependenciesTestSupport
   import Foundation
+  import HealthDatabase
   import LilUI
   import Testing
 
@@ -9,8 +10,9 @@
   // host so Liquid Glass draws: `scripts/snapshot --iphone`. Each catalog (`Catalogs/`) adds its
   // test to this suite. Synthetic data only.
 
-  /// The catalogs' fixed "now", the same as the Mac's (`HealthDatabase`'s `previewNow`, which this
-  /// target doesn't build): Tuesday, August 13, 2024, 3 PM in Los Angeles.
+  /// The catalogs' fixed "now", the same as the Mac's (`HealthDatabase`'s `previewNow`, which
+  /// this one shadows, so catalogs that don't import `HealthDatabase` see it): Tuesday, August 13,
+  /// 2024, 3 PM in Los Angeles.
   let previewNow = Date(timeIntervalSince1970: 1_723_586_400)
 
   // Serialized: every snapshot draws in the host app's one window. Views that read the date get
@@ -20,6 +22,10 @@
     .serialized,
     .dependencies {
       $0.date.now = previewNow
+      // The Mac's calendar and locale (`HealthDatabase`), for Summary's cards (851-3211): a
+      // state's `locale` replaces the suite's.
+      $0.calendar = previewCalendar
+      $0.locale = previewLocale
       // Loading states show their spinners in the image drawn at once (851-3086).
       $0.delayedProgressTiming = .immediate
     })

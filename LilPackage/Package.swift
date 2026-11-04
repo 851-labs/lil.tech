@@ -22,6 +22,7 @@ let package = Package(
     .library(name: "HealthPages", targets: ["HealthPages"]),
     .library(name: "HealthPhoneApp", targets: ["HealthPhoneApp"]),
     .library(name: "HealthTools", targets: ["HealthTools"]),
+    .library(name: "HealthUI", targets: ["HealthUI"]),
     .library(name: "HealthUpload", targets: ["HealthUpload"]),
     .library(name: "LilAPI", targets: ["LilAPI"]),
     .library(name: "LilAuth", targets: ["LilAuth"]),
@@ -119,9 +120,16 @@ let package = Package(
       name: "HealthCatalog",
       path: "Sources/Health/HealthCatalog"
     ),
+    // What both apps draw the same way (851-3211): categories' colors, values in display units
+    // (`MetricFormat`), and Summary's card rows with their sparklines.
     .target(
       name: "HealthUI",
-      dependencies: ["HealthCatalog"],
+      dependencies: [
+        "HealthCards",
+        "HealthCardStore",
+        "HealthCatalog",
+        .product(name: "Dependencies", package: "swift-dependencies"),
+      ],
       path: "Sources/Health/HealthUI"
     ),
     // `lil-health`, lil health for Mac's command-line tool: the Health toolkit's queries on the
@@ -296,6 +304,7 @@ let package = Package(
         "HealthDatabase",
         "HealthMacApp",
         "HealthPages",
+        "HealthUI",
         "LilAuth",
         "LilSync",
         "LilUI",
@@ -319,6 +328,7 @@ let package = Package(
         "HealthCatalog",
         "HealthDatabase",
         "HealthPages",
+        "HealthUI",
       ],
       path: "Tests/Health/HealthPagesTests"
     ),

@@ -5,49 +5,37 @@ import HealthUpload
 import LilAuth
 public import SwiftUI
 
+/// Sync Status: what's uploaded and what isn't, by category. The iPhone's main screen until
+/// Summary (851-3211), which pushes it from its row or toolbar button, and runs the feature's
+/// task while it shows.
 public struct SyncStatusView: View {
-  @Bindable var store: StoreOf<SyncStatusFeature>
+  let store: StoreOf<SyncStatusFeature>
 
   public init(store: StoreOf<SyncStatusFeature>) {
     self.store = store
   }
 
   public var body: some View {
-    NavigationStack {
-      List {
+    List {
+      Section {
+        StatusHeader(store: store)
+      }
+      let categories = store.categories
+      if !categories.isEmpty {
         Section {
-          StatusHeader(store: store)
-        }
-        let categories = store.categories
-        if !categories.isEmpty {
-          Section {
-            ForEach(categories) { category in
-              CategoryRow(category: category)
-            }
-          } header: {
-            Text("Categories")
-          } footer: {
-            Text(
-              "If a category stays empty, check Settings › Privacy & Security › Health › lil health."
-            )
+          ForEach(categories) { category in
+            CategoryRow(category: category)
           }
+        } header: {
+          Text("Categories")
+        } footer: {
+          Text(
+            "If a category stays empty, check Settings › Privacy & Security › Health › lil health."
+          )
         }
-      }
-      .navigationTitle("lil health")
-      .toolbar {
-        ToolbarItem(placement: .primaryAction) {
-          Button {
-            store.send(.settingsPresented(true))
-          } label: {
-            Label("Settings", systemImage: "gearshape")
-          }
-        }
-      }
-      .sheet(isPresented: $store.isShowingSettings.sending(\.settingsPresented)) {
-        SettingsSheet(store: store)
       }
     }
-    .task { await store.send(.task).finish() }
+    .navigationTitle("Sync Status")
   }
 }
 
@@ -58,69 +46,31 @@ private struct StatusHeader: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      switch store.status {
+      let status = store.status
+      SyncStatusLabel(status: status)
+      switch status {
       case .needsConsent:
-        Label("Not uploading", systemImage: "hand.raised")
-          .foregroundStyle(.secondary)
-        Text(
-          "lil health needs your consent to upload your Health data."
-        )
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
+        message(status)
         Button("Review Consent") { store.send(.reviewConsentButtonTapped) }
           .buttonStyle(.borderedProminent)
       case .loading:
-        Label("Checking…", systemImage: "arrow.triangle.2.circlepath")
+        EmptyView()
       case .needsHealthAccess:
-        Label("Health access needed", systemImage: "heart.text.square")
-          .foregroundStyle(.pink)
-        Text("lil health needs access to your Health data to upload it.")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
+        message(status)
         Button("Review Access") { store.send(.reviewHealthAccessButtonTapped) }
           .buttonStyle(.borderedProminent)
-      case .offline:
-        Label("Paused", systemImage: "wifi.slash")
-          .foregroundStyle(.orange)
-        Text("Uploading continues when you're back online.")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-        Button("Try Again") { store.send(.retryButtonTapped) }
-          .buttonStyle(.bordered)
-      case .storageFull:
-        Label("Storage full", systemImage: "externaldrive.badge.exclamationmark")
-          .foregroundStyle(.red)
-        Text(
-          "Your lil account is full. What's already uploaded is safe."
-        )
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-        Button("Try Again") { store.send(.retryButtonTapped) }
-          .buttonStyle(.bordered)
-      case .failed(let reason):
-        Label("Upload failed", systemImage: "exclamationmark.triangle.fill")
-          .foregroundStyle(.red)
-        Text(reason)
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
+      case .offline, .storageFull, .failed:
+        message(status)
         Button("Try Again") { store.send(.retryButtonTapped) }
           .buttonStyle(.bordered)
       case .uploading(_, _, let records, let totalRecords):
-        Label("Uploading your Health history", systemImage: "icloud.and.arrow.up")
-          .foregroundStyle(.blue)
         UploadCounts(records: records, totalRecords: totalRecords)
       case .paused(_, _, let records, let totalRecords):
-        Label("Upload paused", systemImage: "pause.circle")
-          .foregroundStyle(.orange)
         UploadCounts(records: records, totalRecords: totalRecords)
-        Text("It'll continue in the background.")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
+        message(status)
         Button("Continue") { store.send(.retryButtonTapped) }
           .buttonStyle(.bordered)
       case .upToDate(let lastUpload):
-        Label("Up to date", systemImage: "checkmark.circle.fill")
-          .foregroundStyle(.green)
         if let lastUpload {
           // Updated every minute while the screen is open.
           TimelineView(.everyMinute) { _ in
@@ -134,6 +84,67 @@ private struct StatusHeader: View {
     }
     .font(.headline)
     .padding(.vertical, 4)
+  }
+
+  @ViewBuilder private func message(_ status: SyncStatusFeature.State.Status) -> some View {
+    if let message = status.message {
+      Text(message)
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+    }
+  }
+}
+
+/// A status's symbol and title, in its color: the status screen's header, and Summary's row
+/// (851-3211).
+struct SyncStatusLabel: View {
+  let status: SyncStatusFeature.State.Status
+
+  var body: some View {
+    switch status {
+    case .needsConsent:
+      Label("Not uploading", systemImage: "hand.raised")
+        .foregroundStyle(.secondary)
+    case .loading:
+      Label("Checking…", systemImage: "arrow.triangle.2.circlepath")
+    case .needsHealthAccess:
+      Label("Health access needed", systemImage: "heart.text.square")
+        .foregroundStyle(.pink)
+    case .offline:
+      Label("Paused", systemImage: "wifi.slash")
+        .foregroundStyle(.orange)
+    case .storageFull:
+      Label("Storage full", systemImage: "externaldrive.badge.exclamationmark")
+        .foregroundStyle(.red)
+    case .failed:
+      Label("Upload failed", systemImage: "exclamationmark.triangle.fill")
+        .foregroundStyle(.red)
+    case .uploading:
+      Label("Uploading your Health history", systemImage: "icloud.and.arrow.up")
+        .foregroundStyle(.blue)
+    case .paused:
+      Label("Upload paused", systemImage: "pause.circle")
+        .foregroundStyle(.orange)
+    case .upToDate:
+      Label("Up to date", systemImage: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+  }
+}
+
+extension SyncStatusFeature.State.Status {
+  /// What the status says under its title, if anything: why nothing's uploading, or what
+  /// happens next.
+  var message: String? {
+    switch self {
+    case .needsConsent: "lil health needs your consent to upload your Health data."
+    case .needsHealthAccess: "lil health needs access to your Health data to upload it."
+    case .offline: "Uploading continues when you're back online."
+    case .storageFull: "Your lil account is full. What's already uploaded is safe."
+    case .failed(let reason): reason
+    case .paused: "It'll continue in the background."
+    case .loading, .uploading, .upToDate: nil
+    }
   }
 }
 
@@ -182,7 +193,7 @@ enum UploadCopy {
 /// An upload's progress: by records once they've been counted. Until then the bar is
 /// indeterminate, since the share of types done says little (empty types finish first), and a
 /// bar by types would jump back once the records are counted.
-private struct UploadCounts: View {
+struct UploadCounts: View {
   let records: Int
   let totalRecords: Int?
 

@@ -1,6 +1,7 @@
 import Dependencies
 import HealthCatalog
 import HealthDatabase
+import HealthUI
 import LilUI
 import SQLiteData
 public import SwiftUI

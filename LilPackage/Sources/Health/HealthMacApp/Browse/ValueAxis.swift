@@ -1,5 +1,6 @@
 import Charts
 import HealthPages
+import HealthUI
 import SwiftUI
 
 // The value axis of Metric Detail's chart, which a card's page shares (851-3207).

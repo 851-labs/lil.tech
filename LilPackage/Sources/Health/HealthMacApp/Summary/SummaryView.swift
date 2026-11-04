@@ -288,12 +288,3 @@ struct SummaryContent<Row: View>: View {
     }
   }
 }
-
-extension Card {
-  /// The welcome seed's cards, as an account has them once synced: Summary's rows while its cards
-  /// load.
-  static let welcomeSeed: [Card] = HealthCards.welcomeSeed.map {
-    Card(
-      id: $0.id, spec: $0.spec, position: $0.position, createdAt: 0, updatedAt: 0, seed: $0.seed)
-  }
-}
