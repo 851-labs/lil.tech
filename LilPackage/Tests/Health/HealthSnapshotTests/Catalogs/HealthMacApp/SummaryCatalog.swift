@@ -119,7 +119,7 @@
       CardHeadlinesRequest(cards: [card], day: previewNow).fetch(
         now: previewNow, calendar: previewCalendar, db)
     }
-    return headlines[card.id] ?? .loading
+    return headlines[card]
   }
 
   /// The catalog database's week highlights (two weeks of data), after a made-up trend.

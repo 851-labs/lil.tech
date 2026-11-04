@@ -15,10 +15,9 @@ import SwiftUI
 /// local database as sync changes it.
 struct SummaryView: View {
   let store: StoreOf<CardsFeature>
-  /// Each card's headline, by its ID, as of the last fetch: every card's at once, at most once a
-  /// second while sync writes (`CardHeadlinesRequest`, 851-3237). A card without one yet is
-  /// loading.
-  @State private var headlines: [Card.ID: CardRow.Headline]
+  /// The cards' headlines, as of the last fetch: every card's at once, at most once a second while
+  /// sync writes (`CardHeadlinesRequest`, 851-3237).
+  @State private var headlines: CardHeadlines
   @Fetch private var highlights: [Highlight]
   /// Whether the local data holds the cards: until a first pull, or an upgraded Mac's catch-up of
   /// them, brings them, no cards isn't an empty Summary (docs/decisions/cards.md, The welcome
@@ -45,12 +44,13 @@ struct SummaryView: View {
         ? (try? database.read {
           CardHeadlinesRequest(cards: store.cards, day: day).fetch(
             now: now, calendar: calendar, $0)
-        }) ?? [:] : [:])
+        }) ?? CardHeadlines() : CardHeadlines())
     _highlights = Fetch(wrappedValue: [], HighlightsRequest(), scheduler: MainQueueScheduler())
     _holdsCards = Fetch(wrappedValue: false, HoldsCardsRequest(), scheduler: MainQueueScheduler())
   }
 
   var body: some View {
+    let headlinesRequest = CardHeadlinesRequest(cards: store.cards, day: day)
     SummaryContent(
       cards: cards,
       highlights: $highlights.loadError.map { .failed($0.localizedDescription) }
@@ -62,13 +62,11 @@ struct SummaryView: View {
         moveUp: { store.send(.moveCardUp(id: $0.id)) },
         moveDown: { store.send(.moveCardDown(id: $0.id)) })
     ) { card in
-      CardRow(
-        card: card, headline: headlines[card.id] ?? .loading, now: date.now, calendar: calendar)
+      CardRow(card: card, headline: headlines[card], now: date.now, calendar: calendar)
     }
     // Again when a card's spec changes, one's added, or the day does.
-    .task(id: CardHeadlinesRequest(cards: store.cards, day: day)) {
-      let request = CardHeadlinesRequest(cards: store.cards, day: day)
-      for await headlines in request.observe(
+    .task(id: headlinesRequest) {
+      for await headlines in headlinesRequest.observe(
         in: database, clock: clock, now: { [date] in date.now }, calendar: calendar)
       {
         self.headlines = headlines
@@ -130,14 +128,16 @@ struct CardHeadlinesRequest: Hashable, Sendable {
   }
 
   /// Each card's headline, from data started by `now`.
-  func fetch(now: Date, calendar: Calendar, _ db: Database) -> [Card.ID: CardRow.Headline] {
-    specs.mapValues { spec in
-      do {
-        return .loaded(try HealthDatabase.cardHeadline(spec, now: now, calendar: calendar, db))
-      } catch {
-        return .failed(error.localizedDescription)
-      }
-    }
+  func fetch(now: Date, calendar: Calendar, _ db: Database) -> CardHeadlines {
+    CardHeadlines(
+      specs: specs,
+      values: specs.mapValues { spec in
+        do {
+          return .loaded(try HealthDatabase.cardHeadline(spec, now: now, calendar: calendar, db))
+        } catch {
+          return .failed(error.localizedDescription)
+        }
+      })
   }
 
   /// The headlines, now and again as the tables cards read change, at most once a second. A read
@@ -145,7 +145,7 @@ struct CardHeadlinesRequest: Hashable, Sendable {
   func observe(
     in database: any DatabaseWriter, clock: any Clock<Duration>,
     now: @escaping @Sendable () -> Date, calendar: Calendar
-  ) -> some AsyncSequence<[Card.ID: CardRow.Headline], Never> {
+  ) -> some AsyncSequence<CardHeadlines, Never> {
     let specs = specs
     return
       throttledObservation(of: HealthDatabase.cardTables, in: database, clock: clock) { db in
@@ -154,9 +154,26 @@ struct CardHeadlinesRequest: Hashable, Sendable {
       .map { result in
         switch result {
         case .success(let headlines): headlines
-        case .failure(let error): specs.mapValues { _ in .failed(error.localizedDescription) }
+        case .failure(let error):
+          CardHeadlines(
+            specs: specs, values: specs.mapValues { _ in .failed(error.localizedDescription) })
         }
       }
+  }
+}
+
+/// Cards' headlines, each with the spec it's for.
+struct CardHeadlines: Equatable, Sendable {
+  var specs: [Card.ID: CardSpec] = [:]
+  var values: [Card.ID: CardRow.Headline] = [:]
+
+  /// The card's headline, if it's for the card's spec: an edited card's row is loading until its
+  /// new spec's is read, rather than showing the old one's under it.
+  subscript(card: Card) -> CardRow.Headline {
+    guard let spec = card.spec, specs[card.id] == spec, let value = values[card.id] else {
+      return .loading
+    }
+    return value
   }
 }
 

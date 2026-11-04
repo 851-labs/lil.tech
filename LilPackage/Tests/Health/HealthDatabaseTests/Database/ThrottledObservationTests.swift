@@ -20,8 +20,12 @@ struct ThrottledObservationTests {
     let before = LockIsolated<@Sendable (Int) throws -> Void>({ _ in })
     private let task = LockIsolated<Task<Void, Never>?>(nil)
 
-    init() throws {
-      database = try HealthDatabase.make()
+    init(database: any DatabaseWriter) {
+      self.database = database
+    }
+
+    convenience init() throws {
+      self.init(database: try HealthDatabase.make())
     }
 
     func start() {
@@ -44,16 +48,49 @@ struct ThrottledObservationTests {
     var counts: [Int?] { values.value.map { try? $0.get() } }
 
     func writeSample() throws {
-      try database.write { db in
-        let id = UUID().uuidString.lowercased()
-        try HealthSample.insert {
-          HealthSample(
-            id: id, type: HealthDatabase.heartRateType, startDate: 0, endDate: 1, value: 60,
-            unit: "count/min", sourceName: "Apple Watch", sourceBundleID: "com.apple.health.watch")
-        }
-        .execute(db)
+      try database.write { try Self.insertSample($0) }
+    }
+
+    static func insertSample(_ db: Database) throws {
+      try HealthSample.insert {
+        HealthSample(
+          id: UUID().uuidString.lowercased(), type: HealthDatabase.heartRateType, startDate: 0,
+          endDate: 1, value: 60, unit: "count/min", sourceName: "Apple Watch",
+          sourceBundleID: "com.apple.health.watch")
+      }
+      .execute(db)
+    }
+  }
+
+  /// The first value comes from a reader while sync holds the writer, and what that write
+  /// commits, before observing could start, is fetched once it has.
+  @Test
+  func theFirstValueDoesntWaitForTheWriter() async throws {
+    let url = URL.temporaryDirectory.appending(path: "throttled-\(UUID().uuidString).sqlite")
+    defer {
+      for suffix in ["", "-wal", "-shm"] {
+        try? FileManager.default.removeItem(at: URL(filePath: url.path() + suffix))
       }
     }
+    let observed = Observed(database: try HealthDatabase.make(at: url))
+    let writing = LockIsolated(false)
+    let release = DispatchSemaphore(value: 0)
+    let written = Task.detached { [database = observed.database] in
+      try database.write { db in
+        try Observed.insertSample(db)
+        writing.setValue(true)
+        release.wait()
+      }
+    }
+    try await eventually { writing.value }
+    observed.start()
+    defer { observed.stop() }
+    try await eventually { observed.counts == [0] }
+    release.signal()
+    try await written.value
+    try await observed.clock.waitUntilAsleep(endingIn: .seconds(1))
+    observed.clock.advance(by: .seconds(1))
+    try await eventually { observed.counts == [0, 1] }
   }
 
   @Test

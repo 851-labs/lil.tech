@@ -34,12 +34,30 @@ struct CardHeadlinesRequestTests {
         == cards.map(\.id).sorted())
   }
 
+  /// An edited card's row is loading until its new spec's headline is read, rather than showing
+  /// the old spec's.
+  @Test
+  func aHeadlineIsForItsSpec() throws {
+    let headlines = try catalogDatabase.read { db in
+      CardHeadlinesRequest(cards: [steps], day: previewNow).fetch(
+        now: previewNow, calendar: previewCalendar, db)
+    }
+    guard case .loaded(.some) = headlines[steps] else {
+      Issue.record("No headline: \(headlines)")
+      return
+    }
+    var edited = steps
+    edited.spec = Card.welcomeSeed[1].spec
+    #expect(headlines[edited] == .loading)
+    #expect(headlines[laterVersionCard] == .loading)
+  }
+
   @Test
   func headlinesFollowWritesOncePerSecond() async throws {
     let database = try HealthDatabase.make()
     let clock = ManualClock()
     let request = CardHeadlinesRequest(cards: [steps], day: previewNow)
-    let values = LockIsolated<[[Card.ID: CardRow.Headline]]>([])
+    let values = LockIsolated<[CardHeadlines]>([])
     let task = Task {
       for await headlines in request.observe(
         in: database, clock: clock, now: { previewNow }, calendar: previewCalendar)
@@ -48,7 +66,7 @@ struct CardHeadlinesRequestTests {
       }
     }
     defer { task.cancel() }
-    try await eventually { values.value == [[steps.id: .loaded(nil)]] }
+    try await eventually { values.value.map { $0[steps] } == [.loaded(nil)] }
 
     // A page of steps, then another, within the second: read once, after it.
     for minutes in [60, 30] { try write(steps: 100, minutesAgo: minutes, to: database) }
@@ -56,7 +74,7 @@ struct CardHeadlinesRequestTests {
     #expect(values.value.count == 1)
     clock.advance(by: .seconds(1))
     try await eventually { values.value.count == 2 }
-    guard case .loaded(let headline?) = values.value.last?[steps.id] else {
+    guard case .loaded(let headline?) = values.value.last?[steps] else {
       Issue.record("No headline: \(values.value)")
       return
     }
