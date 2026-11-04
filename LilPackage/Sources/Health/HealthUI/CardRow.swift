@@ -108,10 +108,20 @@ public struct CardRow: View {
         .foregroundStyle(.secondary)
         .accessibilityLabel("Loading")
     case .failed(let reason):
-      Label("Couldn't load this card: \(reason)", systemImage: "exclamationmark.triangle")
-        .lineLimit(1)
-        .foregroundStyle(.secondary)
-        .help(reason)
+      #if os(iOS)
+        // An iPhone's row is too narrow for the reason, and has no help tag (851-4020): it says
+        // only that the card failed, and the card's page, which runs it again, says why. The
+        // row keeps its height, as in every state, so a failure moves nothing.
+        Label("Couldn't load this card", systemImage: "exclamationmark.triangle")
+          .lineLimit(1)
+          .foregroundStyle(.secondary)
+          .accessibilityLabel("Couldn't load this card: \(reason)")
+      #else
+        Label("Couldn't load this card: \(reason)", systemImage: "exclamationmark.triangle")
+          .lineLimit(1)
+          .foregroundStyle(.secondary)
+          .help(reason)
+      #endif
     case .needsHealthAccess:
       Label("Needs access to your Health data", systemImage: "heart.text.square")
         .lineLimit(1)
