@@ -225,6 +225,20 @@
       command.reap()
     }
 
+    // Before it's a zombie, a killed process works its way out of `exit`, when `proc_pidinfo`
+    // can't read it but `sysctl` still says it's running (851-4041).
+    @Test(.timeLimit(.minutes(1)))
+    func aKilledCommandCountsAsGoneOnceItStartsExiting() throws {
+      let command = try SpawnedProcess()
+      let process = command.process
+      Darwin.kill(command.pid, SIGKILL)
+      // Looking again at once, not after a pause (as `eventually` does), which would miss that
+      // moment: it lasts microseconds.
+      while AgentProcess(pid: command.pid) != nil {}
+      #expect(!process.isRunning)
+      command.reap()
+    }
+
     @Test
     func anotherProcessWithTheSameIDIsntTheRequester() throws {
       try store.setEnabled(true, at: date(0))
@@ -476,14 +490,16 @@
       self.process = process
     }
 
-    /// Kills it, then waits for it unless `reap` is false, which leaves a zombie.
+    /// Kills it, then waits for it, or with `reap: false` until it's a zombie (851-4041): the
+    /// signal is delivered later, and the process takes a while to exit.
     func kill(reap: Bool = true) {
       Darwin.kill(pid, SIGKILL)
       if reap {
         self.reap()
       } else {
-        // Until it has died, short of being waited for.
-        while AgentProcess(pid: pid)?.isRunning == true { usleep(1_000) }
+        // `WNOWAIT` leaves it for `reap()` to wait for.
+        var info = siginfo_t()
+        while waitid(P_PID, id_t(pid), &info, WEXITED | WNOWAIT) == -1, errno == EINTR {}
       }
     }
 

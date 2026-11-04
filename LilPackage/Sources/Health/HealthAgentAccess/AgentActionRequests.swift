@@ -308,23 +308,35 @@ public struct AgentProcess: Equatable, Sendable {
 
   /// Whether it's still running: a process with its ID that started when it did. One this
   /// process may not look at (a sandbox can deny it) counts as running, rather than as gone:
-  /// only one that's known to have ended is.
+  /// only one that's known to have ended, or to be exiting, is.
   public var isRunning: Bool {
-    if let running = Self(pid: pid) { return running == self }
     #if os(macOS)
-      // A zombie, which `proc_pidinfo` can't read but `kill` still reaches, has ended.
-      var process = kinfo_proc()
-      var size = MemoryLayout<kinfo_proc>.size
-      var name = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
-      if sysctl(&name, 4, &process, &size, nil, 0) == 0, size > 0 {
-        return process.kp_proc.p_stat != SZOMB
+      if let running = Self(pid: pid) {
+        // `proc_pidinfo` still reads one that has begun to exit.
+        return running == self && Self.hasEnded(pid) != true
       }
+      // A zombie, which `proc_pidinfo` can't read but `kill` still reaches, has ended.
+      if let ended = Self.hasEnded(pid) { return !ended }
       // Not readable either: gone only if there's no such process (ESRCH).
       return kill(pid, 0) == 0 || errno == EPERM
     #else
       return true
     #endif
   }
+
+  #if os(macOS)
+    /// Whether the process with this ID has ended or is ending, or `nil` if this process may not
+    /// read it. A killed process works its way out of `exit` for a moment before it's a zombie
+    /// waiting for its parent; `proc_pidinfo` can't read it by then, but `sysctl` still says it's
+    /// running unless asked about exiting too (851-4041).
+    private static func hasEnded(_ pid: Int32) -> Bool? {
+      var process = kinfo_proc()
+      var size = MemoryLayout<kinfo_proc>.size
+      var name = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+      guard sysctl(&name, 4, &process, &size, nil, 0) == 0, size > 0 else { return nil }
+      return process.kp_proc.p_stat == SZOMB || process.kp_proc.p_flag & P_WEXIT != 0
+    }
+  #endif
 }
 
 extension AgentAccessStore {
