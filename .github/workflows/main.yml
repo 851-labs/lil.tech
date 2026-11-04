@@ -1,4 +1,4 @@
-name: Main
+name: main
 
 # Everything GitHub runs for a merge to main (851-2826). pr.yml runs what happens before one.
 # - changes: which parts the merge touches (`.github/actions/changes`). The jobs below skip the rest.
@@ -30,6 +30,7 @@ defaults:
 
 jobs:
   changes:
+    name: determine changes
     runs-on: ubuntu-latest
     outputs:
       swift: ${{ steps.changes.outputs.swift }}
@@ -40,12 +41,14 @@ jobs:
         with:
           fetch-depth: 0
       # A run by hand has no `before`, so everything counts as changed.
-      - id: changes
+      - name: determine changes
+        id: changes
         uses: ./.github/actions/changes
         with:
           base: ${{ github.event.before }}
 
   deploy:
+    name: deploy staging and prod
     needs: changes
     if: needs.changes.outputs.services == 'true' && github.event_name == 'push'
     # One deploy at a time, in the order of the merges.
@@ -65,26 +68,28 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-services
-      - id: version
+      - name: find the version
+        id: version
         run: echo "version=$(git describe --always --dirty --exclude '*')" >> "$GITHUB_OUTPUT"
-      - name: Deploy staging
+      - name: deploy staging
         run: pnpm run deploy:staging --yes
         working-directory: Services/api
-      - name: Check staging serves this commit
+      - name: check staging serves this commit
         uses: ./.github/actions/check-deploy
         with:
           url: https://api.staging.lil.tech
           version: ${{ steps.version.outputs.version }}
-      - name: Deploy prod
+      - name: deploy prod
         run: pnpm run deploy:prod --yes
         working-directory: Services/api
-      - name: Check prod serves this commit
+      - name: check prod serves this commit
         uses: ./.github/actions/check-deploy
         with:
           url: https://api.lil.tech
           version: ${{ steps.version.outputs.version }}
 
   check:
+    name: swift
     needs: changes
     if: needs.changes.outputs.swift == 'true'
     uses: ./.github/workflows/swift-check.yml
@@ -98,6 +103,7 @@ jobs:
   # git, so it needs no Mac and renders nothing. A merge whose catalogs a branch already published
   # (its PR's head, when it was up to date with main) only moves pointers.
   pixelbook:
+    name: publish pixelbook
     if: github.event_name == 'push'
     # In order, so main's pointer doesn't move back.
     concurrency:
@@ -114,5 +120,5 @@ jobs:
           # All of main, so a late or re-run job can tell its commit is behind main's pointer.
           fetch-depth: 0
       - uses: ./.github/actions/setup-services
-      - name: Publish this commit's snapshots and point main at them
+      - name: publish snapshots and point main at them
         run: scripts/pixelbook publish --ref main

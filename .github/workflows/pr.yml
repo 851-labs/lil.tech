@@ -1,4 +1,4 @@
-name: PR
+name: pull request
 
 # Everything GitHub runs for a pull request (851-2826). main.yml runs what follows a merge.
 # - changes: which parts the PR touches (`.github/actions/changes`). The jobs below skip the rest.
@@ -40,6 +40,7 @@ defaults:
 
 jobs:
   changes:
+    name: determine changes
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     outputs:
@@ -51,12 +52,14 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - id: changes
+      - name: determine changes
+        id: changes
         uses: ./.github/actions/changes
         with:
           base: ${{ github.event.pull_request.base.sha }}
 
   check:
+    name: swift
     needs: changes
     if: >-
       needs.changes.outputs.swift == 'true' &&
@@ -73,6 +76,7 @@ jobs:
       healthkit: ${{ needs.changes.outputs.healthkit == 'true' }}
 
   preview:
+    name: deploy preview
     needs: changes
     if: >-
       needs.changes.outputs.services == 'true' &&
@@ -93,7 +97,7 @@ jobs:
     steps:
       # The concurrency group is per job, so a PR closed right after a push can be torn down
       # before this deploy joins the group. Deploying then would leave a stage nothing destroys.
-      - name: Check the PR is still open
+      - name: check the pr is still open
         id: open
         env:
           GH_TOKEN: ${{ github.token }}
@@ -106,7 +110,7 @@ jobs:
         uses: actions/checkout@v7
       - if: steps.open.outputs.open == 'true'
         uses: ./.github/actions/setup-services
-      - name: Deploy the preview stage
+      - name: deploy preview stage
         if: steps.open.outputs.open == 'true'
         id: deploy
         working-directory: Services/api
@@ -125,13 +129,13 @@ jobs:
           echo "site_url=$site_url" >> "$GITHUB_OUTPUT"
           echo "pixelbook_url=$pixelbook_url" >> "$GITHUB_OUTPUT"
           echo "version=$(git describe --always --dirty --exclude '*')" >> "$GITHUB_OUTPUT"
-      - name: Check the preview serves this commit
+      - name: check the preview serves this commit
         if: steps.open.outputs.open == 'true'
         uses: ./.github/actions/check-deploy
         with:
           url: ${{ steps.deploy.outputs.url }}
           version: ${{ steps.deploy.outputs.version }}
-      - name: Comment the preview URL
+      - name: comment preview url
         if: steps.open.outputs.open == 'true'
         uses: ./.github/actions/comment
         with:
@@ -144,6 +148,7 @@ jobs:
             **Pixelbook preview**: ${{ steps.deploy.outputs.pixelbook_url || 'not found in the deploy output' }}
 
   destroy-preview:
+    name: destroy preview
     if: >-
       github.event.action == 'closed' &&
       github.event.pull_request.head.repo.full_name == github.repository
@@ -165,13 +170,13 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-services
       # Destroying a stage that was never deployed is a no-op.
-      - name: Destroy the preview stage
+      - name: destroy preview stage
         id: destroy
         run: pnpm exec alchemy destroy --stage "$STAGE" --yes
         working-directory: Services/api
       # A failed teardown would otherwise only be a red run on a closed PR, and leave resources
       # (and costs) behind. One comment, updated on each failed attempt.
-      - name: Comment if the teardown failed
+      - name: comment if teardown failed
         if: failure() && steps.destroy.outcome == 'failure'
         uses: ./.github/actions/comment
         with:
@@ -191,6 +196,7 @@ jobs:
   # publishes every merge with main's own scripts, where a PR's could be changing them. The head's
   # branch is pointed at its head too (`?ref=<branch>`).
   pixelbook:
+    name: publish pixelbook
     # Fork PRs get no secrets.
     if: >-
       github.event.action != 'closed' &&
@@ -215,7 +221,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
       - uses: ./.github/actions/setup-services
-      - name: Publish the head's snapshots, and find the base's
+      - name: publish snapshots and find the base's
         id: commits
         run: |
           # The PR's merge base with its target, or the nearest commit before it with snapshots:
@@ -235,7 +241,7 @@ jobs:
           else
             scripts/pixelbook publish --commit "$HEAD_SHA" --ref "$HEAD_REF" --force-ref
           fi
-      - name: Count what changed
+      - name: count changed snapshots
         id: diff
         env:
           BASE: ${{ steps.commits.outputs.base }}
@@ -246,7 +252,7 @@ jobs:
             echo "$body"
             echo "PIXELBOOK_BODY"
           } >> "$GITHUB_OUTPUT"
-      - name: Comment what changed
+      - name: comment changed snapshots
         uses: ./.github/actions/comment
         with:
           pr: ${{ github.event.pull_request.number }}
@@ -255,13 +261,15 @@ jobs:
           body: ${{ steps.diff.outputs.body }}
 
   # The one required check. Runs even when a job it needs failed or the run was cancelled, so it
-  # never counts as skipped (which branch protection would take as passed).
+  # never counts as skipped (which branch protection would take as passed). The "Protect main"
+  # ruleset requires it by its name, so renaming it means changing the ruleset too.
   pr-ok:
+    name: pr-ok
     if: always()
     needs: [changes, check, preview, destroy-preview, pixelbook]
     runs-on: ubuntu-latest
     steps:
-      - name: Check every job passed or was skipped
+      - name: check every job passed or was skipped
         env:
           NEEDS: ${{ toJSON(needs) }}
         run: |

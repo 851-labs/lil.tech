@@ -12,7 +12,7 @@ The **Release** workflow (`.github/workflows/release.yml`, 851-2827) releases li
 gh workflow run release.yml -f version=0.4.0 -f target=both -f dry-run=false
 ```
 
-or Actions › Release › Run workflow. The inputs:
+or Actions › release lil health › Run workflow. The inputs:
 
 - `version`: the marketing version, shared by the Mac and iOS apps.
 - `target`: `both`, `mac` or `ios`.
@@ -21,9 +21,9 @@ or Actions › Release › Run workflow. The inputs:
 
 Each run waits for Alexandru to approve it (the `release` environment), then:
 
-1. **mac** runs `scripts/release health <version>` headless (below): every check and step of a local release, from archive to `enclosure.txt`. The run's summary shows the build number and the enclosure.
-2. **publish-mac** (not in a dry run) tags `health/v<version>` on the released commit, makes the GitHub release with the DMG, and pushes the branch `release/health-v<version>`, which adds the item to `appcasts/health.xml`. **Open its PR from the link in the run's summary**, check it, and merge it after `pr-ok` passes. The workflow can't open the PR itself: the repo doesn't let Actions open pull requests, and GitHub runs no workflows (so no `pr-ok`) for one its token opened. The release's notes are one line; write the real ones with `gh release edit health/v<version> --notes-file …`.
-3. **ios** runs `scripts/release health-ios <version>` headless, which uploads to TestFlight (in a dry run, `--skip-upload`: export to disk only). It runs alongside **mac**, so one approval starts both. With `both`, it refuses a version that's already tagged, as **mac** does, but a Mac release that fails later doesn't stop the upload: rerun it with `target=mac` from the same commit, which gives it the same build number. Release iOS on its own for a version the Mac already has with `target=ios`.
+1. **mac** (`build mac dmg` in the run's graph) runs `scripts/release health <version>` headless (below): every check and step of a local release, from archive to `enclosure.txt`. The run's summary shows the build number and the enclosure.
+2. **publish-mac** (`publish mac release`, not in a dry run) tags `health/v<version>` on the released commit, makes the GitHub release with the DMG, and pushes the branch `release/health-v<version>`, which adds the item to `appcasts/health.xml`. **Open its PR from the link in the run's summary**, check it, and merge it after `pr-ok` passes. The workflow can't open the PR itself: the repo doesn't let Actions open pull requests, and GitHub runs no workflows (so no `pr-ok`) for one its token opened. The release's notes are one line; write the real ones with `gh release edit health/v<version> --notes-file …`.
+3. **ios** (`upload ios to testflight`) runs `scripts/release health-ios <version>` headless, which uploads to TestFlight (in a dry run, `--skip-upload`: export to disk only). It runs alongside **mac**, so one approval starts both. With `both`, it refuses a version that's already tagged, as **mac** does, but a Mac release that fails later doesn't stop the upload: rerun it with `target=mac` from the same commit, which gives it the same build number. Release iOS on its own for a version the Mac already has with `target=ios`.
 
 Releases queue, one per platform at a time, and none is cancelled halfway. If **publish-mac** fails, rerun it (Re-run failed jobs): it picks up where it stopped, reusing the tag if it's on the same commit, and the release if it exists. Its DMG is kept for three days.
 
