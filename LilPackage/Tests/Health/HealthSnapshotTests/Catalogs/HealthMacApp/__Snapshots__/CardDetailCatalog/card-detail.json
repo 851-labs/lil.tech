@@ -116,6 +116,13 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.heart-rate-before-sleep-finding-its-latest-night-dark.png",
+      "id" : "card-detail.heart-rate-before-sleep-finding-its-latest-night",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.heart-rate-before-sleep-finding-its-latest-night-light.png",
+      "name" : "Heart rate before sleep, finding its latest night",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/CardDetailCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.morning-weight-week-dark.png",
       "id" : "card-detail.morning-weight-week",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/CardDetailCatalog/card-detail.morning-weight-week-light.png",

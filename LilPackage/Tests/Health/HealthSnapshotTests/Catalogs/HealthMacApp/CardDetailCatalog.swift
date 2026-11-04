@@ -11,8 +11,8 @@
   // The full-page card (`CardDetailContent`, 851-3207): the welcome seed's and the design's five
   // example cards over a period, from the catalog database at `previewNow` (and the Summary
   // catalog's copy of it with readings before falling asleep), its loading, empty and failed
-  // states, a goal line, a windowed card opening on its latest bucket's period, and a card of a
-  // later version. Synthetic data only.
+  // states, a goal line, a windowed card opening on its latest bucket's period (and looking for
+  // it), and a card of a later version. Synthetic data only.
 
   extension MacSnapshotTests {
     @Test(arguments: cardDetailCatalog.selectedStates)
@@ -55,6 +55,14 @@
       CatalogState("Heart rate before sleep, none this week") {
         opening(weeklyHeartRateBeforeSleep, in: lapsedBeforeSleepDatabase)
       },
+      // Before it knows which: its dates "–", while the headline's search runs.
+      CatalogState("Heart rate before sleep, finding its latest night") {
+        NavigationStack {
+          CardDetailContent(
+            spec: weeklyHeartRateBeforeSleep.spec!, range: .constant(.week),
+            offset: .constant(nil), state: .loading)
+        }
+      },
       CatalogState("Morning weight, week") { example(4, .week) },
       CatalogState("Morning weight, month") { example(4, .month) },
       // In pounds (851-3116), plotted in them.
@@ -78,6 +86,7 @@
       [
         "Heart rate before sleep, week", "Heart rate before sleep, month",
         "Heart rate before sleep, none this week",
+        "Heart rate before sleep, finding its latest night",
       ],
       ["Morning weight, week", "Morning weight, month", "Morning weight, month, US"],
     ])
@@ -117,14 +126,12 @@
     }
   }
 
-  /// A card's page as it opens (`CardSpec.openingOffset`): on the period of its headline, from
-  /// `database`.
+  /// A card's page as it opens, on the period of its headline from `database`, which the
+  /// editor's preview opens on too (`CardPreviewRequest`).
   @MainActor
   private func opening(_ card: Card, in database: any DatabaseReader) -> some View {
     let spec = card.spec!
-    let period = try! database.read { db in
-      try CardDataRequest(spec: spec, range: spec.range, offset: spec.openingOffset(db)).fetch(db)!
-    }
+    let period = try! database.read { try CardPreviewRequest(spec: spec).fetch($0)! }
     return NavigationStack {
       CardDetailContent(
         spec: spec, range: .constant(spec.range), offset: .constant(period.offset),
