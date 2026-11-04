@@ -60,6 +60,15 @@ public struct HealthAccessNeeded: LocalizedError, Equatable {
   public static func converting(_ error: any Error) -> any Error {
     (error as? HKError)?.code == .errorAuthorizationNotDetermined ? HealthAccessNeeded() : error
   }
+
+  /// `body`'s value, or its error, converted.
+  static func converting<Value>(_ body: () async throws -> Value) async throws -> Value {
+    do {
+      return try await body()
+    } catch {
+      throw converting(error)
+    }
+  }
 }
 
 extension HealthKitCards: DependencyKey {
@@ -67,18 +76,14 @@ extension HealthKitCards: DependencyKey {
     let engine = HealthKitCardEngine(store: HKHealthStore())
     return Self(
       data: { spec, range, date, now, calendar in
-        do {
-          return try await engine.data(
+        try await HealthAccessNeeded.converting {
+          try await engine.data(
             CardRun(spec: spec, range: range, date: date, now: now, calendar: calendar))
-        } catch {
-          throw HealthAccessNeeded.converting(error)
         }
       },
       headline: { spec, now, calendar in
-        do {
-          return try await engine.headline(spec, now: now, calendar: calendar)
-        } catch {
-          throw HealthAccessNeeded.converting(error)
+        try await HealthAccessNeeded.converting {
+          try await engine.headline(spec, now: now, calendar: calendar)
         }
       }
     )

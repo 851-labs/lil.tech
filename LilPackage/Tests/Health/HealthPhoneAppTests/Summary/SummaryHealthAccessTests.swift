@@ -23,11 +23,11 @@ struct SummaryHealthAccessTests {
   private let day = Date(timeIntervalSince1970: 1_760_400_000)
   private let steps = Card.welcomeSeed[0]
 
-  /// What a row does in `state`, as `SummaryView` reads it: `nil` while Summary isn't the screen
-  /// shown, or its cards are the seed's loading rows; otherwise the row's run, which runs its
-  /// card when it's ready.
+  /// What a row does in `state`, as `AppView` and `SummaryView` read it: `nil` while Summary isn't
+  /// the screen shown (consent or Health access is; an alert shows over it), or its cards are the
+  /// seed's loading rows; otherwise the row's run, which runs its card when it's ready.
   private func run(in state: AppFeature.State) -> CardHeadlines.Run? {
-    guard state.isSignedIn == true, !state.takesOverFromMainScreen,
+    guard state.isSignedIn == true, state.healthConsent == nil, state.healthAccess == nil,
       case .loaded(let cards) = SummaryLoad(state.cards), let card = cards.first
     else { return nil }
     return CardHeadlines.Run(
@@ -93,10 +93,11 @@ struct SummaryHealthAccessTests {
 
     await store.send(.healthAccess(.delegate(.finished)))
     await store.receive(\.startUpload)
-    // Summary again: its check (`SyncStatusFeature`'s task) hasn't answered yet.
+    // Summary again: Health is asked again, and hasn't answered yet.
     let asked = try #require(run(in: store.state))
     #expect(!asked.isReady)
-    await store.send(.syncStatus(.healthAccessChecked(needsRequest: false)))
+    needsRequest.answer(false)
+    await store.receive(\.syncStatus.healthAccessChecked)
     let granted = try #require(run(in: store.state))
     #expect(granted.isReady)
     #expect(granted != waiting)
@@ -136,7 +137,8 @@ struct SummaryHealthAccessTests {
     await store.send(.healthAccess(.delegate(.skipped)))
     await store.send(.cards(pulled))
     #expect(try #require(run(in: store.state)).isReady == false)
-    await store.send(.syncStatus(.healthAccessChecked(needsRequest: true)))
+    needsRequest.answer(true)
+    await store.receive(\.syncStatus.healthAccessChecked)
     #expect(try #require(run(in: store.state)).isReady)
 
     let error = HealthAccessNeeded.converting(HKError(.errorAuthorizationNotDetermined))

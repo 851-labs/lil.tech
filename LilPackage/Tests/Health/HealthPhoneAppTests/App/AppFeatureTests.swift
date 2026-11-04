@@ -134,6 +134,9 @@ struct AppFeatureTests {
     }
 
     await store.receive(\.startUpload)
+    await store.receive(\.syncStatus.healthAccessChecked) {
+      $0.syncStatus.needsHealthAccess = true
+    }
 
     // Once everything was offered and Health has nothing to ask, there's no onboarding: the
     // backfill starts.
@@ -178,10 +181,12 @@ struct AppFeatureTests {
       $0.syncStatus.needsHealthAccess = nil
     }
     await store.receive(\.startUpload)
+    await store.receive(\.syncStatus.healthAccessChecked) {
+      $0.syncStatus.needsHealthAccess = true
+    }
     await store.send(.signedInChanged(true))
     await store.receive(\.consentChecked)
     await store.receive(\.healthAccessChecked) {
-      $0.syncStatus.needsHealthAccess = true
       $0.healthAccess = HealthAccessFeature.State()
     }
   }

@@ -163,17 +163,17 @@ public struct AppFeature {
       case .healthAccess(.delegate(.finished)):
         state.$offeredPerObject.withLock { $0 = true }
         state.healthAccess = nil
-        // Asked: unknown until Health answers again (Summary checks when it shows), so Summary's
-        // rows wait rather than run on the answer from before (851-4035).
+        // Asked: unknown until Health answers again, so Summary's rows wait rather than run on
+        // the answer from before (851-4035).
         state.syncStatus.needsHealthAccess = nil
         // Onboarding is done: the first upload starts, and carries on after the app is left.
-        return .send(.startUpload)
+        return .merge(.send(.startUpload), recheckHealthAccess())
 
       case .healthAccess(.delegate(.skipped)):
         state.healthAccess = nil
         // The system sheet may have been answered before Not Now.
         state.syncStatus.needsHealthAccess = nil
-        return .send(.startUpload)
+        return .merge(.send(.startUpload), recheckHealthAccess())
 
       case .healthAccess:
         return .none
@@ -345,6 +345,16 @@ extension AppFeature {
       guard healthAuthorization.isAvailable() else { return }
       await send(
         .healthAccessChecked(needsRequest: await Self.needsRequest(healthAuthorization)))
+    }
+  }
+
+  /// Asks Health again whether it has types to ask about, after Health access was finished or
+  /// skipped, for Summary's rows and status (851-4035), without bringing Health access back.
+  func recheckHealthAccess() -> Effect<Action> {
+    .run { [healthAuthorization] send in
+      await send(
+        .syncStatus(
+          .healthAccessChecked(needsRequest: await Self.needsRequest(healthAuthorization))))
     }
   }
 

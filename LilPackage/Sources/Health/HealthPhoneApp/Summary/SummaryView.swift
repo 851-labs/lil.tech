@@ -52,7 +52,8 @@ public struct SummaryView: View {
           CardPage(
             store: cards, id: id,
             opening: CardOpening(headlines[id], spec: cards.cards[id: id]?.spec),
-            refresh: CardRefresh(day: day, generation: generation))
+            refresh: CardRefresh(
+              day: day, generation: generation, needsHealthAccess: syncStatus.needsHealthAccess))
         }
       }
       .sheet(isPresented: $syncStatus.isShowingSettings.sending(\.settingsPresented)) {
