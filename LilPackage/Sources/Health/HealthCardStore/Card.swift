@@ -82,3 +82,22 @@ public struct Card: Equatable, Identifiable, Sendable {
     return id.utf8.lexicographicallyPrecedes(other.id.utf8)
   }
 }
+
+extension Card {
+  /// The card's name, as far as this version can read its stored spec, else "Card": a card of a
+  /// later version's too.
+  public var storedName: String {
+    if let spec { return spec.display.name }
+    if case .string(let name)? = storedSpec["display"]?["name"] { return name }
+    return "Card"
+  }
+}
+
+extension Card {
+  /// The welcome seed's cards, as an account has them once synced: Summary's rows while its cards
+  /// load, on the Mac and the iPhone.
+  public static let welcomeSeed: [Card] = HealthCards.welcomeSeed.map {
+    Card(
+      id: $0.id, spec: $0.spec, position: $0.position, createdAt: 0, updatedAt: 0, seed: $0.seed)
+  }
+}

@@ -1,13 +1,11 @@
-import Charts
 import Dependencies
-import HealthCards
-import HealthCatalog
-import HealthDatabase
-import HealthPages
-import HealthUI
-import SwiftUI
+public import Foundation
+public import HealthCardStore
+public import HealthCards
+public import SwiftUI
 
-/// One card on Summary (851-3206, docs/decisions/cards.md, UI › Mac): `MetricRow` for a card. Its
+/// One card on Summary (851-3206, docs/decisions/cards.md, UI › Mac): `MetricRow` for a card, on
+/// the Mac and the iPhone (851-3211). Its
 /// symbol and name in its color, its headline (the lead's latest value in the display unit, and
 /// when it's from) and a sparkline of the 7 buckets ending on it, in the card's chart style, with
 /// a legend under them when it draws more than one line. So the welcome seed's rows read and look
@@ -16,23 +14,37 @@ import SwiftUI
 /// Its height is the same with a value, without data ("No Data"), while it loads ("–"), when it
 /// fails, and for a card of a later version, so nothing moves as Summary loads (851-3092). The
 /// legend is one line that truncates, so a card with one is a line taller in every state.
-struct CardRow: View {
+public struct CardRow: View {
   /// A card's headline, as its row has it.
-  enum Headline: Equatable {
+  public enum Headline: Equatable, Sendable {
     case loading
     /// `nil` for No Data.
     case loaded(CardHeadline?)
     case failed(String)
   }
 
-  let card: Card
-  let headline: Headline
-  let now: Date
-  let calendar: Calendar
+  public let card: Card
+  public let headline: Headline
+  public let now: Date
+  public let calendar: Calendar
   /// Whose units the value is in (851-3116).
   @Dependency(\.locale) private var locale
 
-  var body: some View {
+  public init(card: Card, headline: Headline, now: Date, calendar: Calendar) {
+    self.card = card
+    self.headline = headline
+    self.now = now
+    self.calendar = calendar
+  }
+
+  /// A row loading its headline, which shows no date, so it needs neither "now" nor a calendar:
+  /// a view that makes it reads no dependency.
+  public init(loading card: Card) {
+    self.init(
+      card: card, headline: .loading, now: .distantPast, calendar: Calendar(identifier: .gregorian))
+  }
+
+  public var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       if let spec = card.spec {
         content(spec)
@@ -70,11 +82,12 @@ struct CardRow: View {
         sparkline(headline.data, spec: spec, color: color)
           .frame(width: 120, height: 36)
       case .loading, .loaded(nil), .failed:
-        // The value's line all the same, the chart's place kept.
+        // The value's line all the same, the chart's height kept, but not its width, so a
+        // failure's reason has the row's on an iPhone (851-3211).
         placeholder
         Spacer()
         Color.clear
-          .frame(width: 120, height: 36)
+          .frame(width: 0, height: 36)
       }
     }
     let legend = spec.legend
@@ -119,7 +132,7 @@ struct CardRow: View {
         .foregroundStyle(.secondary)
       Spacer()
       Color.clear
-        .frame(width: 120, height: 36)
+        .frame(width: 0, height: 36)
     }
   }
 
@@ -151,11 +164,16 @@ struct CardRow: View {
 
 /// A card's legend (docs/decisions/cards.md, UI › The legend): each visible line's mark and label,
 /// in the spec's order, on one line that truncates rather than wraps.
-struct CardLegend: View {
-  let lines: [CardLegendLine]
-  let color: Color
+public struct CardLegend: View {
+  public let lines: [CardLegendLine]
+  public let color: Color
 
-  var body: some View {
+  public init(lines: [CardLegendLine], color: Color) {
+    self.lines = lines
+    self.color = color
+  }
+
+  public var body: some View {
     HStack(spacing: 12) {
       // By place: two unlabeled formulas can read the same.
       ForEach(lines.indices, id: \.self) { index in
@@ -189,10 +207,14 @@ struct CardLegend: View {
 }
 
 /// A series' dot: a circle, square, triangle or diamond, by its place among the visible series.
-struct CardSeriesSymbol: Shape {
-  let mark: CardSeriesMark
+public struct CardSeriesSymbol: Shape {
+  public let mark: CardSeriesMark
 
-  func path(in rect: CGRect) -> Path {
+  public init(mark: CardSeriesMark) {
+    self.mark = mark
+  }
+
+  public func path(in rect: CGRect) -> Path {
     switch mark {
     case .circle:
       return Path(ellipseIn: rect)
@@ -221,7 +243,7 @@ extension Card {
   /// How a card of a later version looks, as far as this version can read its stored spec: its
   /// name, else "Card"; its symbol if it's a curated one, else a dashed square; and its palette
   /// color, if it's one this version knows. Its Summary row and its page show them.
-  var storedDisplay: (name: String, symbol: String, color: Color?) {
+  public var storedDisplay: (name: String, symbol: String, color: Color?) {
     let display = storedSpec["display"]
     let symbol = display?["symbol"].flatMap {
       if case .string(let symbol) = $0, HealthCards.cardSymbols.contains(symbol) {

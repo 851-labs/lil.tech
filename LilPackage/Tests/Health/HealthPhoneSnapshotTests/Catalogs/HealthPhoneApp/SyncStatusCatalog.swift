@@ -7,7 +7,7 @@
   import SwiftUI
   import Testing
 
-  // Sync Status, the iPhone app's main screen (`SyncStatusView`): its states, from synthetic
+  // Sync Status (`SyncStatusView`), which Summary pushes (851-3211): its states, from synthetic
   // upload progress at `previewNow`. Synthetic data only.
 
   extension PhoneSnapshotTests {
@@ -120,12 +120,15 @@
     state.$consentedPolicyVersion.withLock {
       $0 = consented ? HealthConsentClient.policyVersion : nil
     }
-    // `EmptyReducer`: the view's task would replace the state with the real backfill's.
+    // `EmptyReducer`, so nothing replaces the state, as the real backfill's progress would.
     // `ifLet`: closing an alert clears it, as the feature does.
-    return SyncStatusView(
-      store: Store(initialState: state) {
-        EmptyReducer<SyncStatusFeature.State, SyncStatusFeature.Action>()
-          .ifLet(\.$alert, action: \.alert)
-      })
+    // Pushed from Summary (851-3211).
+    return NavigationStack {
+      SyncStatusView(
+        store: Store(initialState: state) {
+          EmptyReducer<SyncStatusFeature.State, SyncStatusFeature.Action>()
+            .ifLet(\.$alert, action: \.alert)
+        })
+    }
   }
 #endif

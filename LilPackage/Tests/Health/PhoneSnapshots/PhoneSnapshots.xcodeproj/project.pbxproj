@@ -21,6 +21,10 @@
 		3D0000000000000000000018 /* LilAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 3D0000000000000000000008 /* LilAPI */; };
 		3D0000000000000000000019 /* LilUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3D0000000000000000000009 /* LilUI */; };
 		3D000000000000000000001A /* HealthCards in Frameworks */ = {isa = PBXBuildFile; productRef = 3D000000000000000000000A /* HealthCards */; };
+		3D000000000000000000001B /* HealthDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 3D000000000000000000000B /* HealthDatabase */; };
+		3D000000000000000000001C /* HealthCardStore in Frameworks */ = {isa = PBXBuildFile; productRef = 3D000000000000000000000C /* HealthCardStore */; };
+		3D000000000000000000001D /* HealthUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3D000000000000000000000D /* HealthUI */; };
+		3D000000000000000000001E /* HealthKitAccess in Frameworks */ = {isa = PBXBuildFile; productRef = 3D000000000000000000000E /* HealthKitAccess */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -78,6 +82,10 @@
 				3D0000000000000000000018 /* LilAPI in Frameworks */,
 				3D0000000000000000000019 /* LilUI in Frameworks */,
 				3D000000000000000000001A /* HealthCards in Frameworks */,
+				3D000000000000000000001B /* HealthDatabase in Frameworks */,
+				3D000000000000000000001C /* HealthCardStore in Frameworks */,
+				3D000000000000000000001D /* HealthUI in Frameworks */,
+				3D000000000000000000001E /* HealthKitAccess in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -165,6 +173,10 @@
 				3D0000000000000000000008 /* LilAPI */,
 				3D0000000000000000000009 /* LilUI */,
 				3D000000000000000000000A /* HealthCards */,
+				3D000000000000000000000B /* HealthDatabase */,
+				3D000000000000000000000C /* HealthCardStore */,
+				3D000000000000000000000D /* HealthUI */,
+				3D000000000000000000000E /* HealthKitAccess */,
 			);
 			productName = HealthPhoneSnapshotTests;
 			productReference = 3B0000000000000000000004 /* HealthPhoneSnapshotTests.xctest */;
@@ -419,6 +431,22 @@
 		3D000000000000000000000A /* HealthCards */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = HealthCards;
+		};
+		3D000000000000000000000B /* HealthDatabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HealthDatabase;
+		};
+		3D000000000000000000000C /* HealthCardStore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HealthCardStore;
+		};
+		3D000000000000000000000D /* HealthUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HealthUI;
+		};
+		3D000000000000000000000E /* HealthKitAccess */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HealthKitAccess;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

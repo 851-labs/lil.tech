@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import HealthPages
+import HealthUI
 import Testing
 
 struct CalendarDayChangesTests {

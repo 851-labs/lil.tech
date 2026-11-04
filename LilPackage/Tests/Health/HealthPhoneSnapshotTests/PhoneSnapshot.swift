@@ -1,4 +1,5 @@
 #if os(iOS)
+  import Dependencies
   import Foundation
   import SnapshotTesting
   import SwiftUI
@@ -165,9 +166,15 @@
         return
       }
       for style in [UIUserInterfaceStyle.light, .dark] {
-        assertPhoneSnapshot(
-          of: view(), style: style, named: slug, screen: screenSlug, fileID: fileID,
-          file: filePath, line: line, column: column)
+        // The state's locale, if it has one, while its views are made and drawn: a view's
+        // `@Dependency` reads the values current then.
+        withDependencies {
+          if let locale { $0.locale = locale }
+        } operation: {
+          assertPhoneSnapshot(
+            of: view(), style: style, named: slug, screen: screenSlug, fileID: fileID,
+            file: filePath, line: line, column: column)
+        }
       }
     }
   }

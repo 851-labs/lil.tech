@@ -29,7 +29,9 @@ public struct AppView: View {
         } else if let healthAccess = store.scope(\.healthAccess, action: \.healthAccess) {
           HealthAccessView(store: healthAccess)
         } else {
-          SyncStatusView(store: store.scope(\.syncStatus, action: \.syncStatus))
+          SummaryView(
+            cards: store.scope(\.cards, action: \.cards),
+            syncStatus: store.scope(\.syncStatus, action: \.syncStatus))
         }
       }
     }

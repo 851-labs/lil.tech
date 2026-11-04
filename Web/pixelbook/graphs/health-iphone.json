@@ -28,6 +28,10 @@
       "screen": "HealthPhoneApp/HealthAccessCatalog.swift"
     },
     {
+      "id": "summary",
+      "screen": "HealthPhoneApp/SummaryCatalog.swift"
+    },
+    {
       "id": "sync",
       "screen": "HealthPhoneApp/SyncStatusCatalog.swift"
     },
@@ -70,7 +74,7 @@
     },
     {
       "from": "app",
-      "to": "sync",
+      "to": "summary",
       "label": "Signed in and set up"
     },
     {
@@ -90,12 +94,12 @@
     },
     {
       "from": "consent",
-      "to": "sync",
+      "to": "summary",
       "label": "Not Now"
     },
     {
       "from": "access",
-      "to": "sync",
+      "to": "summary",
       "label": "Continue, then allow in Health; or Not Now"
     },
     {
@@ -109,7 +113,12 @@
       "label": "Review Access"
     },
     {
-      "from": "sync",
+      "from": "summary",
+      "to": "sync",
+      "label": "Its row, or the cloud button"
+    },
+    {
+      "from": "summary",
       "to": "settings",
       "label": "The gear button"
     },
