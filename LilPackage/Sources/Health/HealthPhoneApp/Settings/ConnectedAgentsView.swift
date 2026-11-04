@@ -137,9 +137,17 @@ struct ConnectedAgentRow: View {
         Text(agent.domain ?? "No verified website")
           .font(.subheadline)
           .foregroundStyle(.secondary)
-        Text(
-          "Connected \(agent.connectedAt.formatted(Self.date)) · \(agent.lastUsedDescription(now: now))"
-        )
+        // On one line when it fits, or else a line each, rather than wrapping inside "Last used 2
+        // hours ago" (851-4029).
+        let connected = "Connected \(agent.connectedAt.formatted(Self.date))"
+        let lastUsed = agent.lastUsedDescription(now: now)
+        ViewThatFits(in: .horizontal) {
+          Text("\(connected) · \(lastUsed)")
+          VStack(alignment: .leading, spacing: 3) {
+            Text(connected)
+            Text(lastUsed)
+          }
+        }
         .font(.subheadline)
         .foregroundStyle(.secondary)
       }
@@ -175,15 +183,27 @@ struct MCPServerSection: View {
   let helpURL: URL
 
   @State private var isCopied = false
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
   var body: some View {
     Section {
-      HStack(alignment: .firstTextBaseline) {
+      // At accessibility text sizes, Copy goes under the URL, which wraps: on one line beside
+      // Copy, it would be cut down to a few letters.
+      let isLarge = dynamicTypeSize.isAccessibilitySize
+      let layout =
+        isLarge
+        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+        : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+      layout {
+        // Otherwise on one line, smaller if it must be, and cut in the middle past that, rather
+        // than broken after `https://` (851-4029): Copy gives the whole of it.
         Text(url.absoluteString)
           .font(.callout.monospaced())
+          .lineLimit(isLarge ? nil : 1)
+          .minimumScaleFactor(isLarge ? 1 : 0.75)
+          .truncationMode(.middle)
           .textSelection(.enabled)
-          .fixedSize(horizontal: false, vertical: true)
-        Spacer()
+          .frame(maxWidth: .infinity, alignment: .leading)
         Button(isCopied ? "Copied" : "Copy") {
           #if os(iOS)
             UIPasteboard.general.string = url.absoluteString
