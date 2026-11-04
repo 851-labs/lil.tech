@@ -491,12 +491,34 @@ public struct CardRun: Sendable {
       case .avg: return CardSummary(kind: .average, value: period.average.average)
       case .min: return CardSummary(kind: .lowest, value: period.minimum)
       case .max: return CardSummary(kind: .highest, value: period.maximum)
-      case .first: return CardSummary(kind: .first, value: period.first?.value)
-      case .latest: return CardSummary(kind: .latest, value: period.latest?.value)
+      case .first, .latest: return pickedSummary(lead.aggregation, period, computed.points)
       case .count: return CardSummary(kind: .count, value: Double(period.count))
       case .sum: return nil
       }
     }
+  }
+
+  /// The header of a series that picks one reading per bucket: that reading when the period is
+  /// one bucket (or a day, at D, as a total's), else the average of the points shown, each once,
+  /// since a month's first weigh-in says nothing about the month's mornings (851-3244). Every
+  /// reading in the period is in a point, so a period with readings has points.
+  private func pickedSummary(
+    _ aggregation: CardSpec.Aggregation, _ period: CardBucket, _ points: [CardPoint]
+  ) -> CardSummary? {
+    if isOneBucket {
+      return aggregation == .first
+        ? CardSummary(kind: .first, value: period.first?.value)
+        : CardSummary(kind: .latest, value: period.latest?.value)
+    }
+    guard !points.isEmpty else { return nil }
+    return CardSummary(
+      kind: .average, value: points.reduce(0) { $0 + $1.value } / Double(points.count))
+  }
+
+  /// Whether the header speaks for a single bucket (`CardSpec.Bucket.headsOneBucket(at:)`). A
+  /// headline's run, of several buckets, never does.
+  private var isOneBucket: Bool {
+    range.map { spec.bucket.headsOneBucket(at: $0) } ?? false
   }
 
   /// A total's header: a day's total at D, else its average day (or bucket) with data, as Metric
@@ -506,16 +528,11 @@ public struct CardRun: Sendable {
     guard !totals.isEmpty else { return nil }
     let total = totals.reduce(0) { $0 + $1.sum }
     let average = total / Double(totals.count)
-    if spec.bucket == .auto, let range {
-      switch range {
-      case .day: return CardSummary(kind: .total, value: total)
-      case .week, .month: return CardSummary(kind: .average, value: average)
-      case .sixMonths, .year: return CardSummary(kind: .dailyAverage, value: average)
-      }
+    if isOneBucket { return CardSummary(kind: .total, value: total) }
+    if spec.bucket == .auto, range == .sixMonths || range == .year {
+      return CardSummary(kind: .dailyAverage, value: average)
     }
-    let buckets = calendar.bucketStarts(grain, from: interval.start, to: interval.end).count
-    return CardSummary(
-      kind: buckets == 1 ? .total : .average, value: buckets == 1 ? total : average)
+    return CardSummary(kind: .average, value: average)
   }
 }
 

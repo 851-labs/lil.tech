@@ -339,7 +339,7 @@
     {
       "now": "2026-10-28T12:00:00Z",
       "name": "example: morning weight, the first weigh-in before noon each day and its 7-day rolling average",
-      "note": "The moving average's first point reaches back to 28 September, before the period. Its window is 7 days, empty ones included in the count. The clock changes on 25 October, and 07:30 and 11:30 GMT are still before noon. The header is the period's first reading.",
+      "note": "The moving average's first point reaches back to 28 September, before the period. Its window is 7 days, empty ones included in the count. The clock changes on 25 October, and 07:30 and 11:30 GMT are still before noon. The header is the average of the days' first weigh-ins, not the month's first (851-3244).",
       "timeZone": "Europe/London",
       "range": "M",
       "date": "2026-10-01",
@@ -494,8 +494,8 @@
           }
         ],
         "summary": {
-          "kind": "first",
-          "value": 70.8,
+          "kind": "average",
+          "value": 70.025,
           "minimum": null,
           "maximum": null
         },
@@ -636,7 +636,7 @@
     },
     {
       "now": "2026-10-28T12:00:00Z",
-      "name": "first HRV reading of each day; the header is the period's first",
+      "name": "first HRV reading of each day; the header is the average of the days' firsts",
       "timeZone": "Europe/London",
       "range": "W",
       "date": "2026-10-20",
@@ -709,8 +709,8 @@
         ],
         "formulas": [],
         "summary": {
-          "kind": "first",
-          "value": 42,
+          "kind": "average",
+          "value": 51,
           "minimum": null,
           "maximum": null
         },
@@ -719,7 +719,7 @@
     },
     {
       "now": "2026-10-28T12:00:00Z",
-      "name": "latest HRV reading of each day; the header is the period's latest",
+      "name": "latest HRV reading of each day; the header is the average of the days' latests",
       "timeZone": "Europe/London",
       "range": "W",
       "date": "2026-10-20",
@@ -792,8 +792,132 @@
         ],
         "formulas": [],
         "summary": {
-          "kind": "latest",
-          "value": 50,
+          "kind": "average",
+          "value": 49.4,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "first HRV reading of each hour on a day; the header is the day's first",
+      "note": "At D the header speaks for the day, as a total's does: its first reading (07:00), not the average of the hours' (851-3244).",
+      "timeZone": "Europe/London",
+      "range": "D",
+      "date": "2026-10-20",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "HRV"
+        },
+        "series": [
+          {
+            "type": "HeartRateVariabilitySDNN",
+            "aggregation": "first"
+          }
+        ]
+      },
+      "expected": {
+        "range": "D",
+        "start": "2026-10-20",
+        "end": "2026-10-20",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "hour",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate Variability",
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "aggregation": "first",
+            "unit": "ms",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-20T07:00:00+01:00",
+                "value": 48,
+                "minimum": 48,
+                "maximum": 48,
+                "readings": 1
+              },
+              {
+                "start": "2026-10-20T23:00:00+01:00",
+                "value": 40,
+                "minimum": 40,
+                "maximum": 40,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "first",
+          "value": 48,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2026-10-28T12:00:00Z",
+      "name": "first heart rate asleep, per night, on one day; the header is the night's first",
+      "note": "A period of one bucket (one night): the header is that night's first reading asleep, 54 at 23:45 BST (the Watch has it asleep from 23:30, so 23:28's 66 is out), as a total's header is its total, not an average of its points (851-3244).",
+      "timeZone": "Europe/London",
+      "range": "D",
+      "date": "2026-10-25",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "First Sleeping Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "asleep"
+            },
+            "aggregation": "first"
+          }
+        ],
+        "bucket": "night",
+        "range": "D"
+      },
+      "expected": {
+        "range": "D",
+        "start": "2026-10-25",
+        "end": "2026-10-25",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "night",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "first",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2026-10-25T00:00:00+01:00",
+                "value": 54,
+                "minimum": 48,
+                "maximum": 54,
+                "readings": 3
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "first",
+          "value": 54,
           "minimum": null,
           "maximum": null
         },
@@ -886,7 +1010,7 @@
     {
       "now": "2026-10-28T12:00:00Z",
       "name": "latest weight of each day over a year, with ties on start broken by end, then sample ID",
-      "note": "26 Oct: two weigh-ins start at 07:00; the one ending later (69.6) is latest, though its ID is smaller. 27 Oct: same start and end, so the greater ID (69.1) is latest.",
+      "note": "26 Oct: two weigh-ins start at 07:00; the one ending later (69.6) is latest, though its ID is smaller. 27 Oct: same start and end, so the greater ID (69.1) is latest. The header is the average of the days' latest weigh-ins.",
       "timeZone": "Europe/London",
       "range": "Y",
       "date": "2026-10-20",
@@ -989,8 +1113,8 @@
         ],
         "formulas": [],
         "summary": {
-          "kind": "latest",
-          "value": 69.1,
+          "kind": "average",
+          "value": 70.33333333333333,
           "minimum": null,
           "maximum": null
         },

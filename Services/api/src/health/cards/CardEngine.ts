@@ -25,6 +25,7 @@ import {
 } from "./CardNights.ts";
 import type {
   CardAggregation,
+  CardBucket,
   CardFilter,
   CardFormula,
   CardRange,
@@ -169,6 +170,23 @@ export interface CardSummary {
   readonly minimum: number | null;
   readonly maximum: number | null;
 }
+
+const cardSummary = (
+  kind: CardSummaryKind,
+  value: number | null,
+  minimum: number | null = null,
+  maximum: number | null = null,
+): CardSummary => ({ kind, value, minimum, maximum });
+
+/**
+ * Whether the header of a period of `range` speaks for one bucket, so a total shows its total and
+ * `first` or `latest` its reading (the Swift `CardSpec.Bucket.headsOneBucket(at:)`): `auto` at D,
+ * the day (though its points are hours), or a fixed bucket as long as the period, as a night at D.
+ */
+export const headsOneBucket = (bucket: CardBucket, range: CardRange): boolean =>
+  (range === "D" && (bucket === "auto" || bucket === "day" || bucket === "night")) ||
+  (range === "W" && bucket === "week") ||
+  (range === "M" && bucket === "month");
 
 /** A run's result (the Swift core's `CardData`), times in Unix milliseconds. */
 export interface CardRunData {
@@ -1118,17 +1136,11 @@ export class CardRun {
     }>,
   ): CardSummary | null {
     const lead = cardLead(this.spec);
-    const summary = (
-      kind: CardSummaryKind,
-      value: number | null,
-      minimum: number | null = null,
-      maximum: number | null = null,
-    ): CardSummary => ({ kind, value, minimum, maximum });
     if (lead === undefined) return null;
     if (lead._tag === "formula") {
       const points = formulas.find((formula) => formula.id === lead.formula.id)?.points;
       if (points === undefined || points.length === 0) return null;
-      return summary(
+      return cardSummary(
         "average",
         points.reduce((total, point) => total + point.value, 0) / points.length,
       );
@@ -1144,21 +1156,48 @@ export class CardRun {
         if (this.spec.chart.style === "ranges") {
           // As Metric Detail: a range, unless every reading was the same.
           return period.minimum === period.maximum
-            ? summary("average", period.minimum)
-            : summary("range", null, period.minimum, period.maximum);
+            ? cardSummary("average", period.minimum)
+            : cardSummary("range", null, period.minimum, period.maximum);
         }
-        return summary("average", period.average.average);
+        return cardSummary("average", period.average.average);
       case "min":
-        return summary("lowest", period.minimum);
+        return cardSummary("lowest", period.minimum);
       case "max":
-        return summary("highest", period.maximum);
+        return cardSummary("highest", period.maximum);
       case "first":
-        return summary("first", period.first?.value ?? null);
       case "latest":
-        return summary("latest", period.latest?.value ?? null);
+        return this.pickedSummary(lead.series.aggregation, period, series.points);
       case "count":
-        return summary("count", period.count);
+        return cardSummary("count", period.count);
     }
+  }
+
+  /**
+   * The header of a series that picks one reading per bucket: that reading when the period is
+   * one bucket (or a day, at D, as a total's), else the average of the points shown, each once,
+   * since a month's first weigh-in says nothing about the month's mornings (851-3244). Every
+   * reading in the period is in a point, so a period with readings has points.
+   */
+  private pickedSummary(
+    aggregation: "first" | "latest",
+    period: Bucket,
+    points: ReadonlyArray<CardPoint>,
+  ): CardSummary | null {
+    if (this.isOneBucket()) {
+      return aggregation === "first"
+        ? cardSummary("first", period.first?.value ?? null)
+        : cardSummary("latest", period.latest?.value ?? null);
+    }
+    if (points.length === 0) return null;
+    return cardSummary(
+      "average",
+      points.reduce((total, point) => total + point.value, 0) / points.length,
+    );
+  }
+
+  /** Whether the header speaks for a single bucket (`headsOneBucket`). A headline's run never does. */
+  private isOneBucket(): boolean {
+    return this.range !== null && headsOneBucket(this.spec.bucket, this.range);
   }
 
   /**
@@ -1170,31 +1209,11 @@ export class CardRun {
     if (totals.length === 0) return null;
     const total = totals.reduce((sum, item) => sum + item.sum, 0);
     const average = total / totals.length;
-    const summary = (kind: CardSummaryKind, value: number): CardSummary => ({
-      kind,
-      value,
-      minimum: null,
-      maximum: null,
-    });
-    if (this.spec.bucket === "auto" && this.range !== null) {
-      switch (this.range) {
-        case "D":
-          return summary("total", total);
-        case "W":
-        case "M":
-          return summary("average", average);
-        case "6M":
-        case "Y":
-          return summary("dailyAverage", average);
-      }
+    if (this.isOneBucket()) return cardSummary("total", total);
+    if (this.spec.bucket === "auto" && (this.range === "6M" || this.range === "Y")) {
+      return cardSummary("dailyAverage", average);
     }
-    const buckets = bucketStarts(
-      this.calendar,
-      this.grain,
-      this.interval.start,
-      this.interval.end,
-    ).length;
-    return buckets === 1 ? summary("total", total) : summary("average", average);
+    return cardSummary("average", average);
   }
 }
 
