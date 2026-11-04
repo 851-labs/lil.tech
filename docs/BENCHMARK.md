@@ -247,6 +247,25 @@ Where the 6.3 s of a `HealthPages` edit go, from `swift build -v`'s output on th
 - **Cold:** on the mini, with no build and no simulator, 109 s (77 s building, while the new simulator booted alongside, then 31 s of tests). A new simulator with the build warm: 54 s. On the MacBook, the first build took 149 s at load 200–500.
 - **Hangs:** at loads of 450–600, the test runner didn't start for over 10 minutes, as in 851-2931, and a booted simulator stopped answering (`simctl spawn` hung). One of the MacBook's rounds hit that: its run was stopped after 5 minutes and passed on a freshly booted simulator, 1351 s in all. That's what the time limit and the retry are for; on a Mac that busy, the loop isn't usable either way.
 
+**Simulator boot and idle cost** (851-3239, 2026-11-04): what `lil-snapshots` costs booted and idle, against booting it again for a run, on the MacBook Pro (M1 Pro, 16 GB), in a simulator of the measurement's own (`LIL_SNAPSHOT_SIMULATOR`). CPU is the CPU time of the simulator's processes (its `launchd_sim` and everything under it) per minute; memory, what shutting it down freed (`vm_stat`), since their resident sizes count the shared runtime in every process.
+
+| State | CPU | Memory |
+| --- | ---: | ---: |
+| Booted 6 hours, idle (`lil-snapshots`, about 210 processes) | 1.7% of a core | |
+| Idle, 8–10 minutes after a boot (about 240–300 processes) | 2–4% (37% in one minute) | about 3.2 GB: free memory went from 85 MB to 3 GB |
+| Booted again, after 10 minutes booted and a shutdown | 5.1 cores in minute 1, then 0.9, 0.8, 0.8, 0.2, 0.2: about 480 CPU-seconds over 6 minutes | |
+| A new simulator's first boot | 3.2 cores in minute 1, 1–2 for 6 more: about 12 CPU-minutes | |
+
+- `simctl bootstatus -b` took 4.9 s, and the booted simulator answered 0.7 s later (load 6); `simctl shutdown`, 1 s.
+- So one boot's CPU is about what 4 hours of idling costs; the idle simulator's real cost is its memory.
+
+`scripts/snapshot --iphone syncStatus`, `LIL_SNAPSHOT_STATE='^Up to date$'` (two images), built, seconds:
+
+| | Booted | Shut down |
+| --- | ---: | ---: |
+| With the (no-op) build, which the boot overlaps | 44, 29 of tests (load 5) | 66, 27 of tests (load 7) |
+| `--no-build` | 9.4 (load 7), 10.0 (load 95) | 51 (load 95) |
+
 **What didn't help:**
 
 - Building only the snapshot tests' bundle (`swift build --product HealthSnapshotTests`) is a different build from `swift test`'s (without `ENABLE_TESTABILITY`), so switching between the two rebuilt most of the package (75–90 s on the MacBook, 20–25 s on the mini). In a scratch path of its own it was no faster on the mini: 5–7.5 s against 3.4–5.4 s for `swift build --build-tests`.
