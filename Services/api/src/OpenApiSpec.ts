@@ -1,6 +1,7 @@
 import { JsonSchema, Schema } from "effect";
 import { type HttpApi, type HttpApiGroup, OpenApi } from "effect/http-api";
 import { Api } from "./Api.ts";
+import { CardsToolkit, cardToolResultNames } from "./health/cards/CardsToolkit.ts";
 import { HealthToolkit, healthToolResultNames } from "./health/tools/HealthToolkit.ts";
 import { entities } from "./store/Registry.ts";
 
@@ -69,9 +70,10 @@ const withEntitySchemas = <S extends { components: { schemas: Record<string, unk
 };
 
 /**
- * Adds the Health toolkit's outputs (`src/health/tools/HealthToolkit.ts`) to the spec's components,
- * each named by `healthToolResultNames`, with the schemas they're made of, so the Swift client gets
- * their types. No endpoint returns them: MCP servers do (851-2841).
+ * Adds the Health toolkit's outputs (`src/health/tools/HealthToolkit.ts`) and the card tools'
+ * (`src/health/cards/CardsToolkit.ts`) to the spec's components, each named by
+ * `healthToolResultNames` or `cardToolResultNames`, with the schemas they're made of, so the Swift
+ * client gets their types. No endpoint returns them: MCP servers do (851-2841, 851-3215).
  */
 const withToolSchemas = <S extends { components: { schemas: Record<string, unknown> } }>(
   spec: S,
@@ -79,7 +81,17 @@ const withToolSchemas = <S extends { components: { schemas: Record<string, unkno
 ): S => {
   const schemas = { ...spec.components.schemas };
   const added = new Map<string, string>();
-  for (const [name, tool] of Object.entries(HealthToolkit.tools)) {
+  const tools = [
+    ...Object.entries(HealthToolkit.tools).map(([name, tool]) => ({
+      tool,
+      result: healthToolResultNames[name as keyof typeof healthToolResultNames],
+    })),
+    ...Object.entries(CardsToolkit.tools).map(([name, tool]) => ({
+      tool,
+      result: cardToolResultNames[name as keyof typeof cardToolResultNames],
+    })),
+  ];
+  for (const { tool, result: resultName } of tools) {
     const document = Schema.toJsonSchemaDocument(tool.successSchema);
     // Rewrites references from `#/$defs/…` to `#/components/schemas/…`.
     const {
@@ -100,12 +112,14 @@ const withToolSchemas = <S extends { components: { schemas: Record<string, unkno
       added.set(key, json);
       schemas[claim(key, `health tool schema ${key}`)] = definition;
     }
-    schemas[
-      claim(
-        healthToolResultNames[name as keyof typeof healthToolResultNames],
-        `health tool ${name}`,
-      )
-    ] = result;
+    // Tools may share a result too (create_card and update_card), if it's the same schema.
+    const json = JSON.stringify(result);
+    const previous = added.get(resultName);
+    if (previous !== undefined && previous !== json) {
+      throw new Error(`Health tools have two different results named "${resultName}"`);
+    }
+    added.set(resultName, json);
+    schemas[claim(resultName, `health tool result ${resultName}`)] = result;
   }
   return { ...spec, components: { ...spec.components, schemas } };
 };

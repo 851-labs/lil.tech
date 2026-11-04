@@ -1555,6 +1555,3040 @@ let mcpToolsJSON = #"""
       "openWorldHint": false
     },
     "title": "Health Sync Status"
+  },
+  {
+    "name": "list_cards",
+    "description": "Lists the cards on lil health's Summary, in order: each card's id, spec (what it charts and how it looks), position and when it was made and changed. Use get_card for a card's data.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "timeZone": {
+          "type": "string",
+          "description": "An IANA time zone, e.g. Europe/London, for days and local times. Defaults to UTC on the remote server and to the Mac's time zone locally. Every output says which it used."
+        }
+      },
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "timeZone": {
+          "type": "string",
+          "description": "The IANA time zone of the output's days and local times."
+        },
+        "cards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HealthCardItem"
+          },
+          "description": "Every card, in Summary's order."
+        }
+      },
+      "required": [
+        "timeZone",
+        "cards"
+      ],
+      "additionalProperties": true,
+      "$defs": {
+        "HealthCardItem": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "A card's id, e.g. card_seed_steps or card_01JZ…: list_cards lists them."
+            },
+            "spec": {
+              "type": "object",
+              "description": "The card's spec in canonical form, every default filled in (version 1): version, display, series, formulas, bucket, range and chart."
+            },
+            "position": {
+              "type": "string",
+              "description": "Its place on Summary: cards are in ascending order of position (by bytes), then id."
+            },
+            "seed": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The welcome card it started as (steps, heart_rate…), else null."
+            },
+            "createdAt": {
+              "type": "string",
+              "description": "When it was made."
+            },
+            "updatedAt": {
+              "type": "string",
+              "description": "When it was last changed or moved."
+            }
+          },
+          "required": [
+            "id",
+            "spec",
+            "position",
+            "seed",
+            "createdAt",
+            "updatedAt"
+          ],
+          "additionalProperties": true
+        }
+      }
+    },
+    "annotations": {
+      "title": "List Cards",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "title": "List Cards"
+  },
+  {
+    "name": "get_card",
+    "description": "A card and its data: its spec run over a period of the person's Health data, as the card's page shows it, with each series' points, its formulas and the period's summary.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "A card's id, e.g. card_seed_steps or card_01JZ…: list_cards lists them."
+        },
+        "range": {
+          "type": "string",
+          "enum": [
+            "D",
+            "W",
+            "M",
+            "6M",
+            "Y"
+          ],
+          "description": "The period to run it over: D a calendar day, W a calendar week, M a calendar month, 6M six calendar months, Y a calendar year, containing `date`. One of the card's bucket's ranges. Defaults to the card's own."
+        },
+        "date": {
+          "type": "string"
+        },
+        "timeZone": {
+          "type": "string",
+          "description": "An IANA time zone, e.g. Europe/London, for days and local times. Defaults to UTC on the remote server and to the Mac's time zone locally. Every output says which it used."
+        },
+        "firstWeekday": {
+          "type": "string",
+          "enum": [
+            "sunday",
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday"
+          ],
+          "description": "The day weeks start on. Defaults to monday."
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "card": {
+          "$ref": "#/$defs/HealthCardItem"
+        },
+        "data": {
+          "$ref": "#/$defs/HealthCardData"
+        }
+      },
+      "required": [
+        "card",
+        "data"
+      ],
+      "additionalProperties": true,
+      "$defs": {
+        "HealthCardItem": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "A card's id, e.g. card_seed_steps or card_01JZ…: list_cards lists them."
+            },
+            "spec": {
+              "type": "object",
+              "description": "The card's spec in canonical form, every default filled in (version 1): version, display, series, formulas, bucket, range and chart."
+            },
+            "position": {
+              "type": "string",
+              "description": "Its place on Summary: cards are in ascending order of position (by bytes), then id."
+            },
+            "seed": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The welcome card it started as (steps, heart_rate…), else null."
+            },
+            "createdAt": {
+              "type": "string",
+              "description": "When it was made."
+            },
+            "updatedAt": {
+              "type": "string",
+              "description": "When it was last changed or moved."
+            }
+          },
+          "required": [
+            "id",
+            "spec",
+            "position",
+            "seed",
+            "createdAt",
+            "updatedAt"
+          ],
+          "additionalProperties": true
+        },
+        "HealthCardPoint": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "string",
+              "description": "When the bucket starts (a night's is midnight of the day it ends on)."
+            },
+            "value": {
+              "type": "number",
+              "description": "The aggregation over the bucket, in `unit`."
+            },
+            "minimum": {
+              "type": "number",
+              "description": "The bucket's lowest reading."
+            },
+            "maximum": {
+              "type": "number",
+              "description": "The bucket's highest reading."
+            },
+            "readings": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "How many readings it has; null for totals."
+            }
+          },
+          "required": [
+            "start",
+            "value",
+            "minimum",
+            "maximum",
+            "readings"
+          ],
+          "additionalProperties": true
+        },
+        "HealthCardSeriesData": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string",
+              "description": "Its label, or its type's name."
+            },
+            "type": {
+              "type": "string",
+              "description": "Its HealthKit type identifier."
+            },
+            "aggregation": {
+              "type": "string"
+            },
+            "unit": {
+              "type": "string",
+              "description": "The values' HealthKit unit, e.g. count/min, or count for a count of readings."
+            },
+            "hidden": {
+              "type": "boolean"
+            },
+            "points": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/HealthCardPoint"
+              },
+              "description": "One per bucket with a value, oldest first."
+            }
+          },
+          "required": [
+            "id",
+            "label",
+            "type",
+            "aggregation",
+            "unit",
+            "hidden",
+            "points"
+          ],
+          "additionalProperties": true
+        },
+        "HealthCardFormulaPoint": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "string",
+              "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+            },
+            "value": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "start",
+            "value"
+          ],
+          "additionalProperties": true
+        },
+        "HealthCardFormulaData": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "description": "movingAverage or difference."
+            },
+            "label": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "unit": {
+              "type": "string"
+            },
+            "hidden": {
+              "type": "boolean"
+            },
+            "points": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/HealthCardFormulaPoint"
+              }
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "label",
+            "unit",
+            "hidden",
+            "points"
+          ],
+          "additionalProperties": true
+        },
+        "HealthCardData": {
+          "type": "object",
+          "properties": {
+            "range": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The range it was run over."
+            },
+            "start": {
+              "type": "string",
+              "description": "The period's first day."
+            },
+            "end": {
+              "type": "string",
+              "description": "The period's last day."
+            },
+            "timeZone": {
+              "type": "string",
+              "description": "The IANA time zone of the output's days and local times."
+            },
+            "firstWeekday": {
+              "type": "string"
+            },
+            "bucket": {
+              "type": "string",
+              "description": "The spec's bucket."
+            },
+            "grain": {
+              "type": "string",
+              "description": "What each point covers, once auto is resolved: hour, day, week or month."
+            },
+            "series": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/HealthCardSeriesData"
+              }
+            },
+            "formulas": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/HealthCardFormulaData"
+              }
+            },
+            "summary": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "description": "What the card's header shows: total, average, dailyAverage, range, lowest, highest, first, latest or count."
+                    },
+                    "value": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Null for a range."
+                    },
+                    "minimum": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "A range's lowest reading."
+                    },
+                    "maximum": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "A range's highest reading."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "value",
+                    "minimum",
+                    "maximum"
+                  ],
+                  "additionalProperties": true
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The period's summary, from the lead series; null without data."
+            },
+            "goal": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The goal line's value, in the lead's unit, or null."
+            }
+          },
+          "required": [
+            "range",
+            "start",
+            "end",
+            "timeZone",
+            "firstWeekday",
+            "bucket",
+            "grain",
+            "series",
+            "formulas",
+            "summary",
+            "goal"
+          ],
+          "additionalProperties": true
+        }
+      }
+    },
+    "annotations": {
+      "title": "Get Card",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "title": "Get Card"
+  },
+  {
+    "name": "preview_card",
+    "description": "Checks a draft card spec and runs it over the person's Health data, without saving anything: start here to make a card. If the spec has errors, the call fails listing every one with its path and how to fix it; otherwise it returns the canonical spec and the data the card would show. Fix and preview again until it's right, then create_card (or update_card) with the spec.\n\nA card spec is JSON. Only version (1), display.name and each series' type are required: leave the rest out for their defaults. Outputs give the canonical form, every default filled in.\n- display: name (1-40 characters), symbol (one of the schema's SF Symbols; default the type's), color (red, orange, yellow, green, mint, teal, cyan, blue, indigo, purple, pink, brown, gray; default the type's), unit (e.g. kg, lb, degF, km; null for the person's locale).\n- series: 1 to 4, sharing one axis, so one unit. Each is a quantity type (an identifier, or a name such as \"Heart Rate\": list_types and search find them) and an aggregation per bucket (sum, avg, min, max, first, latest, count): types that add up (steps, energy, distance) take sum only, others avg (the default), min, max, first, latest or count. Optional: id (a, b, c, d by default), label, hidden.\n- window, for types that don't add up, keeps readings that start in it: {\"kind\": \"asleep\"}, {\"kind\": \"beforeSleep\", \"minutes\": 5} or {\"kind\": \"afterWaking\", \"minutes\": 30} (1-240 minutes, around each night's main sleep), {\"kind\": \"workout\", \"activities\": [37]} (HKWorkoutActivityType values or names; null for every workout), {\"kind\": \"timeOfDay\", \"from\": \"00:00\", \"to\": \"12:00\"} (the local clock; may cross midnight). filter: {\"sources\": [bundle IDs], \"deviceModels\": [\"Watch\"]}.\n- bucket, what one point covers (auto, hour, day, night, week, month): auto (the default) is hours at D, days at W and M, weeks at 6M and months at Y. hour takes ranges D and W; day W, M, 6M and Y; week M, 6M and Y; month 6M and Y; night (a point per night) any, and needs a series with a sleep window. Sleep windows need night, week or month.\n- range, the period it opens on (D, W, M, 6M, Y): a calendar day, week, month, six months or year. Default W, or the bucket's first.\n- formulas, up to 2: {\"kind\": \"movingAverage\", \"of\": \"a\", \"points\": 7} (2-30 points) or {\"kind\": \"difference\", \"of\": [\"a\", \"b\"]} (a minus b). Hide a series to show only a formula.\n- chart: style (bars, ranges, dots, line; default the type's), goal ({\"value\": 10000}, in the lead series' unit).\nExamples:\n- body temperature as a line: {\"version\":1,\"display\":{\"name\":\"Body Temperature\",\"symbol\":\"thermometer.medium\",\"color\":\"red\"},\"series\":[{\"type\":\"BodyTemperature\"}],\"range\":\"M\",\"chart\":{\"style\":\"line\"}}\n- heart rate while asleep, per night: {\"version\":1,\"display\":{\"name\":\"Sleeping Heart Rate\",\"symbol\":\"moon.zzz.fill\",\"color\":\"indigo\"},\"series\":[{\"type\":\"HeartRate\",\"window\":{\"kind\":\"asleep\"}}],\"bucket\":\"night\",\"range\":\"M\",\"chart\":{\"style\":\"line\"}}\n- HRV as dots, with a 7-point moving average: {\"version\":1,\"display\":{\"name\":\"HRV\",\"symbol\":\"waveform.path.ecg\",\"color\":\"pink\"},\"series\":[{\"type\":\"HeartRateVariabilitySDNN\"}],\"formulas\":[{\"id\":\"trend\",\"kind\":\"movingAverage\",\"of\":\"a\",\"points\":7}],\"range\":\"M\",\"chart\":{\"style\":\"dots\"}}\n- heart rate in the 5 minutes before falling asleep, per night: {\"version\":1,\"display\":{\"name\":\"Heart Rate Before Sleep\",\"symbol\":\"bed.double.fill\",\"color\":\"mint\"},\"series\":[{\"type\":\"Heart Rate\",\"window\":{\"kind\":\"beforeSleep\",\"minutes\":5}}],\"bucket\":\"night\",\"range\":\"M\",\"chart\":{\"style\":\"dots\"}}\n- the first weigh-in each day before noon, with a 7-day rolling average: {\"version\":1,\"display\":{\"name\":\"Morning Weight\",\"symbol\":\"scalemass.fill\",\"color\":\"purple\"},\"series\":[{\"type\":\"BodyMass\",\"aggregation\":\"first\",\"window\":{\"kind\":\"timeOfDay\",\"from\":\"00:00\",\"to\":\"12:00\"},\"label\":\"First weigh-in before noon\"}],\"formulas\":[{\"id\":\"trend\",\"kind\":\"movingAverage\",\"of\":\"a\",\"points\":7,\"label\":\"7-day rolling average\"}],\"bucket\":\"day\",\"range\":\"M\",\"chart\":{\"style\":\"dots\"}}",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "spec": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "integer",
+              "enum": [
+                1
+              ]
+            },
+            "display": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "symbol": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "flame.fill",
+                        "figure",
+                        "circle.dotted.circle",
+                        "ear",
+                        "heart.fill",
+                        "pills.fill",
+                        "brain.head.profile",
+                        "figure.walk.motion",
+                        "carrot.fill",
+                        "lungs.fill",
+                        "bed.double.fill",
+                        "list.bullet.clipboard",
+                        "waveform.path.ecg",
+                        "plus",
+                        "heart.text.square.fill",
+                        "bolt.heart.fill",
+                        "waveform",
+                        "drop.fill",
+                        "thermometer.medium",
+                        "scalemass.fill",
+                        "ruler.fill",
+                        "eye.fill",
+                        "hand.raised.fill",
+                        "brain",
+                        "cross.case.fill",
+                        "figure.walk",
+                        "figure.run",
+                        "figure.stairs",
+                        "figure.pool.swim",
+                        "figure.outdoor.cycle",
+                        "bicycle",
+                        "figure.strengthtraining.traditional",
+                        "figure.mind.and.body",
+                        "figure.cooldown",
+                        "bolt.fill",
+                        "timer",
+                        "stopwatch.fill",
+                        "moon.fill",
+                        "moon.zzz.fill",
+                        "zzz",
+                        "sun.max.fill",
+                        "sunrise.fill",
+                        "sunset.fill",
+                        "clock.fill",
+                        "alarm.fill",
+                        "fork.knife",
+                        "cup.and.saucer.fill",
+                        "waterbottle.fill",
+                        "leaf.fill",
+                        "chart.line.uptrend.xyaxis",
+                        "chart.bar.fill",
+                        "gauge.with.dots.needle.50percent",
+                        "star.fill",
+                        "target",
+                        "flag.fill"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "color": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "red",
+                        "orange",
+                        "yellow",
+                        "green",
+                        "mint",
+                        "teal",
+                        "cyan",
+                        "blue",
+                        "indigo",
+                        "purple",
+                        "pink",
+                        "brown",
+                        "gray"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "unit": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "kg",
+                        "lb",
+                        "st",
+                        "cm",
+                        "m",
+                        "km",
+                        "in",
+                        "ft",
+                        "yd",
+                        "mi",
+                        "degC",
+                        "degF",
+                        "km/hr",
+                        "mi/hr",
+                        "m/s",
+                        "mL",
+                        "L",
+                        "fl_oz_us",
+                        "kcal",
+                        "kJ"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "series": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 16,
+                        "pattern": "^[a-z][a-z0-9]{0,15}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "A quantity type: its HealthKit identifier (HKQuantityTypeIdentifierHeartRate), the identifier without its prefix (HeartRate) or the name lil health shows (\"Heart Rate\"), in any case. list_types and search find them."
+                  },
+                  "aggregation": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "sum",
+                          "avg",
+                          "min",
+                          "max",
+                          "first",
+                          "latest",
+                          "count"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "window": {
+                    "anyOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "asleep"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "beforeSleep"
+                                ]
+                              },
+                              "minutes": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 240
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "minutes"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "afterWaking"
+                                ]
+                              },
+                              "minutes": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 240
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "minutes"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "workout"
+                                ]
+                              },
+                              "activities": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "anyOf": [
+                                        {
+                                          "type": "integer"
+                                        },
+                                        {
+                                          "type": "string"
+                                        }
+                                      ]
+                                    },
+                                    "description": "HKWorkoutActivityType raw values or names, e.g. 37 or \"Running\"; null for every workout."
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "timeOfDay"
+                                ]
+                              },
+                              "from": {
+                                "type": "string",
+                                "minLength": 5,
+                                "maxLength": 5,
+                                "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+                              },
+                              "to": {
+                                "type": "string",
+                                "minLength": 5,
+                                "maxLength": 5,
+                                "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "from",
+                              "to"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "filter": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "sources": {
+                            "anyOf": [
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "minItems": 1,
+                                "maxItems": 10
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "deviceModels": {
+                            "anyOf": [
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "minItems": 1,
+                                "maxItems": 10
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "label": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "hidden": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 4
+            },
+            "formulas": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 16,
+                                "pattern": "^[a-z][a-z0-9]{0,15}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "movingAverage"
+                            ]
+                          },
+                          "of": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16,
+                            "pattern": "^[a-z][a-z0-9]{0,15}$"
+                          },
+                          "points": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 2,
+                                "maximum": 30
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "label": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "hidden": {
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "of"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 16,
+                                "pattern": "^[a-z][a-z0-9]{0,15}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "difference"
+                            ]
+                          },
+                          "of": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 16,
+                              "pattern": "^[a-z][a-z0-9]{0,15}$"
+                            },
+                            "minItems": 2,
+                            "maxItems": 2
+                          },
+                          "label": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "hidden": {
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "of"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "maxItems": 2
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "bucket": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "auto",
+                    "hour",
+                    "day",
+                    "night",
+                    "week",
+                    "month"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "range": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "D",
+                    "W",
+                    "M",
+                    "6M",
+                    "Y"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "chart": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "style": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "bars",
+                            "ranges",
+                            "dots",
+                            "line"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "goal": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "value": {
+                              "type": "number",
+                              "minimum": 0
+                            }
+                          },
+                          "required": [
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "version",
+            "display",
+            "series"
+          ],
+          "additionalProperties": false,
+          "description": "The card spec: JSON as the schema describes, with defaults left out as you like (preview_card's description explains it)."
+        },
+        "range": {
+          "type": "string",
+          "enum": [
+            "D",
+            "W",
+            "M",
+            "6M",
+            "Y"
+          ],
+          "description": "The period to run it over: D a calendar day, W a calendar week, M a calendar month, 6M six calendar months, Y a calendar year, containing `date`. One of the card's bucket's ranges. Defaults to the card's own."
+        },
+        "date": {
+          "type": "string"
+        },
+        "timeZone": {
+          "type": "string",
+          "description": "An IANA time zone, e.g. Europe/London, for days and local times. Defaults to UTC on the remote server and to the Mac's time zone locally. Every output says which it used."
+        },
+        "firstWeekday": {
+          "type": "string",
+          "enum": [
+            "sunday",
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday"
+          ],
+          "description": "The day weeks start on. Defaults to monday."
+        }
+      },
+      "required": [
+        "spec"
+      ],
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "spec": {
+          "type": "object",
+          "description": "The spec in canonical form, as it would be saved."
+        },
+        "data": {
+          "$ref": "#/$defs/HealthCardData"
+        }
+      },
+      "required": [
+        "spec",
+        "data"
+      ],
+      "additionalProperties": true,
+      "$defs": {
+        "HealthCardPoint": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "string",
+              "description": "When the bucket starts (a night's is midnight of the day it ends on)."
+            },
+            "value": {
+              "type": "number",
+              "description": "The aggregation over the bucket, in `unit`."
+            },
+            "minimum": {
+              "type": "number",
+              "description": "The bucket's lowest reading."
+            },
+            "maximum": {
+              "type": "number",
+              "description": "The bucket's highest reading."
+            },
+            "readings": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "How many readings it has; null for totals."
+            }
+          },
+          "required": [
+            "start",
+            "value",
+            "minimum",
+            "maximum",
+            "readings"
+          ],
+          "additionalProperties": true
+        },
+        "HealthCardSeriesData": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string",
+              "description": "Its label, or its type's name."
+            },
+            "type": {
+              "type": "string",
+              "description": "Its HealthKit type identifier."
+            },
+            "aggregation": {
+              "type": "string"
+            },
+            "unit": {
+              "type": "string",
+              "description": "The values' HealthKit unit, e.g. count/min, or count for a count of readings."
+            },
+            "hidden": {
+              "type": "boolean"
+            },
+            "points": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/HealthCardPoint"
+              },
+              "description": "One per bucket with a value, oldest first."
+            }
+          },
+          "required": [
+            "id",
+            "label",
+            "type",
+            "aggregation",
+            "unit",
+            "hidden",
+            "points"
+          ],
+          "additionalProperties": true
+        },
+        "HealthCardFormulaPoint": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "string",
+              "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+            },
+            "value": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "start",
+            "value"
+          ],
+          "additionalProperties": true
+        },
+        "HealthCardFormulaData": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "description": "movingAverage or difference."
+            },
+            "label": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "unit": {
+              "type": "string"
+            },
+            "hidden": {
+              "type": "boolean"
+            },
+            "points": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/HealthCardFormulaPoint"
+              }
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "label",
+            "unit",
+            "hidden",
+            "points"
+          ],
+          "additionalProperties": true
+        },
+        "HealthCardData": {
+          "type": "object",
+          "properties": {
+            "range": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The range it was run over."
+            },
+            "start": {
+              "type": "string",
+              "description": "The period's first day."
+            },
+            "end": {
+              "type": "string",
+              "description": "The period's last day."
+            },
+            "timeZone": {
+              "type": "string",
+              "description": "The IANA time zone of the output's days and local times."
+            },
+            "firstWeekday": {
+              "type": "string"
+            },
+            "bucket": {
+              "type": "string",
+              "description": "The spec's bucket."
+            },
+            "grain": {
+              "type": "string",
+              "description": "What each point covers, once auto is resolved: hour, day, week or month."
+            },
+            "series": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/HealthCardSeriesData"
+              }
+            },
+            "formulas": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/HealthCardFormulaData"
+              }
+            },
+            "summary": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "description": "What the card's header shows: total, average, dailyAverage, range, lowest, highest, first, latest or count."
+                    },
+                    "value": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Null for a range."
+                    },
+                    "minimum": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "A range's lowest reading."
+                    },
+                    "maximum": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "A range's highest reading."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "value",
+                    "minimum",
+                    "maximum"
+                  ],
+                  "additionalProperties": true
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The period's summary, from the lead series; null without data."
+            },
+            "goal": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The goal line's value, in the lead's unit, or null."
+            }
+          },
+          "required": [
+            "range",
+            "start",
+            "end",
+            "timeZone",
+            "firstWeekday",
+            "bucket",
+            "grain",
+            "series",
+            "formulas",
+            "summary",
+            "goal"
+          ],
+          "additionalProperties": true
+        }
+      }
+    },
+    "annotations": {
+      "title": "Preview Card",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "title": "Preview Card"
+  },
+  {
+    "name": "create_card",
+    "description": "Adds a card to the end of lil health's Summary, from a spec (preview_card describes specs: preview it first). A person can have up to 100 cards. Fails listing every error if the spec has any. Needs the person to have allowed this agent to manage cards; it never changes Health data. The change syncs to their Mac and iPhone.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "spec": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "integer",
+              "enum": [
+                1
+              ]
+            },
+            "display": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "symbol": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "flame.fill",
+                        "figure",
+                        "circle.dotted.circle",
+                        "ear",
+                        "heart.fill",
+                        "pills.fill",
+                        "brain.head.profile",
+                        "figure.walk.motion",
+                        "carrot.fill",
+                        "lungs.fill",
+                        "bed.double.fill",
+                        "list.bullet.clipboard",
+                        "waveform.path.ecg",
+                        "plus",
+                        "heart.text.square.fill",
+                        "bolt.heart.fill",
+                        "waveform",
+                        "drop.fill",
+                        "thermometer.medium",
+                        "scalemass.fill",
+                        "ruler.fill",
+                        "eye.fill",
+                        "hand.raised.fill",
+                        "brain",
+                        "cross.case.fill",
+                        "figure.walk",
+                        "figure.run",
+                        "figure.stairs",
+                        "figure.pool.swim",
+                        "figure.outdoor.cycle",
+                        "bicycle",
+                        "figure.strengthtraining.traditional",
+                        "figure.mind.and.body",
+                        "figure.cooldown",
+                        "bolt.fill",
+                        "timer",
+                        "stopwatch.fill",
+                        "moon.fill",
+                        "moon.zzz.fill",
+                        "zzz",
+                        "sun.max.fill",
+                        "sunrise.fill",
+                        "sunset.fill",
+                        "clock.fill",
+                        "alarm.fill",
+                        "fork.knife",
+                        "cup.and.saucer.fill",
+                        "waterbottle.fill",
+                        "leaf.fill",
+                        "chart.line.uptrend.xyaxis",
+                        "chart.bar.fill",
+                        "gauge.with.dots.needle.50percent",
+                        "star.fill",
+                        "target",
+                        "flag.fill"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "color": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "red",
+                        "orange",
+                        "yellow",
+                        "green",
+                        "mint",
+                        "teal",
+                        "cyan",
+                        "blue",
+                        "indigo",
+                        "purple",
+                        "pink",
+                        "brown",
+                        "gray"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "unit": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "kg",
+                        "lb",
+                        "st",
+                        "cm",
+                        "m",
+                        "km",
+                        "in",
+                        "ft",
+                        "yd",
+                        "mi",
+                        "degC",
+                        "degF",
+                        "km/hr",
+                        "mi/hr",
+                        "m/s",
+                        "mL",
+                        "L",
+                        "fl_oz_us",
+                        "kcal",
+                        "kJ"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "series": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 16,
+                        "pattern": "^[a-z][a-z0-9]{0,15}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "A quantity type: its HealthKit identifier (HKQuantityTypeIdentifierHeartRate), the identifier without its prefix (HeartRate) or the name lil health shows (\"Heart Rate\"), in any case. list_types and search find them."
+                  },
+                  "aggregation": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "sum",
+                          "avg",
+                          "min",
+                          "max",
+                          "first",
+                          "latest",
+                          "count"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "window": {
+                    "anyOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "asleep"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "beforeSleep"
+                                ]
+                              },
+                              "minutes": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 240
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "minutes"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "afterWaking"
+                                ]
+                              },
+                              "minutes": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 240
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "minutes"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "workout"
+                                ]
+                              },
+                              "activities": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "anyOf": [
+                                        {
+                                          "type": "integer"
+                                        },
+                                        {
+                                          "type": "string"
+                                        }
+                                      ]
+                                    },
+                                    "description": "HKWorkoutActivityType raw values or names, e.g. 37 or \"Running\"; null for every workout."
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "timeOfDay"
+                                ]
+                              },
+                              "from": {
+                                "type": "string",
+                                "minLength": 5,
+                                "maxLength": 5,
+                                "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+                              },
+                              "to": {
+                                "type": "string",
+                                "minLength": 5,
+                                "maxLength": 5,
+                                "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "from",
+                              "to"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "filter": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "sources": {
+                            "anyOf": [
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "minItems": 1,
+                                "maxItems": 10
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "deviceModels": {
+                            "anyOf": [
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "minItems": 1,
+                                "maxItems": 10
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "label": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "hidden": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 4
+            },
+            "formulas": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 16,
+                                "pattern": "^[a-z][a-z0-9]{0,15}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "movingAverage"
+                            ]
+                          },
+                          "of": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16,
+                            "pattern": "^[a-z][a-z0-9]{0,15}$"
+                          },
+                          "points": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 2,
+                                "maximum": 30
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "label": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "hidden": {
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "of"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 16,
+                                "pattern": "^[a-z][a-z0-9]{0,15}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "difference"
+                            ]
+                          },
+                          "of": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 16,
+                              "pattern": "^[a-z][a-z0-9]{0,15}$"
+                            },
+                            "minItems": 2,
+                            "maxItems": 2
+                          },
+                          "label": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "hidden": {
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "of"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "maxItems": 2
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "bucket": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "auto",
+                    "hour",
+                    "day",
+                    "night",
+                    "week",
+                    "month"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "range": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "D",
+                    "W",
+                    "M",
+                    "6M",
+                    "Y"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "chart": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "style": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "bars",
+                            "ranges",
+                            "dots",
+                            "line"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "goal": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "value": {
+                              "type": "number",
+                              "minimum": 0
+                            }
+                          },
+                          "required": [
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "version",
+            "display",
+            "series"
+          ],
+          "additionalProperties": false,
+          "description": "The card spec: JSON as the schema describes, with defaults left out as you like (preview_card's description explains it)."
+        },
+        "timeZone": {
+          "type": "string",
+          "description": "An IANA time zone, e.g. Europe/London, for days and local times. Defaults to UTC on the remote server and to the Mac's time zone locally. Every output says which it used."
+        }
+      },
+      "required": [
+        "spec"
+      ],
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "timeZone": {
+          "type": "string",
+          "description": "The IANA time zone of the output's days and local times."
+        },
+        "card": {
+          "$ref": "#/$defs/HealthCardItem"
+        }
+      },
+      "required": [
+        "timeZone",
+        "card"
+      ],
+      "additionalProperties": true,
+      "$defs": {
+        "HealthCardItem": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "A card's id, e.g. card_seed_steps or card_01JZ…: list_cards lists them."
+            },
+            "spec": {
+              "type": "object",
+              "description": "The card's spec in canonical form, every default filled in (version 1): version, display, series, formulas, bucket, range and chart."
+            },
+            "position": {
+              "type": "string",
+              "description": "Its place on Summary: cards are in ascending order of position (by bytes), then id."
+            },
+            "seed": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The welcome card it started as (steps, heart_rate…), else null."
+            },
+            "createdAt": {
+              "type": "string",
+              "description": "When it was made."
+            },
+            "updatedAt": {
+              "type": "string",
+              "description": "When it was last changed or moved."
+            }
+          },
+          "required": [
+            "id",
+            "spec",
+            "position",
+            "seed",
+            "createdAt",
+            "updatedAt"
+          ],
+          "additionalProperties": true
+        }
+      }
+    },
+    "annotations": {
+      "title": "Create Card",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "title": "Create Card"
+  },
+  {
+    "name": "update_card",
+    "description": "Replaces a card's spec with a new one, keeping its place on Summary (preview_card describes specs: preview it first). Give the whole spec, not only what changes: get_card or list_cards has the current one. Needs the person to have allowed this agent to manage cards; it never changes Health data. The change syncs to their Mac and iPhone.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "A card's id, e.g. card_seed_steps or card_01JZ…: list_cards lists them."
+        },
+        "spec": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "integer",
+              "enum": [
+                1
+              ]
+            },
+            "display": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "symbol": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "flame.fill",
+                        "figure",
+                        "circle.dotted.circle",
+                        "ear",
+                        "heart.fill",
+                        "pills.fill",
+                        "brain.head.profile",
+                        "figure.walk.motion",
+                        "carrot.fill",
+                        "lungs.fill",
+                        "bed.double.fill",
+                        "list.bullet.clipboard",
+                        "waveform.path.ecg",
+                        "plus",
+                        "heart.text.square.fill",
+                        "bolt.heart.fill",
+                        "waveform",
+                        "drop.fill",
+                        "thermometer.medium",
+                        "scalemass.fill",
+                        "ruler.fill",
+                        "eye.fill",
+                        "hand.raised.fill",
+                        "brain",
+                        "cross.case.fill",
+                        "figure.walk",
+                        "figure.run",
+                        "figure.stairs",
+                        "figure.pool.swim",
+                        "figure.outdoor.cycle",
+                        "bicycle",
+                        "figure.strengthtraining.traditional",
+                        "figure.mind.and.body",
+                        "figure.cooldown",
+                        "bolt.fill",
+                        "timer",
+                        "stopwatch.fill",
+                        "moon.fill",
+                        "moon.zzz.fill",
+                        "zzz",
+                        "sun.max.fill",
+                        "sunrise.fill",
+                        "sunset.fill",
+                        "clock.fill",
+                        "alarm.fill",
+                        "fork.knife",
+                        "cup.and.saucer.fill",
+                        "waterbottle.fill",
+                        "leaf.fill",
+                        "chart.line.uptrend.xyaxis",
+                        "chart.bar.fill",
+                        "gauge.with.dots.needle.50percent",
+                        "star.fill",
+                        "target",
+                        "flag.fill"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "color": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "red",
+                        "orange",
+                        "yellow",
+                        "green",
+                        "mint",
+                        "teal",
+                        "cyan",
+                        "blue",
+                        "indigo",
+                        "purple",
+                        "pink",
+                        "brown",
+                        "gray"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "unit": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "kg",
+                        "lb",
+                        "st",
+                        "cm",
+                        "m",
+                        "km",
+                        "in",
+                        "ft",
+                        "yd",
+                        "mi",
+                        "degC",
+                        "degF",
+                        "km/hr",
+                        "mi/hr",
+                        "m/s",
+                        "mL",
+                        "L",
+                        "fl_oz_us",
+                        "kcal",
+                        "kJ"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "series": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 16,
+                        "pattern": "^[a-z][a-z0-9]{0,15}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "A quantity type: its HealthKit identifier (HKQuantityTypeIdentifierHeartRate), the identifier without its prefix (HeartRate) or the name lil health shows (\"Heart Rate\"), in any case. list_types and search find them."
+                  },
+                  "aggregation": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "sum",
+                          "avg",
+                          "min",
+                          "max",
+                          "first",
+                          "latest",
+                          "count"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "window": {
+                    "anyOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "asleep"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "beforeSleep"
+                                ]
+                              },
+                              "minutes": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 240
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "minutes"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "afterWaking"
+                                ]
+                              },
+                              "minutes": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 240
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "minutes"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "workout"
+                                ]
+                              },
+                              "activities": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "anyOf": [
+                                        {
+                                          "type": "integer"
+                                        },
+                                        {
+                                          "type": "string"
+                                        }
+                                      ]
+                                    },
+                                    "description": "HKWorkoutActivityType raw values or names, e.g. 37 or \"Running\"; null for every workout."
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "timeOfDay"
+                                ]
+                              },
+                              "from": {
+                                "type": "string",
+                                "minLength": 5,
+                                "maxLength": 5,
+                                "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+                              },
+                              "to": {
+                                "type": "string",
+                                "minLength": 5,
+                                "maxLength": 5,
+                                "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "from",
+                              "to"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "filter": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "sources": {
+                            "anyOf": [
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "minItems": 1,
+                                "maxItems": 10
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "deviceModels": {
+                            "anyOf": [
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "minItems": 1,
+                                "maxItems": 10
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "label": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "hidden": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 4
+            },
+            "formulas": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 16,
+                                "pattern": "^[a-z][a-z0-9]{0,15}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "movingAverage"
+                            ]
+                          },
+                          "of": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16,
+                            "pattern": "^[a-z][a-z0-9]{0,15}$"
+                          },
+                          "points": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 2,
+                                "maximum": 30
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "label": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "hidden": {
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "of"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 16,
+                                "pattern": "^[a-z][a-z0-9]{0,15}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "difference"
+                            ]
+                          },
+                          "of": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 16,
+                              "pattern": "^[a-z][a-z0-9]{0,15}$"
+                            },
+                            "minItems": 2,
+                            "maxItems": 2
+                          },
+                          "label": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "hidden": {
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "of"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "maxItems": 2
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "bucket": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "auto",
+                    "hour",
+                    "day",
+                    "night",
+                    "week",
+                    "month"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "range": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "D",
+                    "W",
+                    "M",
+                    "6M",
+                    "Y"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "chart": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "style": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "bars",
+                            "ranges",
+                            "dots",
+                            "line"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "goal": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "value": {
+                              "type": "number",
+                              "minimum": 0
+                            }
+                          },
+                          "required": [
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "version",
+            "display",
+            "series"
+          ],
+          "additionalProperties": false,
+          "description": "The card spec: JSON as the schema describes, with defaults left out as you like (preview_card's description explains it)."
+        },
+        "timeZone": {
+          "type": "string",
+          "description": "An IANA time zone, e.g. Europe/London, for days and local times. Defaults to UTC on the remote server and to the Mac's time zone locally. Every output says which it used."
+        }
+      },
+      "required": [
+        "id",
+        "spec"
+      ],
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "timeZone": {
+          "type": "string",
+          "description": "The IANA time zone of the output's days and local times."
+        },
+        "card": {
+          "$ref": "#/$defs/HealthCardItem"
+        }
+      },
+      "required": [
+        "timeZone",
+        "card"
+      ],
+      "additionalProperties": true,
+      "$defs": {
+        "HealthCardItem": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "A card's id, e.g. card_seed_steps or card_01JZ…: list_cards lists them."
+            },
+            "spec": {
+              "type": "object",
+              "description": "The card's spec in canonical form, every default filled in (version 1): version, display, series, formulas, bucket, range and chart."
+            },
+            "position": {
+              "type": "string",
+              "description": "Its place on Summary: cards are in ascending order of position (by bytes), then id."
+            },
+            "seed": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The welcome card it started as (steps, heart_rate…), else null."
+            },
+            "createdAt": {
+              "type": "string",
+              "description": "When it was made."
+            },
+            "updatedAt": {
+              "type": "string",
+              "description": "When it was last changed or moved."
+            }
+          },
+          "required": [
+            "id",
+            "spec",
+            "position",
+            "seed",
+            "createdAt",
+            "updatedAt"
+          ],
+          "additionalProperties": true
+        }
+      }
+    },
+    "annotations": {
+      "title": "Update Card",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "title": "Update Card"
+  },
+  {
+    "name": "delete_card",
+    "description": "Deletes a card from lil health's Summary, on every device. Its Health data stays. Needs the person to have allowed this agent to manage cards; it never changes Health data. The change syncs to their Mac and iPhone.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "A card's id, e.g. card_seed_steps or card_01JZ…: list_cards lists them."
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "deleted": {
+          "type": "string",
+          "description": "The deleted card's id."
+        }
+      },
+      "required": [
+        "deleted"
+      ],
+      "additionalProperties": true
+    },
+    "annotations": {
+      "title": "Delete Card",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "title": "Delete Card"
+  },
+  {
+    "name": "reorder_cards",
+    "description": "Puts lil health's Summary cards in a new order: give every card's id once, in the order you want (list_cards lists them). Only cards whose place changes are written. Needs the person to have allowed this agent to manage cards; it never changes Health data. The change syncs to their Mac and iPhone.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 200,
+          "description": "Every card's id, each once, in the new order."
+        }
+      },
+      "required": [
+        "ids"
+      ],
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "cards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HealthCardPosition"
+          },
+          "description": "Every card, in its new order, with its position."
+        }
+      },
+      "required": [
+        "cards"
+      ],
+      "additionalProperties": true,
+      "$defs": {
+        "HealthCardPosition": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "position": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "position"
+          ],
+          "additionalProperties": true
+        }
+      }
+    },
+    "annotations": {
+      "title": "Reorder Cards",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "title": "Reorder Cards"
   }
 ]
 """#

@@ -7,6 +7,7 @@ import {
   serveHealthMcp,
 } from "../health/tools/HealthMcpServer.ts";
 import { type AgentAppRegistry, agentResources } from "../oauth/Hosts.ts";
+import type { CardWrite } from "../health/cards/CardTools.ts";
 import type { AgentAccess } from "../store/AgentAccessLog.ts";
 import type { AccountDeleted } from "../store/Changes.ts";
 import { storeMcpSessions } from "../store/McpSessions.ts";
@@ -21,15 +22,17 @@ import type { StoreMcpApp, StoreMcpHandler } from "./StoreMcpServer.ts";
 export const makeStoreMcpServers = (options: {
   readonly sql: StoreSql;
   readonly record: (access: AgentAccess) => Effect.Effect<void, AccountDeleted>;
+  /** How the card tools write: the store's `applyMutations`. */
+  readonly write: CardWrite;
   /** The apps agents can read (`agentResources`; tests add a fake lil mail). */
   readonly registry?: AgentAppRegistry;
   /** More apps for the combined server, beside lil health: a fake lil mail in tests. */
   readonly otherApps?: Readonly<Record<string, StoreMcpApp>>;
 }) =>
   Effect.gen(function* () {
-    const { sql, record } = options;
+    const { sql, record, write } = options;
     // lil health's tools, once: both servers register the same handlers, in the same queue.
-    const healthApp = healthMcpApp({ sql, record, turns: yield* makeTurns() });
+    const healthApp = healthMcpApp({ sql, record, write, turns: yield* makeTurns() });
     // Sessions are kept in the store's SQLite too, so they outlive its object (851-2947).
     const sessions = storeMcpSessions(sql);
     const health = yield* serveHealthMcp(healthApp, sessions(healthMcpSessionsKey));

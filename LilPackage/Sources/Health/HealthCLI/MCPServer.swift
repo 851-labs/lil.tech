@@ -15,15 +15,24 @@ import MCP
 /// and logs itself first (851-2840): with access off, a call answers with the error that says
 /// where to turn it on. It also serves the catalog of categories and types as a resource.
 enum HealthMCPServer {
-  /// The tools, decoded from the toolkit's definitions. `HealthMCPServerTests` checks they decode
+  /// The tools, decoded from the toolkit's definitions, without the card tools, which the remote
+  /// server answers and this one doesn't yet (851-3216). `HealthMCPServerTests` checks they decode
   /// and list exactly as the file has them.
   static let tools: [Tool] = {
     do {
       return try JSONDecoder().decode([Tool].self, from: Data(mcpToolsJSON.utf8))
+        .filter { !remoteOnlyTools.contains($0.name) }
     } catch {
       fatalError("MCPToolsJSON.swift doesn't decode as MCP tools: \(error)")
     }
   }()
+
+  /// The tools in `mcp-tools.json` this server doesn't list: the card tools (851-3215), until it
+  /// answers them through the app (851-3216).
+  static let remoteOnlyTools: Set<String> = [
+    "list_cards", "get_card", "preview_card", "create_card", "update_card", "delete_card",
+    "reorder_cards",
+  ]
 
   /// The tools' input properties by name: what a call's log entry keeps of its arguments.
   static let toolArguments: [String: Set<String>] = Dictionary(

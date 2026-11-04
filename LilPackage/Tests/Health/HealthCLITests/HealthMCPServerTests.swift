@@ -69,9 +69,21 @@ struct HealthMCPServerTests {
     // As typed JSON, so a boolean that became a number shows.
     let roundTrip = try JSONDecoder().decode(
       ConformanceJSON.self, from: JSONEncoder().encode(listed))
-    #expect(
-      roundTrip == (try JSONDecoder().decode(ConformanceJSON.self, from: Data(committed.utf8))))
+    // Every tool in the file but the card tools, which it doesn't answer yet (851-3216).
+    let fileJSON = try JSONDecoder().decode(ConformanceJSON.self, from: Data(committed.utf8))
+    guard case .array(let fileTools) = fileJSON else {
+      Issue.record("mcp-tools.json isn't a list of tools")
+      return
+    }
+    let answered = fileTools.filter { tool in
+      guard case .object(let fields) = tool, case .string(let name)? = fields["name"] else {
+        return true
+      }
+      return !HealthMCPServer.remoteOnlyTools.contains(name)
+    }
+    #expect(roundTrip == .array(answered))
     #expect(listed.map(\.name).count == 10)
+    #expect(fileTools.count == 17)
     await connection.close()
   }
 
