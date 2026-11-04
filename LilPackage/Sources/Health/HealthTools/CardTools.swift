@@ -289,7 +289,18 @@ extension HealthTools {
   }
 
   static func noCard(_ id: String) -> String {
-    "No card with the id \(Self.quoted(id)). list_cards lists them."
+    CardWriteError.noCardMessage(id)
+  }
+
+  /// A spec argument as parsed, or the tool's error for JSON text that isn't JSON (`nil`).
+  public static func parsedSpec(_ json: CardJSON?) throws -> CardJSON {
+    guard let json else {
+      throw HealthToolError(
+        specErrorsMessage([
+          CardSpecError(path: "", code: .invalidJSON, message: "The spec isn't valid JSON.")
+        ]))
+    }
+    return json
   }
 
   /// An input spec canonicalized, or the tool's error listing every one it has.
@@ -304,12 +315,7 @@ extension HealthTools {
   /// A spec's errors as one message an agent can fix them all from: a line each, with its path
   /// (`spec` for the whole spec's).
   public static func specErrorsMessage(_ errors: [CardSpecError]) -> String {
-    let heading =
-      errors.count == 1
-      ? "The spec has 1 error. Fix it and try again:"
-      : "The spec has \(errors.count) errors. Fix them and try again:"
-    return ([heading] + errors.map { "- \($0.path.isEmpty ? "spec" : $0.path): \($0.message)" })
-      .joined(separator: "\n")
+    CardSpecValidationError(errors).toolMessage
   }
 
   /// A stored card's spec, if this version can run it.
@@ -367,5 +373,106 @@ extension HealthTools {
   /// A string as JSON writes it, in double quotes: as the remote server's `JSON.stringify`.
   private static func quoted(_ text: String) -> String {
     CardJSON.string(text).text()
+  }
+}
+
+// MARK: - Writes (851-4014)
+
+/// `create_card` and `update_card`: the card as written.
+public struct HealthCardResult: HealthToolOutput {
+  public var timeZone: String
+  public var card: HealthCardItem
+}
+
+/// `delete_card`: the card deleted, by its ID.
+public struct HealthCardDeletedResult: HealthToolOutput {
+  public var deleted: String
+
+  public init(deleted: String) {
+    self.deleted = deleted
+  }
+}
+
+/// `reorder_cards`: every card in its new order, with its position.
+public struct HealthCardOrderResult: HealthToolOutput {
+  public var cards: [Entry]
+
+  public struct Entry: Codable, Equatable, Sendable {
+    public var id: String
+    public var position: String
+  }
+}
+
+// The checks `lil-health mcp` makes before it asks the app to write (docs/decisions/cards.md › MCP
+// tools, Local writes), on the cards synced to this Mac, in the remote server's order and with its
+// messages, so an agent hears what's wrong at once. The app checks again, on its own cards, and
+// answers with the same messages, since it may have more changes than the database the tool reads.
+extension HealthTools {
+  /// `create_card`'s: the spec canonicalized, the time zone, and room for another card.
+  public func checkCreate(spec input: CardJSON, timeZone: String?, _ db: Database) throws
+    -> CardSpec
+  {
+    let spec = try Self.canonical(input)
+    _ = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
+    try Self.requireSyncedCards(db)
+    guard try HealthCard.fetchCount(db) < HealthCards.maxCards else {
+      throw HealthToolError(CardWriteError.tooManyCards.localizedDescription)
+    }
+    return spec
+  }
+
+  /// `update_card`'s: the spec canonicalized, the time zone, and the card.
+  public func checkUpdate(id: String, spec input: CardJSON, timeZone: String?, _ db: Database)
+    throws -> CardSpec
+  {
+    let spec = try Self.canonical(input)
+    _ = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
+    try Self.requireCard(id, db)
+    return spec
+  }
+
+  /// `delete_card`'s: the card.
+  public func checkDelete(id: String, _ db: Database) throws {
+    try Self.requireCard(id, db)
+  }
+
+  /// `reorder_cards`'s: every card's ID, once each.
+  public func checkReorder(ids: [String], _ db: Database) throws {
+    try Self.requireSyncedCards(db)
+    do {
+      _ = try Card.reordering(try HealthDatabase.cards(db), to: ids, now: now)
+    } catch {
+      throw HealthToolError(error.localizedDescription)
+    }
+  }
+
+  /// A card written, as `create_card` and `update_card` answer once the app has stored it.
+  public func cardResult(id: String, timeZone: String?, _ db: Database) throws -> HealthCardResult {
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
+    guard let card = try HealthCard.find(id).fetchOne(db).map(Card.init) else {
+      // Deleted again, by someone else, as soon as it was written.
+      throw HealthToolError(Self.noCard(id))
+    }
+    return HealthCardResult(timeZone: time.name, card: HealthCardItem(card, time: time))
+  }
+
+  /// The cards in Summary's order, as `reorder_cards` answers once the app has stored it.
+  public func cardOrder(_ db: Database) throws -> HealthCardOrderResult {
+    HealthCardOrderResult(
+      cards: try HealthDatabase.cards(db).map { .init(id: $0.id, position: $0.position) })
+  }
+
+  private static func requireCard(_ id: String, _ db: Database) throws {
+    guard try HealthCard.find(id).fetchCount(db) > 0 else {
+      try requireSyncedCards(db)
+      throw HealthToolError(noCard(id))
+    }
+  }
+
+  /// An input spec's name, for the access log: the canonical one, or as given when it has errors.
+  public static func cardName(of input: CardJSON) -> String? {
+    if let spec = try? CardSpec(input: input) { return spec.display.name }
+    if case .string(let name)? = input["display"]?["name"] { return name }
+    return nil
   }
 }

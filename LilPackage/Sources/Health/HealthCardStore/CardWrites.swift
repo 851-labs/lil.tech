@@ -18,6 +18,9 @@ public enum CardWriteError: Error, Equatable, Sendable, LocalizedError {
   case unreadable
   /// A position around it isn't a valid fractional index, which the store never keeps.
   case invalidPosition(String)
+  /// A new order that isn't every card once (an agent's `reorder_cards`, 851-4014): the cards it
+  /// leaves out, the IDs no card has, and those it gives more than once, each once.
+  case notEveryCard(missing: [String], unknown: [String], repeated: [String])
 
   public var errorDescription: String? {
     switch self {
@@ -27,7 +30,23 @@ public enum CardWriteError: Error, Equatable, Sendable, LocalizedError {
     case .notFound: "That card was deleted."
     case .unreadable: "Update lil health to edit this card."
     case .invalidPosition(let message): "The card couldn't be moved: \(message)"
+    case .notEveryCard(let missing, let unknown, let repeated):
+      // The remote server's words (`CardTools.ts`), for agents.
+      "reorder_cards needs every card's id once: "
+        + [
+          missing.isEmpty ? nil : "missing \(missing.joined(separator: ", "))",
+          unknown.isEmpty ? nil : "unknown \(unknown.joined(separator: ", "))",
+          repeated.isEmpty ? nil : "more than once \(repeated.joined(separator: ", "))",
+        ]
+        .compactMap { $0 }.joined(separator: "; ") + ". list_cards lists them."
     }
+  }
+}
+
+extension CardWriteError {
+  /// What the card tools say of an ID no card has, the remote server's words (851-4014).
+  public static func noCardMessage(_ id: String) -> String {
+    "No card with the id \(CardJSON.string(id).text()). list_cards lists them."
   }
 }
 
@@ -56,6 +75,18 @@ extension Card {
     card.spec = try Self.validated(spec)
     card.storedSpec = card.spec?.json ?? .null
     card.updatedAt = max(now.unixMilliseconds, createdAt)
+    return card
+  }
+
+  /// The card with its spec replaced by `spec`, validated, keeping its place, creation time and
+  /// seed, as an agent's `update_card` does (851-4014): unlike `edited(_:now:)`, also a card whose
+  /// spec this version can't read, which replacing is how an agent fixes. Its `updatedAt` never
+  /// goes back, as on the remote server.
+  public func replaced(with spec: CardSpec, now: Date) throws(CardWriteError) -> Card {
+    var card = self
+    card.spec = try Self.validated(spec)
+    card.storedSpec = card.spec?.json ?? .null
+    card.updatedAt = max(now.unixMilliseconds, updatedAt, createdAt)
     return card
   }
 
@@ -105,6 +136,84 @@ extension Card {
       card.updatedAt = max(time, card.createdAt)
       return card
     }
+  }
+}
+
+extension Card {
+  /// The cards a new order rewrites, with their new positions: `ids` is every card of `cards` once,
+  /// in the new order, as an agent's `reorder_cards` gives it (851-4014). As the remote server
+  /// does (`reorderedPositions` in `CardTools.ts`), the most cards already in order keep their
+  /// positions (the longest run of strictly ascending ones, so ties are told apart), and each of the
+  /// others gets one between its new neighbors'. In the new order; empty when nothing moves.
+  public static func reordering(
+    _ cards: [Card], to ids: [Card.ID], now: Date
+  ) throws(CardWriteError) -> [Card] {
+    let byID = Dictionary(cards.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    var seen = Set<String>()
+    var unknown: [String] = []
+    var repeated: [String] = []
+    for id in ids {
+      if byID[id] == nil {
+        if !unknown.contains(id) { unknown.append(id) }
+      } else if !seen.insert(id).inserted {
+        if !repeated.contains(id) { repeated.append(id) }
+      }
+    }
+    let missing = cards.map(\.id).filter { !seen.contains($0) }
+    guard missing.isEmpty, unknown.isEmpty, repeated.isEmpty else {
+      throw .notEveryCard(missing: missing, unknown: unknown, repeated: repeated)
+    }
+    let order = ids.compactMap { byID[$0] }
+    func before(_ a: Card, _ b: Card) -> Bool {
+      a.position.utf8.lexicographicallyPrecedes(b.position.utf8)
+    }
+
+    // The longest strictly ascending run of positions, in O(n²): at most 200 cards.
+    var lengths = Array(repeating: 1, count: order.count)
+    var previous = Array(repeating: -1, count: order.count)
+    var best = -1
+    for index in order.indices {
+      for earlier in 0..<index
+      where before(order[earlier], order[index]) && lengths[earlier] + 1 > lengths[index] {
+        lengths[index] = lengths[earlier] + 1
+        previous[index] = earlier
+      }
+      if best == -1 || lengths[index] > lengths[best] { best = index }
+    }
+    var kept = Set<Int>()
+    var index = best
+    while index != -1 {
+      kept.insert(index)
+      index = previous[index]
+    }
+
+    let time = now.unixMilliseconds
+    var moved: [Card] = []
+    var start = 0
+    while start < order.count {
+      guard !kept.contains(start) else {
+        start += 1
+        continue
+      }
+      var end = start
+      while end < order.count, !kept.contains(end) { end += 1 }
+      let lower = start == 0 ? nil : order[start - 1].position
+      let upper = end == order.count ? nil : order[end].position
+      let positions: [String]
+      do {
+        positions = try CardPosition.between(lower, upper, count: end - start)
+      } catch {
+        throw .invalidPosition(error.message)
+      }
+      for (card, position) in zip(order[start..<end], positions) {
+        var card = card
+        card.position = position
+        card.updatedAt = max(time, card.updatedAt, card.createdAt)
+        moved.append(card)
+      }
+      start = end
+    }
+    return moved
   }
 }
 

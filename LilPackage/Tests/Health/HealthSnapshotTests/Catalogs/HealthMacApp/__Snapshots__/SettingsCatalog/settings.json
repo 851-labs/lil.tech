@@ -256,6 +256,13 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-card-changes-dark.png",
+      "id" : "settings.access-log-card-changes",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-card-changes-light.png",
+      "name" : "Access log: card changes",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/SettingsCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-off-dark.png",
       "id" : "settings.access-log-off",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/SettingsCatalog/settings.access-log-off-light.png",

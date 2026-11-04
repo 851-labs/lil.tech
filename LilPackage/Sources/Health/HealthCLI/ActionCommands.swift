@@ -160,6 +160,11 @@ extension HealthCLI {
 
     static let notAnswered = Self(
       "lil health didn't answer. Is it installed and signed in?", status: Status.unavailable)
+
+    /// A card write the app took but hasn't answered (851-4014): it may still be saved.
+    static let stillWriting = Self(
+      "lil health took the change but didn't confirm it in time. It may still be saved: check "
+        + "with list_cards before trying again.", status: Status.tempFail)
   }
 
   /// Asks the app for the command's action, then waits for its answer: logged and checked as
@@ -211,6 +216,9 @@ extension HealthCLI {
       case .open: clock.now + context.timing.openWait
       case .sync: clock.now + context.timing.syncWait
       case .export: nil
+      // Commands never ask for card writes, which only `lil-health mcp` does (`askApp`).
+      case .createCard, .updateCard, .deleteCard, .reorderCards:
+        clock.now + context.timing.cardWait
       }
     while state == .running {
       if app.isInterrupted() { throw ActionError.interrupted(action, claimed: true) }
@@ -230,6 +238,46 @@ extension HealthCLI {
     case .waiting, .running, nil:
       // Gone: it expired, or a newer lil health deleted it. Only an app's answer counts.
       throw ActionError.notAnswered
+    }
+  }
+
+  /// Asks the app for a card write from `lil-health mcp` (851-4014), which has logged the call
+  /// already, and waits for its answer: the app is woken, or launched in the background, and has
+  /// `Timing.claimWait` to claim the request, then `Timing.cardWait` to answer. Throws the app's
+  /// failure, with its message, or `notAnswered`.
+  static func askApp(_ action: AgentAction, context: Context) throws -> AgentActionResult {
+    let app = context.app
+    let store = AgentAccessStore(directory: context.directory)
+    let id = try store.requestAction(action, process: context.process, logged: false)
+    if app.isRunning() {
+      app.signal()
+    } else {
+      do {
+        try app.open(false)
+      } catch {
+        _ = try? store.cancel(id: id)
+        throw error
+      }
+    }
+    let clock = ContinuousClock()
+    let claimDeadline = clock.now + context.timing.claimWait
+    var state = try store.outcome(id: id)
+    while state == .waiting {
+      if clock.now >= claimDeadline, try store.cancel(id: id) { throw ActionError.notAnswered }
+      app.sleep(context.timing.pollInterval)
+      state = try store.outcome(id: id)
+    }
+    let doneDeadline = clock.now + context.timing.cardWait
+    while state == .running {
+      // Claimed, so it may still be written: the agent mustn't simply try again.
+      if clock.now >= doneDeadline { throw ActionError.stillWriting }
+      app.sleep(context.timing.pollInterval)
+      state = try store.outcome(id: id)
+    }
+    switch state {
+    case .finished(.ok(let result)): return result
+    case .finished(.failed(let failure)): throw ActionError(failure)
+    case .waiting, .running, nil: throw ActionError.notAnswered
     }
   }
 
@@ -263,6 +311,10 @@ extension HealthCLI {
     case .exported(let path):
       json = ["path": path]
       text = path
+    case .card(let id):
+      // Only `lil-health mcp`'s card writes get one, which it answers itself.
+      json = ["id": id]
+      text = id
     }
     guard command.output.json else { return text + "\n" }
     return (try? encode(ActionOutput(result: json))) ?? ""
@@ -298,7 +350,7 @@ extension HealthCLI.ActionError {
         "Stopped waiting. lil health is still exporting, and will save it to "
           + "\((folder as NSString).abbreviatingWithTildeInPath)."
       case .sync: "Stopped waiting. lil health will finish syncing in the background."
-      case .open: "Stopped waiting."
+      case .open, .createCard, .updateCard, .deleteCard, .reorderCards: "Stopped waiting."
       }
     return Self(message, status: HealthCLI.Status.interrupted)
   }

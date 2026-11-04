@@ -1,6 +1,7 @@
 #if os(macOS)
   import Darwin
   import Foundation
+  import HealthCards
   import Testing
 
   @testable import HealthAgentAccess
@@ -369,6 +370,47 @@
       #expect(try json(.open(page: "summary")) == #"{"action":"open","page":"summary"}"#)
       #expect(try json(.sync) == #"{"action":"sync"}"#)
       #expect(try json(.export(folder: "/tmp")) == #"{"action":"export","folder":"\/tmp"}"#)
+    }
+
+    /// The local MCP server's card writes (851-4014), stored with their canonical spec, and
+    /// logged with their arguments in short, never the spec.
+    @Test
+    func cardActionsRoundTripAndLogInShort() throws {
+      let spec = try CardSpec(
+        input: [
+          "version": 1, "display": ["name": "Sleeping Heart Rate"],
+          "series": [["type": "Heart Rate"]],
+        ])
+      let actions: [AgentAction] = [
+        .createCard(spec: spec), .updateCard(id: "card_a", spec: spec), .deleteCard(id: "card_a"),
+        .reorderCards(ids: ["card_b", "card_a"]),
+      ]
+      for action in actions {
+        let decoded = try JSONDecoder().decode(
+          AgentAction.self, from: try JSONEncoder().encode(action))
+        #expect(decoded == action)
+      }
+      #expect(
+        actions.map(\.command) == [
+          #"create_card {"name":"Sleeping Heart Rate"}"#,
+          #"update_card {"id":"card_a","name":"Sleeping Heart Rate"}"#,
+          #"delete_card {"id":"card_a"}"#,
+          #"reorder_cards {"count":2}"#,
+        ])
+      let result = AgentActionResult.card(id: "card_a")
+      #expect(
+        try JSONDecoder().decode(AgentActionResult.self, from: JSONEncoder().encode(result))
+          == result)
+    }
+
+    /// A card write the caller has logged already isn't logged again.
+    @Test
+    func aRequestLoggedAlreadyIsntLoggedTwice() throws {
+      try store.setEnabled(true, at: date(0))
+      try store.requestAction(
+        .deleteCard(id: "card_a"), process: "claude", logged: false, at: date(1))
+      #expect(try store.entries().isEmpty)
+      #expect(try store.claimActions(at: date(2)).map(\.action) == [.deleteCard(id: "card_a")])
     }
 
     // MARK: - Signals

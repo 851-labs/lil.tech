@@ -1,5 +1,7 @@
 public import Dependencies
 public import Foundation
+import HealthAgentAccess
+public import HealthCards
 import Synchronization
 
 /// What lil health for Mac's app actions ask the running app to do (851-2892): its intents, and
@@ -16,6 +18,14 @@ public enum HealthAppAction: Equatable, Sendable {
   /// the server prepares, under the name the panel would suggest, numbered if it's taken. One
   /// export at a time, from Settings or an action.
   case export(to: URL)
+  /// The local MCP server's card writes (851-4014): `CardsFeature` writes them as the editor
+  /// does, locally and through sync, and answers once they're stored. Adds a card at the end.
+  case createCard(CardSpec)
+  /// Replaces a card's spec, keeping its place: also one this version can't read.
+  case updateCard(id: String, spec: CardSpec)
+  case deleteCard(id: String)
+  /// Every card's ID once, in the new order.
+  case reorderCards(ids: [String])
 
   /// The action as the access log shows it, e.g. `open Steps` or `export ~/Downloads`.
   public var command: String {
@@ -23,6 +33,10 @@ public enum HealthAppAction: Equatable, Sendable {
     case .open(let page): "open \(page.name)"
     case .sync: "sync"
     case .export(let folder): "export \(Self.displayPath(folder))"
+    case .createCard(let spec): AgentAction.createCard(spec: spec).command
+    case .updateCard(let id, let spec): AgentAction.updateCard(id: id, spec: spec).command
+    case .deleteCard(let id): AgentAction.deleteCard(id: id).command
+    case .reorderCards(let ids): AgentAction.reorderCards(ids: ids).command
     }
   }
 
@@ -50,6 +64,8 @@ public enum HealthAppActionResult: Equatable, Sendable {
   case stillSyncing
   /// The archive, saved in the folder asked for.
   case exported(URL)
+  /// The card created or updated, stored locally and queued for sync.
+  case card(id: String)
 }
 
 /// Why the app couldn't perform an action.
@@ -75,6 +91,8 @@ public enum HealthAppActionError: Error, Equatable, LocalizedError,
   case folderNotFound(String)
   /// The folder at this path (written with `~`) can't be written to.
   case folderNotWritable(String)
+  /// A card write was refused, saying why as the remote server's card tools do (851-4014).
+  case cardNotSaved(String)
 
   public var errorDescription: String? {
     switch self {
@@ -89,6 +107,7 @@ public enum HealthAppActionError: Error, Equatable, LocalizedError,
     case .folderNotFound(let path): "There's no folder at \(path)."
     case .folderNotWritable(let path):
       "lil health can't save to \(path). Check its access in System Settings › Privacy & Security › Files & Folders."
+    case .cardNotSaved(let message): message
     }
   }
 

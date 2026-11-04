@@ -19,6 +19,10 @@ extension HealthAppAction {
         throw AgentActionFailure(reason: .failed, message: "There's no folder at \(folder).")
       }
       self = .export(to: URL(filePath: folder, directoryHint: .isDirectory))
+    case .createCard(let spec): self = .createCard(spec)
+    case .updateCard(let id, let spec): self = .updateCard(id: id, spec: spec)
+    case .deleteCard(let id): self = .deleteCard(id: id)
+    case .reorderCards(let ids): self = .reorderCards(ids: ids)
     }
   }
 }
@@ -30,6 +34,7 @@ extension AgentActionResult {
     case .synced(let date): self = .synced(at: date)
     case .stillSyncing: self = .stillSyncing
     case .exported(let url): self = .exported(path: url.path(percentEncoded: false))
+    case .card(let id): self = .card(id: id)
     }
   }
 }
