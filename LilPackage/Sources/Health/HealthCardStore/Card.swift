@@ -1,13 +1,11 @@
 import Foundation
-import GRDB
 public import HealthCards
 public import LilSync
 import OpenAPIRuntime
-public import SQLiteData
 
-// Summary's cards on the Mac (851-3204, docs/decisions/cards.md): read from the synced
-// `healthCards` table, and written through sync (`SyncClient.push`) as whole rows, one card per
-// write, so the last writer wins per card.
+// Summary's cards (851-3204, docs/decisions/cards.md): read from the synced `healthCards` table,
+// and written through sync (`SyncClient.push`) as whole rows, one card per write, so the last
+// writer wins per card. The Mac and the iPhone share them (851-3205).
 
 /// One of the account's cards, as features show and write it: a ``HealthCard`` record with its
 /// spec read.
@@ -54,7 +52,7 @@ public struct Card: Equatable, Identifiable, Sendable {
     seed = record.seed
   }
 
-  /// The card's whole row, as ``HealthDatabase/syncEntities`` stores it and the server takes it:
+  /// The card's whole row, as ``HealthCardStore/syncEntity`` stores it and the server takes it:
   /// every field, `seed` included as `null`, since `health_card` takes whole rows only. Throws
   /// ``CardWriteError/unreadable`` for a card without a spec to write back, which the store would
   /// refuse.
@@ -82,31 +80,5 @@ public struct Card: Equatable, Identifiable, Sendable {
       return position.utf8.lexicographicallyPrecedes(other.position.utf8)
     }
     return id.utf8.lexicographicallyPrecedes(other.id.utf8)
-  }
-}
-
-extension HealthDatabase {
-  /// The account's cards, in Summary's order.
-  public static func cards(_ db: Database) throws -> [Card] {
-    try HealthCard.order { ($0.position, $0.id) }.fetchAll(db).map(Card.init)
-  }
-
-  /// The cards now, then each time they change: this Mac's writes, and other devices' and agents'
-  /// as sync brings them.
-  public static func cardUpdates(
-    in database: any DatabaseReader
-  ) -> AsyncThrowingStream<[Card], any Error> {
-    let values = ValueObservation.tracking(cards).removeDuplicates().values(in: database)
-    return AsyncThrowingStream { continuation in
-      let task = Task {
-        do {
-          for try await cards in values { continuation.yield(cards) }
-          continuation.finish()
-        } catch {
-          continuation.finish(throwing: error)
-        }
-      }
-      continuation.onTermination = { _ in task.cancel() }
-    }
   }
 }

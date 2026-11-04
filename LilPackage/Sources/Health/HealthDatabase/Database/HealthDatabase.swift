@@ -1,6 +1,8 @@
 import Dependencies
 public import Foundation
 import GRDB
+// The cards' table and model (`Card`), which the Mac's features use through this module.
+@_exported public import HealthCardStore
 public import LilAPI
 public import LilSync
 import OpenAPIRuntime
@@ -462,25 +464,10 @@ public enum HealthDatabase {
       )
       .execute(db)
     }
-    // Summary's cards (851-3204), `health_card`. A database from before has no record of the
-    // entity, so sync catches it up by itself (851-3222): the seed and any cards since arrive
-    // without a bootstrap. Ordered by `position` then `id`, each by its bytes (SQLite's BINARY
-    // collation), as every device orders them; a table of at most 200 needs no index for it.
-    migrator.registerMigration("Create health cards") { db in
-      try #sql(
-        """
-        CREATE TABLE "healthCards" (
-          "id" TEXT PRIMARY KEY NOT NULL,
-          "spec" TEXT NOT NULL,
-          "position" TEXT NOT NULL,
-          "createdAt" INTEGER NOT NULL,
-          "updatedAt" INTEGER NOT NULL,
-          "seed" TEXT
-        ) STRICT
-        """
-      )
-      .execute(db)
-    }
+    // Summary's cards (851-3204), `health_card`, in the table both apps keep them in
+    // (`HealthCardStore`). A database from before has no record of the entity, so sync catches
+    // it up by itself (851-3222): the seed and any cards since arrive without a bootstrap.
+    HealthCardStore.registerMigrations(in: &migrator)
   }
 
   private static func registerHealthTables(in migrator: inout DatabaseMigrator) {
@@ -591,7 +578,7 @@ public enum HealthDatabase {
   /// earlier release bootstrap again and get it (`docs/sync/protocol.md`). New entities need none.
   public static let syncSchema = 2
 
-  /// The health entities, for ``LilSyncEngine/init(entities:syncSchema:partsDirectory:)``. One
+  /// The health entities, for ``LilSyncEngine/init(entities:syncSchema:partsDirectory:filtersChanges:)``. One
   /// added here is caught up by itself on Macs synced before it (851-3222), with no bump.
   public static let syncEntities: [SyncEntity] = [
     entity("health_provenance", Components.Schemas.HealthProvenance.self) { row in
@@ -725,12 +712,9 @@ public enum HealthDatabase {
         id: row.id, device: row.device, pairedWithWatch: row.pairedWithWatch,
         reportedAt: row.reportedAt)
     },
-    // Summary's cards, the one entity the Mac writes (851-3204, `Card`).
-    entity("health_card", Components.Schemas.HealthCard.self) { row in
-      HealthCard(
-        id: row.id, spec: try json(row.spec) ?? "null", position: row.position,
-        createdAt: row.createdAt, updatedAt: row.updatedAt, seed: row.seed)
-    },
+    // Summary's cards, the one entity the Mac writes (851-3204, `Card`), as the iPhone stores
+    // them too (851-3205).
+    HealthCardStore.syncEntity,
   ]
 
   /// An entity stored in `Record`'s table, each row made from the server's `Row`. Rows are
@@ -763,15 +747,8 @@ public enum HealthDatabase {
     { db in try Record.delete().execute(db) }
   }
 
-  private static let encoder = {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-    return encoder
-  }()
-
-  /// A JSON field as JSON text, or `nil` when it's missing or null.
+  /// A JSON field as JSON text, or `nil` when it's missing or null: as the cards' (`HealthCardStore`).
   static func json(_ value: OpenAPIValueContainer?) throws -> String? {
-    guard let value, value.value != nil else { return nil }
-    return String(decoding: try encoder.encode(value), as: UTF8.self)
+    try HealthCardStore.json(value)
   }
 }

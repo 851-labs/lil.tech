@@ -11,6 +11,7 @@ let package = Package(
   products: [
     .library(name: "HealthAgentAccess", targets: ["HealthAgentAccess"]),
     .library(name: "HealthCards", targets: ["HealthCards"]),
+    .library(name: "HealthCardStore", targets: ["HealthCardStore"]),
     .library(name: "HealthCatalog", targets: ["HealthCatalog"]),
     .library(name: "HealthCLI", targets: ["HealthCLI"]),
     .library(name: "HealthDatabase", targets: ["HealthDatabase"]),
@@ -97,6 +98,21 @@ let package = Package(
       ],
       path: "Tests/Health/HealthCardsTests"
     ),
+    // The account's cards as both apps keep them (851-3205): the synced `healthCards` table, its
+    // `health_card` sync entity, `Card` and its writes. The Mac keeps the table in its health
+    // database, and the iPhone, which syncs nothing else, in a database of its own.
+    .target(
+      name: "HealthCardStore",
+      dependencies: [
+        "HealthCards",
+        "LilAPI",
+        "LilSync",
+        .product(name: "GRDB", package: "GRDB.swift"),
+        .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
+      ],
+      path: "Sources/Health/HealthCardStore"
+    ),
     .target(
       name: "HealthCatalog",
       path: "Sources/Health/HealthCatalog"
@@ -174,6 +190,7 @@ let package = Package(
       dependencies: [
         // Cards' engine core, which Metric Detail's weights and periods come from too (851-3195).
         "HealthCards",
+        "HealthCardStore",
         "HealthCatalog",
         "LilAPI",
         "LilSync",
@@ -306,25 +323,43 @@ let package = Package(
     .target(
       name: "HealthPhoneApp",
       dependencies: [
+        // The account's cards, synced alone (851-3205).
+        "HealthCards",
+        "HealthCardStore",
         "HealthCatalog",
         "HealthKitAccess",
         "HealthUI",
         "HealthUpload",
+        "LilAPI",
         "LilAuth",
+        "LilSync",
         "LilUI",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+        .product(name: "GRDB", package: "GRDB.swift"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
       ],
       path: "Sources/Health/HealthPhoneApp"
     ),
     .testTarget(
       name: "HealthPhoneAppTests",
       dependencies: [
+        "HealthCards",
+        "HealthCardStore",
         "HealthCatalog",
         "HealthKitAccess",
         "HealthPhoneApp",
         "HealthUpload",
+        "LilAPI",
         "LilAuth",
+        // Snapshot parts for the card sync tests' server.
+        "LilGzip",
+        "LilSync",
+        "LilTestSupport",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+        .product(name: "GRDB", package: "GRDB.swift"),
+        .product(name: "HTTPTypes", package: "swift-http-types"),
+        .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
       ],
       path: "Tests/Health/HealthPhoneAppTests"
     ),

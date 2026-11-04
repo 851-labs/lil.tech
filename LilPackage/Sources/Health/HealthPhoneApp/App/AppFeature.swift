@@ -3,8 +3,10 @@ import Foundation
 import HealthKitAccess
 import HealthUpload
 public import LilAuth
+import LilSync
 
-/// lil health on the iPhone: sign in, consent, Health access, then the home screen.
+/// lil health on the iPhone: sign in, consent, Health access, then the home screen. Syncs the
+/// account's cards while signed in.
 @Reducer
 public struct AppFeature {
   @ObservableState
@@ -13,6 +15,8 @@ public struct AppFeature {
     public var isSignedIn: Bool?
     public var signIn = SignInFeature.State()
     public var syncStatus = SyncStatusFeature.State()
+    /// The account's cards (851-3205), synced while signed in, for Summary (851-3211).
+    public var cards = CardsFeature.State()
     /// Asking for consent to processing Health data, after signing in and before Health access.
     public var healthConsent: HealthConsentFeature.State?
     /// The policy version consent was given for on this account, if any (`docs/DECISIONS.md`).
@@ -56,6 +60,7 @@ public struct AppFeature {
     case alert(PresentationAction<Alert>)
     /// Starts uploading the Health history, if it isn't all uploaded.
     case backfill
+    case cards(CardsFeature.Action)
     /// The app came back to the front after being in the background: an upload left unfinished
     /// (e.g. the phone locked) picks up again.
     case returnedToForeground
@@ -81,12 +86,14 @@ public struct AppFeature {
 
   @Dependency(\.accountDevices) var accountDevices
   @Dependency(\.auth) var auth
+  @Dependency(\.authSessions) var authSessions
   @Dependency(\.healthAuthorization) var healthAuthorization
   @Dependency(\.healthBackfill) var healthBackfill
   @Dependency(\.healthConsent) var healthConsent
   @Dependency(\.backgroundUpload) var backgroundUpload
+  @Dependency(\.sync) var sync
 
-  enum CancelID { case backfill, consentCheck, signedInChecks }
+  enum CancelID { case backfill, cardPull, cardSync, consentCheck, signedInChecks }
 
   public init() {}
 
@@ -97,6 +104,9 @@ public struct AppFeature {
     Scope(\.syncStatus, action: \.syncStatus) {
       SyncStatusFeature()
     }
+    Scope(\.cards, action: \.cards) {
+      CardsFeature()
+    }
     Reduce { state, action in
       switch action {
       case .alert:
@@ -105,10 +115,17 @@ public struct AppFeature {
       case .backfill:
         return backfill(state, continuing: false)
 
+      case .cards:
+        return .none
+
       case .returnedToForeground:
-        guard state.isSignedIn == true, state.healthConsent == nil, state.healthAccess == nil
-        else { return .none }
-        return .send(.startUpload)
+        guard state.isSignedIn == true else { return .none }
+        // Cards changed elsewhere meanwhile come now, rather than at the next interval: a new
+        // pull, since asking the running one (`syncNow`) wouldn't cut short its backoff after
+        // failures (e.g. while offline in the background).
+        let pull = pullCards()
+        guard state.healthConsent == nil, state.healthAccess == nil else { return pull }
+        return .merge(pull, .send(.startUpload))
 
       case .startUpload:
         return backfill(state, continuing: true)
@@ -182,12 +199,15 @@ public struct AppFeature {
         return .none
 
       case .signedInChanged(let isSignedIn):
+        let wasSignedIn = state.isSignedIn
         state.isSignedIn = isSignedIn
         guard isSignedIn else {
           state.signIn = SignInFeature.State()
           state.healthConsent = nil
           state.healthAccess = nil
           state.syncStatus = SyncStatusFeature.State()
+          // Cards are the account's, and leave with it.
+          state.cards = CardsFeature.State()
           // The next account is checked for other iPhones too, and gives its own consent.
           state.$checkedForOtherIPhones.withLock { $0 = false }
           state.setConsent(false)
@@ -196,11 +216,23 @@ public struct AppFeature {
           return .merge(
             .cancel(id: CancelID.backfill),
             .cancel(id: CancelID.signedInChecks),
+            .cancel(id: CancelID.cardPull),
+            .cancel(id: CancelID.cardSync),
+            // So no card write lands after the local cards are deleted.
+            CardsFeature.cancel(),
             // Its answers are the last account's.
             SignInMethodsFeature.cancel(),
             ConnectedAgentsFeature.cancel(),
-            .run { [healthBackfill] send in
+            .run { [healthBackfill, sync] send in
               await healthBackfill.reset()
+              // The account's cards and their unsent writes leave the iPhone with it. Also when
+              // the app opens signed out, in case it quit before it was done. Removing waits for
+              // a pull being cancelled to stop (`LilSyncEngine.removeLocalData()`).
+              do {
+                try await sync.removeLocalData()
+              } catch {
+                reportIssue(error)
+              }
               // Only now, so a scripted run's sign-in doesn't back up into a reset.
               await send(.signIn(.readyToSignIn))
             }
@@ -214,7 +246,8 @@ public struct AppFeature {
           state.healthConsent = HealthConsentFeature.State()
         }
         let hasConsent = state.hasConsent
-        return .run { [healthAuthorization, healthConsent, accountDevices] send in
+        let checks = Effect<Action>.run {
+          [healthAuthorization, healthConsent, accountDevices] send in
           // It may have been withdrawn on another iPhone, or given there. Asked before uploading
           // anything; offline, this iPhone's answer stands.
           let given = await Self.checkConsent(healthConsent)
@@ -232,6 +265,8 @@ public struct AppFeature {
           }
         }
         .cancellable(id: CancelID.signedInChecks, cancelInFlight: true)
+        // Cards sync whether or not Health data may be uploaded: they hold none.
+        return wasSignedIn == true ? checks : .merge(checks, syncCards())
 
       case .signIn:
         // The session's updates say when signing in worked.
@@ -329,6 +364,23 @@ extension AppFeature {
       await HealthBackgroundWork.scheduleIfNeeded()
     }
     .cancellable(id: CancelID.backfill, cancelInFlight: true)
+  }
+
+  /// Pulls the account's cards, and follows live notices of new changes, until signed out
+  /// (851-3205). The iPhone syncs only `health_card` (`PhoneCards`).
+  func syncCards() -> Effect<Action> {
+    .merge(
+      pullCards(),
+      .run { [sync, authSessions] _ in await sync.listen(authSessions.apiAuthentication) }
+        .cancellable(id: CancelID.cardSync, cancelInFlight: true)
+    )
+  }
+
+  /// Pulls now, then at intervals, until signed out (`LilSyncEngine.run()`), replacing a pull
+  /// loop already running.
+  func pullCards() -> Effect<Action> {
+    .run { [sync] _ in await sync.run() }
+      .cancellable(id: CancelID.cardPull, cancelInFlight: true)
   }
 
   /// Without consent: stops the backfill and its background work.

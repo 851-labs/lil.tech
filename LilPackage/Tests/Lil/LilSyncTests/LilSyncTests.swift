@@ -2063,3 +2063,97 @@ struct LilSyncCatchUpTests {
     #expect(try storedTags().isEmpty)
   }
 }
+
+/// Pulls of an app's entities alone (`filtersChanges`, 851-3205), as the iPhone pulls cards: the
+/// change feed's `entities` filter skips the others' changes, and the cursor keeps up with the
+/// head.
+@Suite
+struct LilSyncFilteredPullTests {
+  fileprivate let server = FakeServer()
+  let database: any DatabaseWriter
+
+  init() throws {
+    database = try makeDatabase()
+  }
+
+  private func engine(filtersChanges: Bool) -> LilSyncEngine {
+    withDependencies {
+      $0.defaultDatabase = database
+      $0.api = server.client
+      $0.snapshotDownloader = server.downloader
+      $0.continuousClock = RecordingClock()
+      $0.withRandomNumberGenerator = WithRandomNumberGenerator(LCRNG(seed: 0))
+      $0.date.now = syncedAt
+    } operation: {
+      LilSyncEngine(
+        entities: [notes], syncSchema: 1,
+        partsDirectory: URL.temporaryDirectory.appending(path: "lilsync-\(UUID().uuidString)"),
+        filtersChanges: filtersChanges)
+    }
+  }
+
+  /// Notes at 1, 5 and 7, among tags this app doesn't store.
+  private func notesAmongTags() {
+    for change in [
+      upsert("n1", "Note 1"), upsert("t1", "Tag 1", entity: "tag"),
+      upsert("t2", "Tag 2", entity: "tag"), upsert("t3", "Tag 3", entity: "tag"),
+      upsert("n2", "Note 2"), upsert("t4", "Tag 4", entity: "tag"), delete("n1"),
+      upsert("t5", "Tag 5", entity: "tag"),
+    ] {
+      server.append(change)
+    }
+  }
+
+  private func storedNotes() throws -> [Note] {
+    try database.read { try Note.order(by: \.id).fetchAll($0) }
+  }
+
+  private func storedTags() throws -> Int {
+    try database.read { try Tag.fetchCount($0) }
+  }
+
+  private func cursor() throws -> Int? {
+    try database.read { try SyncState.find(SyncState.singletonID).fetchOne($0)?.cursor }
+  }
+
+  @Test
+  func pullsOnlyItsEntitiesChanges() async throws {
+    notesAmongTags()
+    let engine = engine(filtersChanges: true)
+    try await engine.pull()
+
+    #expect(try storedNotes() == [Note(id: "n2", title: "Note 2")])
+    #expect(try storedTags() == 0)
+    // Two notes a page: the first full one ends at its last change, the second at the head.
+    #expect(server.state.requests == [0, 5])
+    #expect(server.state.filters == ["note", "note"])
+    #expect(try cursor() == 8)
+    #expect(await engine.statusUpdates().first { _ in true } == .upToDate(at: syncedAt))
+
+    // Nothing new for notes: one request, and the cursor stays at the head.
+    server.append(upsert("t6", "Tag 6", entity: "tag"))
+    try await engine.pull()
+    #expect(server.state.requests == [0, 5, 8])
+    #expect(try cursor() == 9)
+  }
+
+  /// A server from before the filter sends every change: the others are skipped.
+  @Test
+  func aServerWithoutTheFilterSendsEveryChange() async throws {
+    server.state.withValue { $0.ignoresEntities = true }
+    notesAmongTags()
+    try await engine(filtersChanges: true).pull()
+    #expect(try storedNotes() == [Note(id: "n2", title: "Note 2")])
+    #expect(server.state.requests == [0, 2, 4, 6])
+    #expect(try cursor() == 8)
+  }
+
+  /// Without it, as the Mac pulls, every change is asked for.
+  @Test
+  func withoutItEveryChangeIsPulled() async throws {
+    notesAmongTags()
+    try await engine(filtersChanges: false).pull()
+    #expect(server.state.filters == [nil, nil, nil, nil])
+    #expect(try cursor() == 8)
+  }
+}

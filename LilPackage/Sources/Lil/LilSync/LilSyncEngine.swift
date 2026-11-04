@@ -94,6 +94,8 @@ public actor LilSyncEngine {
   /// interrupted bootstrap doesn't download them again.
   private let partsDirectory: URL
   private let syncSchema: Int
+  /// The change feed's `entities` filter for pulls (851-3221), or `nil` to pull every change.
+  private let pullFilter: Set<String>?
   /// Entity names as `SyncState.entities` records them.
   private static func recorded(_ names: some Sequence<String>) -> String {
     names.sorted().joined(separator: ",")
@@ -114,8 +116,20 @@ public actor LilSyncEngine {
   ///     others.
   ///   - partsDirectory: Where to keep downloaded snapshot parts until they're loaded. Defaults
   ///     to a folder in the app's caches, the server's own (``cachesDirectory(for:allowsOverride:caches:bundleIdentifier:)``).
-  public init(entities: [SyncEntity], syncSchema: Int, partsDirectory: URL? = nil) {
+  ///   - filtersChanges: Whether pulls ask the change feed for only `entities`' changes
+  ///     (851-3221), for an app that stores a few of an account's entities: the iPhone stores
+  ///     only `health_card` (851-3205), and mustn't download the millions of Health records it
+  ///     uploads. A filtered page has gaps where other entities' changes were, so pulls can't
+  ///     check that none is missing as they do without it (`check(_:after:filtered:)`). A server
+  ///     without the filter sends every change, whose other entities are skipped. Snapshots are
+  ///     filtered either way: a bootstrap only downloads `entities`' parts.
+  public init(
+    entities: [SyncEntity], syncSchema: Int, partsDirectory: URL? = nil,
+    filtersChanges: Bool = false
+  ) {
     self.syncSchema = syncSchema
+    let names = Set(entities.map(\.name))
+    self.pullFilter = filtersChanges && names.count <= Self.maxFilteredEntities ? names : nil
     @Dependency(\.defaultDatabase) var database
     @Dependency(\.api) var api
     @Dependency(\.continuousClock) var clock
@@ -437,15 +451,15 @@ public actor LilSyncEngine {
           prefetched.cancel()
         }
       } else {
-        page = try await fetchPage(after: state.cursor)
+        page = try await fetchPage(after: state.cursor, entities: pullFilter)
       }
       if let epoch = state.epoch, epoch != page.epoch { throw SyncError.needsBootstrap }
       if state.cursor > page.head { throw SyncError.needsBootstrap }
-      try Self.check(page, after: state.cursor)
+      try Self.check(page, after: state.cursor, filtered: pullFilter != nil)
       try Task.checkCancellation()
       if page.hasMore {
-        let after = page.next
-        next = Task { try await self.fetchPage(after: after) }
+        let (after, filter) = (page.next, pullFilter)
+        next = Task { try await self.fetchPage(after: after, entities: filter) }
       }
       try await database.write { [entities] db in
         try Self.apply(page.changes, entities: entities, db)

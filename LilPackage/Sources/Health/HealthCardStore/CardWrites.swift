@@ -3,7 +3,8 @@ public import HealthCards
 
 // The cards' writes (851-3204, docs/decisions/cards.md, The `health_card` sync entity): each a
 // whole row of the card it changes, validated first, with the apps' limits. Pure, so the Mac's
-// feature, its local tools (851-3216) and their tests share them.
+// and the iPhone's features (851-3205), the Mac's local tools (851-3216) and their tests share
+// them.
 
 /// Why a card couldn't be written.
 public enum CardWriteError: Error, Equatable, Sendable, LocalizedError {
@@ -105,4 +106,9 @@ extension Card {
       return card
     }
   }
+}
+
+extension Date {
+  /// The date as the cards' times are kept: Unix milliseconds.
+  var unixMilliseconds: Int { Int((timeIntervalSince1970 * 1000).rounded()) }
 }
