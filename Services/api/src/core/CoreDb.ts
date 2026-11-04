@@ -29,6 +29,9 @@ export class CoreDb extends Context.Service<
  * Drizzle's query error as the `SqlError` the repositories have always failed with, so callers
  * that handle `SqlError` keep working. Drizzle wraps the driver's error in a `Cause`; that error is
  * usually the driver's own `SqlError`, with its reason (a constraint, a lost connection).
+ * Otherwise it keeps Drizzle's cause and query, but not Drizzle's error, whose message and fields
+ * carry the query's parameters (a token's hash, an encrypted Apple token), so logging the error
+ * never logs them (851-4050).
  */
 export const asSqlError = (error: EffectDrizzleQueryError): SqlError.SqlError => {
   const inner = Cause.isCause(error.cause)
@@ -36,7 +39,12 @@ export const asSqlError = (error: EffectDrizzleQueryError): SqlError.SqlError =>
     : error.cause;
   return Predicate.isTagged(inner, "SqlError")
     ? (inner as SqlError.SqlError)
-    : new SqlError.SqlError({ reason: new SqlError.UnknownError({ cause: error }) });
+    : new SqlError.SqlError({
+        reason: new SqlError.UnknownError({
+          cause: error.cause,
+          message: `Failed query: ${error.query}`,
+        }),
+      });
 };
 
 /** Runs a Drizzle query, failing with `SqlError` (`asSqlError`). */

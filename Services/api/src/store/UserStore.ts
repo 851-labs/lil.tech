@@ -1,7 +1,7 @@
 import { exportSnapshot, readExportRequest, requestExport } from "./Exports.ts";
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
-import { Clock, Effect, type Scope } from "effect";
+import { Clock, Effect, Logger, type Scope } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import {
   healthBatchesAhead,
@@ -15,6 +15,7 @@ import { DisposableBucket } from "../Deployment.ts";
 import { makeStoreMcpServers } from "../mcp/StoreMcpServers.ts";
 import { requestPath } from "../oauth/Requests.ts";
 import type { HealthBatch } from "../health/HealthBatches.ts";
+import { workersLoggers } from "../Logging.ts";
 import { deleteObjects, listObjects, provideRuntime } from "../Runtime.ts";
 import {
   type AgentAccess,
@@ -793,8 +794,13 @@ export const UserStoreLive = UserStore.make(
               .map(toLiveSocket),
           ),
         ),
+        // Outside any event, so with none of its services: the logger is given here.
         later: (delayMs, task) => {
-          setTimeout(() => Effect.runFork(task), delayMs);
+          setTimeout(
+            () =>
+              Effect.runFork(Effect.provideService(task, Logger.CurrentLoggers, workersLoggers)),
+            delayMs,
+          );
         },
       };
       // Keep-alive pings are answered by the runtime without waking the object.
