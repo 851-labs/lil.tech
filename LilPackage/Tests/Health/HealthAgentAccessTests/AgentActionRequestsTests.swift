@@ -225,6 +225,27 @@
       command.reap()
     }
 
+    // Before it's a zombie, a killed process works its way out of `exit` (851-4041): first
+    // `proc_pidinfo` still reads it, then it can't, while `sysctl` says it's running.
+    @Test(.timeLimit(.minutes(1)))
+    func aKilledCommandCountsAsGoneOnceItStartsExiting() throws {
+      let command = try SpawnedProcess()
+      let process = command.process
+      Darwin.kill(command.pid, SIGKILL)
+      // Looking again at once, not after a pause (as `eventually` does), which would miss those
+      // moments: they last microseconds.
+      var runningWhileExiting = false
+      let deadline = ContinuousClock.now.advanced(by: .seconds(30))
+      while ContinuousClock.now < deadline {
+        guard let state = command.state() else { break }
+        if state.exiting, process.isRunning { runningWhileExiting = true }
+        if state.zombie { break }
+      }
+      #expect(command.state()?.zombie == true)
+      #expect(!runningWhileExiting)
+      command.reap()
+    }
+
     @Test
     func anotherProcessWithTheSameIDIsntTheRequester() throws {
       try store.setEnabled(true, at: date(0))
@@ -476,15 +497,31 @@
       self.process = process
     }
 
-    /// Kills it, then waits for it unless `reap` is false, which leaves a zombie.
+    /// Kills it, then waits for it, or with `reap: false` until it's a zombie (851-4041): the
+    /// signal is delivered later, and the process takes a while to exit.
     func kill(reap: Bool = true) {
       Darwin.kill(pid, SIGKILL)
       if reap {
         self.reap()
       } else {
-        // Until it has died, short of being waited for.
-        while AgentProcess(pid: pid)?.isRunning == true { usleep(1_000) }
+        // `WNOWAIT` leaves it for `reap()` to wait for.
+        var info = siginfo_t()
+        var result: Int32
+        repeat {
+          result = waitid(P_PID, id_t(pid), &info, WEXITED | WNOWAIT)
+        } while result == -1 && errno == EINTR
+        #expect(result == 0)
       }
+    }
+
+    /// What `sysctl` says of it: whether it's exiting (`P_WEXIT`, from the moment it starts to)
+    /// and whether it's a zombie. `nil` once it's gone.
+    func state() -> (exiting: Bool, zombie: Bool)? {
+      var process = kinfo_proc()
+      var size = MemoryLayout<kinfo_proc>.size
+      var name = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+      guard sysctl(&name, 4, &process, &size, nil, 0) == 0, size > 0 else { return nil }
+      return (process.kp_proc.p_flag & P_WEXIT != 0, process.kp_proc.p_stat == SZOMB)
     }
 
     func reap() {
