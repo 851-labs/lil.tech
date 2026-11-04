@@ -97,6 +97,9 @@ public struct CardsFeature {
     case deleteCard(id: Card.ID)
     /// Moves the cards at the offsets to before `toOffset`, as `onMove` gives them.
     case moveCards(fromOffsets: IndexSet, toOffset: Int)
+    /// Moves the cards to before `before`, or to the end: a drop in Reorder Cards…, by the cards
+    /// it showed, so a sync that lands meanwhile can't make it move others.
+    case moveCardsBefore(ids: [Card.ID], before: Card.ID?)
     case moveCardUp(id: Card.ID)
     case moveCardDown(id: Card.ID)
     case writeErrorDismissed
@@ -165,6 +168,8 @@ public struct CardsFeature {
       case .cardsFailedToLoad(let message):
         state.isLoading = false
         state.loadFailure = message
+        // Nothing to reorder any more: Summary says why.
+        state.isReordering = false
         return .none
 
       case .createCard(let spec):
@@ -181,9 +186,22 @@ public struct CardsFeature {
       case .moveCards(let source, let destination):
         guard state.isLoaded else { return .none }
         let cards = Array(state.cards)
-        return write(&state) { () throws(CardWriteError) in
+        let effect = write(&state) { () throws(CardWriteError) in
           try Card.moving(cards, fromOffsets: source, toOffset: destination, now: now)
         }
+        // A move that's refused says so: nothing else would show it (851-3210).
+        if let error = state.writeError {
+          state.writeError = nil
+          state.alert = .cardNotMoved(error)
+        }
+        return effect
+
+      case .moveCardsBefore(let ids, let before):
+        let source = IndexSet(ids.compactMap { state.cards.index(id: $0) })
+        guard source.count == ids.count, !ids.isEmpty else { return .none }
+        let destination = before.map { state.cards.index(id: $0) } ?? state.cards.count
+        guard let destination else { return .none }
+        return .send(.moveCards(fromOffsets: source, toOffset: destination))
 
       case .moveCardUp(let id):
         guard let index = state.cards.index(id: id), index > 0 else { return .none }
@@ -367,6 +385,17 @@ extension Card {
 }
 
 extension AlertState {
+  /// A move that was refused, saying why.
+  static func cardNotMoved(_ error: CardWriteError) -> Self {
+    Self {
+      TextState("Couldn't Move the Card")
+    } actions: {
+      ButtonState(role: .cancel) { TextState("OK") }
+    } message: {
+      TextState(error.localizedDescription)
+    }
+  }
+
   /// Delete…'s confirmation, from the editor or a Summary row, which `delete` answers.
   static func confirmDeleteCard(named name: String, _ delete: Action) -> Self {
     Self {

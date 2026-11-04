@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import HealthCards
 import HealthDatabase
+import HealthUI
 import SwiftUI
 
 /// Reorder Cards… (851-3210, docs/decisions/cards.md, UI › Mac): the cards in Summary's order, to
@@ -11,9 +12,16 @@ struct ReorderCardsView: View {
   let store: StoreOf<CardsFeature>
 
   var body: some View {
+    let cards = Array(store.cards)
     ReorderCardsContent(
-      cards: Array(store.cards),
-      move: { store.send(.moveCards(fromOffsets: $0, toOffset: $1)) },
+      cards: cards,
+      move: { source, destination in
+        // By the cards the list showed, not their places, in case sync changed them meanwhile.
+        store.send(
+          .moveCardsBefore(
+            ids: source.map { cards[$0].id },
+            before: destination < cards.count ? cards[destination].id : nil))
+      },
       done: { store.send(.reorderingFinished) })
   }
 }
@@ -66,7 +74,13 @@ struct ReorderCardRow: View {
   let card: Card
 
   var body: some View {
-    let display = card.storedDisplay
+    let display =
+      card.spec.map {
+        (
+          name: $0.display.name, symbol: $0.display.symbol,
+          color: Color(paletteName: $0.display.color.rawValue) as Color?
+        )
+      } ?? card.storedDisplay
     HStack {
       Label(display.name, systemImage: display.symbol)
         .lineLimit(1)

@@ -233,11 +233,14 @@ struct CardsFeatureTests {
     await store.send(.reorderCardsButtonTapped) {
       $0.isReordering = true
     }
-    // Weight dragged between Active Energy (a2) and Walking + Running Distance (a3).
+    // Weight dragged between Active Energy (a2) and Walking + Running Distance (a3): the sheet
+    // sends the cards it showed, so a sync meanwhile can't move others.
     var weight = seedCards[5]
     weight.position = "a2V"
     weight.updatedAt = nowMilliseconds
-    await store.send(.moveCards(fromOffsets: [5], toOffset: 3)) {
+    await store.send(
+      .moveCardsBefore(ids: ["card_seed_weight"], before: "card_seed_walking_running_distance"))
+    await store.receive(\.moveCards) {
       $0.cards.remove(id: "card_seed_weight")
       $0.cards.insert(weight, at: 3)
       $0.unsaved = [.init(mutations: [try weight.upsert()], upserted: [weight])]
@@ -246,9 +249,45 @@ struct CardsFeatureTests {
       $0.unsaved = []
     }
     #expect(pushed.value == [[try weight.upsert()]])
+    // A card that's gone since the sheet showed it moves nothing.
+    await store.send(.moveCardsBefore(ids: ["card_gone"], before: nil))
     await store.send(.reorderingFinished) {
       $0.isReordering = false
     }
+  }
+
+  /// Reorder Cards… closes when the cards can't be read, since nothing could move.
+  @Test
+  func reorderCardsClosesWhenTheCardsFailToLoad() async {
+    let store = store()
+    await store.send(.reorderCardsButtonTapped) {
+      $0.isReordering = true
+    }
+    await store.send(.cardsFailedToLoad("disk I/O error")) {
+      $0.loadFailure = "disk I/O error"
+      $0.isReordering = false
+    }
+  }
+
+  /// A move that's refused says why, rather than snapping back silently, and writes nothing.
+  @Test
+  func aRefusedMoveSaysWhy() async throws {
+    var cards = seedCards
+    // A key no position can follow: one that isn't a fractional index.
+    cards[0].position = "a~"
+    let error: CardWriteError
+    do {
+      _ = try Card.moving(cards, fromOffsets: [2], toOffset: 1, now: now)
+      Issue.record("The move was written")
+      return
+    } catch let caught {
+      error = caught
+    }
+    let store = store(cards: cards)
+    await store.send(.moveCards(fromOffsets: [2], toOffset: 1)) {
+      $0.alert = .cardNotMoved(error)
+    }
+    #expect(pushed.value.isEmpty)
   }
 
   /// The server keeps the write that arrives last, so writes go to sync one at a time, in the

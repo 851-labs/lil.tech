@@ -172,8 +172,8 @@ struct SummaryCardActions {
   var newCard: () -> Void
   var edit: (Card) -> Void
   var delete: (Card) -> Void
-  var moveUp: (Card) -> Void = { _ in }
-  var moveDown: (Card) -> Void = { _ in }
+  var moveUp: (Card) -> Void
+  var moveDown: (Card) -> Void
 }
 
 /// What Summary shows, however it got it: the cards, a row each from `row`, then the highlights.
