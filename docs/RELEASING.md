@@ -6,7 +6,7 @@ lil health releases from GitHub Actions ([below](#from-github-actions)). The res
 
 ## From GitHub Actions
 
-The **Release** workflow (`.github/workflows/release.yml`, 851-2827) releases lil health from `main`, on the Mac minis:
+The **release lil health** workflow (`.github/workflows/release.yml`, 851-2827) releases lil health from `main`, on the Mac minis:
 
 ```
 gh workflow run release.yml -f version=0.4.0 -f target=both -f dry-run=false

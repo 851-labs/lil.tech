@@ -19,15 +19,15 @@ run=${run##*/runs/}
 run=${run%%[/?#]*}
 head=$(git rev-parse HEAD)
 if [ -z "$run" ]; then
-  # The newest of the commit's PR runs whose Swift check ran: not one for closing the PR. The job
-  # is `check` in swift-check.yml, called by pr.yml's `check`, so its name is theirs, joined
-  # (851-3232); runs from before then named it "check / check".
+  # The newest of the commit's PR runs whose Swift check ran: not one for closing the PR. The
+  # Swift check is pr.yml's only called workflow, and a called workflow's jobs are named
+  # "<caller> / <job>" ("swift / lint, test and build"), so this matches by that shape rather than
+  # by the names (851-3232). A skipped caller shows as one job named for the caller alone.
   run=""
   for candidate in $(gh run list --commit "$head" --workflow pr.yml --limit 10 --json databaseId \
     --jq '.[].databaseId'); do
-    if [ -n "$(gh run view "$candidate" --json jobs --jq '.jobs[]
-      | select((.name == "swift / lint, test and build" or .name == "check / check")
-        and .conclusion != "skipped") | .name')" ]; then
+    if [ -n "$(gh run view "$candidate" --json jobs \
+      --jq '.jobs[] | select((.name | contains(" / ")) and .conclusion != "skipped") | .name')" ]; then
       run=$candidate
       break
     fi

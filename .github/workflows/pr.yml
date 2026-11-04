@@ -108,7 +108,8 @@ jobs:
           [ "$state" = open ] || echo "::notice::The PR is $state, so its preview isn't deployed."
       - if: steps.open.outputs.open == 'true'
         uses: actions/checkout@v7
-      - if: steps.open.outputs.open == 'true'
+      - name: set up services
+        if: steps.open.outputs.open == 'true'
         uses: ./.github/actions/setup-services
       - name: deploy preview stage
         if: steps.open.outputs.open == 'true'
@@ -168,7 +169,8 @@ jobs:
       LIL_VERSION: destroy
     steps:
       - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-services
+      - name: set up services
+        uses: ./.github/actions/setup-services
       # Destroying a stage that was never deployed is a no-op.
       - name: destroy preview stage
         id: destroy
@@ -220,7 +222,8 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-      - uses: ./.github/actions/setup-services
+      - name: set up services
+        uses: ./.github/actions/setup-services
       - name: publish snapshots and find the base's
         id: commits
         run: |

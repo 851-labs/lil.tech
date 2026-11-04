@@ -67,7 +67,8 @@ jobs:
       LIL_GOOGLE_WEB_CLIENT_SECRET: ${{ secrets.LIL_GOOGLE_WEB_CLIENT_SECRET }}
     steps:
       - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-services
+      - name: set up services
+        uses: ./.github/actions/setup-services
       - name: find the version
         id: version
         run: echo "version=$(git describe --always --dirty --exclude '*')" >> "$GITHUB_OUTPUT"
@@ -119,6 +120,7 @@ jobs:
         with:
           # All of main, so a late or re-run job can tell its commit is behind main's pointer.
           fetch-depth: 0
-      - uses: ./.github/actions/setup-services
+      - name: set up services
+        uses: ./.github/actions/setup-services
       - name: publish snapshots and point main at them
         run: scripts/pixelbook publish --ref main
