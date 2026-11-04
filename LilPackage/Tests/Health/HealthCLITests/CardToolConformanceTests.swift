@@ -17,13 +17,15 @@ import Testing
 /// `HealthCardStore` writes.
 @Suite
 struct CardToolConformanceTests {
-  @Test(arguments: try CardToolCases.read().cases)
+  /// The file, read once.
+  static let file = Result { try CardToolCases.read() }
+
+  @Test(arguments: try file.get().cases)
   func conformanceCase(_ testCase: CardToolCases.Case) async throws {
-    let file = try CardToolCases.read()
     let folder = try AppFolder()
     try await Conformance.sync(
       try ConformanceBatch.read(ConformanceFiles.cards.appending(path: "dataset.json")),
-      into: folder.database, cards: try file.cardRows())
+      into: folder.database, cards: try Self.file.get().cardRows())
     try folder.access.setEnabled(true)
     let now = try Conformance.date(testCase.now)
     let app = CardApp(
@@ -36,6 +38,19 @@ struct CardToolConformanceTests {
     let connection = try await MCPConnection(
       folder.directory, now: now, timeZone: "UTC", app: app.connection)
 
+    do {
+      try await run(testCase, now: now, on: connection)
+    } catch {
+      await connection.close()
+      throw error
+    }
+    await connection.close()
+  }
+
+  /// A case's calls, in order, each answer compared with its expected one.
+  private func run(_ testCase: CardToolCases.Case, now: Date, on connection: MCPConnection)
+    async throws
+  {
     var made: String?
     for (index, call) in testCase.calls.enumerated() {
       let label = "\(testCase.name), call \(index + 1), \(call.tool)"
@@ -52,6 +67,10 @@ struct CardToolConformanceTests {
       #expect(result.isError == false, "\(label): \(result.text)")
       let output = try JSONDecoder().decode(
         ConformanceJSON.self, from: JSONEncoder().encode(result.structuredContent))
+      // The output as structured content, and the same as text.
+      #expect(
+        try JSONDecoder().decode(ConformanceJSON.self, from: Data(result.text.utf8)) == output,
+        "\(label)")
       let expected = try #require(call.expected)
       if made == nil, let id = expected.newCard(in: output) {
         // A new card's ID: a ULID of now.
@@ -64,19 +83,18 @@ struct CardToolConformanceTests {
       let resolved = expected.replacingNewCard(with: made)
       #expect(output.matches(resolved), "\(label)\n\(output.text)\nexpected:\n\(resolved.text)")
     }
-    await connection.close()
   }
 }
 
 /// The card tools' conformance file, `Services/api/test/health/cards/tool-conformance/cases.json`.
-struct CardToolCases: Decodable {
+struct CardToolCases: Decodable, Sendable {
   /// When the store seeded the welcome cards.
   var seededAt: String
   /// The account's other cards, as a Mac pushed them.
   var cards: [StoredCard]
   var cases: [Case]
 
-  struct StoredCard: Decodable {
+  struct StoredCard: Decodable, Sendable {
     var id: String
     /// As a spec input: canonicalized before it's stored.
     var spec: ConformanceJSON
@@ -170,8 +188,8 @@ extension ConformanceJSON {
     }
   }
 
-  /// The ID `actual` has where `self` says `<new card>`, if any: the first, depth first, in the
-  /// order the keys are written.
+  /// The ID `actual` has where `self` says `<new card>`, if any: the first, depth first, keys
+  /// sorted, as the server's side walks them.
   func newCard(in actual: ConformanceJSON) -> String? {
     switch (self, actual) {
     case (.string(newCardMarker), .string(let id)): return id

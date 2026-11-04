@@ -6,7 +6,7 @@ import type {
   StorageFull,
 } from "../../store/Changes.ts";
 import type { StoreSql } from "../../store/StoreSql.ts";
-import { HealthToolError } from "../tools/HealthToolkit.ts";
+import { HealthToolError, isDay } from "../tools/HealthToolkit.ts";
 import { localTime, toolTimeZone } from "../tools/ToolTime.ts";
 import { findHealthType } from "../tools/ToolTypes.ts";
 import { isJsonObject, type Json, type JsonObject } from "./CardJson.ts";
@@ -444,6 +444,15 @@ const inputTypes = (input: unknown) => {
 const field = (params: object, name: string): string | null =>
   Predicate.hasProperty(params, name) && typeof params[name] === "string" ? params[name] : null;
 
+/**
+ * A run's `date`, if it's a day: the input schema takes any string (851-3217), so the run can
+ * refuse one that isn't, and the log keeps no text an agent made up in its place.
+ */
+const dayField = (params: object): string | null => {
+  const date = field(params, "date");
+  return date !== null && /^\d{4}-\d{2}-\d{2}$/.test(date) && isDay(date) ? date : null;
+};
+
 /** How many points an answer's data has, across its series and formulas. */
 const points = (encoded: unknown) => {
   const data = Predicate.hasProperty(encoded, "data") ? (encoded.data as CardData) : undefined;
@@ -488,7 +497,7 @@ export const cardToolLogs = (
         return {
           types: typesOf(spec),
           range: field(params, "range") ?? rangeOf(spec),
-          date: field(params, "date"),
+          date: dayField(params),
         };
       },
       rows: points,
@@ -497,7 +506,7 @@ export const cardToolLogs = (
       askedFor: (params) => ({
         types: Predicate.hasProperty(params, "spec") ? inputTypes(params.spec) : null,
         range: field(params, "range") ?? inputRange(params),
-        date: field(params, "date"),
+        date: dayField(params),
       }),
       rows: points,
     },

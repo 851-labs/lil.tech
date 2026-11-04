@@ -3,7 +3,7 @@ import { Effect, Predicate, Schema } from "effect";
 import { TestClock } from "effect/testing";
 import { canonicalCardSpec } from "../../../src/health/cards/CardSpecValidator.ts";
 import type { Json } from "../../../src/health/cards/CardJson.ts";
-import { seedWelcomeCards } from "../../../src/health/cards/WelcomeSeed.ts";
+import { seedWelcomeCards, welcomeSeed } from "../../../src/health/cards/WelcomeSeed.ts";
 import { CardsToolkit } from "../../../src/health/cards/CardsToolkit.ts";
 import {
   agentClientHeader,
@@ -115,7 +115,8 @@ const newCardIn = (expected: Json, actual: unknown): string | undefined => {
     return undefined;
   }
   if (Predicate.isObject(expected) && Predicate.isObject(actual)) {
-    for (const [key, item] of Object.entries(expected)) {
+    // Keys sorted, as the Mac's side walks them.
+    for (const [key, item] of Object.entries(expected).sort(([a], [b]) => (a < b ? -1 : 1))) {
       const found = newCardIn(item as Json, (actual as Record<string, unknown>)[key]);
       if (found !== undefined) return found;
     }
@@ -130,7 +131,7 @@ const account = Effect.gen(function* () {
   // As the store seeds when it starts.
   assert.deepStrictEqual(seedWelcomeCards(sql!, entities, millis(file.seededAt)), {
     _tag: "Seeded",
-    appended: 6,
+    appended: welcomeSeed.length,
   });
   yield* (yield* UserStores).forUser(conformanceUserId).pushMutations(
     "conformance-cards",
