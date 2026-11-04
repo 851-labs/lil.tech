@@ -10,6 +10,7 @@ import LilTestSupport
 import SQLiteData
 import Testing
 
+@testable import HealthCardEditor
 @testable import HealthMacApp
 
 @Suite(.dependencies)

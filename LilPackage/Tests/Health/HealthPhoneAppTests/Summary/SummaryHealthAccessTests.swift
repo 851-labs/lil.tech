@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import DependenciesTestSupport
 import Foundation
+import HealthCardEditor
 import HealthCardStore
 import HealthKit
 import HealthKitAccess
@@ -70,7 +71,7 @@ struct SummaryHealthAccessTests {
   }
 
   private let pulled = CardsFeature.Action.cardsLoaded(
-    SyncedCards(cards: Card.welcomeSeed, isSynced: true))
+    Card.welcomeSeed, isSynced: true)
 
   /// Pulled, then Summary shows while Health is still being asked whether it has types to ask
   /// about: the rows wait. Health access comes next, then Summary again, whose rows wait for the

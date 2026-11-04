@@ -7,6 +7,7 @@ import LilSync
 import SQLiteData
 import Testing
 
+@testable import HealthCardEditor
 @testable import HealthMacApp
 
 private let now = Date(timeIntervalSince1970: 1_760_500_000)
@@ -79,7 +80,7 @@ struct CardsAgentWriteTests {
     cards: [Card]? = seedCards, push: (@Sendable ([SyncMutation]) async throws -> Void)? = nil
   ) -> TestStoreOf<CardsFeature> {
     TestStore(initialState: CardsFeature.State(cards: cards)) {
-      CardsFeature()
+      CardsFeature.mac
     } withDependencies: { [database, pushed] in
       $0.defaultDatabase = database
       $0.sync.push = push ?? { mutations in pushed.withValue { $0.append(mutations) } }

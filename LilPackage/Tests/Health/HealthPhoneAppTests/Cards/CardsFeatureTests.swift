@@ -11,6 +11,7 @@ import LilTestSupport
 import SQLiteData
 import Testing
 
+@testable import HealthCardEditor
 @testable import HealthPhoneApp
 
 private let now = Date(timeIntervalSince1970: 1_760_500_000)
@@ -43,7 +44,7 @@ struct CardsFeatureTests {
 
   private func store(cards: [Card]? = seedCards) -> TestStoreOf<CardsFeature> {
     TestStore(initialState: CardsFeature.State(cards: cards)) {
-      CardsFeature()
+      CardsFeature.phone
     } withDependencies: { [database, pushed] in
       $0.defaultDatabase = database
       $0.sync.push = { mutations in pushed.withValue { $0.append(mutations) } }
@@ -243,7 +244,7 @@ struct AppFeatureCardSyncTests {
     }
     #expect(events.value.count(where: { $0 == "listen" }) == 1)
 
-    await store.send(.cards(.cardsLoaded(SyncedCards(cards: seedCards, isSynced: true)))) {
+    await store.send(.cards(.cardsLoaded(seedCards, isSynced: true))) {
       $0.cards.cards = IdentifiedArray(uniqueElements: seedCards)
       $0.cards.isLoading = false
     }

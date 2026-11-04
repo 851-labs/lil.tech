@@ -1,17 +1,17 @@
 public import ComposableArchitecture
 public import Foundation
-public import HealthCardEditor
+public import HealthCardStore
 public import HealthCards
-public import HealthDatabase
 import LilSync
 import SQLiteData
 
-/// The account's cards (851-3204, docs/decisions/cards.md): read from the synced `healthCards`
-/// table in Summary's order, and created, edited, deleted and moved through sync. Each write is
-/// the whole row of the card it changes, written locally and queued for the server
-/// (`SyncClient.push`), so it works offline; other devices' and agents' changes arrive as sync
-/// pulls them. `AppFeature` follows the cards while signed in; Summary (851-3206), the full-page
-/// card and the editor read and write them here.
+/// The account's cards (851-3204, 851-3205, docs/decisions/cards.md), one feature for the Mac and
+/// the iPhone (851-3993): read from the synced `healthCards` table in Summary's order, and
+/// created, edited, deleted and moved through sync. Each write is the whole row of the card it
+/// changes, written locally and queued for the server (`SyncClient.push`), so it works offline;
+/// other devices' and agents' changes arrive as sync pulls them. Each app's `AppFeature` keeps it:
+/// the Mac follows the cards while signed in, and the iPhone while Summary shows (it sends
+/// ``Action/task``). Summary, the full-page card and the editor read and write them here.
 ///
 /// A write shows at once. Writes go to sync one at a time, in the order they were made, since the
 /// server keeps the last to arrive, and each shows over what's read until it's in the local table
@@ -21,23 +21,27 @@ import SQLiteData
 /// Writes are validated as apps write them (`CardSpec(input:)`, at most 8 KB), and a 101st card is
 /// refused (`HealthCards.maxCards`). A write that's refused sets ``State/writeError``. Writes wait
 /// for the cards to be read: before then, there's no end to add a card at. Apps never seed cards:
-/// the server does, once per account.
+/// the server does, once per account. On the iPhone (``init(filterChoices:waitsForSync:)``), the
+/// cards are loading until sync has pulled them once (`LilSyncEngine.holds(_:_:)`), so a new
+/// iPhone shows Summary loading rather than empty before its first pull; the Mac's Summary checks
+/// that itself.
 ///
-/// It presents the card editor (851-3208): New Card…, Edit… and Delete…, from Summary and a
-/// card's page, write through it. And Reorder Cards… (851-3210), a list to drag the cards into
-/// order, since Summary's grouped form can't reorder its rows by dragging.
+/// It presents the card editor (851-3208, 851-3213): New Card…, Edit… and Delete…, from Summary and
+/// a card's page, write through it. And Reorder Cards… (851-3210), a list to drag the cards into
+/// order, which the Mac shows, since its Summary's grouped form can't reorder its rows by dragging.
 ///
-/// It also performs the local MCP server's card writes (851-4014, ``Action/agentRequested(_:)``):
-/// each is a write like the editor's, shown at once, and answered once sync has stored it locally,
-/// so the tool reads it back from the database. A refused one is answered with why, in the remote
-/// server's words, and never shows in the app's alerts.
+/// It also performs agents' card writes (851-4014, ``Action/agentRequested(_:)``), the Mac's local
+/// MCP server's: each is a write like the editor's, shown at once, and answered once sync has
+/// stored it locally, so the tool reads it back from the database. A refused one is answered with
+/// why, in the remote server's words, and never shows in the app's alerts.
 @Reducer
 public struct CardsFeature {
   @ObservableState
   public struct State: Equatable {
     /// In Summary's order: as last read, with the writes not yet stored over them.
     public var cards: IdentifiedArrayOf<Card>
-    /// Whether the cards haven't been read yet, so an empty list would be wrong.
+    /// Whether the cards haven't been read yet, or (on the iPhone) sync hasn't pulled them since
+    /// signing in, so an empty list would be wrong.
     public var isLoading: Bool
     /// Why the cards couldn't be read.
     public var loadFailure: String?
@@ -47,7 +51,7 @@ public struct CardsFeature {
     var unsaved: [Write] = []
     /// The card editor, for a new card or one of these.
     @Presents public var editor: CardEditorFeature.State?
-    /// Delete…'s confirmation, from a Summary row.
+    /// Delete…'s confirmation, or why a move was refused.
     @Presents public var alert: AlertState<Action.Alert>?
     /// Whether Reorder Cards… is open (851-3210).
     public var isReordering = false
@@ -81,14 +85,14 @@ public struct CardsFeature {
       var deleted: [Card.ID] = []
       /// The agent's request it does, answered with `answer` once it's stored.
       var agent: AgentRequest?
-      var answer: HealthAppActionResult = .done
+      var answer: AgentCardAnswer = .done
     }
 
-    /// An agent's card write (``HealthAppActionRequest``), told apart by its ID: who to answer
-    /// isn't state the cards show.
+    /// An agent's card write (``AgentCardRequest``), told apart by its ID: who to answer isn't
+    /// state the cards show.
     struct AgentRequest: Equatable, Identifiable {
       let id: UUID
-      let request: HealthAppActionRequest
+      let request: any AgentCardRequest
 
       static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
     }
@@ -108,10 +112,13 @@ public struct CardsFeature {
   public enum Action {
     /// Reads the cards, then follows their changes, until cancelled.
     case task
-    /// An agent's card write, from the local MCP server (851-4014): `createCard`, `updateCard`,
-    /// `deleteCard` or `reorderCards`. Answered once it's stored, or with why it was refused.
-    case agentRequested(HealthAppActionRequest)
-    case cardsLoaded([Card])
+    /// An agent's card write, such as the Mac's local MCP server's (851-4014): `createCard`,
+    /// `updateCard`, `deleteCard` or `reorderCards`. Answered once it's stored, or with why it was
+    /// refused.
+    case agentRequested(any AgentCardRequest)
+    /// The cards as stored. While `isSynced` is false (the iPhone's, before sync's first pull),
+    /// they're still loading.
+    case cardsLoaded([Card], isSynced: Bool = true)
     case cardsFailedToLoad(String)
     /// Adds a card with `spec` at the end.
     case createCard(CardSpec)
@@ -167,15 +174,30 @@ public struct CardsFeature {
   @Dependency(\.uuid) var uuid
   @Dependency(\.withRandomNumberGenerator) var withRandomNumberGenerator
 
-  public init() {}
+  /// The editor's filters' choices, from this device's data.
+  let filterChoices: CardFilterChoicesClient
+  /// Whether the cards stay loading until sync holds them (`HealthCardStore.syncedCardUpdates`):
+  /// the iPhone's. The Mac's Summary and card pages check that themselves.
+  let waitsForSync: Bool
+
+  public init(filterChoices: CardFilterChoicesClient, waitsForSync: Bool) {
+    self.filterChoices = filterChoices
+    self.waitsForSync = waitsForSync
+  }
 
   public var body: some ReducerOf<Self> {
     Reduce { state, action in
       switch action {
       case .task:
-        return .run { [database] send in
-          for try await cards in HealthDatabase.cardUpdates(in: database) {
-            await send(.cardsLoaded(cards))
+        return .run { [database, waitsForSync] send in
+          if waitsForSync {
+            for try await synced in HealthCardStore.syncedCardUpdates(in: database) {
+              await send(.cardsLoaded(synced.cards, isSynced: synced.isSynced))
+            }
+          } else {
+            for try await cards in HealthCardStore.cardUpdates(in: database) {
+              await send(.cardsLoaded(cards))
+            }
           }
         } catch: { error, send in
           guard !(error is CancellationError) else { return }
@@ -186,7 +208,7 @@ public struct CardsFeature {
       case .agentRequested(let request):
         let agent = State.AgentRequest(id: uuid(), request: request)
         if let failure = state.loadFailure {
-          return Self.answer(agent, .failure(HealthAppActionError.cardNotSaved(failure)))
+          return Self.answer(agent, .failure(AgentCardRefusal(failure)))
         }
         guard state.isLoaded else {
           state.waitingAgentRequests.append(agent)
@@ -194,10 +216,11 @@ public struct CardsFeature {
         }
         return perform(agent, &state)
 
-      case .cardsLoaded(let cards):
+      case .cardsLoaded(let cards, let isSynced):
         state.cards = State.merged(cards, state.unsaved)
-        state.isLoading = false
+        state.isLoading = !isSynced
         state.loadFailure = nil
+        guard state.isLoaded else { return .none }
         let waiting = state.waitingAgentRequests
         state.waitingAgentRequests = []
         var effects: [Effect<Action>] = []
@@ -211,8 +234,7 @@ public struct CardsFeature {
         state.isReordering = false
         let waiting = state.waitingAgentRequests
         state.waitingAgentRequests = []
-        return .merge(
-          waiting.map { Self.answer($0, .failure(HealthAppActionError.cardNotSaved(message))) })
+        return .merge(waiting.map { Self.answer($0, .failure(AgentCardRefusal(message))) })
 
       case .createCard(let spec):
         return create(spec, &state)
@@ -231,7 +253,8 @@ public struct CardsFeature {
         let effect = write(&state) { () throws(CardWriteError) in
           try Card.moving(cards, fromOffsets: source, toOffset: destination, now: now)
         }
-        // A move that's refused says so: nothing else would show it (851-3210).
+        // A move that's refused says so, rather than the row snapping back without a word
+        // (851-3210).
         if let error = state.writeError {
           state.writeError = nil
           state.alert = .cardNotMoved(error)
@@ -271,8 +294,7 @@ public struct CardsFeature {
         if let stored { state.cards = State.merged(stored, state.unsaved) }
         return .merge(
           write.agent.map {
-            Self.answer(
-              $0, .failure(HealthAppActionError.cardNotSaved("lil health couldn't save the card.")))
+            Self.answer($0, .failure(AgentCardRefusal("lil health couldn't save the card.")))
           } ?? .none,
           pushNext(state))
 
@@ -310,12 +332,12 @@ public struct CardsFeature {
           return .none
         }
         let writes = state.unsaved.count
-        let effect: Effect<Action>
-        if let id = editor.cardID {
-          effect = update(id, editor.written(spec, over: state.cards[id: id]?.spec), &state)
-        } else {
-          effect = create(spec, &state)
-        }
+        let effect =
+          if let id = editor.cardID {
+            update(id, editor.written(spec, over: state.cards[id: id]?.spec), &state)
+          } else {
+            create(spec, &state)
+          }
         // A write that's refused, or that failed some other way (reported), leaves the editor
         // open, saying why.
         if let error = state.writeError {
@@ -339,7 +361,7 @@ public struct CardsFeature {
     }
     .ifLet(\.$editor, action: \.editor) {
       CardEditorFeature()
-        .dependency(\.cardFilterChoices, .healthDatabase)
+        .dependency(\.cardFilterChoices, filterChoices)
     }
     .ifLet(\.$alert, action: \.alert)
   }
@@ -347,50 +369,48 @@ public struct CardsFeature {
   /// An agent's card write (851-4014), on the cards as they show, with what's not yet stored: shown
   /// and queued like the editor's, or answered at once when it's refused or changes nothing.
   private func perform(_ agent: State.AgentRequest, _ state: inout State) -> Effect<Action> {
+    guard let change = agent.request.cardChange else {
+      return Self.answer(agent, .failure(AgentCardRefusal("That isn't a card change.")))
+    }
     let cards = Array(state.cards)
     let now = now
     var write: State.Write
     do throws(CardWriteError) {
-      switch agent.request.action {
-      case .createCard(let spec):
+      switch change {
+      case .create(let spec):
         let id = withRandomNumberGenerator { CardID.make(at: now, using: &$0) }
         let card = try Card.new(spec, after: cards, id: id, now: now)
         write = State.Write(mutations: [], upserted: [card], answer: .card(id: id))
-      case .updateCard(let id, let spec):
+      case .update(let id, let spec):
         guard let card = state.cards[id: id] else { throw .notFound }
         write = State.Write(
           mutations: [], upserted: [try card.replaced(with: spec, now: now)],
           answer: .card(id: id))
-      case .deleteCard(let id):
+      case .delete(let id):
         guard let card = state.cards[id: id] else { throw .notFound }
         write = State.Write(mutations: [card.delete], deleted: [id])
-      case .reorderCards(let ids):
+      case .reorder(let ids):
         let moved = try Card.reordering(cards, to: ids, now: now)
         guard !moved.isEmpty else { return Self.answer(agent, .success(.done)) }
         write = State.Write(mutations: [], upserted: moved)
-      case .open, .sync, .export:
-        return Self.answer(
-          agent, .failure(HealthAppActionError.cardNotSaved("That isn't a card change.")))
       }
     } catch {
-      return Self.answer(
-        agent, .failure(HealthAppActionError.cardNotSaved(Self.agentMessage(error, agent))))
+      return Self.answer(agent, .failure(AgentCardRefusal(Self.agentMessage(error, change))))
     }
     do {
       write.mutations += try write.upserted.map { try $0.upsert() }
     } catch {
       reportIssue(error)
-      return Self.answer(
-        agent, .failure(HealthAppActionError.cardNotSaved("lil health couldn't save the card.")))
+      return Self.answer(agent, .failure(AgentCardRefusal("lil health couldn't save the card.")))
     }
     write.agent = agent
     return enqueue(write, &state)
   }
 
   /// Why an agent's write was refused, as the remote server's card tools say it.
-  private static func agentMessage(_ error: CardWriteError, _ agent: State.AgentRequest) -> String {
-    switch (error, agent.request.action) {
-    case (.notFound, .updateCard(let id, _)), (.notFound, .deleteCard(let id)):
+  private static func agentMessage(_ error: CardWriteError, _ change: AgentCardChange) -> String {
+    switch (error, change) {
+    case (.notFound, .update(let id, _)), (.notFound, .delete(let id)):
       CardWriteError.noCardMessage(id)
     case (.invalidSpec(let errors), _):
       errors.toolMessage
@@ -400,9 +420,9 @@ public struct CardsFeature {
   }
 
   private static func answer(
-    _ agent: State.AgentRequest, _ result: Result<HealthAppActionResult, any Error>
+    _ agent: State.AgentRequest, _ result: Result<AgentCardAnswer, AgentCardRefusal>
   ) -> Effect<Action> {
-    .run { _ in agent.request.finish(result) }
+    .run { _ in agent.request.answer(result) }
   }
 
   /// Adds a card with `spec` at the end.
@@ -466,25 +486,45 @@ public struct CardsFeature {
     } catch: { [database] error, send in
       guard !(error is CancellationError) else { return }
       reportIssue(error)
-      await send(.pushFailed(try? await database.read { try HealthDatabase.cards($0) }))
+      await send(.pushFailed(try? await database.read { try HealthCardStore.cards($0) }))
     }
     .cancellable(id: CancelID.write)
   }
 }
 
-extension CardFilterChoicesClient {
-  /// The apps and device models of a type's samples in this Mac's database (`defaultDatabase`, where
-  /// the editor asks), as Data Sources reads them.
-  static var healthDatabase: Self {
-    Self { type in
-      @Dependency(\.defaultDatabase) var database
-      let sources = try await database.read { try HealthDatabase.sampleSources(of: type, $0) }
-      var seen = Set<String>()
-      return CardFilterChoices(
-        apps: sources.apps.map { CardFilterChoices.App(id: $0.id, name: $0.name) },
-        deviceModels: sources.devices.compactMap(\.device.model).filter {
-          seen.insert($0).inserted
-        })
-    }
+/// An agent's card write for ``CardsFeature`` to perform (851-4014), such as the Mac's local MCP
+/// server's (`HealthAppActionRequest`), with how to answer whoever asked.
+public protocol AgentCardRequest: Sendable {
+  /// The write it asks for, or `nil` when it isn't a card change.
+  var cardChange: AgentCardChange? { get }
+  /// Answers whoever asked, once: what was written, or why it was refused.
+  func answer(_ result: Result<AgentCardAnswer, AgentCardRefusal>)
+}
+
+/// A card write an agent asks for.
+public enum AgentCardChange: Equatable, Sendable {
+  /// Adds a card at the end.
+  case create(CardSpec)
+  /// Replaces a card's spec, keeping its place: also one this version can't read.
+  case update(id: Card.ID, spec: CardSpec)
+  case delete(id: Card.ID)
+  /// Every card's ID once, in the new order.
+  case reorder(ids: [Card.ID])
+}
+
+/// What an agent's card write did, once it's stored locally and queued for sync.
+public enum AgentCardAnswer: Equatable, Sendable {
+  /// Done, with nothing to say: a card deleted, or the cards reordered.
+  case done
+  /// The card created or updated.
+  case card(id: Card.ID)
+}
+
+/// Why an agent's card write wasn't saved, as the remote server's card tools say it.
+public struct AgentCardRefusal: Error, Equatable, Sendable {
+  public var message: String
+
+  public init(_ message: String) {
+    self.message = message
   }
 }

@@ -1,6 +1,7 @@
 public import ComposableArchitecture
 import Foundation
 public import HealthAgentAccess
+public import HealthCardEditor
 public import HealthCatalog
 public import LilAuth
 public import LilSync
@@ -167,7 +168,7 @@ public struct AppFeature {
       ConnectedAgentsFeature()
     }
     Scope(\.cards, action: \.cards) {
-      CardsFeature()
+      CardsFeature.mac
     }
     Reduce { state, action in
       switch action {

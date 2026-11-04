@@ -31,7 +31,7 @@ struct CardEditorTests {
   private func store(cards: [Card] = seedCards) throws -> TestStoreOf<CardsFeature> {
     let database = try HealthCardStore.make()
     let store = TestStore(initialState: CardsFeature.State(cards: cards)) {
-      CardsFeature()
+      CardsFeature.phone
     } withDependencies: { [pushed] in
       $0.defaultDatabase = database
       $0.continuousClock = ManualClock()
@@ -77,7 +77,7 @@ struct CardEditorTests {
     var changed = seedCards[0]
     changed.spec?.chart.goal = CardSpec.Goal(value: 10_000)
     await store.send(
-      .cardsLoaded(SyncedCards(cards: [changed] + seedCards.dropFirst(), isSynced: true)))
+      .cardsLoaded([changed] + seedCards.dropFirst(), isSynced: true))
     await store.send(\.editor.colorChosen, .mint)
     await store.send(\.editor.saveButtonTapped)
     await store.receive(\.editor.delegate.save)
@@ -100,7 +100,7 @@ struct CardEditorTests {
     await store.send(.newCardButtonTapped)
     let another = Card(
       id: "card_more", spec: seedCards[0].spec!, position: "b0", createdAt: 0, updatedAt: 0)
-    await store.send(.cardsLoaded(SyncedCards(cards: cards + [another], isSynced: true)))
+    await store.send(.cardsLoaded(cards + [another], isSynced: true))
     await store.send(\.editor.typeChosen, (series: "a", type: heartRate))
     await store.send(\.editor.saveButtonTapped)
     await store.receive(\.editor.delegate.save)
