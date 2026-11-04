@@ -13,7 +13,9 @@ import {
   CardRun,
   type CardRunData,
   type CardSummary,
+  headlineGrain,
   headlineLookup,
+  headlineOpeningDates,
   headlineSearchEnds,
   leadPoints,
 } from "./CardEngine.ts";
@@ -165,12 +167,13 @@ export const cardData = Effect.fn("cardData")(function* (
       message: `Unknown date: ${input.date}. Use a day that exists, as YYYY-MM-DD.`,
     });
   }
+  const range = input.range ?? spec.range;
   // Without a date, the period the card's page opens on, as the apps' pages do (851-3987).
   const date =
     input.date === undefined
-      ? (cardOpeningDate(sql, spec, calendar, now) ?? now)
+      ? (cardOpeningDate(sql, spec, range, calendar, now) ?? now)
       : startOfLocalDay(input.date, calendar.zone);
-  return runCard(sql, spec, input.range ?? spec.range, date, calendar, now);
+  return runCard(sql, spec, range, date, calendar, now);
 });
 
 /** What a card's Summary row shows: the lead's latest value, and the buckets ending on it. */
@@ -227,25 +230,43 @@ export const cardHeadline = (
       return start === null ? null : latestBucket(run(start));
     }
     case "search": {
-      for (const end of headlineSearchEnds(spec, now, calendar)) {
-        const headline = latestBucket(run(end));
-        if (headline !== null) return headline;
-      }
-      return null;
+      const found = searchLatestBucket(sql, spec, calendar, now);
+      return found === null ? null : latestBucket(found.data);
     }
   }
 };
 
 /**
- * When the period a card's page opens on is from (the Swift `HealthDatabase.cardOpeningDate`,
- * 851-3987): its headline's, as its Summary row finds it, so the tools run a card without a `date`
- * over the period the apps open it on. Without a window, filter or formula, the lead type's latest
- * data (`latestDataStart`), which the headline's run ends on; with one, that may have none of the
- * card's readings, so it's the headline's search. Null for No Data: the current period.
+ * A headline's search: runs of 7 buckets ending with now's, then 7 earlier each time, until one has
+ * a lead value. Its latest point and the run it's in, or null for No Data.
+ */
+const searchLatestBucket = (
+  sql: StoreSql,
+  spec: CardSpec,
+  calendar: CardCalendar,
+  now: number,
+): { readonly start: number; readonly data: CardRunData } | null => {
+  for (const end of headlineSearchEnds(spec, now, calendar)) {
+    const data = fetchRun(sql, CardRun.forHeadline(spec, end, calendar), now);
+    const point = leadPoints(data).at(-1);
+    if (point !== undefined) return { start: point.start, data };
+  }
+  return null;
+};
+
+/**
+ * When the period of `range` a card's page opens on is from (the Swift
+ * `HealthDatabase.cardOpeningDate`, 851-3987): its headline's, as its Summary row finds it, so the
+ * tools run a card without a `date` over the period the apps open it on. Without a window, filter
+ * or formula, the lead type's latest data (`latestDataStart`), which the headline's run ends on.
+ * With one, that may have none of the card's readings, so it's the headline's bucket, from its
+ * search, and when that bucket straddles two periods, the later one if it has the bucket's point
+ * (`headlineOpeningDates`). Null for No Data: the current period.
  */
 export const cardOpeningDate = (
   sql: StoreSql,
   spec: CardSpec,
+  range: CardRange,
   calendar: CardCalendar,
   now: number,
 ): number | null => {
@@ -257,13 +278,14 @@ export const cardOpeningDate = (
     case "latestData":
       return latestDataStart(sql, lookup.type, now);
     case "search": {
-      for (const end of headlineSearchEnds(spec, now, calendar)) {
-        const point = leadPoints(fetchRun(sql, CardRun.forHeadline(spec, end, calendar), now)).at(
-          -1,
-        );
-        if (point !== undefined) return point.start;
+      const found = searchLatestBucket(sql, spec, calendar, now);
+      if (found === null) return null;
+      const dates = headlineOpeningDates(found.start, headlineGrain(spec), range, calendar, now);
+      for (const date of dates.slice(0, -1)) {
+        const data = fetchRun(sql, CardRun.forRange(spec, range, date, now, calendar), now);
+        if (leadPoints(data).some((point) => point.start === found.start)) return date;
       }
-      return null;
+      return dates.at(-1)!;
     }
   }
 };

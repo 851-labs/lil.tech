@@ -268,7 +268,9 @@ extension HealthTools {
       }
     } else {
       // The period the card's page opens on, as the apps' pages do (851-3987).
-      day = try HealthDatabase.cardOpeningDate(spec, now: now, calendar: calendar, db) ?? now
+      day =
+        try HealthDatabase.cardOpeningDate(
+          spec, range: range, now: now, calendar: calendar, db) ?? now
     }
     let data = try HealthDatabase.cardData(
       spec, range: range, date: day, now: now, calendar: calendar, db)

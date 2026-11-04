@@ -431,6 +431,28 @@ struct CardEngineTests {
     #expect(data.series[0].points.count == 6)
   }
 
+  /// A page opens on its headline bucket's period, or, for a week across a month's end, tries the
+  /// later month first (851-3987).
+  @Test
+  func aHeadlineBucketsOpeningDates() {
+    func dates(
+      _ start: Date, _ grain: CardGrain, _ range: CardRange, now: Date = date(11, 10)
+    ) -> [Date] {
+      CardHeadline.openingDates(
+        forBucketAt: start, grain: grain, range: range, now: now, calendar: london)
+    }
+    // The week of Monday Oct 19 is October's alone.
+    #expect(dates(date(10, 19), .week, .month) == [date(10, 19)])
+    // The week of Monday Sep 28 runs to Sunday Oct 4: its last moment's October, then September.
+    #expect(dates(date(9, 28), .week, .month) == [date(10, 5) - 0.001, date(9, 28)])
+    // Before it ends, its last moment is now.
+    #expect(
+      dates(date(9, 28), .week, .month, now: date(10, 2, 9)) == [date(10, 2, 9), date(9, 28)])
+    // A day never straddles a month, nor a week a week.
+    #expect(dates(date(9, 30), .day, .month) == [date(9, 30)])
+    #expect(dates(date(9, 28), .week, .week) == [date(9, 28)])
+  }
+
   // MARK: - Display units
 
   @Test

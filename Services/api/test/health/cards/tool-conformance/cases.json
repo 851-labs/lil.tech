@@ -1124,6 +1124,112 @@
       ]
     },
     {
+      "name": "preview_card without a date: a week across a month's end opens on the month with its nights",
+      "note": "Its latest night is Oct 26's, in the week of Monday Oct 26, which runs to Sunday Nov 1. November shows that week but counts only its own nights, which it has none of, so the period is October's (851-3987): the engine's case of this spec over October.",
+      "now": "2026-11-11T12:00:00Z",
+      "calls": [
+        {
+          "tool": "preview_card",
+          "arguments": {
+            "spec": {
+              "version": 1,
+              "display": {
+                "name": "Sleeping Heart Rate"
+              },
+              "series": [
+                {
+                  "type": "HeartRate",
+                  "window": {
+                    "kind": "asleep"
+                  }
+                }
+              ],
+              "bucket": "week",
+              "range": "M",
+              "chart": {
+                "style": "line"
+              }
+            },
+            "timeZone": "Europe/London"
+          },
+          "expected": {
+            "spec": {
+              "version": 1,
+              "display": {
+                "name": "Sleeping Heart Rate",
+                "symbol": "heart.fill",
+                "color": "red",
+                "unit": null
+              },
+              "series": [
+                {
+                  "id": "a",
+                  "type": "HKQuantityTypeIdentifierHeartRate",
+                  "aggregation": "avg",
+                  "window": {
+                    "kind": "asleep"
+                  },
+                  "filter": null,
+                  "label": null,
+                  "hidden": false
+                }
+              ],
+              "formulas": [],
+              "bucket": "week",
+              "range": "M",
+              "chart": {
+                "style": "line",
+                "goal": null
+              }
+            },
+            "data": {
+              "range": "M",
+              "start": "2026-10-01",
+              "end": "2026-10-31",
+              "timeZone": "Europe/London",
+              "firstWeekday": "monday",
+              "bucket": "week",
+              "grain": "week",
+              "series": [
+                {
+                  "id": "a",
+                  "label": "Heart Rate",
+                  "type": "HKQuantityTypeIdentifierHeartRate",
+                  "aggregation": "avg",
+                  "unit": "count/min",
+                  "hidden": false,
+                  "points": [
+                    {
+                      "start": "2026-10-19T00:00:00+01:00",
+                      "value": 55.904761904761905,
+                      "minimum": 48,
+                      "maximum": 80,
+                      "readings": 12
+                    },
+                    {
+                      "start": "2026-10-26T00:00:00+00:00",
+                      "value": 50,
+                      "minimum": 50,
+                      "maximum": 50,
+                      "readings": 1
+                    }
+                  ]
+                }
+              ],
+              "formulas": [],
+              "summary": {
+                "kind": "average",
+                "value": 55.391304347826086,
+                "minimum": null,
+                "maximum": null
+              },
+              "goal": null
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "get_card: the Mac's body temperature card, by the hour over a week",
       "now": "2026-10-28T12:00:00Z",
       "calls": [

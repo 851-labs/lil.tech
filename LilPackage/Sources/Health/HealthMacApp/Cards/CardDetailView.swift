@@ -156,7 +156,8 @@ extension CardSpec {
   func openingOffset(
     in range: CardRange, now: Date, calendar: Calendar, _ db: Database
   ) throws -> Int {
-    let latest = try HealthDatabase.cardOpeningDate(self, now: now, calendar: calendar, db)
+    let latest = try HealthDatabase.cardOpeningDate(
+      self, range: range, now: now, calendar: calendar, db)
     return range.openingOffset(latest: latest, now: now, calendar: calendar)
   }
 }
@@ -236,7 +237,11 @@ struct CardDetailContent: View {
     .periodControls(
       PagePeriod(
         range: $selectedRange,
-        offset: Binding(get: { selectedOffset ?? 0 }, set: { selectedOffset = $0 }),
+        // Until the page knows its period, ‹, Today and › wait, and another range is looked
+        // for afresh (the page's search runs again for it) rather than shown from today's.
+        offset: Binding(
+          get: { selectedOffset ?? 0 },
+          set: { if selectedOffset != nil { selectedOffset = $0 } }),
         ranges: spec.bucket.ranges, now: now, calendar: calendar))
   }
 }

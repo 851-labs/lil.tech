@@ -11,6 +11,7 @@ import {
   grainEnd,
   grainStart,
   rangeIntervalContaining,
+  rangeOffset,
   timeOfDayStretches,
 } from "./CardCalendar.ts";
 import {
@@ -1277,4 +1278,29 @@ export const headlineSearchEnds = (
     ends.push(bucketStart(calendar, grain, sparklineBuckets, ends.at(-1)!));
   }
   return ends;
+};
+
+/**
+ * The dates whose periods of `range` a card may open on for a headline's bucket starting at
+ * `start` (the Swift `CardHeadline.openingDates`, 851-3987), to try in order. Its start's, unless
+ * the bucket straddles two of the range's periods (a week across a month's end), when its last
+ * moment by `now` comes first: a period shows a bucket that starts before it, but counts only its
+ * own readings, so an engine runs the later period and opens on it if it has the bucket's point,
+ * else on the start's.
+ */
+export const headlineOpeningDates = (
+  start: number,
+  grain: CardGrain,
+  range: CardRange,
+  calendar: CardCalendar,
+  now: number,
+): Array<number> => {
+  const last = Math.min(grainEnd(calendar, grain, start) - 1, now);
+  if (
+    last <= start ||
+    rangeOffset(calendar, range, last, now) === rangeOffset(calendar, range, start, now)
+  ) {
+    return [start];
+  }
+  return [last, start];
 };
