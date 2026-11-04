@@ -289,7 +289,7 @@ extension HealthTools {
   }
 
   static func noCard(_ id: String) -> String {
-    "No card with the id \(Self.quoted(id)). list_cards lists them."
+    CardWriteError.noCardMessage(id)
   }
 
   /// A spec argument as parsed, or the tool's error for JSON text that isn't JSON (`nil`).
@@ -315,12 +315,7 @@ extension HealthTools {
   /// A spec's errors as one message an agent can fix them all from: a line each, with its path
   /// (`spec` for the whole spec's).
   public static func specErrorsMessage(_ errors: [CardSpecError]) -> String {
-    let heading =
-      errors.count == 1
-      ? "The spec has 1 error. Fix it and try again:"
-      : "The spec has \(errors.count) errors. Fix them and try again:"
-    return ([heading] + errors.map { "- \($0.path.isEmpty ? "spec" : $0.path): \($0.message)" })
-      .joined(separator: "\n")
+    CardSpecValidationError(errors).toolMessage
   }
 
   /// A stored card's spec, if this version can run it.

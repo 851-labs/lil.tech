@@ -83,6 +83,17 @@ public struct CardSpecValidationError: Error, Hashable, Sendable, CustomStringCo
     self.errors = errors
   }
 
+  /// Every error as the card tools give it, the remote server's words (`specErrorsMessage` in
+  /// `CardTools.ts`): a line each, with its path, `spec` for the whole spec's.
+  public var toolMessage: String {
+    let heading =
+      errors.count == 1
+      ? "The spec has 1 error. Fix it and try again:"
+      : "The spec has \(errors.count) errors. Fix them and try again:"
+    return ([heading] + errors.map { "- \($0.path.isEmpty ? "spec" : $0.path): \($0.message)" })
+      .joined(separator: "\n")
+  }
+
   /// Every error, a line each, so an agent can fix them all at once.
   public var description: String {
     let count = errors.count == 1 ? "1 error" : "\(errors.count) errors"

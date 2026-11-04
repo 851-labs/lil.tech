@@ -282,8 +282,12 @@ enum CardWriteCall: Sendable {
         throw MCPError.invalidParams("ids must be an array of strings")
       }
       let ids = items.compactMap(\.stringValue)
-      guard ids.count == items.count, ids.count <= 200 else {
-        throw MCPError.invalidParams("ids must be an array of at most 200 strings")
+      guard ids.count == items.count else {
+        throw MCPError.invalidParams("ids must be an array of strings")
+      }
+      // The input schema's limit, the store's (`HealthCards.storeMaxCards`).
+      guard ids.count <= HealthCards.storeMaxCards else {
+        throw MCPError.invalidParams("ids must have at most \(HealthCards.storeMaxCards) ids")
       }
       self = .reorder(ids: ids)
     default:

@@ -160,6 +160,11 @@ extension HealthCLI {
 
     static let notAnswered = Self(
       "lil health didn't answer. Is it installed and signed in?", status: Status.unavailable)
+
+    /// A card write the app took but hasn't answered (851-4014): it may still be saved.
+    static let stillWriting = Self(
+      "lil health took the change but didn't confirm it in time. It may still be saved: check "
+        + "with list_cards before trying again.", status: Status.tempFail)
   }
 
   /// Asks the app for the command's action, then waits for its answer: logged and checked as
@@ -264,8 +269,8 @@ extension HealthCLI {
     }
     let doneDeadline = clock.now + context.timing.cardWait
     while state == .running {
-      // Claimed, so it may still be written: the agent can look with list_cards.
-      if clock.now >= doneDeadline { throw ActionError.notAnswered }
+      // Claimed, so it may still be written: the agent mustn't simply try again.
+      if clock.now >= doneDeadline { throw ActionError.stillWriting }
       app.sleep(context.timing.pollInterval)
       state = try store.outcome(id: id)
     }

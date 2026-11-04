@@ -43,6 +43,13 @@ public enum CardWriteError: Error, Equatable, Sendable, LocalizedError {
   }
 }
 
+extension CardWriteError {
+  /// What the card tools say of an ID no card has, the remote server's words (851-4014).
+  public static func noCardMessage(_ id: String) -> String {
+    "No card with the id \(CardJSON.string(id).text()). list_cards lists them."
+  }
+}
+
 extension Card {
   /// A new card at the end of `cards` (Summary's order), with `spec` validated as apps write it
   /// (`CardSpec(input:)`: canonical, at most 8 KB), refused past `HealthCards.maxCards`.

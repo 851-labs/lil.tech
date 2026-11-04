@@ -193,6 +193,18 @@ struct CardWriteToolsTests {
     let timedOut = try await waiting.call("delete_card", ["id": "card_seed_steps"])
     #expect(timedOut.text == "lil health didn't answer. Is it installed and signed in?")
     await waiting.close()
+
+    // An app that took it and didn't confirm in time: it may still be saved.
+    let slow = CardApp(folder, claimOnly: true)
+    let claimed = try await MCPConnection(
+      folder.directory, app: slow.connection,
+      timing: HealthCLI.Timing(claimWait: .seconds(10), cardWait: .milliseconds(200)))
+    let unconfirmed = try await claimed.call("delete_card", ["id": "card_seed_steps"])
+    #expect(
+      unconfirmed.text
+        == "lil health took the change but didn't confirm it in time. It may still be saved: "
+        + "check with list_cards before trying again.")
+    await claimed.close()
     #expect(try cards(folder).count == 6)
   }
 
@@ -218,13 +230,19 @@ private final class CardApp: Sendable {
   let folder: AppFolder
   let refusal: AgentActionFailure?
   let silent: Bool
+  /// Claims requests and never answers them.
+  let claimOnly: Bool
   /// The actions it was asked for.
   let asked = Mutex<[AgentAction]>([])
 
-  init(_ folder: AppFolder, refusal: AgentActionFailure? = nil, silent: Bool = false) {
+  init(
+    _ folder: AppFolder, refusal: AgentActionFailure? = nil, silent: Bool = false,
+    claimOnly: Bool = false
+  ) {
     self.folder = folder
     self.refusal = refusal
     self.silent = silent
+    self.claimOnly = claimOnly
   }
 
   var connection: HealthCLI.AppConnection {
@@ -238,6 +256,7 @@ private final class CardApp: Sendable {
     Thread.detachNewThread { [self] in
       for request in (try? folder.access.claimActions()) ?? [] {
         asked.withLock { $0.append(request.action) }
+        guard !claimOnly else { continue }
         let outcome: AgentActionOutcome
         if let refusal {
           outcome = .failed(refusal)

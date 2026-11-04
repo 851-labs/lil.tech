@@ -401,9 +401,9 @@ public struct CardsFeature {
   private static func agentMessage(_ error: CardWriteError, _ agent: State.AgentRequest) -> String {
     switch (error, agent.request.action) {
     case (.notFound, .updateCard(let id, _)), (.notFound, .deleteCard(let id)):
-      "No card with the id \(CardJSON.string(id).text()). list_cards lists them."
+      CardWriteError.noCardMessage(id)
     case (.invalidSpec(let errors), _):
-      errors.description
+      errors.toolMessage
     default:
       error.localizedDescription
     }
