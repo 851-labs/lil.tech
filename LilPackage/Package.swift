@@ -378,6 +378,7 @@ let package = Package(
         "HealthCardStore",
         "HealthCatalog",
         "HealthDatabase",
+        "LilSync",
         .product(name: "SQLiteData", package: "sqlite-data"),
       ],
       path: "Sources/Health/HealthTools"

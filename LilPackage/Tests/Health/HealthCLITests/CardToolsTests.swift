@@ -17,10 +17,16 @@ private let steps = "HKQuantityTypeIdentifierStepCount"
 /// remote server's (851-3215) do.
 @Suite
 struct CardToolsTests {
-  /// The welcome seed's Steps card, and a card of a later version this one can't read.
+  /// The welcome seed's Steps card, and a card of a later version this one can't read, as sync's
+  /// first pull brings them.
   private func addCards(to folder: AppFolder) throws {
     let seed = HealthCards.welcomeSeed[0]
     try folder.database.write { db in
+      try db.execute(
+        sql: """
+          INSERT INTO "lilSyncState" ("id", "cursor", "epoch", "syncSchema", "entities")
+          VALUES (1, 6, 1, 1, 'health_card')
+          """)
       try HealthCard.insert {
         HealthCard(
           id: seed.id, spec: seed.spec.jsonText, position: seed.position,
@@ -240,6 +246,24 @@ struct CardToolsTests {
         #"get_card {"id":"card_seed_steps","range":"M"}"#,
         "list_cards",
       ])
+    await connection.close()
+  }
+
+  /// Before sync has pulled the cards, an empty table doesn't mean there are none.
+  @Test
+  func saysWhenTheCardsHaventSyncedYet() async throws {
+    let folder = try AppFolder()
+    try folder.access.setEnabled(true)
+    let connection = try await MCPConnection(folder.directory)
+    let message =
+      "lil health hasn't synced the person's cards to this Mac yet. Ask them to open lil health "
+      + "and sign in, then try again."
+    for (name, arguments): (String, [String: Value]) in [
+      ("list_cards", [:]), ("get_card", ["id": "card_seed_steps"]),
+    ] {
+      let result = try await connection.call(name, arguments)
+      #expect(result.isError == true && result.text == message, "\(name)")
+    }
     await connection.close()
   }
 

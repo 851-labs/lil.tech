@@ -3,6 +3,7 @@ import HealthCardStore
 public import HealthCards
 import HealthCatalog
 import HealthDatabase
+import LilSync
 public import SQLiteData
 
 // The card tools' reads on the Mac (851-3216, docs/decisions/cards.md › MCP tools): `list_cards`,
@@ -12,8 +13,9 @@ public import SQLiteData
 
 // MARK: - Outputs
 
-/// A card, as the tools give it (`HealthCardItem`): its spec in canonical form, keys in the
-/// design's order, and its times local in the call's time zone.
+/// A card, as the tools give it (`HealthCardItem`): its spec in canonical form and its times local
+/// in the call's time zone. Each output's `encode(to:)` writes every field, `nil` as `null`, as the
+/// remote server's do; the MCP server sorts the keys (`MCPServer.call`).
 public struct HealthCardItem: Codable, Equatable, Sendable {
   public var id: String
   public var spec: CardJSON
@@ -211,6 +213,7 @@ extension HealthTools {
   /// `list_cards`: the account's cards as synced to this Mac, in Summary's order.
   public func listCards(timeZone: String? = nil, _ db: Database) throws -> HealthCardsResult {
     let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
+    try Self.requireSyncedCards(db)
     return HealthCardsResult(
       timeZone: time.name,
       cards: try HealthDatabase.cards(db).map { HealthCardItem($0, time: time) })
@@ -222,7 +225,8 @@ extension HealthTools {
     id: String, range: CardRange? = nil, date: String? = nil, timeZone: String? = nil,
     firstWeekday: ToolWeekday? = nil, _ db: Database
   ) throws -> HealthCardDataResult {
-    guard let card = try HealthDatabase.cards(db).first(where: { $0.id == id }) else {
+    guard let card = try HealthCard.find(id).fetchOne(db).map(Card.init) else {
+      try Self.requireSyncedCards(db)
       throw HealthToolError(Self.noCard(id))
     }
     let spec = try Self.runnable(card)
@@ -272,6 +276,18 @@ extension HealthTools {
 
   // MARK: - Checks and messages, as the remote server's
 
+  /// Before sync has brought the account's cards to this Mac, none in the table doesn't mean the
+  /// account has none (`LilSyncEngine.holds`), so the tools say so rather than answering that
+  /// there are none, which could lead an agent to make them again. The remote server always has
+  /// them.
+  static func requireSyncedCards(_ db: Database) throws {
+    guard try LilSyncEngine.holds(Card.entity, db) else {
+      throw HealthToolError(
+        "lil health hasn't synced the person's cards to this Mac yet. Ask them to open lil health "
+          + "and sign in, then try again.")
+    }
+  }
+
   static func noCard(_ id: String) -> String {
     "No card with the id \(Self.quoted(id)). list_cards lists them."
   }
@@ -300,8 +316,8 @@ extension HealthTools {
   static func runnable(_ card: Card) throws -> CardSpec {
     if let spec = card.spec { return spec }
     let version = card.storedSpec["version"] ?? .null
-    if case .number(let number) = version, number.rounded() == number,
-      HealthCards.readableVersions.contains(Int(number))
+    if case .number(let number) = version, let whole = Int(exactly: number),
+      HealthCards.readableVersions.contains(whole)
     {
       // A version this one reads, which the store's check makes unlikely: a spec it refuses.
       throw HealthToolError("lil health can't run this card's spec. Replace it with update_card.")
@@ -351,11 +367,5 @@ extension HealthTools {
   /// A string as JSON writes it, in double quotes: as the remote server's `JSON.stringify`.
   private static func quoted(_ text: String) -> String {
     CardJSON.string(text).text()
-  }
-}
-
-extension Date {
-  fileprivate init(unixMilliseconds: Int) {
-    self.init(timeIntervalSince1970: TimeInterval(unixMilliseconds) / 1000)
   }
 }
