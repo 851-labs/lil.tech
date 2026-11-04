@@ -74,22 +74,89 @@ struct CardRefresh: Equatable {
 }
 
 /// Which period a card's page opens on (851-3188): the one with the card's latest data, which its
-/// Summary row has already found (its headline's date), or, when the row hasn't, which the page
-/// finds itself before it loads a period.
+/// Summary row has already found (its headline), or, when the row hasn't, which the page finds
+/// itself before it loads a period.
 enum CardOpening: Equatable {
-  /// The row's headline's date: its latest reading or bucket. `nil` for No Data: the current
-  /// period.
-  case latest(Date?)
+  /// The row's headline: its latest reading or bucket. `nil` for No Data: the current period.
+  case latest(Latest?)
   /// The row hadn't run the card as it is now.
   case unknown
+
+  /// Where a headline is: its date, and its bucket's grain, since a bucket can straddle two of a
+  /// range's periods (a week across a month's end, 851-4040).
+  struct Latest: Equatable, Sendable {
+    /// The reading's start, or the bucket's.
+    var date: Date
+    var grain: CardGrain
+
+    /// The dates whose periods of `range` the page may open on, to try in order
+    /// (`CardHeadline.openingDates`): one, or the bucket's last moment then its start.
+    func openingDates(in range: CardRange, now: Date, calendar: Calendar) -> [Date] {
+      CardHeadline.openingDates(
+        forBucketAt: date, grain: grain, range: range, now: now, calendar: calendar)
+    }
+  }
+
+  /// Where a card's page opens: the date whose period of its range it shows (`nil` for No Data:
+  /// the current period), and that period's data when choosing it ran it, so the page draws it
+  /// without running it again.
+  struct Opened: Equatable, Sendable {
+    var date: Date?
+    var data: CardData?
+  }
 
   /// The row's headline, when it's the card's as it is now.
   init(_ kept: (run: CardHeadlines.Run, headline: CardRow.Headline)?, spec: CardSpec?) {
     if let kept, kept.run.spec == spec, case .loaded(let headline) = kept.headline {
-      self = .latest(headline?.date)
+      self = .latest(headline.map(Latest.init))
     } else {
       self = .unknown
     }
+  }
+
+  /// The period of `range` the page opens on without running the card: No Data's (the current
+  /// one), or the headline's when its bucket is in one period. `nil` when it needs a run: the
+  /// row hadn't found the headline, or its bucket straddles two periods.
+  func offset(in range: CardRange, now: Date, calendar: Calendar) -> Int? {
+    guard case .latest(let latest) = self else { return nil }
+    guard let latest else { return range.openingOffset(latest: nil, now: now, calendar: calendar) }
+    let dates = latest.openingDates(in: range, now: now, calendar: calendar)
+    guard dates.count == 1 else { return nil }
+    return range.openingOffset(latest: dates[0], now: now, calendar: calendar)
+  }
+
+  /// Where a card's page opens on `range`, as the Mac's (`HealthDatabase.cardOpeningDate`,
+  /// 851-3987, 851-4040): `latest`'s period, unless its bucket straddles two periods (a week across
+  /// a month's end), when the later one if its run has the bucket's point, since a period counts
+  /// only its own readings. A run that fails opens on the bucket's start, whose own run then says
+  /// what failed, with ‹ and › on. Off the main actor: the engine weighs and aggregates the
+  /// readings HealthKit returns.
+  @concurrent
+  static func opened(
+    at latest: Latest?, spec: CardSpec, range: CardRange, now: Date, calendar: Calendar,
+    in cards: HealthKitCards
+  ) async throws -> Opened {
+    guard let latest else { return Opened(date: nil, data: nil) }
+    let dates = latest.openingDates(in: range, now: now, calendar: calendar)
+    for date in dates.dropLast() {
+      let data: CardData
+      do {
+        data = try await cards.data(spec, range, date, now, calendar)
+      } catch {
+        try Task.checkCancellation()
+        break
+      }
+      if data.leadPoints.contains(where: { $0.start == latest.date }) {
+        return Opened(date: date, data: data)
+      }
+    }
+    return Opened(date: dates.last, data: nil)
+  }
+}
+
+extension CardOpening.Latest {
+  init(_ headline: CardHeadline) {
+    self.init(date: headline.date, grain: headline.data.grain)
   }
 }
 
@@ -98,6 +165,8 @@ enum CardOpening: Equatable {
 /// and keeping the period shown while the next loads (851-3084).
 struct CardChartPage: View {
   let spec: CardSpec
+  /// The row's headline, for the card as it is now: the page's own run finds it otherwise.
+  let opening: CardOpening
   let refresh: CardRefresh
   /// Edit: the card's editor (851-3213).
   let edit: () -> Void
@@ -108,6 +177,8 @@ struct CardChartPage: View {
   @State private var chart: CardPeriod?
   @State private var failure: String?
   @State private var isLoading = false
+  /// The run that found the period it opens on, which loaded it: the page doesn't run it again.
+  @State private var opened: Request?
   @Dependency(\.healthKitCards) private var healthKitCards
   @Dependency(\.date) private var date
   @Dependency(\.calendar) private var calendar
@@ -117,16 +188,14 @@ struct CardChartPage: View {
     edit: @escaping () -> Void = {}
   ) {
     self.spec = spec
+    self.opening = opening
     self.refresh = refresh
     self.edit = edit
     let range = spec.range
     _range = State(initialValue: range)
-    if case .latest(let latest) = opening {
-      @Dependency(\.date.now) var now
-      @Dependency(\.calendar) var calendar
-      _offset = State(
-        initialValue: range.openingOffset(latest: latest, now: now, calendar: calendar))
-    }
+    @Dependency(\.date.now) var now
+    @Dependency(\.calendar) var calendar
+    _offset = State(initialValue: opening.offset(in: range, now: now, calendar: calendar))
   }
 
   /// What the page runs: the card over the period chosen, again when Summary's day or generation
@@ -177,6 +246,11 @@ struct CardChartPage: View {
   private func load() async {
     // Until Health access is checked, HealthKit may not answer for minutes (851-4035).
     guard refresh.needsHealthAccess != nil else { return }
+    let request = Request(spec: spec, range: range, offset: offset, refresh: refresh)
+    if let opened {
+      self.opened = nil
+      if opened == request { return }
+    }
     let now = date.now
     isLoading = true
     // A failure is the last run's: this one shows the period loaded last, updating, or loading.
@@ -184,11 +258,25 @@ struct CardChartPage: View {
     defer { if !Task.isCancelled { isLoading = false } }
     do {
       guard let offset else {
-        // The row hadn't found the latest data: find it, then load that period (`offset` changes
-        // the task's ID, which runs it again).
-        let headline = try await healthKitCards.headlineOffMain(spec, now: now, calendar: calendar)
+        // The row hadn't found the latest data, or its bucket straddles two periods: find it, and
+        // which period has it, then load that period (`offset` changes the task's ID, which runs
+        // it again).
+        let latest: CardOpening.Latest?
+        if case .latest(let known) = opening {
+          latest = known
+        } else {
+          latest = try await healthKitCards.headlineOffMain(spec, now: now, calendar: calendar)
+            .map(CardOpening.Latest.init)
+        }
+        let found = try await CardOpening.opened(
+          at: latest, spec: spec, range: range, now: now, calendar: calendar, in: healthKitCards)
         try Task.checkCancellation()
-        self.offset = range.openingOffset(latest: headline?.date, now: now, calendar: calendar)
+        let offset = range.openingOffset(latest: found.date, now: now, calendar: calendar)
+        if let data = found.data {
+          chart = CardPeriod(range: range, offset: offset, spec: spec, data: data)
+          opened = Request(spec: spec, range: range, offset: offset, refresh: refresh)
+        }
+        self.offset = offset
         return
       }
       let period = range.interval(offset: offset, now: now, calendar: calendar)

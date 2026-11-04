@@ -66,12 +66,22 @@ struct CardEditorPreview: View {
     defer { if !Task.isCancelled { isLoading = false } }
     do {
       let range = query.range
+      // The period its page opens on: its headline's, or for a week across a month's end, the
+      // later month when it has the week (851-4040), whose run is the preview's.
       let latest = try await healthKitCards.headlineOffMain(query, now: now, calendar: calendar)
+      let found = try await CardOpening.opened(
+        at: latest.map(CardOpening.Latest.init), spec: query, range: range, now: now,
+        calendar: calendar, in: healthKitCards)
       try Task.checkCancellation()
-      let offset = range.openingOffset(latest: latest?.date, now: now, calendar: calendar)
-      let period = range.interval(offset: offset, now: now, calendar: calendar)
-      let data = try await healthKitCards.dataOffMain(
-        query, range: range, date: period.start, now: now, calendar: calendar)
+      let offset = range.openingOffset(latest: found.date, now: now, calendar: calendar)
+      let data: CardData
+      if let run = found.data {
+        data = run
+      } else {
+        let period = range.interval(offset: offset, now: now, calendar: calendar)
+        data = try await healthKitCards.dataOffMain(
+          query, range: range, date: period.start, now: now, calendar: calendar)
+      }
       try Task.checkCancellation()
       chart = CardPeriod(range: range, offset: offset, spec: query, data: data)
       chartSpec = spec
