@@ -33,7 +33,8 @@ enum Conformance {
     var pins: [Pin]?
     var arguments: ConformanceJSON
     var expected: ConformanceJSON?
-    var expectedError: Bool?
+    /// The tool's error message, word for word.
+    var expectedError: String?
   }
 
   static func cases() throws -> [Case] {

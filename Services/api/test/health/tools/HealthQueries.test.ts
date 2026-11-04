@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { DateTime, Exit, Option, Schema } from "effect";
+import { DateTime, Effect, Exit, Option, Schema } from "effect";
 import {
   statisticsSource,
   statisticsSourceStalenessMillis,
@@ -13,6 +13,7 @@ import {
   localTime,
   startOfDay,
   startOfHour,
+  toolDate,
   toolPeriod,
 } from "../../../src/health/tools/ToolTime.ts";
 
@@ -174,13 +175,20 @@ describe("ages", () => {
 });
 
 describe("the toolkit's dates", () => {
-  const decode = Schema.decodeUnknownExit(HealthToolkit.tools.metric.parametersSchema);
-  const call = (date: string) => ({ type: "HKQuantityTypeIdentifierStepCount", range: "W", date });
+  it("are any string to the input schema, as the Mac takes them (851-4034)", () => {
+    const decode = Schema.decodeUnknownExit(HealthToolkit.tools.metric.parametersSchema);
+    const call = { type: "HKQuantityTypeIdentifierStepCount", range: "W", date: "2026-02-29" };
+    assert.isTrue(Exit.isSuccess(decode(call)));
+  });
 
-  it("are days that exist", () => {
-    assert.isTrue(Exit.isSuccess(decode(call("2028-02-29"))));
-    assert.isTrue(Exit.isFailure(decode(call("2026-02-29"))));
-    assert.isTrue(Exit.isFailure(decode(call("2026-13-01"))));
-    assert.isTrue(Exit.isFailure(decode(call("20261020"))));
+  it("are days that exist, written YYYY-MM-DD, or the tool's error, in the Mac's words", () => {
+    assert.strictEqual(Effect.runSync(toolDate("2028-02-29")), "2028-02-29");
+    assert.isUndefined(Effect.runSync(toolDate(undefined)));
+    for (const date of ["2026-02-29", "2026-13-01", "20261020", "2026-2-3", " 2026-10-20"]) {
+      assert.strictEqual(
+        Effect.runSync(Effect.flip(toolDate(date))).message,
+        `Invalid date: ${date}. Use a day that exists, as YYYY-MM-DD.`,
+      );
+    }
   });
 });

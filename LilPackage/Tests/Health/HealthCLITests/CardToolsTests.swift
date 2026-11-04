@@ -128,14 +128,23 @@ struct CardToolsTests {
       let result = try await connection.call("get_card", arguments)
       #expect(result.isError == true && result.text == message, "\(arguments)")
     }
-    // Arguments outside the input schema.
-    for arguments: [String: Value] in [
-      [:], ["id": 1], ["id": "card_seed_steps", "range": "w"],
-      ["id": "card_seed_steps", "firstWeekday": "Monday"],
+    // Arguments outside the input schema: the tool's errors too, in the remote server's words.
+    let weekdays =
+      #"Expected "sunday" | "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday""#
+    for (arguments, message): ([String: Value], String) in [
+      ([:], #"Missing key\#n  at ["id"]"#),
+      (["id": 1], #"Expected string\#n  at ["id"]"#),
+      (
+        ["id": "card_seed_steps", "range": "w"],
+        #"Expected "D" | "W" | "M" | "6M" | "Y"\#n  at ["range"]"#
+      ),
+      (
+        ["id": "card_seed_steps", "firstWeekday": "Monday"], weekdays + #"\#n  at ["firstWeekday"]"#
+      ),
     ] {
-      await #expect(throws: MCPError.self, "\(arguments)") {
-        try await connection.call("get_card", arguments)
-      }
+      let result = try await connection.call("get_card", arguments)
+      #expect(result.isError == true, "\(arguments)")
+      #expect(result.text == "Invalid parameters for tool 'get_card': " + message, "\(arguments)")
     }
     await connection.close()
   }
@@ -214,7 +223,10 @@ struct CardToolsTests {
       range.text
         == #"range "Y" doesn't fit the card's bucket "hour". Use D, W, or leave range out for the card's own (D)."#
     )
-    await #expect(throws: MCPError.self) { try await connection.call("preview_card", [:]) }
+    let missing = try await connection.call("preview_card", [:])
+    #expect(missing.isError == true)
+    #expect(
+      missing.text == #"Invalid parameters for tool 'preview_card': Missing key\#n  at ["spec"]"#)
     await connection.close()
   }
 

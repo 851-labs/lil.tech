@@ -29,8 +29,9 @@ struct HealthToolkitConformanceTests {
     let result = try await connection.call(testCase.tool, arguments)
     await connection.close()
 
-    if testCase.expectedError == true {
+    if let message = testCase.expectedError {
       #expect(result.isError == true, "\(result.text)")
+      #expect(result.text == message)
       return
     }
     #expect(result.isError == false, "\(result.text)")

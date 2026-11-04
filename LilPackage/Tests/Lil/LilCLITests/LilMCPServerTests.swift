@@ -170,7 +170,7 @@ struct LilMCPServerTests {
   @Test(arguments: ["nope.summary", "summary", "health.nope", "example.", ".echo"])
   func unknownAppsAndToolsAreInvalidParams(name: String) async throws {
     let connection = try await connect()
-    await #expect(throws: MCPError.invalidParams("Unknown tool: \(name)")) {
+    await #expect(throws: MCPError.invalidParams("Tool '\(name)' not found")) {
       _ = try await connection.call(name)
     }
     await connection.close()

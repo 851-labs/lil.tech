@@ -29,6 +29,7 @@ import { storeMcpSessions } from "../../store/McpSessions.ts";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import { HealthToolError, type HealthToolHandlers, HealthToolkit } from "./HealthToolkit.ts";
 import { type HealthToolImplementations, storeHealthTools } from "./StoreHealthTools.ts";
+import { isLocalDay } from "./ToolTime.ts";
 import { findHealthType } from "./ToolTypes.ts";
 
 // lil health's remote MCP server (851-2851, `docs/decisions/server.md`): the Health toolkit over
@@ -121,18 +122,20 @@ const rowCount = (encoded: unknown) =>
 
 /**
  * What the log keeps of a call's arguments: the type (its catalog identifier, however the call
- * named it, or nothing for a type the catalog doesn't have), range and day, never other text.
+ * named it, or nothing for a type the catalog doesn't have), range and day, never other text. The
+ * input schema takes any `date` (851-4034), so it's kept only when it's a day.
  */
 const askedFor = (params: object): AskedFor => {
   const field = (name: string) =>
     Predicate.hasProperty(params, name) && typeof params[name] === "string" ? params[name] : null;
   const type = field("type");
+  const date = field("date");
   const known = type === null ? undefined : findHealthType(type);
   return {
     ...askedForNothing,
     types: known === undefined ? null : [known.id],
     range: field("range"),
-    date: field("date"),
+    date: Predicate.isString(date) && isLocalDay(date) ? date : null,
   };
 };
 

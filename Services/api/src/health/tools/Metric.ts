@@ -11,6 +11,7 @@ import {
   startOfHour,
   type ToolPeriod,
   type ToolRange,
+  toolDate,
   toolPeriod,
   toolTimeZone,
 } from "./ToolTime.ts";
@@ -217,7 +218,7 @@ export const healthMetric = Effect.fn("healthMetric")(function* (
     });
   }
   const now = yield* Clock.currentTimeMillis;
-  const period = toolPeriod(input.range, input.date, now, zone);
+  const period = toolPeriod(input.range, yield* toolDate(input.date), now, zone);
   const cumulative = aggregation === "cumulative";
   const statistic = input.statistic ?? (cumulative ? "sum" : "average");
   let buckets: ReadonlyArray<number | null>;

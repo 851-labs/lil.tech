@@ -2,7 +2,7 @@ import { Clock, Effect } from "effect";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import { type SampleCursor, samplePage } from "./HealthQueries.ts";
 import { HealthToolError, type HealthToolkit, samplesLimit } from "./HealthToolkit.ts";
-import { localTime, type ToolRange, toolPeriod, toolTimeZone } from "./ToolTime.ts";
+import { localTime, type ToolRange, toolDate, toolPeriod, toolTimeZone } from "./ToolTime.ts";
 import { resolveHealthType } from "./ToolTypes.ts";
 
 type SamplesResult = (typeof HealthToolkit.tools.samples.successSchema)["Type"];
@@ -58,7 +58,7 @@ export const healthSamples = Effect.fn("healthSamples")(function* (
     });
   }
   const now = yield* Clock.currentTimeMillis;
-  const period = toolPeriod(input.range, input.date, now, zone);
+  const period = toolPeriod(input.range, yield* toolDate(input.date), now, zone);
   const after = input.cursor === undefined ? null : yield* parseCursor(input.cursor);
   // One more than asked for, to know whether there's another page.
   const page = samplePage(sql, type.id, { from: period.start, to: period.end }, after, limit + 1);

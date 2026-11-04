@@ -16,6 +16,7 @@ import {
   localTime,
   startOfDay,
   type ToolRange,
+  toolDate,
   toolPeriod,
   toolTimeZone,
 } from "./ToolTime.ts";
@@ -48,7 +49,7 @@ export const healthSleep = Effect.fn("healthSleep")(function* (
 ) {
   const { zone, name } = yield* toolTimeZone(input.timeZone);
   const now = yield* Clock.currentTimeMillis;
-  const period = toolPeriod(input.range, input.date, now, zone);
+  const period = toolPeriod(input.range, yield* toolDate(input.date), now, zone);
   // Nights are days, which don't depend on the first weekday.
   const calendar = { zone, timeZone: name, firstWeekday: defaultCardWeekday };
   const nights = sleepNights(sql, period.start, startOfDay(period.end, zone, -1), calendar);

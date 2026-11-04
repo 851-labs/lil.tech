@@ -1,5 +1,5 @@
 import { DateTime, Effect, Option } from "effect";
-import { HealthToolError } from "./HealthToolkit.ts";
+import { HealthToolError, isDay } from "./HealthToolkit.ts";
 
 // Days and local times for the Health tools, in the time zone a call asks for. Outputs give times
 // as `LocalTime` (`2026-10-20T08:15:00+01:00`: to the second, rounded down, with the offset,
@@ -102,6 +102,23 @@ export const startOfLocalDay = (day: string, zone: DateTime.TimeZone): number =>
   );
   return startOfDay(DateTime.toEpochMillis(noon), zone);
 };
+
+/** Whether `text` is a day that exists, written `YYYY-MM-DD` (not 2026-02-31 or 2026-2-3). */
+export const isLocalDay = (text: string) => /^\d{4}-\d{2}-\d{2}$/.test(text) && isDay(text);
+
+/**
+ * A call's `date`, which must be a day that exists, written `YYYY-MM-DD`, or the tool's error, in
+ * the Mac's words (`ToolTime.day`). The input schema takes any string, so both servers refuse one
+ * alike (851-4034).
+ */
+export const toolDate = (date: string | undefined) =>
+  date === undefined || isLocalDay(date)
+    ? Effect.succeed(date)
+    : Effect.fail(
+        new HealthToolError({
+          message: `Invalid date: ${date}. Use a day that exists, as YYYY-MM-DD.`,
+        }),
+      );
 
 /** A tool's range: Health's D, W, M, 6M or Y. */
 export type ToolRange = "D" | "W" | "M" | "6M" | "Y";
