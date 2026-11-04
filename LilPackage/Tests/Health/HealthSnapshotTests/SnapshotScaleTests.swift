@@ -6,7 +6,8 @@
 
   // `layerImage` draws SwiftUI's layers again at 2x before rendering (851-2986, 851-3010): a layer
   // whose contents were last drawn at 1x, as a flaky snapshot's blurred text was, comes out as it
-  // should. And `snapshotWindow` has a toolbar image drawn for another size drawn again (851-3230).
+  // should. And `snapshotWindow` lays the toolbar's items out again, so an image SwiftUI left as it
+  // first drew it, before the toolbar sized its item, comes out as it should (851-3230, 851-4046).
   // In `MacSnapshotTests`, which is serialized, so it never runs beside a snapshot.
   extension MacSnapshotTests {
     @Test func layersDrawnAt1xAreDrawnAgainAt2x() throws {
@@ -41,9 +42,12 @@
       #expect(try #require(png(Snapshotting.layerImage.snapshot(view))) == expected)
     }
 
-    /// A toolbar image left with a bitmap drawn for another size, as Sleep › Week's ‹ was on the
-    /// minis (851-3230), is found and drawn again, and the window comes out as it should.
-    @Test func staleToolbarImagesAreDrawnAgain() throws {
+    /// A toolbar image left as SwiftUI first drew it, before the toolbar sized its item, is found,
+    /// and laying the items out again has the window come out as it should: a bitmap drawn for
+    /// another size, as Sleep › Week's ‹ had on the minis (851-3230), or the first position, as
+    /// Card Detail › HRV, week's › had (851-4046).
+    @Test(arguments: [StaleToolbarImage.bitmap, .position])
+    func staleToolbarImagesAreLaidOutAgain(_ stale: StaleToolbarImage) throws {
       let window = snapshotWindow(
         of: NavigationStack {
           Text("Synthetic page").frame(width: 400, height: 120)
@@ -59,23 +63,37 @@
       #expect(staleToolbarImages(in: window).isEmpty)
       let expected = try #require(png(Snapshotting.layerImage.snapshot(frameView)))
 
-      // As the flaky snapshot had it: the symbol's first, smaller bitmap in its toolbar-sized
-      // layer. The trailing image in the title bar: the window's buttons are images too.
+      // The trailing image in the title bar: the window's buttons are images too.
       let layer = try #require(
         titleBarImageLayers(in: window).max {
           $0.convert(CGPoint.zero, to: frameView.layer!).x
             < $1.convert(CGPoint.zero, to: frameView.layer!).x
         })
-      let size = (width: Int(layer.bounds.width * 2) - 4, height: Int(layer.bounds.height * 2) - 6)
-      layer.contents = CGContext(
-        data: nil, width: size.width, height: size.height, bitsPerComponent: 8, bytesPerRow: 0,
-        space: CGColorSpace(name: CGColorSpace.sRGB)!,
-        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!.makeImage()
+      switch stale {
+      case .bitmap:
+        // The symbol's first, smaller bitmap in its toolbar-sized layer.
+        let size = (
+          width: Int(layer.bounds.width * 2) - 4, height: Int(layer.bounds.height * 2) - 6
+        )
+        layer.contents = CGContext(
+          data: nil, width: size.width, height: size.height, bitsPerComponent: 8, bytesPerRow: 0,
+          space: CGColorSpace(name: CGColorSpace.sRGB)!,
+          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!.makeImage()
+      case .position:
+        // Its final bitmap and size at its first position, around the unsized item's corner:
+        // 17 pt left and 16.5 pt up of where it belongs, as HRV, week's › was.
+        layer.position = CGPoint(x: layer.position.x - 17, y: layer.position.y - 16.5)
+      }
       #expect(staleToolbarImages(in: window).count == 1)
+      #expect(try #require(png(Snapshotting.layerImage.snapshot(frameView))) != expected)
 
-      redrawStaleToolbarImages(in: window)
+      layOutToolbarItemsAgain(in: window)
       #expect(staleToolbarImages(in: window).isEmpty)
       #expect(try #require(png(Snapshotting.layerImage.snapshot(frameView))) == expected)
+    }
+
+    enum StaleToolbarImage: CaseIterable, Sendable {
+      case bitmap, position
     }
 
     private func png(_ image: Async<NSImage>) -> Data? {
