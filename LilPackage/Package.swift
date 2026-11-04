@@ -14,6 +14,8 @@ let package = Package(
     .library(name: "HealthCardStore", targets: ["HealthCardStore"]),
     .library(name: "HealthCatalog", targets: ["HealthCatalog"]),
     .library(name: "HealthCLI", targets: ["HealthCLI"]),
+    // Test support: the conformance cases, for the iPhone's HealthKit tests (851-3201).
+    .library(name: "HealthConformance", targets: ["HealthConformance"]),
     .library(name: "HealthDatabase", targets: ["HealthDatabase"]),
     .library(name: "HealthKitAccess", targets: ["HealthKitAccess"]),
     .library(name: "HealthMacApp", targets: ["HealthMacApp"]),

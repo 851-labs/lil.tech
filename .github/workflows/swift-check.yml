@@ -7,6 +7,9 @@ name: Swift check
 # Called by pr.yml for pull requests and by main.yml for merges, never on its own. Merges also
 # snapshot the iPhone's state catalogs in the simulator (`iphone-snapshots`, 851-2953), and so do
 # pull requests that touch what they're built from (851-3070), about 3 minutes on another mini.
+# Pull requests and merges that touch the iPhone's card engine, the cards' core or conformance
+# cases, or the tests themselves, also run the iPhone's HealthKit tests (`iphone-healthkit`,
+# 851-3201), about 8 minutes on a mini, half of it granting access in the simulator.
 #
 # Snapshots are compared with their references within 2 per color channel (851-3242), so the
 # references an agent records on a laptop (`scripts/snapshot --record`) pass here. When a state's
@@ -24,6 +27,10 @@ on:
     inputs:
       iphone:
         description: Also snapshot the iPhone's state catalogs in the simulator.
+        type: boolean
+        default: false
+      healthkit:
+        description: Also run the iPhone's HealthKit tests in the simulator.
         type: boolean
         default: false
 
@@ -192,3 +199,54 @@ jobs:
       - name: Delete the simulator
         if: always()
         run: scripts/snapshot --iphone --delete-simulator
+
+  # The iPhone's HealthKit tests (`scripts/test-iphone-healthkit`, 851-3199, 851-3201): the card
+  # engine and the cards' conformance cases against a simulator's HealthKit, in a simulator the
+  # script makes and always deletes. Beside `check`, on another mini when one is free.
+  iphone-healthkit:
+    if: inputs.healthkit
+    runs-on: [self-hosted, macOS, ARM64, codevisor-macos-arm64]
+    timeout-minutes: 45
+    env:
+      # Kept between runs outside the checkout, like `check`'s builds, but apart from them, and
+      # main's apart from pull requests'.
+      LIL_HEALTHKIT_DERIVED_DATA: ${{ github.workspace }}/../lil.tech-iphone-healthkit-${{ github.event_name == 'pull_request' && 'pr' || 'main' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          set-safe-directory: false
+
+      - uses: ./.github/actions/select-xcode
+
+      # As `check`'s: started over past 20 GB, since the disks are Codevisor's too.
+      - name: Limit the kept build
+        run: |
+          if [ -d "$LIL_HEALTHKIT_DERIVED_DATA" ] &&
+            [ "$(du -sk "$LIL_HEALTHKIT_DERIVED_DATA" | cut -f1)" -gt $((20 * 1024 * 1024)) ]; then
+            echo "Starting over: $LIL_HEALTHKIT_DERIVED_DATA is over 20 GB"
+            rm -rf "$LIL_HEALTHKIT_DERIVED_DATA"
+          fi
+
+      - name: Run the HealthKit tests
+        run: scripts/test-iphone-healthkit
+
+      # The logs and result bundles, with the screenshots of the access sheet.
+      - name: Upload the logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: iphone-healthkit
+          path: LilPackage/.build/healthkit-tests
+          retention-days: 7
+
+      # The script deletes its simulator however it ends, unless the run is killed first
+      # (cancelled by a newer push, or past the timeout): then this does, so no booted simulator
+      # stays on the mini.
+      - name: Delete the simulator
+        if: always()
+        run: |
+          file=LilPackage/.build/healthkit-tests/simulator
+          if [ -f "$file" ]; then
+            xcrun simctl shutdown "$(cat "$file")" >/dev/null 2>&1 || true
+            xcrun simctl delete "$(cat "$file")" >/dev/null 2>&1 || true
+          fi

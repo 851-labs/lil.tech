@@ -163,8 +163,3 @@ public struct CardConformanceCase: Decodable, Sendable, CustomStringConvertible 
     ])
   }
 }
-
-public struct ConformanceError: Error, CustomStringConvertible {
-  public var description: String
-  init(_ description: String) { self.description = description }
-}

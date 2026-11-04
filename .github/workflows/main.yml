@@ -34,6 +34,7 @@ jobs:
     outputs:
       swift: ${{ steps.changes.outputs.swift }}
       services: ${{ steps.changes.outputs.services }}
+      healthkit: ${{ steps.changes.outputs.healthkit }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -89,6 +90,8 @@ jobs:
     uses: ./.github/workflows/swift-check.yml
     with:
       iphone: true
+      # Only when the merge touched what they're built from or read, as for pull requests.
+      healthkit: ${{ needs.changes.outputs.healthkit == 'true' }}
 
   # Publishes the merge's state catalog images to Pixelbook and points main at them
   # (`scripts/pixelbook publish`, 851-2955). They're the catalogs' committed references, read with

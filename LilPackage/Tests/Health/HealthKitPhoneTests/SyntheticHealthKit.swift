@@ -12,8 +12,10 @@ struct SyntheticHealthKit {
   let store = HKHealthStore()
 
   /// Starts a test from an empty HealthKit: every sample of the tests' types this app wrote is
-  /// deleted. Fails when access wasn't granted (`GrantHealthAccess`).
-  static func empty() async throws -> SyntheticHealthKit {
+  /// deleted. Fails when access wasn't granted (`GrantHealthAccess`), or when another app's
+  /// samples are there, which only the cards' conformance tests read (`HealthKitConformanceTests`,
+  /// whose source apps `scripts/test-iphone-healthkit` has delete them again).
+  static func empty(allowingOtherSources: Bool = false) async throws -> SyntheticHealthKit {
     let health = SyntheticHealthKit()
     for type in TestHealthTypes.all {
       try #require(
@@ -22,8 +24,32 @@ struct SyntheticHealthKit {
     }
     for type in TestHealthTypes.all {
       try await health.deleteAll(of: type)
+      if !allowingOtherSources {
+        let others = try await health.sources(of: type).map(\.bundleIdentifier)
+          .filter { $0 != Bundle.main.bundleIdentifier }
+        try #require(
+          others.isEmpty,
+          """
+          Other apps' \(type.identifier) samples are in HealthKit (\(others.sorted())): run \
+          scripts/test-iphone-healthkit, whose conformance source apps delete theirs.
+          """)
+      }
     }
     return health
+  }
+
+  /// The sources of the type's samples.
+  private func sources(of type: HKSampleType) async throws -> Set<HKSource> {
+    try await withCheckedThrowingContinuation { continuation in
+      store.execute(
+        HKSourceQuery(sampleType: type, samplePredicate: nil) { _, sources, error in
+          if let error {
+            continuation.resume(throwing: error)
+          } else {
+            continuation.resume(returning: sources ?? [])
+          }
+        })
+    }
   }
 
   private func deleteAll(of type: HKSampleType) async throws {
