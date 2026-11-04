@@ -94,13 +94,27 @@ extension HealthWorkoutsResult: TextOutput {
     ]
     if !workouts.isEmpty { lines.append("") }
     for workout in workouts {
-      var parts = [time(workout.start), workout.activity, durationText(workout.duration)]
+      var parts = [
+        time(workout.start), workout.name.map { "\(workout.activity) “\($0)”" } ?? workout.activity,
+      ]
+      let location =
+        place(indoor: workout.indoor, swimmingLocation: workout.swimmingLocation)
+        + (workout.hasRoute ? ["GPS route"] : [])
+      if !location.isEmpty { parts.append(location.joined(separator: ", ")) }
+      parts.append(durationText(workout.duration))
       if let distance = workout.distance { parts.append(numberText(distance / 1000) + " km") }
       if let energy = workout.activeEnergy { parts.append(numberText(energy.rounded()) + " kcal") }
       if let heartRate = workout.averageHeartRate {
         parts.append(numberText(heartRate.rounded()) + " bpm")
       }
       lines.append("  " + parts.joined(separator: "   "))
+      for activity in workout.activities {
+        let place = place(indoor: activity.indoor, swimmingLocation: activity.swimmingLocation)
+        lines.append(
+          "      "
+            + ([activity.activity] + (place.isEmpty ? [] : [place.joined(separator: ", ")])
+            + [durationText(activity.duration)]).joined(separator: "   "))
+      }
     }
     if workouts.count < count {
       lines.append("  … and \(count - workouts.count) more")
@@ -243,6 +257,15 @@ private func quantity(_ value: Double, _ unit: String?) -> String {
 }
 
 /// `2026-10-20T08:15:00+01:00` as `2026-10-20 08:15`.
+/// Where a workout or activity was, as far as it says: indoor or outdoor, pool or open water.
+private func place(indoor: Bool?, swimmingLocation: String?) -> [String] {
+  [
+    indoor.map { $0 ? "indoor" : "outdoor" },
+    swimmingLocation.map { $0 == "openWater" ? "open water" : $0 },
+  ]
+  .compactMap(\.self)
+}
+
 private func time(_ localTime: String) -> String {
   String(localTime.prefix(16)).replacingOccurrences(of: "T", with: " ")
 }

@@ -866,7 +866,7 @@ let mcpToolsJSON = #"""
             },
             "hasRoute": {
               "type": "boolean",
-              "description": "Whether a GPS route was recorded with it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't."
+              "description": "Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't."
             },
             "source": {
               "type": "string",

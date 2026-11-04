@@ -463,18 +463,7 @@ export interface WorkoutRow {
   /** As stored: JSON, or null. */
   readonly metadata: string | null;
   readonly sourceName: string;
-  /** Whether it has a route with locations (`routeOfWorkout`). */
-  readonly hasRoute: boolean;
 }
-
-/**
- * Whether the workout `w` has a route with locations, as the Mac's workout page finds its route
- * (`HealthDatabase.route(of:)`): one HealthKit linked to it, or else one linked to no workout
- * that was recorded during it.
- */
-const routeOfWorkout = `EXISTS (SELECT 1 FROM health_workout_route r
-  WHERE r.locations IS NOT NULL AND (r.workout = w.id
-    OR (r.workout IS NULL AND r.start_date < w.end_date AND r.end_date > w.start_date)))`;
 
 /** Up to `limit` of the workouts that start in `[from, to)`, newest first. */
 export const workoutsStarting = (
@@ -486,8 +475,8 @@ export const workoutsStarting = (
   sql
     .exec(
       `SELECT id, activity_type, start_date, end_date, duration, statistics, activities,
-        metadata, source_name, ${routeOfWorkout} AS has_route
-      FROM health_workout w WHERE start_date >= ? AND start_date < ?
+        metadata, source_name
+      FROM health_workout WHERE start_date >= ? AND start_date < ?
       ORDER BY start_date DESC, id DESC LIMIT ?`,
       from,
       to,
@@ -503,8 +492,47 @@ export const workoutsStarting = (
       activities: row["activities"] as string,
       metadata: row["metadata"] as string | null,
       sourceName: row["source_name"] as string,
-      hasRoute: Number(row["has_route"]) === 1,
     }));
+
+/**
+ * The IDs of those of `workouts` that have a route with locations, as the Mac's workout page
+ * finds a workout's route (`HealthDatabase.route(of:)`): one HealthKit linked to it, or else one
+ * linked to no workout that was recorded during it. One read of the routes for all of them,
+ * rather than a search of the routes for each.
+ */
+export const workoutsWithRoutes = (
+  sql: StoreSql,
+  workouts: ReadonlyArray<WorkoutRow>,
+): ReadonlySet<string> => {
+  if (workouts.length === 0) return new Set();
+  const from = Math.min(...workouts.map((workout) => workout.startDate));
+  const to = Math.max(...workouts.map((workout) => workout.endDate));
+  const routes = sql
+    .exec(
+      `SELECT workout, start_date, end_date FROM health_workout_route
+      WHERE locations IS NOT NULL AND (workout IN (SELECT value FROM json_each(?))
+        OR (workout IS NULL AND start_date < ? AND end_date > ?))`,
+      JSON.stringify(workouts.map((workout) => workout.id)),
+      to,
+      from,
+    )
+    .map((row) => ({
+      workout: row["workout"] as string | null,
+      startDate: Number(row["start_date"]),
+      endDate: Number(row["end_date"]),
+    }));
+  return new Set(
+    workouts
+      .filter((workout) =>
+        routes.some((route) =>
+          route.workout === null
+            ? route.startDate < workout.endDate && route.endDate > workout.startDate
+            : route.workout === workout.id,
+        ),
+      )
+      .map((workout) => workout.id),
+  );
+};
 
 export interface MedicationRow {
   readonly id: string;

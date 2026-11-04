@@ -6682,7 +6682,7 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/swimmingLocation`.
             public var swimmingLocation: Swift.String?
-            /// Whether a GPS route was recorded with it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't.
+            /// Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/hasRoute`.
             public var hasRoute: Swift.Bool
@@ -6712,7 +6712,7 @@ extension Components {
             ///   - elevationAscended: Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended).
             ///   - indoor: Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or as its activities say, if they agree. Null if it doesn't say: then hasRoute is the best hint.
             ///   - swimmingLocation: For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or its activities say, if they agree, or null if they don't say.
-            ///   - hasRoute: Whether a GPS route was recorded with it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't.
+            ///   - hasRoute: Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't.
             ///   - source: The app or device that recorded it.
             ///   - activities: A multisport workout's activities (e.g. swim, transition, bike, run), in order. Empty for a workout of one activity.
             ///   - additionalProperties: A container of undocumented properties.

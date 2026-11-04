@@ -224,14 +224,15 @@ public struct HealthTools: Sendable {
     let totals = try HealthDatabase.workoutTotals(in: period.interval, db)
     let workouts = try HealthDatabase.workouts(
       in: period.interval, limit: Self.workoutsLimit, db)
+    let withRoutes = try HealthDatabase.workoutsWithRoutes(workouts, db)
     return HealthWorkoutsResult(
       timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
       end: time.localTime(period.end), count: totals.count, duration: totals.duration,
-      workouts: try workouts.map { workout in
+      workouts: workouts.map { workout in
         let statistics = workout.decodedStatistics
         let metadata = workout.decodedMetadata
         let activities = workout.decodedActivities
-        let location = workout.location(activities: activities)
+        let location = HealthWorkout.location(metadata: metadata, activities: activities)
         return HealthWorkoutItem(
           id: workout.id, activityType: workout.activityType,
           activity: HealthCatalog.workoutActivityName(workout.activityType),
@@ -244,7 +245,7 @@ public struct HealthTools: Sendable {
           averageHeartRate: statistics[HealthWorkout.heartRateType]?.average,
           elevationAscended: metadata.elevationAscended, indoor: location.indoor,
           swimmingLocation: location.swimmingLocation,
-          hasRoute: try HealthDatabase.hasRoute(workout, db), source: workout.sourceName,
+          hasRoute: withRoutes.contains(workout.id), source: workout.sourceName,
           activities: activities.count < 2
             ? []
             : activities.map { activity in

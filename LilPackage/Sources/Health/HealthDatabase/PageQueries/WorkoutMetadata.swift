@@ -40,8 +40,9 @@ public struct WorkoutMetadata: Equatable, Sendable {
       swimmingLocation: Self.number(metadata["HKSwimmingLocationType"]).flatMap {
         $0 == 1 ? "pool" : $0 == 2 ? "openWater" : nil
       },
+      // Blank is only spaces, tabs and line breaks, as on the server.
       brandName: (metadata["HKWorkoutBrandName"] as? String).flatMap {
-        $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0
+        $0.unicodeScalars.allSatisfy { " \t\n\r".unicodeScalars.contains($0) } ? nil : $0
       },
       elevationAscended: Self.meters(metadata["HKElevationAscended"] as? String))
   }
@@ -117,7 +118,8 @@ extension HealthWorkout {
     for element in array {
       guard let object = element as? [String: Any],
         let activityType = WorkoutMetadata.number(object["activityType"]),
-        activityType.rounded() == activityType, activityType.magnitude < 1e15,
+        // An integer, as the server's `Schema.Int` takes it (a safe one).
+        activityType.rounded() == activityType, activityType.magnitude <= 9_007_199_254_740_991,
         let startDate = WorkoutMetadata.number(object["startDate"]),
         let duration = WorkoutMetadata.number(object["duration"])
       else { return [] }
@@ -138,16 +140,15 @@ extension HealthWorkout {
     return records
   }
 
-  /// Where it was, indoors or not, and in a pool or open water: as its metadata says or, if it
-  /// doesn't, as its activities say, if they agree. A workout of one activity may only say on
+  /// Where it was, indoors or not, and in a pool or open water: as its `metadata` says or, if it
+  /// doesn't, as its `activities` say, if they agree. A workout of one activity may only say on
   /// its activity, and a multisport workout's transitions don't say.
-  public func location(activities: [WorkoutActivityRecord]) -> (
-    indoor: Bool?, swimmingLocation: String?
-  ) {
-    let metadata = decodedMetadata
-    return (
-      metadata.indoor ?? Self.agreed(activities.map(\.metadata.indoor)),
-      metadata.swimmingLocation ?? Self.agreed(activities.map(\.metadata.swimmingLocation))
+  public static func location(metadata: WorkoutMetadata, activities: [WorkoutActivityRecord])
+    -> (indoor: Bool?, swimmingLocation: String?)
+  {
+    (
+      metadata.indoor ?? agreed(activities.map(\.metadata.indoor)),
+      metadata.swimmingLocation ?? agreed(activities.map(\.metadata.swimmingLocation))
     )
   }
 
@@ -160,8 +161,30 @@ extension HealthWorkout {
 }
 
 extension HealthDatabase {
-  /// Whether `workout` has a route with locations (``route(of:_:)``).
-  public static func hasRoute(_ workout: HealthWorkout, _ db: Database) throws -> Bool {
-    try route(of: workout, db) != nil
+  /// The IDs of those of `workouts` that have a route with locations, as ``route(of:_:)`` finds
+  /// one: linked to the workout or, failing that, linked to none and recorded during it. One read
+  /// of the routes for all of them, rather than a search of the routes for each.
+  public static func workoutsWithRoutes(_ workouts: [HealthWorkout], _ db: Database) throws
+    -> Set<String>
+  {
+    guard let from = workouts.map(\.startDate).min(), let to = workouts.map(\.endDate).max()
+    else { return [] }
+    let ids = workouts.map(\.id)
+    let routes: [(String?, Int, Int)] =
+      try HealthWorkoutRoute
+      .where {
+        $0.locations.isNot(nil)
+          && ($0.workout.in(ids.map(Optional.some))
+            || ($0.workout.is(nil) && $0.startDate < to && $0.endDate > from))
+      }
+      .select { ($0.workout, $0.startDate, $0.endDate) }
+      .fetchAll(db)
+    return Set(
+      workouts.filter { workout in
+        routes.contains { linked, start, end in
+          linked.map { $0 == workout.id } ?? (start < workout.endDate && end > workout.startDate)
+        }
+      }
+      .map(\.id))
   }
 }

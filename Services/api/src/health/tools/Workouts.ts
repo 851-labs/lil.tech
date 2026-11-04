@@ -1,7 +1,7 @@
 import { Clock, Effect, Option, Predicate, Schema } from "effect";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import { workoutActivityName } from "../HealthCatalog.ts";
-import { workoutsStarting, workoutTotals } from "./HealthQueries.ts";
+import { workoutsStarting, workoutsWithRoutes, workoutTotals } from "./HealthQueries.ts";
 import { type HealthToolkit, workoutsLimit } from "./HealthToolkit.ts";
 import { localTime, type ToolRange, toolPeriod, toolTimeZone } from "./ToolTime.ts";
 
@@ -61,10 +61,13 @@ const swimmingLocation = (metadata: Metadata | null | undefined): string | null 
   return value === 1 ? "pool" : value === 2 ? "openWater" : null;
 };
 
-/** `HKMetadataKeyWorkoutBrandName`, unless it's blank. */
+/**
+ * `HKMetadataKeyWorkoutBrandName`, unless it's blank: only spaces, tabs and line breaks, which
+ * the Mac counts the same (`WorkoutMetadata`).
+ */
 const brandName = (metadata: Metadata | null): string | null => {
   const value = metadata?.["HKWorkoutBrandName"];
-  return Predicate.isString(value) && value.trim() !== "" ? value : null;
+  return Predicate.isString(value) && !/^[ \t\n\r]*$/.test(value) ? value : null;
 };
 
 /** Meters in each length unit HealthKit writes a quantity in (`HKUnit`'s unit strings). */
@@ -131,6 +134,8 @@ export const healthWorkouts = Effect.fn("healthWorkouts")(function* (
   const now = yield* Clock.currentTimeMillis;
   const period = toolPeriod(input.range, input.date, now, zone);
   const totals = workoutTotals(sql, period.start, period.end);
+  const workouts = workoutsStarting(sql, period.start, period.end, workoutsLimit);
+  const withRoutes = workoutsWithRoutes(sql, workouts);
   const result: WorkoutsResult = {
     timeZone: name,
     range: input.range,
@@ -138,7 +143,7 @@ export const healthWorkouts = Effect.fn("healthWorkouts")(function* (
     end: localTime(period.end, zone),
     count: totals.count,
     duration: totals.duration,
-    workouts: workoutsStarting(sql, period.start, period.end, workoutsLimit).map((workout) => {
+    workouts: workouts.map((workout) => {
       const statistics: WorkoutStatistics = Option.getOrElse(
         decodeStatistics(workout.statistics),
         () => ({}),
@@ -163,7 +168,7 @@ export const healthWorkouts = Effect.fn("healthWorkouts")(function* (
         elevationAscended: elevationAscended(metadata),
         indoor: indoor(metadata) ?? agreed(activityMetadata, indoor),
         swimmingLocation: swimmingLocation(metadata) ?? agreed(activityMetadata, swimmingLocation),
-        hasRoute: workout.hasRoute,
+        hasRoute: withRoutes.has(workout.id),
         source: workout.sourceName,
         activities:
           activities.length < 2
