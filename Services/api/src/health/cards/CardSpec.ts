@@ -304,3 +304,93 @@ export const CardSpec = Schema.Struct({
   }),
 });
 export type CardSpec = typeof CardSpec.Type;
+
+// MARK: - The input form
+
+/** A field an input may leave out, or give as null, for its default. */
+const defaulted = <S extends Schema.Top>(schema: S) => Schema.optionalKey(Schema.NullOr(schema));
+
+const SeriesInput = Schema.Struct({
+  id: defaulted(ID),
+  type: Schema.String.annotate({
+    description:
+      "A quantity type: its HealthKit identifier (HKQuantityTypeIdentifierHeartRate), the " +
+      'identifier without its prefix (HeartRate) or the name lil health shows ("Heart Rate"), ' +
+      "in any case. list_types and search find them.",
+  }),
+  aggregation: defaulted(Schema.Literals(cardAggregations)),
+  window: defaulted(
+    Schema.Union([
+      Schema.Struct({ kind: Schema.Literal("asleep") }),
+      Schema.Struct({ kind: Schema.Literal("beforeSleep"), minutes: Minutes }),
+      Schema.Struct({ kind: Schema.Literal("afterWaking"), minutes: Minutes }),
+      Schema.Struct({
+        kind: Schema.Literal("workout"),
+        activities: defaulted(
+          Schema.Array(Schema.Union([Schema.Finite.check(whole), Schema.String])).annotate({
+            description:
+              'HKWorkoutActivityType raw values or names, e.g. 37 or "Running"; null for every ' +
+              "workout.",
+          }),
+        ),
+      }),
+      Schema.Struct({ kind: Schema.Literal("timeOfDay"), from: ClockTime, to: ClockTime }),
+    ]),
+  ),
+  filter: defaulted(
+    Schema.Struct({
+      sources: Schema.optionalKey(FilterList),
+      deviceModels: Schema.optionalKey(FilterList),
+    }),
+  ),
+  label: defaulted(Text),
+  hidden: defaulted(Schema.Boolean),
+});
+
+/**
+ * A spec as tools take it (`docs/decisions/cards.md`, The generated files): the canonical form's
+ * fields, with only those without defaults required, and types and workout activities taken by
+ * name too. It's only for the tools' input schema: tools take any JSON for a spec and validate it
+ * with `canonicalCardSpec`, whose messages say what to fix, rather than decoding it with this.
+ */
+export const CardSpecInput = Schema.Struct({
+  version: Schema.Literal(cardSpecVersion).check(whole),
+  display: Schema.Struct({
+    name: Text,
+    symbol: defaulted(Schema.Literals(cardSymbols)),
+    color: defaulted(Schema.Literals(cardColors)),
+    unit: defaulted(Schema.Literals(cardDisplayUnits)),
+  }),
+  series: Schema.Array(SeriesInput).check(Schema.isMinLength(1), Schema.isMaxLength(maxCardSeries)),
+  formulas: defaulted(
+    Schema.Array(
+      Schema.Union([
+        Schema.Struct({
+          id: defaulted(ID),
+          kind: Schema.Literal("movingAverage"),
+          of: ID,
+          points: defaulted(integerBetween(2, 30)),
+          label: defaulted(Text),
+          hidden: defaulted(Schema.Boolean),
+        }),
+        Schema.Struct({
+          id: defaulted(ID),
+          kind: Schema.Literal("difference"),
+          of: Schema.Array(ID).check(Schema.isMinLength(2), Schema.isMaxLength(2)),
+          label: defaulted(Text),
+          hidden: defaulted(Schema.Boolean),
+        }),
+      ]),
+    ).check(Schema.isMaxLength(maxCardFormulas)),
+  ),
+  bucket: defaulted(Schema.Literals(cardBuckets)),
+  range: defaulted(Schema.Literals(cardRanges)),
+  chart: defaulted(
+    Schema.Struct({
+      style: defaulted(Schema.Literals(cardChartStyles)),
+      goal: defaulted(
+        Schema.Struct({ value: Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0)) }),
+      ),
+    }),
+  ),
+});

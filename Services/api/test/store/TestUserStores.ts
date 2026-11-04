@@ -117,6 +117,7 @@ export const makeTestUserStores = (files?: SnapshotFiles) => {
       makeStoreMcpServers({
         sql,
         record: store.recordAgentAccess,
+        write: store.applyMutations,
         registry: registryWithMail,
         otherApps: { mail: testMailApp },
       }),

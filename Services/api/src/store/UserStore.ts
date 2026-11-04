@@ -808,7 +808,11 @@ export const UserStoreLive = UserStore.make(
       const sql = fromDurableObjectStorage(state.raw.storage);
       // A migration that fails stops the object from starting, rather than serving an old schema.
       const store = yield* startUserStore(sql, entities, files, sockets, blobFiles);
-      const mcpServers = yield* makeStoreMcpServers({ sql, record: store.recordAgentAccess });
+      const mcpServers = yield* makeStoreMcpServers({
+        sql,
+        record: store.recordAgentAccess,
+        write: store.applyMutations,
+      });
       return {
         ...store,
         fetch: Effect.gen(function* () {

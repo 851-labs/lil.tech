@@ -62,8 +62,8 @@ const instructionsFor = (
   apps: Readonly<Record<string, StoreMcpApp>>,
 ) =>
   [
-    `Read-only access to the user's lil apps. Each tool is named <app>${toolNameSeparator}<tool>, ` +
-      `after the app it reads: ${keys
+    `Access to the user's lil apps. Each tool is named <app>${toolNameSeparator}<tool>, ` +
+      `after its app: ${keys
         .map((key) => `${key} is ${registry[key]?.name ?? key}`)
         .join(", ")}. Each app's own instructions follow, under its name.`,
     ...keys.map((key) => `## ${registry[key]?.name ?? key}\n\n${apps[key]?.instructions ?? ""}`),

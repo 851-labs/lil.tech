@@ -104,15 +104,16 @@ describe("the Health MCP server", () => {
           const list = yield* call(handler, accessToken, "tools/list");
           assert.strictEqual(list.status, 200);
           const tools = result(list.message)?.["tools"] as Array<Record<string, unknown>>;
-          // All ten, exactly as `mcp-tools.json` lists them, which the Mac's server lists too.
+          // The ten Health tools and the seven card tools, exactly as `mcp-tools.json` lists
+          // them, which the Mac's server lists too.
           assert.deepStrictEqual(tools, committedTools);
-          assert.strictEqual(tools.length, 10);
+          assert.strictEqual(tools.length, 17);
+          // Only the card tools' writes aren't read-only, and they write cards alone.
+          const writes = ["create_card", "update_card", "delete_card", "reorder_cards"];
           for (const tool of tools) {
-            assert.deepInclude(tool["annotations"], {
-              readOnlyHint: true,
-              destructiveHint: false,
-              openWorldHint: false,
-            });
+            const write = writes.includes(tool["name"] as string);
+            assert.deepInclude(tool["annotations"], { readOnlyHint: !write, openWorldHint: false });
+            if (!write) assert.deepInclude(tool["annotations"], { destructiveHint: false });
           }
           const summary = yield* call(handler, accessToken, "tools/call", {
             name: "summary",

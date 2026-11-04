@@ -8378,5 +8378,1222 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthCardItem`.
+        public struct HealthCardItem: Codable, Hashable, Sendable {
+            /// A card's id, e.g. card_seed_steps or card_01JZ…: list_cards lists them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardItem/id`.
+            public var id: Swift.String
+            /// The card's spec in canonical form, every default filled in (version 1): version, display, series, formulas, bucket, range and chart.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardItem/spec`.
+            public var spec: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Its place on Summary: cards are in ascending order of position (by bytes), then id.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardItem/position`.
+            public var position: Swift.String
+            /// The welcome card it started as (steps, heart_rate…), else null.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardItem/seed`.
+            public var seed: Swift.String?
+            /// When it was made.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardItem/createdAt`.
+            public var createdAt: Swift.String
+            /// When it was last changed or moved.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardItem/updatedAt`.
+            public var updatedAt: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthCardItem`.
+            ///
+            /// - Parameters:
+            ///   - id: A card's id, e.g. card_seed_steps or card_01JZ…: list_cards lists them.
+            ///   - spec: The card's spec in canonical form, every default filled in (version 1): version, display, series, formulas, bucket, range and chart.
+            ///   - position: Its place on Summary: cards are in ascending order of position (by bytes), then id.
+            ///   - seed: The welcome card it started as (steps, heart_rate…), else null.
+            ///   - createdAt: When it was made.
+            ///   - updatedAt: When it was last changed or moved.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                spec: OpenAPIRuntime.OpenAPIObjectContainer,
+                position: Swift.String,
+                seed: Swift.String? = nil,
+                createdAt: Swift.String,
+                updatedAt: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.spec = spec
+                self.position = position
+                self.seed = seed
+                self.createdAt = createdAt
+                self.updatedAt = updatedAt
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case spec
+                case position
+                case seed
+                case createdAt
+                case updatedAt
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.spec = try container.decode(
+                    OpenAPIRuntime.OpenAPIObjectContainer.self,
+                    forKey: .spec
+                )
+                self.position = try container.decode(
+                    Swift.String.self,
+                    forKey: .position
+                )
+                self.seed = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .seed
+                )
+                self.createdAt = try container.decode(
+                    Swift.String.self,
+                    forKey: .createdAt
+                )
+                self.updatedAt = try container.decode(
+                    Swift.String.self,
+                    forKey: .updatedAt
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "spec",
+                    "position",
+                    "seed",
+                    "createdAt",
+                    "updatedAt"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.spec,
+                    forKey: .spec
+                )
+                try container.encode(
+                    self.position,
+                    forKey: .position
+                )
+                try container.encodeIfPresent(
+                    self.seed,
+                    forKey: .seed
+                )
+                try container.encode(
+                    self.createdAt,
+                    forKey: .createdAt
+                )
+                try container.encode(
+                    self.updatedAt,
+                    forKey: .updatedAt
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthCardsResult`.
+        public struct HealthCardsResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardsResult/timeZone`.
+            public var timeZone: Swift.String
+            /// Every card, in Summary's order.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardsResult/cards`.
+            public var cards: [Components.Schemas.HealthCardItem]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthCardsResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - cards: Every card, in Summary's order.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                cards: [Components.Schemas.HealthCardItem],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.cards = cards
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case cards
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.cards = try container.decode(
+                    [Components.Schemas.HealthCardItem].self,
+                    forKey: .cards
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "cards"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.cards,
+                    forKey: .cards
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthCardPoint`.
+        public struct HealthCardPoint: Codable, Hashable, Sendable {
+            /// When the bucket starts (a night's is midnight of the day it ends on).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardPoint/start`.
+            public var start: Swift.String
+            /// The aggregation over the bucket, in `unit`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardPoint/value`.
+            public var value: Swift.Double
+            /// The bucket's lowest reading.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardPoint/minimum`.
+            public var minimum: Swift.Double
+            /// The bucket's highest reading.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardPoint/maximum`.
+            public var maximum: Swift.Double
+            /// How many readings it has; null for totals.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardPoint/readings`.
+            public var readings: Swift.Int?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthCardPoint`.
+            ///
+            /// - Parameters:
+            ///   - start: When the bucket starts (a night's is midnight of the day it ends on).
+            ///   - value: The aggregation over the bucket, in `unit`.
+            ///   - minimum: The bucket's lowest reading.
+            ///   - maximum: The bucket's highest reading.
+            ///   - readings: How many readings it has; null for totals.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                start: Swift.String,
+                value: Swift.Double,
+                minimum: Swift.Double,
+                maximum: Swift.Double,
+                readings: Swift.Int? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.start = start
+                self.value = value
+                self.minimum = minimum
+                self.maximum = maximum
+                self.readings = readings
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case start
+                case value
+                case minimum
+                case maximum
+                case readings
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.value = try container.decode(
+                    Swift.Double.self,
+                    forKey: .value
+                )
+                self.minimum = try container.decode(
+                    Swift.Double.self,
+                    forKey: .minimum
+                )
+                self.maximum = try container.decode(
+                    Swift.Double.self,
+                    forKey: .maximum
+                )
+                self.readings = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .readings
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "start",
+                    "value",
+                    "minimum",
+                    "maximum",
+                    "readings"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.value,
+                    forKey: .value
+                )
+                try container.encode(
+                    self.minimum,
+                    forKey: .minimum
+                )
+                try container.encode(
+                    self.maximum,
+                    forKey: .maximum
+                )
+                try container.encodeIfPresent(
+                    self.readings,
+                    forKey: .readings
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthCardSeriesData`.
+        public struct HealthCardSeriesData: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthCardSeriesData/id`.
+            public var id: Swift.String
+            /// Its label, or its type's name.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardSeriesData/label`.
+            public var label: Swift.String
+            /// Its HealthKit type identifier.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardSeriesData/type`.
+            public var _type: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthCardSeriesData/aggregation`.
+            public var aggregation: Swift.String
+            /// The values' HealthKit unit, e.g. count/min, or count for a count of readings.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardSeriesData/unit`.
+            public var unit: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthCardSeriesData/hidden`.
+            public var hidden: Swift.Bool
+            /// One per bucket with a value, oldest first.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardSeriesData/points`.
+            public var points: [Components.Schemas.HealthCardPoint]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthCardSeriesData`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - label: Its label, or its type's name.
+            ///   - _type: Its HealthKit type identifier.
+            ///   - aggregation:
+            ///   - unit: The values' HealthKit unit, e.g. count/min, or count for a count of readings.
+            ///   - hidden:
+            ///   - points: One per bucket with a value, oldest first.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                label: Swift.String,
+                _type: Swift.String,
+                aggregation: Swift.String,
+                unit: Swift.String,
+                hidden: Swift.Bool,
+                points: [Components.Schemas.HealthCardPoint],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.label = label
+                self._type = _type
+                self.aggregation = aggregation
+                self.unit = unit
+                self.hidden = hidden
+                self.points = points
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case label
+                case _type = "type"
+                case aggregation
+                case unit
+                case hidden
+                case points
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.label = try container.decode(
+                    Swift.String.self,
+                    forKey: .label
+                )
+                self._type = try container.decode(
+                    Swift.String.self,
+                    forKey: ._type
+                )
+                self.aggregation = try container.decode(
+                    Swift.String.self,
+                    forKey: .aggregation
+                )
+                self.unit = try container.decode(
+                    Swift.String.self,
+                    forKey: .unit
+                )
+                self.hidden = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .hidden
+                )
+                self.points = try container.decode(
+                    [Components.Schemas.HealthCardPoint].self,
+                    forKey: .points
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "label",
+                    "type",
+                    "aggregation",
+                    "unit",
+                    "hidden",
+                    "points"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.label,
+                    forKey: .label
+                )
+                try container.encode(
+                    self._type,
+                    forKey: ._type
+                )
+                try container.encode(
+                    self.aggregation,
+                    forKey: .aggregation
+                )
+                try container.encode(
+                    self.unit,
+                    forKey: .unit
+                )
+                try container.encode(
+                    self.hidden,
+                    forKey: .hidden
+                )
+                try container.encode(
+                    self.points,
+                    forKey: .points
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthCardFormulaPoint`.
+        public struct HealthCardFormulaPoint: Codable, Hashable, Sendable {
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardFormulaPoint/start`.
+            public var start: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthCardFormulaPoint/value`.
+            public var value: Swift.Double
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthCardFormulaPoint`.
+            ///
+            /// - Parameters:
+            ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - value:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                start: Swift.String,
+                value: Swift.Double,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.start = start
+                self.value = value
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case start
+                case value
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.value = try container.decode(
+                    Swift.Double.self,
+                    forKey: .value
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "start",
+                    "value"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.value,
+                    forKey: .value
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthCardFormulaData`.
+        public struct HealthCardFormulaData: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthCardFormulaData/id`.
+            public var id: Swift.String
+            /// movingAverage or difference.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardFormulaData/kind`.
+            public var kind: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthCardFormulaData/label`.
+            public var label: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/HealthCardFormulaData/unit`.
+            public var unit: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthCardFormulaData/hidden`.
+            public var hidden: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/HealthCardFormulaData/points`.
+            public var points: [Components.Schemas.HealthCardFormulaPoint]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthCardFormulaData`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - kind: movingAverage or difference.
+            ///   - label:
+            ///   - unit:
+            ///   - hidden:
+            ///   - points:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                kind: Swift.String,
+                label: Swift.String? = nil,
+                unit: Swift.String,
+                hidden: Swift.Bool,
+                points: [Components.Schemas.HealthCardFormulaPoint],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.kind = kind
+                self.label = label
+                self.unit = unit
+                self.hidden = hidden
+                self.points = points
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case kind
+                case label
+                case unit
+                case hidden
+                case points
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.kind = try container.decode(
+                    Swift.String.self,
+                    forKey: .kind
+                )
+                self.label = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .label
+                )
+                self.unit = try container.decode(
+                    Swift.String.self,
+                    forKey: .unit
+                )
+                self.hidden = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .hidden
+                )
+                self.points = try container.decode(
+                    [Components.Schemas.HealthCardFormulaPoint].self,
+                    forKey: .points
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "kind",
+                    "label",
+                    "unit",
+                    "hidden",
+                    "points"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.kind,
+                    forKey: .kind
+                )
+                try container.encodeIfPresent(
+                    self.label,
+                    forKey: .label
+                )
+                try container.encode(
+                    self.unit,
+                    forKey: .unit
+                )
+                try container.encode(
+                    self.hidden,
+                    forKey: .hidden
+                )
+                try container.encode(
+                    self.points,
+                    forKey: .points
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthCardData`.
+        public struct HealthCardData: Codable, Hashable, Sendable {
+            /// The range it was run over.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardData/range`.
+            public var range: Swift.String?
+            /// The period's first day.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardData/start`.
+            public var start: Swift.String
+            /// The period's last day.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardData/end`.
+            public var end: Swift.String
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardData/timeZone`.
+            public var timeZone: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthCardData/firstWeekday`.
+            public var firstWeekday: Swift.String
+            /// The spec's bucket.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardData/bucket`.
+            public var bucket: Swift.String
+            /// What each point covers, once auto is resolved: hour, day, week or month.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardData/grain`.
+            public var grain: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthCardData/series`.
+            public var series: [Components.Schemas.HealthCardSeriesData]
+            /// - Remark: Generated from `#/components/schemas/HealthCardData/formulas`.
+            public var formulas: [Components.Schemas.HealthCardFormulaData]
+            /// The period's summary, from the lead series; null without data.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardData/summary`.
+            public struct SummaryPayload: Codable, Hashable, Sendable {
+                /// What the card's header shows: total, average, dailyAverage, range, lowest, highest, first, latest or count.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthCardData/summary/kind`.
+                public var kind: Swift.String
+                /// Null for a range.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthCardData/summary/value`.
+                public var value: Swift.Double?
+                /// A range's lowest reading.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthCardData/summary/minimum`.
+                public var minimum: Swift.Double?
+                /// A range's highest reading.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthCardData/summary/maximum`.
+                public var maximum: Swift.Double?
+                /// A container of undocumented properties.
+                public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+                /// Creates a new `SummaryPayload`.
+                ///
+                /// - Parameters:
+                ///   - kind: What the card's header shows: total, average, dailyAverage, range, lowest, highest, first, latest or count.
+                ///   - value: Null for a range.
+                ///   - minimum: A range's lowest reading.
+                ///   - maximum: A range's highest reading.
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(
+                    kind: Swift.String,
+                    value: Swift.Double? = nil,
+                    minimum: Swift.Double? = nil,
+                    maximum: Swift.Double? = nil,
+                    additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+                ) {
+                    self.kind = kind
+                    self.value = value
+                    self.minimum = minimum
+                    self.maximum = maximum
+                    self.additionalProperties = additionalProperties
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case kind
+                    case value
+                    case minimum
+                    case maximum
+                }
+                public init(from decoder: any Swift.Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.kind = try container.decode(
+                        Swift.String.self,
+                        forKey: .kind
+                    )
+                    self.value = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .value
+                    )
+                    self.minimum = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .minimum
+                    )
+                    self.maximum = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .maximum
+                    )
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                        "kind",
+                        "value",
+                        "minimum",
+                        "maximum"
+                    ])
+                }
+                public func encode(to encoder: any Swift.Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(
+                        self.kind,
+                        forKey: .kind
+                    )
+                    try container.encodeIfPresent(
+                        self.value,
+                        forKey: .value
+                    )
+                    try container.encodeIfPresent(
+                        self.minimum,
+                        forKey: .minimum
+                    )
+                    try container.encodeIfPresent(
+                        self.maximum,
+                        forKey: .maximum
+                    )
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// The period's summary, from the lead series; null without data.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardData/summary`.
+            public var summary: Components.Schemas.HealthCardData.SummaryPayload?
+            /// The goal line's value, in the lead's unit, or null.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardData/goal`.
+            public var goal: Swift.Double?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthCardData`.
+            ///
+            /// - Parameters:
+            ///   - range: The range it was run over.
+            ///   - start: The period's first day.
+            ///   - end: The period's last day.
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - firstWeekday:
+            ///   - bucket: The spec's bucket.
+            ///   - grain: What each point covers, once auto is resolved: hour, day, week or month.
+            ///   - series:
+            ///   - formulas:
+            ///   - summary: The period's summary, from the lead series; null without data.
+            ///   - goal: The goal line's value, in the lead's unit, or null.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                range: Swift.String? = nil,
+                start: Swift.String,
+                end: Swift.String,
+                timeZone: Swift.String,
+                firstWeekday: Swift.String,
+                bucket: Swift.String,
+                grain: Swift.String,
+                series: [Components.Schemas.HealthCardSeriesData],
+                formulas: [Components.Schemas.HealthCardFormulaData],
+                summary: Components.Schemas.HealthCardData.SummaryPayload? = nil,
+                goal: Swift.Double? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.range = range
+                self.start = start
+                self.end = end
+                self.timeZone = timeZone
+                self.firstWeekday = firstWeekday
+                self.bucket = bucket
+                self.grain = grain
+                self.series = series
+                self.formulas = formulas
+                self.summary = summary
+                self.goal = goal
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case range
+                case start
+                case end
+                case timeZone
+                case firstWeekday
+                case bucket
+                case grain
+                case series
+                case formulas
+                case summary
+                case goal
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.range = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .range
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.firstWeekday = try container.decode(
+                    Swift.String.self,
+                    forKey: .firstWeekday
+                )
+                self.bucket = try container.decode(
+                    Swift.String.self,
+                    forKey: .bucket
+                )
+                self.grain = try container.decode(
+                    Swift.String.self,
+                    forKey: .grain
+                )
+                self.series = try container.decode(
+                    [Components.Schemas.HealthCardSeriesData].self,
+                    forKey: .series
+                )
+                self.formulas = try container.decode(
+                    [Components.Schemas.HealthCardFormulaData].self,
+                    forKey: .formulas
+                )
+                self.summary = try container.decodeIfPresent(
+                    Components.Schemas.HealthCardData.SummaryPayload.self,
+                    forKey: .summary
+                )
+                self.goal = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .goal
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "range",
+                    "start",
+                    "end",
+                    "timeZone",
+                    "firstWeekday",
+                    "bucket",
+                    "grain",
+                    "series",
+                    "formulas",
+                    "summary",
+                    "goal"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encodeIfPresent(
+                    self.range,
+                    forKey: .range
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.firstWeekday,
+                    forKey: .firstWeekday
+                )
+                try container.encode(
+                    self.bucket,
+                    forKey: .bucket
+                )
+                try container.encode(
+                    self.grain,
+                    forKey: .grain
+                )
+                try container.encode(
+                    self.series,
+                    forKey: .series
+                )
+                try container.encode(
+                    self.formulas,
+                    forKey: .formulas
+                )
+                try container.encodeIfPresent(
+                    self.summary,
+                    forKey: .summary
+                )
+                try container.encodeIfPresent(
+                    self.goal,
+                    forKey: .goal
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthCardDataResult`.
+        public struct HealthCardDataResult: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthCardDataResult/card`.
+            public var card: Components.Schemas.HealthCardItem
+            /// - Remark: Generated from `#/components/schemas/HealthCardDataResult/data`.
+            public var data: Components.Schemas.HealthCardData
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthCardDataResult`.
+            ///
+            /// - Parameters:
+            ///   - card:
+            ///   - data:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                card: Components.Schemas.HealthCardItem,
+                data: Components.Schemas.HealthCardData,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.card = card
+                self.data = data
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case card
+                case data
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.card = try container.decode(
+                    Components.Schemas.HealthCardItem.self,
+                    forKey: .card
+                )
+                self.data = try container.decode(
+                    Components.Schemas.HealthCardData.self,
+                    forKey: .data
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "card",
+                    "data"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.card,
+                    forKey: .card
+                )
+                try container.encode(
+                    self.data,
+                    forKey: .data
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthCardPreviewResult`.
+        public struct HealthCardPreviewResult: Codable, Hashable, Sendable {
+            /// The spec in canonical form, as it would be saved.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardPreviewResult/spec`.
+            public var spec: OpenAPIRuntime.OpenAPIObjectContainer
+            /// - Remark: Generated from `#/components/schemas/HealthCardPreviewResult/data`.
+            public var data: Components.Schemas.HealthCardData
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthCardPreviewResult`.
+            ///
+            /// - Parameters:
+            ///   - spec: The spec in canonical form, as it would be saved.
+            ///   - data:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                spec: OpenAPIRuntime.OpenAPIObjectContainer,
+                data: Components.Schemas.HealthCardData,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.spec = spec
+                self.data = data
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case spec
+                case data
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.spec = try container.decode(
+                    OpenAPIRuntime.OpenAPIObjectContainer.self,
+                    forKey: .spec
+                )
+                self.data = try container.decode(
+                    Components.Schemas.HealthCardData.self,
+                    forKey: .data
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "spec",
+                    "data"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.spec,
+                    forKey: .spec
+                )
+                try container.encode(
+                    self.data,
+                    forKey: .data
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthCardResult`.
+        public struct HealthCardResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardResult/timeZone`.
+            public var timeZone: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthCardResult/card`.
+            public var card: Components.Schemas.HealthCardItem
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthCardResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - card:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                card: Components.Schemas.HealthCardItem,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.card = card
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case card
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.card = try container.decode(
+                    Components.Schemas.HealthCardItem.self,
+                    forKey: .card
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "card"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.card,
+                    forKey: .card
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthCardDeletedResult`.
+        public struct HealthCardDeletedResult: Codable, Hashable, Sendable {
+            /// The deleted card's id.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardDeletedResult/deleted`.
+            public var deleted: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthCardDeletedResult`.
+            ///
+            /// - Parameters:
+            ///   - deleted: The deleted card's id.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                deleted: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.deleted = deleted
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case deleted
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.deleted = try container.decode(
+                    Swift.String.self,
+                    forKey: .deleted
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "deleted"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.deleted,
+                    forKey: .deleted
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthCardPosition`.
+        public struct HealthCardPosition: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthCardPosition/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthCardPosition/position`.
+            public var position: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthCardPosition`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - position:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                position: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.position = position
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case position
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.position = try container.decode(
+                    Swift.String.self,
+                    forKey: .position
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "position"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.position,
+                    forKey: .position
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthCardOrderResult`.
+        public struct HealthCardOrderResult: Codable, Hashable, Sendable {
+            /// Every card, in its new order, with its position.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCardOrderResult/cards`.
+            public var cards: [Components.Schemas.HealthCardPosition]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthCardOrderResult`.
+            ///
+            /// - Parameters:
+            ///   - cards: Every card, in its new order, with its position.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                cards: [Components.Schemas.HealthCardPosition],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.cards = cards
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case cards
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.cards = try container.decode(
+                    [Components.Schemas.HealthCardPosition].self,
+                    forKey: .cards
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "cards"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.cards,
+                    forKey: .cards
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
     }
 }

@@ -15,6 +15,14 @@ import {
 import { agentResources } from "../../oauth/Hosts.ts";
 import type { AgentAccess } from "../../store/AgentAccessLog.ts";
 import type { AccountDeleted } from "../../store/Changes.ts";
+import {
+  type AskedFor,
+  type CardToolImplementations,
+  type CardWrite,
+  cardToolLogs,
+  storeCardTools,
+} from "../cards/CardTools.ts";
+import { type CardToolHandlers, CardsToolkit } from "../cards/CardsToolkit.ts";
 import { storeMcpSessions } from "../../store/McpSessions.ts";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import { HealthToolError, type HealthToolHandlers, HealthToolkit } from "./HealthToolkit.ts";
@@ -113,7 +121,7 @@ const rowCount = (encoded: unknown) =>
  * What the log keeps of a call's arguments: the type (its catalog identifier, however the call
  * named it, or nothing for a type the catalog doesn't have), range and day, never other text.
  */
-const askedFor = (params: object) => {
+const askedFor = (params: object): AskedFor => {
   const field = (name: string) =>
     Predicate.hasProperty(params, name) && typeof params[name] === "string" ? params[name] : null;
   const type = field("type");
@@ -141,6 +149,16 @@ const agentOf = (request: Option.Option<HttpServerRequest.HttpServerRequest>) =>
   return { grantId: headers[agentGrantHeader] ?? "unknown", clientName };
 };
 
+/** What a tool's calls log: what they asked for, and how many rows went back. */
+interface ToolLog {
+  /** Read before the call runs, so a card it deletes is still there. */
+  readonly askedFor: (params: object) => AskedFor;
+  /** From the encoded answer; by default the items of its top-level lists. */
+  readonly rows?: ((encoded: unknown) => number) | undefined;
+}
+
+const healthToolLog: ToolLog = { askedFor };
+
 /**
  * Wraps a tool's handler: it runs in its `turn`, its answer is held to `ceiling` bytes, and the
  * call is logged (`record`) before anything goes back, so nothing is read without a row.
@@ -157,12 +175,14 @@ const logged =
     record: (access: AgentAccess) => Effect.Effect<void, AccountDeleted>,
     ceiling: number,
     turn: <B, E>(call: Effect.Effect<B, E>) => Effect.Effect<B, E | HealthToolError>,
+    log: ToolLog,
   ) =>
   (params: P) =>
     Effect.gen(function* () {
       const request = yield* Effect.serviceOption(HttpServerRequest.HttpServerRequest);
       const agent = agentOf(request);
       const call = Effect.gen(function* () {
+        const asked = log.askedFor(params);
         let exit: Exit.Exit<A, HealthToolError> = yield* Effect.exit(run(params));
         let bytes = 0;
         let rows = 0;
@@ -193,10 +213,10 @@ const logged =
             );
           } else {
             outcome = "ok";
-            rows = rowCount(encoded.value.value);
+            rows = (log.rows ?? rowCount)(encoded.value.value);
           }
         }
-        yield* record({ ...agent, tool: tool.name, ...askedFor(params), outcome, rows }).pipe(
+        yield* record({ ...agent, tool: tool.name, ...asked, outcome, rows }).pipe(
           Effect.catchTag("AccountDeleted", () =>
             Effect.fail(new HealthToolError({ message: "This lil account was deleted." })),
           ),
@@ -219,7 +239,9 @@ const logged =
 /** What lil health's server tells agents when they connect, and the combined server under its name. */
 export const healthMcpInstructions =
   "Read-only access to the user's lil health data: Apple Health, synced from their " +
-  "iPhone. Times are in UTC unless a call gives a timeZone.";
+  "iPhone. Agents the user allowed to manage cards can also create, change, delete and reorder " +
+  "the cards on lil health's Summary, never Health data: to make one, preview_card a spec until " +
+  "it's right, then create_card. Times are in UTC unless a call gives a timeZone.";
 
 /**
  * lil health's tools for a store's MCP servers: each one's handler logged, held to the ceiling
@@ -233,14 +255,25 @@ export const healthMcpApp = (options: {
   readonly resultCeiling?: number;
   /** Each tool's implementation (`storeHealthTools`, but tests replace some). */
   readonly handlers?: HealthToolImplementations;
+  /**
+   * How the card tools write: the store's `applyMutations`. Without it (tests of other tools),
+   * a card write dies.
+   */
+  readonly write?: CardWrite;
+  /** Each card tool's implementation (`storeCardTools`, but tests may replace them). */
+  readonly cardHandlers?: CardToolImplementations;
 }): StoreMcpApp => {
-  const { record, turns, resultCeiling = healthMcpResultCeiling } = options;
-  const handlers = options.handlers ?? storeHealthTools(options.sql);
+  const { sql, record, turns, resultCeiling = healthMcpResultCeiling } = options;
+  const handlers = options.handlers ?? storeHealthTools(sql);
+  const cards =
+    options.cardHandlers ??
+    storeCardTools(sql, options.write ?? (() => Effect.die("This server can't write cards")));
   const tools = HealthToolkit.tools;
   const wrap = <P extends object, A>(
     tool: { readonly name: string; readonly successSchema: Schema.Top },
     run: (params: P) => Effect.Effect<A, HealthToolError>,
-  ) => logged(tool, run, record, resultCeiling, turns);
+    log: ToolLog = healthToolLog,
+  ) => logged(tool, run, record, resultCeiling, turns, log);
   const loggedHandlers: HealthToolHandlers = {
     summary: wrap(tools.summary, handlers.summary),
     list_types: wrap(tools.list_types, handlers.list_types),
@@ -253,10 +286,27 @@ export const healthMcpApp = (options: {
     search: wrap(tools.search, handlers.search),
     sync_status: wrap(tools.sync_status, handlers.sync_status),
   };
+  const cardTools = CardsToolkit.tools;
+  const logs = cardToolLogs(sql);
+  const loggedCardHandlers: CardToolHandlers = {
+    list_cards: wrap(cardTools.list_cards, cards.list_cards, logs.list_cards),
+    get_card: wrap(cardTools.get_card, cards.get_card, logs.get_card),
+    preview_card: wrap(cardTools.preview_card, cards.preview_card, logs.preview_card),
+    create_card: wrap(cardTools.create_card, cards.create_card, logs.create_card),
+    update_card: wrap(cardTools.update_card, cards.update_card, logs.update_card),
+    delete_card: wrap(cardTools.delete_card, cards.delete_card, logs.delete_card),
+    reorder_cards: wrap(cardTools.reorder_cards, cards.reorder_cards, logs.reorder_cards),
+  };
   return {
     instructions: healthMcpInstructions,
-    register: McpServer.registerToolkit(HealthToolkit).pipe(
-      Effect.provide(HealthToolkit.toLayer(loggedHandlers)),
+    // The Health tools, then the card tools, as `mcp-tools.json` lists them.
+    register: Effect.andThen(
+      McpServer.registerToolkit(HealthToolkit).pipe(
+        Effect.provide(HealthToolkit.toLayer(loggedHandlers)),
+      ),
+      McpServer.registerToolkit(CardsToolkit).pipe(
+        Effect.provide(CardsToolkit.toLayer(loggedCardHandlers)),
+      ),
     ),
   };
 };

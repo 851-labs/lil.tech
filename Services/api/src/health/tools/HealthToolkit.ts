@@ -19,7 +19,7 @@ import { Tool, Toolkit } from "effect/ai";
 // Shared pieces
 // -------------------------------------------------------------------------------------------------
 
-const timeZone = Schema.optionalKey(
+export const timeZone = Schema.optionalKey(
   Schema.String.annotate({
     description:
       "An IANA time zone, e.g. Europe/London, for days and local times. Defaults to UTC on " +
@@ -56,17 +56,17 @@ const healthType = Schema.String.annotate({
     "HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.",
 });
 
-const LocalTime = Schema.String.annotate({
+export const LocalTime = Schema.String.annotate({
   description:
     "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. " +
     "2026-10-20T08:15:00+01:00.",
 });
 
-const LocalDate = Schema.String.annotate({
+export const LocalDate = Schema.String.annotate({
   description: "A day in the output's `timeZone`, as YYYY-MM-DD.",
 });
 
-const usedTimeZone = Schema.String.annotate({
+export const usedTimeZone = Schema.String.annotate({
   description: "The IANA time zone of the output's days and local times.",
 });
 
