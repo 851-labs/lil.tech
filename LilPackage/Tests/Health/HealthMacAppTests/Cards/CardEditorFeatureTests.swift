@@ -57,7 +57,7 @@ struct CardEditorFeatureTests {
     var state = CardEditorFeature.State()
     #expect(state.spec == nil && state.errors.isEmpty && state.preview == nil && !state.canSave)
 
-    state.typeChosen(heartRate)
+    state.typeChosen(heartRate, series: "a")
     state.validate()
     #expect(state.name == "Heart Rate")
     #expect(state.symbol == "heart.fill" && state.color == .red)
@@ -75,7 +75,7 @@ struct CardEditorFeatureTests {
       $0.continuousClock = clock
     }
     store.exhaustivity = .off
-    await store.send(.typeChosen(heartRate))
+    await store.send(.typeChosen(series: "a", type: heartRate))
     #expect(store.state.preview?.display.name == "Heart Rate")
 
     await store.send(.colorChosen(.teal))
@@ -84,14 +84,14 @@ struct CardEditorFeatureTests {
     #expect(store.state.preview?.display.symbol == "moon.zzz.fill")
 
     // Chosen by hand, they stay; the name, still the type's, follows the next type.
-    await store.send(.typeChosen(restingHeartRate))
+    await store.send(.typeChosen(series: "a", type: restingHeartRate))
     #expect(store.state.name == "Resting Heart Rate")
     #expect(store.state.color == .teal && store.state.symbol == "moon.zzz.fill")
     #expect(store.state.preview?.series.first?.type == restingHeartRate)
 
     // A name typed stays too.
     await store.send(.nameChanged("Calm"))
-    await store.send(.typeChosen(heartRate))
+    await store.send(.typeChosen(series: "a", type: heartRate))
     #expect(store.state.name == "Calm")
   }
 
@@ -170,7 +170,7 @@ struct CardEditorFeatureTests {
     let store = try cardsStore()
     await store.send(.newCardButtonTapped)
     #expect(store.state.editor?.isNew == true)
-    await store.send(\.editor.typeChosen, heartRate)
+    await store.send(\.editor.typeChosen, (series: "a", type: heartRate))
     await store.send(\.editor.saveButtonTapped)
     await store.receive(\.editor.delegate.save)
     #expect(store.state.editor == nil)
@@ -210,6 +210,19 @@ struct CardEditorFeatureTests {
     await store.receive(\.pushFinished)
   }
 
+  /// A unit is part of what a card shows: changing only it writes it.
+  @Test
+  func savingAUnitWritesIt() async throws {
+    let store = try cardsStore()
+    let weight = try #require(seedCards.last)
+    await store.send(.editCardButtonTapped(id: weight.id))
+    await store.send(\.editor.unitChosen, "lb")
+    await store.send(\.editor.saveButtonTapped)
+    await store.receive(\.editor.delegate.save)
+    #expect(store.state.cards[id: weight.id]?.spec?.display.unit == "lb")
+    await store.receive(\.pushFinished)
+  }
+
   /// A write that's refused leaves the editor open, saying why: here another device brought the
   /// account to 100 cards while it was open.
   @Test
@@ -225,7 +238,7 @@ struct CardEditorFeatureTests {
       id: "card_more", spec: seedCards[0].spec!, position: "b0", createdAt: 0, updatedAt: 0)
     await store.send(.cardsLoaded(cards + [another]))
     #expect(!store.state.canCreateCard)
-    await store.send(\.editor.typeChosen, heartRate)
+    await store.send(\.editor.typeChosen, (series: "a", type: heartRate))
     await store.send(\.editor.saveButtonTapped)
     await store.receive(\.editor.delegate.save)
     #expect(

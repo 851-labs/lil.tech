@@ -225,12 +225,18 @@ public struct CardsFeature {
         let writes = state.unsaved.count
         let effect: Effect<Action>
         if let id = editor.cardID {
-          // The card's query as it is now, which another device or an agent may have changed
-          // while the editor was open: the editor only changes how it looks.
-          var edited = state.cards[id: id]?.spec ?? spec
-          edited.display.name = spec.display.name
-          edited.display.symbol = spec.display.symbol
-          edited.display.color = spec.display.color
+          // When the person changed only how it looks, the card's query as it is now, which
+          // another device or an agent may have changed while the editor was open. A query they
+          // changed is theirs, the last writer's (851-3209).
+          var edited = spec
+          if let original = editor.original, spec.hasQuery(of: original),
+            let current = state.cards[id: id]?.spec
+          {
+            edited = current
+            edited.display.name = spec.display.name
+            edited.display.symbol = spec.display.symbol
+            edited.display.color = spec.display.color
+          }
           effect = update(id, edited, &state)
         } else {
           effect = create(spec, &state)
