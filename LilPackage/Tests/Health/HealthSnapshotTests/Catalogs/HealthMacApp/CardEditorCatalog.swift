@@ -5,6 +5,7 @@
   import HealthCatalog
   import HealthDatabase
   @testable import HealthMacApp
+  import HealthUI
   import SQLiteData
   import SwiftUI
   import Testing

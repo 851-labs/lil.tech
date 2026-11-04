@@ -1,6 +1,6 @@
 import Foundation
 import HealthCards
-import HealthDatabase
+import HealthUI
 import Testing
 
 @testable import HealthMacApp
@@ -18,7 +18,7 @@ struct CardCaptionTests {
         .utf8))
 
   private func caption(
-    _ spec: CardSpec, _ range: ChartRange, _ summary: CardSummary? = nil, point: LeadPoint? = nil
+    _ spec: CardSpec, _ range: CardRange, _ summary: CardSummary? = nil, point: LeadPoint? = nil
   ) -> String {
     CardChart.caption(for: spec, range: range, summary: summary, point: point)
   }
@@ -28,7 +28,7 @@ struct CardCaptionTests {
   /// period arrives.
   @Test
   func aPickedSeriesCaptionsItsPeriodAsItWillLoad() {
-    for range in [ChartRange.week, .month, .sixMonths, .year] {
+    for range in [CardRange.week, .month, .sixMonths, .year] {
       #expect(caption(morningWeight, range) == "AVERAGE")
       #expect(caption(latestHRV, range) == "AVERAGE")
     }

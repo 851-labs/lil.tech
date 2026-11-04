@@ -32,6 +32,11 @@
       "screen": "HealthPhoneApp/SummaryCatalog.swift"
     },
     {
+      "id": "card",
+      "screen": "HealthPhoneApp/CardDetailCatalog.swift",
+      "title": "Card"
+    },
+    {
       "id": "sync",
       "screen": "HealthPhoneApp/SyncStatusCatalog.swift"
     },
@@ -116,6 +121,11 @@
       "from": "summary",
       "to": "sync",
       "label": "Its row, or the cloud button"
+    },
+    {
+      "from": "summary",
+      "to": "card",
+      "label": "Choose a card"
     },
     {
       "from": "summary",

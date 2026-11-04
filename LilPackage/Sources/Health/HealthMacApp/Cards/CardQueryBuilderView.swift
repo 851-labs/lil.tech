@@ -515,7 +515,7 @@ struct CardChartSection: View {
       Picker(
         "Opens On", selection: Binding(get: { draft.range }, set: { store.send(.rangeChosen($0)) })
       ) {
-        ForEach(draft.bucket.ranges, id: \.self) { Text(ChartRange($0).periodName).tag($0) }
+        ForEach(draft.bucket.ranges, id: \.self) { Text($0.periodName).tag($0) }
       }
       errors(.range)
       Picker(

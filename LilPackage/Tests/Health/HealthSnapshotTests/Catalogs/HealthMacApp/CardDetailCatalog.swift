@@ -3,6 +3,7 @@
   import HealthCards
   import HealthDatabase
   @testable import HealthMacApp
+  import HealthUI
   import SQLiteData
   import SwiftUI
   import Testing
@@ -90,7 +91,7 @@
   /// `database`, or the state given.
   @MainActor
   private func page(
-    _ card: Card, _ range: ChartRange, state: CardDetailContent.State? = nil,
+    _ card: Card, _ range: CardRange, state: CardDetailContent.State? = nil,
     in database: any DatabaseReader = catalogDatabase
   ) -> some View {
     NavigationStack {
@@ -102,13 +103,13 @@
 
   /// One of the design's example cards, from the Summary catalog's database for them.
   @MainActor
-  private func example(_ index: Int, _ range: ChartRange) -> some View {
+  private func example(_ index: Int, _ range: CardRange) -> some View {
     page(exampleCards[index], range, in: exampleCardsDatabase)
   }
 
   /// A card's current period of `range`, by the app's request.
   private func period(
-    _ card: Card, _ range: ChartRange, in database: any DatabaseReader = catalogDatabase
+    _ card: Card, _ range: CardRange, in database: any DatabaseReader = catalogDatabase
   ) -> CardPeriod {
     try! database.read { db in
       try CardDataRequest(spec: card.spec!, range: range, offset: 0).fetch(db)!

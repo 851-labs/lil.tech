@@ -1,29 +1,13 @@
 public import Foundation
 public import HealthDatabase
+import HealthUI
 
 /// How a chart writes its periods: the metric page's, Blood Pressure's.
 public enum ChartFormat {
   /// The period shown: "Oct 15, 2025", "Oct 12 – 18, 2025", "Oct 2025", "May – Oct 2025", "2025".
   public static func span(_ interval: DateInterval, range: ChartRange, calendar: Calendar) -> String
   {
-    let style = Date.FormatStyle(calendar: calendar, timeZone: calendar.timeZone)
-    // The last moment inside, so a week doesn't end on the next Sunday.
-    let last = interval.end.addingTimeInterval(-1)
-    switch range {
-    case .day: return interval.start.formatted(style.month(.abbreviated).day().year())
-    case .week:
-      return (interval.start..<last).formatted(
-        Date.IntervalFormatStyle(date: .abbreviated, time: .omitted, timeZone: calendar.timeZone))
-    case .month: return interval.start.formatted(style.month(.abbreviated).year())
-    case .sixMonths:
-      // The year on both ends when the months span two.
-      let sameYear =
-        calendar.component(.year, from: interval.start) == calendar.component(.year, from: last)
-      let first = sameYear ? style.month(.abbreviated) : style.month(.abbreviated).year()
-      return
-        "\(interval.start.formatted(first)) – \(last.formatted(style.month(.abbreviated).year()))"
-    case .year: return interval.start.formatted(style.year())
-    }
+    PeriodFormat.span(interval, range: range.card, calendar: calendar)
   }
 
   /// One bar's period: an hour, a day, a week or a month.
@@ -36,5 +20,18 @@ public enum ChartFormat {
     case .sixMonths: return "Week of \(start.formatted(style.month(.abbreviated).day()))"
     case .year: return start.formatted(style.month(.wide).year())
     }
+  }
+}
+
+extension ChartFormat {
+  /// What VoiceOver reads for an empty period's chart: "No data for Aug 11 – 17, 2024".
+  public static func noData(_ period: String) -> String {
+    PeriodFormat.noData(period)
+  }
+
+  /// What VoiceOver reads for a symptom's period whose entries say it wasn't there: "Not present
+  /// in Aug 11 – 17, 2024".
+  public static func notPresent(_ period: String) -> String {
+    "Not present in \(period)"
   }
 }

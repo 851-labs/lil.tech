@@ -1,7 +1,5 @@
 import Foundation
-import HealthCatalog
-import HealthPages
-import HealthUI
+public import HealthCatalog
 
 /// An empty period's y-axis (851-3102): from 0 to about as high as the type's readings, or a
 /// day's total, usually reach, a tenth of that for a total's hourly bars (`hourly`), so the
@@ -9,7 +7,7 @@ import HealthUI
 /// rather than an axis with no marks. In `unit`, what the values are stored in (the type's, or a
 /// category chart's): Metric Detail plots it `converted(by:)` the type's display unit (851-3105),
 /// so 5,000 m is 0–5 km, or 0–3.2 mi (851-3116).
-func emptyDomain(for type: HealthDataType, unit: String?, hourly: Bool = false)
+public func emptyDomain(for type: HealthDataType, unit: String?, hourly: Bool = false)
   -> ClosedRange<Double>
 {
   let top = typicalTop(type, unit: unit)
@@ -62,7 +60,7 @@ extension ClosedRange<Double> {
   /// Both ends in `unit`, as Metric Detail plots values (851-3105), the top rounded up to two
   /// significant digits, so a scale converted to another system ends near a tick: 0–5 km is
   /// 0–3.2 mi, not 0–3.107, and 0–100 kg 0–230 lb (851-3116).
-  func converted(by unit: MetricFormat.DisplayUnit) -> ClosedRange<Double> {
+  public func converted(by unit: MetricFormat.DisplayUnit) -> ClosedRange<Double> {
     unit.convert(lowerBound)...roundedUp(unit.convert(upperBound))
   }
 }

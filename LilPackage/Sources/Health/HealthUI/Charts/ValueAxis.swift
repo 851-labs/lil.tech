@@ -1,13 +1,12 @@
 import Charts
-import HealthPages
-import HealthUI
-import SwiftUI
+public import SwiftUI
 
-// The value axis of Metric Detail's chart, which a card's page shares (851-3207).
+// The value axis of Metric Detail's chart, which a card's page shares (851-3207), on both apps
+// (851-3212).
 
 extension View {
   /// The chart's y-axis over `domain`, or Swift Charts' own (from zero) without one.
-  @ViewBuilder func chartYDomain(_ domain: ClosedRange<Double>?) -> some View {
+  @ViewBuilder public func chartYDomain(_ domain: ClosedRange<Double>?) -> some View {
     if let domain {
       chartYScale(domain: domain)
     } else {
@@ -17,7 +16,9 @@ extension View {
 
   /// Marks on the trailing side, labeled in `shown`, the unit the chart plots: percentages for
   /// "%", a compound unit's whole inches or pounds over `domain`, else Swift Charts' own.
-  func valueAxis(_ shown: MetricFormat.DisplayUnit, domain: ClosedRange<Double>?) -> some View {
+  public func valueAxis(_ shown: MetricFormat.DisplayUnit, domain: ClosedRange<Double>?)
+    -> some View
+  {
     chartYAxis {
       if shown.label == "%" {
         // Plotted as percentages, 22 for 22%, as the header shows them.
