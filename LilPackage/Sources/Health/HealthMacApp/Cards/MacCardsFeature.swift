@@ -11,7 +11,7 @@ extension CardsFeature {
   /// The Mac's cards: loaded once they're read, since Summary and a card's page check that sync
   /// holds them themselves (`HoldsCardsRequest`), with the filters' choices from the database.
   public static var mac: Self {
-    Self(filterChoices: .healthDatabase)
+    Self(filterChoices: .healthDatabase, waitsForSync: false)
   }
 }
 

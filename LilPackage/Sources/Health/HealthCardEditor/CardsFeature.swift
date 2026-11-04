@@ -180,7 +180,7 @@ public struct CardsFeature {
   /// the iPhone's. The Mac's Summary and card pages check that themselves.
   let waitsForSync: Bool
 
-  public init(filterChoices: CardFilterChoicesClient, waitsForSync: Bool = false) {
+  public init(filterChoices: CardFilterChoicesClient, waitsForSync: Bool) {
     self.filterChoices = filterChoices
     self.waitsForSync = waitsForSync
   }
