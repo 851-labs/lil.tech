@@ -50,8 +50,8 @@
 
   /// A window showing `view` as a snapshot draws it, laid out and settled: in a window with a
   /// title bar (so its toolbar renders) of the given appearance, at its fitting size, at 2x. Close
-  /// it when done. `redrawsToolbarImages: false` leaves stale toolbar images as they are, for a
-  /// test that reads no pixels.
+  /// it when done. `redrawsToolbarImages: false` leaves the toolbar's items as they were laid out
+  /// (`layOutToolbarItemsAgain`), stale or not, for a test that reads no pixels.
   @MainActor
   func snapshotWindow(
     of view: some View, appearance: NSAppearance.Name, title: String,
@@ -80,62 +80,80 @@
     // Let SwiftUI lay out and draw, and charts settle.
     controller.view.layoutSubtreeIfNeeded()
     RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-    if redrawsToolbarImages { redrawStaleToolbarImages(in: window) }
+    if redrawsToolbarImages { layOutToolbarItemsAgain(in: window) }
     return window
   }
 
-  /// Has SwiftUI draw a toolbar item again when its image was drawn for another size (851-3230).
-  /// A toolbar item's symbol is drawn first at the size it has before the toolbar sizes it
-  /// (Sleep's ‹ at 6.5 × 11.5 pt, 13 × 23 px), then again as the window first lays out, at its
-  /// toolbar size (8.5 × 14.5 pt, 17 × 29 px). On the minis, about one full run in four and only
-  /// after the catalogs before it, that second drawing skipped an item: its layer took the toolbar
-  /// size with the first bitmap in it, stretched and soft (Sleep › Week's ‹, the same 171 pixels
-  /// each time). Nothing draws it again by itself, not waiting 0.3 s or laying the window out
-  /// again: SwiftUI's display list hasn't changed. An appearance change changes it, so the item's
-  /// hosting view goes to the other appearance and back, and SwiftUI draws it at its final size,
-  /// byte for byte as when nothing was skipped. A toolbar image is stale when its bitmap isn't its
-  /// layer's size at `snapshotScale`: toolbar images are symbols, drawn to fit.
+  /// Has SwiftUI lay out and draw every toolbar item again, from scratch, so what the image shows
+  /// never depends on an update it skipped (851-3230, 851-4046).
+  ///
+  /// SwiftUI draws a toolbar item first as its hosting view joins the window, before the toolbar
+  /// sizes it: a symbol at 6.5 × 11.5 pt (13 × 23 px), placed around the unsized view's corner
+  /// (Card Detail's › at -2, -6). It draws it again as the window first lays out, at its toolbar
+  /// size and place (8.5 × 14.5 pt, 17 × 29 px, at 15, 10.5). On the minis, now and then and only
+  /// after the catalogs before it, that second update left part of an item's layer as the first
+  /// had it: the bitmap (Sleep › Week's ‹, stretched and soft, 851-3230), or the position (HRV,
+  /// week's ›, 17 pt left and 16.5 pt up, 851-4046). The same pixels each time. Nothing fixes it
+  /// by itself, not waiting or laying the window out again, since SwiftUI sets only what changed
+  /// from what it last set, which it thinks is the final layout. Neither does going to the other
+  /// appearance and back (851-3230's fix): that draws a stale bitmap again, but leaves a stale
+  /// position where it is.
+  ///
+  /// So each item's hosting view is laid out at zero size, where SwiftUI places and draws it as
+  /// it did first, then at its own frame again, where every layer gets its final geometry and
+  /// bitmap, byte for byte as when nothing was skipped. Every item, every time, rather than the
+  /// stale ones found: the result doesn't depend on finding them. Those found are printed, and an
+  /// issue is recorded if any are left. `layout()` is called itself: `layoutSubtreeIfNeeded()`
+  /// has the toolbar's constraints put the item's frame back before SwiftUI lays it out at zero.
+  /// The window's layout is brought up to date after, so nothing is left for a later pass.
   @MainActor
-  func redrawStaleToolbarImages(in window: NSWindow) {
+  func layOutToolbarItemsAgain(in window: NSWindow) {
     let stale = staleToolbarImages(in: window)
-    guard !stale.isEmpty else { return }
-    // Each toolbar item's own SwiftUI hosting view, the nearest view above its image.
-    var views: [NSView] = []
-    for layer in stale.map(\.layer) {
-      var owner: CALayer? = layer
-      while let current = owner, !(current.delegate is NSView) { owner = current.superlayer }
-      if let view = owner?.delegate as? NSView, "\(type(of: view))".contains("HostingView"),
-        !views.contains(view)
-      {
-        views.append(view)
-      }
+    for view in toolbarItemHostingViews(in: window) {
+      let frame = view.frame
+      view.frame = .zero
+      view.layout()
+      view.frame = frame
+      view.layout()
     }
-    let other = NSAppearance(
-      named: window.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        ? .aqua : .darkAqua)
-    for view in views {
-      let appearance = view.appearance
-      view.appearance = other
-      view.layoutSubtreeIfNeeded()
-      view.appearance = appearance
-      view.layoutSubtreeIfNeeded()
-    }
-    print(
-      "Drew stale toolbar images again in \(window.title): \(stale.map(\.description).joined(separator: ", "))"
-    )
+    window.contentView?.superview?.layoutSubtreeIfNeeded()
     let left = staleToolbarImages(in: window)
+    if !stale.isEmpty {
+      print(
+        "Laid out stale toolbar items again in \(window.title)\(left.isEmpty ? "" : ", not all fixed"): \(stale.map(\.description).joined(separator: ", "))"
+      )
+    }
     if !left.isEmpty {
       Issue.record(
         """
-        \(window.title)'s toolbar images stayed drawn for another size after drawing them again: \
+        \(window.title)'s toolbar images stayed stale after laying the toolbar's items out again: \
         \(left.map(\.description).joined(separator: ", ")). A bitmap image in a toolbar (not a \
-        symbol) would need `staleToolbarImages` to leave it out.
+        symbol), or one drawn outside its item, would need `staleToolbarImages` to leave it out.
         """)
     }
   }
 
-  /// The title bar's image layers whose bitmap isn't their size at `snapshotScale`, a pixel or
-  /// more apart, described for an issue.
+  /// SwiftUI's hosting view for each item in the window's toolbar. `staleToolbarImagesAreLaidOutAgain`
+  /// fails if SwiftUI renames it.
+  @MainActor
+  func toolbarItemHostingViews(in window: NSWindow) -> [NSView] {
+    guard let titleBar = titleBarContainer(of: window) else { return [] }
+    var views: [NSView] = []
+    func visit(_ view: NSView) {
+      if isToolbarItemHostingView(view) {
+        views.append(view)
+      } else {
+        view.subviews.forEach(visit)
+      }
+    }
+    visit(titleBar)
+    return views
+  }
+
+  /// The title bar's image layers left as SwiftUI first drew them, before the toolbar sized their
+  /// items, described for an issue: a bitmap that isn't the layer's size at `snapshotScale`, a
+  /// pixel or more apart (toolbar images are symbols, drawn to fit), or a layer that isn't inside
+  /// its hosting view (a symbol placed around the unsized view's corner).
   @MainActor
   func staleToolbarImages(in window: NSWindow) -> [(layer: CALayer, description: String)] {
     titleBarImageLayers(in: window).compactMap { layer in
@@ -145,27 +163,51 @@
       let expected = (
         width: layer.bounds.width * snapshotScale, height: layer.bounds.height * snapshotScale
       )
-      guard
-        abs(CGFloat(image.width) - expected.width) >= 1
-          || abs(CGFloat(image.height) - expected.height) >= 1
-      else { return nil }
+      let isRedrawn =
+        abs(CGFloat(image.width) - expected.width) < 1
+        && abs(CGFloat(image.height) - expected.height) < 1
+      // A point of slack: a stale position is about 16 points off.
+      let isPlaced =
+        toolbarItemLayer(of: layer).map {
+          $0.bounds.insetBy(dx: -1, dy: -1).contains(layer.convert(layer.bounds, to: $0))
+        } ?? true
+      guard !isRedrawn || !isPlaced else { return nil }
       let origin = layer.convert(CGPoint.zero, to: window.contentView!.superview!.layer!)
       return (
         layer,
         "\(image.width) × \(image.height) px in \(layer.bounds.width) × \(layer.bounds.height) pt at \(origin.x), \(origin.y)"
+          + (isPlaced ? "" : ", outside its item")
       )
     }
+  }
+
+  /// The layer of the toolbar item's hosting view (`toolbarItemHostingViews`) that `layer` is
+  /// drawn in, if it's in one: not the window's buttons, whose images are larger than their views.
+  @MainActor
+  private func toolbarItemLayer(of layer: CALayer) -> CALayer? {
+    var owner = layer.superlayer
+    while let current = owner, !(current.delegate is NSView) { owner = current.superlayer }
+    var view = owner?.delegate as? NSView
+    while let current = view, !isToolbarItemHostingView(current) { view = current.superview }
+    return view?.layer
+  }
+
+  @MainActor
+  private func isToolbarItemHostingView(_ view: NSView) -> Bool {
+    "\(type(of: view))".hasPrefix("ToolbarItemHostingView")
+  }
+
+  /// The window's title bar, with its buttons and toolbar.
+  @MainActor
+  private func titleBarContainer(of window: NSWindow) -> NSView? {
+    window.contentView?.superview?.subviews.first { "\(type(of: $0))" == "NSTitlebarContainerView" }
   }
 
   /// SwiftUI's image layers in the window's title bar (its toolbar's and its buttons'), and none
   /// of the content's, even under the title bar.
   @MainActor
   func titleBarImageLayers(in window: NSWindow) -> [CALayer] {
-    guard
-      let titleBar = window.contentView?.superview?.subviews.first(where: {
-        "\(type(of: $0))" == "NSTitlebarContainerView"
-      })?.layer
-    else { return [] }
+    guard let titleBar = titleBarContainer(of: window)?.layer else { return [] }
     var layers: [CALayer] = []
     func visit(_ layer: CALayer) {
       if "\(type(of: layer))" == "ImageLayer" { layers.append(layer) }
