@@ -49,7 +49,8 @@ public struct ConformanceSamples: Sendable {
     /// `HKWorkoutActivityType`'s raw value.
     public var activityType: Int
     public var start: Int
-    public var end: Int
+    /// `nil` while it was still going.
+    public var end: Int?
     /// Its configuration's `HKWorkoutSessionLocationType` raw value.
     public var locationType: Int?
     /// Its configuration's `HKWorkoutSwimmingLocationType` raw value.
@@ -152,28 +153,38 @@ public struct ConformanceSamples: Sendable {
   /// A workout's activities as the Mac reads them (`HealthWorkout.decodedActivities`): all of
   /// them, or none if one can't be read, such as a location type written as a string.
   static func activities(_ value: Any?) -> [Activity] {
-    guard let items = value as? [[String: Any]] else { return [] }
+    guard let items = value as? [Any] else { return [] }
     var activities: [Activity] = []
-    for item in items {
-      // Missing or null, or a number.
-      func optionalInt(_ key: String) -> Int?? {
+    for element in items {
+      guard let item = element as? [String: Any] else { return [] }
+      // A JSON number, not a Boolean.
+      func number(_ value: Any?) -> Double? {
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+          number.doubleValue.isFinite
+        else { return nil }
+        return number.doubleValue
+      }
+      // Missing or null, or a number: `.some(nil)` for none, `nil` for anything else.
+      func optionalNumber(_ key: String) -> Double?? {
         switch item[key] {
         case nil, is NSNull: .some(nil)
-        case let number as NSNumber where CFGetTypeID(number) != CFBooleanGetTypeID():
-          .some(number.intValue)
-        default: nil
+        case let value: number(value).map(Optional.some)
         }
       }
-      guard let activityType = item["activityType"] as? Int,
-        let start = item["startDate"] as? Int, let end = item["endDate"] as? Int,
-        let locationType = optionalInt("locationType"),
-        let swimmingLocationType = optionalInt("swimmingLocationType")
+      guard let activityType = number(item["activityType"]),
+        activityType.rounded() == activityType, let start = number(item["startDate"]),
+        number(item["duration"]) != nil, let end = optionalNumber("endDate"),
+        let locationType = optionalNumber("locationType"),
+        let swimmingLocationType = optionalNumber("swimmingLocationType")
       else { return [] }
+      let metadata = item["metadata"]
+      if let metadata, !(metadata is NSNull), !(metadata is [String: Any]) { return [] }
       activities.append(
         Activity(
-          activityType: activityType, start: start, end: end, locationType: locationType,
-          swimmingLocationType: swimmingLocationType,
-          indoor: (item["metadata"] as? [String: Any])?["HKIndoorWorkout"] as? NSNumber))
+          activityType: Int(activityType), start: Int(start), end: end.map { Int($0) },
+          locationType: locationType.flatMap { Int(exactly: $0) },
+          swimmingLocationType: swimmingLocationType.flatMap { Int(exactly: $0) },
+          indoor: (metadata as? [String: Any])?["HKIndoorWorkout"] as? NSNumber))
     }
     return activities
   }

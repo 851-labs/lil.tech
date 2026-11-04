@@ -25,7 +25,7 @@ import type {
 } from "./CardEngine.ts";
 import { type CardSleepRecord, sleepAnalysisType } from "./CardNights.ts";
 import type { CardFilter } from "./CardSpec.ts";
-import { storedWorkoutIndoor } from "../tools/Workouts.ts";
+import { storedWorkoutIndoor } from "../WorkoutMetadata.ts";
 
 // The server engine's reads of the user's store (851-3197): the Mac's `CardQueries` over the
 // store's tables. Totals come from the statistics source's buckets and the samples past them

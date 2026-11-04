@@ -1,6 +1,16 @@
 import { Clock, Effect, Option, Predicate, Schema } from "effect";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import { workoutActivityName } from "../HealthCatalog.ts";
+import {
+  activityIndoor,
+  activitySwimmingLocation,
+  agreed,
+  decodeActivities,
+  decodeMetadata,
+  type Metadata,
+  swimmingLocation,
+  workoutIndoor,
+} from "../WorkoutMetadata.ts";
 import { workoutsStarting, workoutsWithRoutes, workoutTotals } from "./HealthQueries.ts";
 import { type HealthToolkit, workoutsLimit } from "./HealthToolkit.ts";
 import { localTime, type ToolRange, toolPeriod, toolTimeZone } from "./ToolTime.ts";
@@ -26,48 +36,6 @@ const WorkoutStatistics = Schema.fromJsonString(
 const decodeStatistics = Schema.decodeUnknownOption(WorkoutStatistics);
 type WorkoutStatistics = (typeof WorkoutStatistics)["Type"];
 
-/** Metadata as HealthKit keys it (`HealthEncoder.json` on the iPhone), or none if not an object. */
-const Metadata = Schema.Record(Schema.String, Schema.Unknown);
-type Metadata = (typeof Metadata)["Type"];
-const decodeMetadata = Schema.decodeUnknownOption(Schema.fromJsonString(Metadata));
-
-/**
- * A workout's activities (the legs of a multisport workout), with what the tool reads of them.
- * Read like its statistics: all of them or, if one can't be read, none.
- */
-const WorkoutActivities = Schema.fromJsonString(
-  Schema.Array(
-    Schema.Struct({
-      activityType: Schema.Int,
-      startDate: Schema.Finite,
-      endDate: Schema.NullOr(Schema.Finite),
-      duration: Schema.Finite,
-      /** Its configuration's `HKWorkoutSessionLocationType`, from iPhones since 851-4030. */
-      locationType: Schema.optionalKey(Schema.NullOr(Schema.Finite)),
-      /** Its configuration's `HKWorkoutSwimmingLocationType`, from iPhones since 851-4030. */
-      swimmingLocationType: Schema.optionalKey(Schema.NullOr(Schema.Finite)),
-      metadata: Schema.optionalKey(Schema.NullOr(Metadata)),
-    }),
-  ),
-);
-type WorkoutActivity = (typeof WorkoutActivities)["Type"][number];
-const decodeActivities = Schema.decodeUnknownOption(WorkoutActivities);
-
-/** `HKMetadataKeyIndoorWorkout`: a Boolean, or 0 or 1 from apps that write it as a number. */
-const indoor = (metadata: Metadata | null | undefined): boolean | null => {
-  const value = metadata?.["HKIndoorWorkout"];
-  if (Predicate.isBoolean(value)) return value;
-  return value === 1 ? true : value === 0 ? false : null;
-};
-
-/** An `HKWorkoutSwimmingLocationType`'s name: 1 pool, 2 open water, else (0, unknown) null. */
-const swimmingLocationName = (value: unknown): string | null =>
-  value === 1 ? "pool" : value === 2 ? "openWater" : null;
-
-/** `HKMetadataKeySwimmingLocationType`, an `HKWorkoutSwimmingLocationType`. */
-const swimmingLocation = (metadata: Metadata | null | undefined): string | null =>
-  swimmingLocationName(metadata?.["HKSwimmingLocationType"]);
-
 /** A string unless it's blank: only spaces, tabs and line breaks, which the Mac counts the same. */
 const unlessBlank = (value: unknown): string | null =>
   Predicate.isString(value) && !/^[ \t\n\r]*$/.test(value) ? value : null;
@@ -84,22 +52,6 @@ const workoutName = (metadata: Metadata | null): string | null => {
     (Predicate.isObject(plan) ? unlessBlank(plan["name"]) : null)
   );
 };
-
-/**
- * Whether an activity was indoors: as its metadata says, else as its configuration's
- * `HKWorkoutSessionLocationType` does (2 indoor, 3 outdoor, 1 unknown).
- */
-const activityIndoor = (activity: WorkoutActivity): boolean | null => {
-  const type = activity.locationType;
-  return indoor(activity.metadata) ?? (type === 2 ? true : type === 3 ? false : null);
-};
-
-/**
- * An activity's pool or open water: as its metadata says, else as its configuration's
- * `HKWorkoutSwimmingLocationType` does (1 pool, 2 open water, 0 unknown).
- */
-const activitySwimmingLocation = (activity: WorkoutActivity): string | null =>
-  swimmingLocation(activity.metadata) ?? swimmingLocationName(activity.swimmingLocationType);
 
 /** Meters in each length unit HealthKit writes a quantity in (`HKUnit`'s unit strings). */
 const meters: Record<string, number> = {
@@ -126,35 +78,6 @@ const elevationAscended = (metadata: Metadata | null): number | null => {
   const elevation = Number(match[1]) * factor;
   return Number.isFinite(elevation) ? elevation : null;
 };
-
-/**
- * What `read` gives for those of `values` it gives anything for, if they agree; else null. A
- * multisport workout's transitions don't say where they were.
- */
-const agreed = <A, B>(values: ReadonlyArray<A>, read: (value: A) => B | null): B | null => {
-  const given = values.map(read).filter((value) => value !== null);
-  return given.length > 0 && given.every((value) => value === given[0]) ? given[0]! : null;
-};
-
-/**
- * Whether a workout was indoors: as its metadata says or, if it doesn't, as its activities say
- * they were, if they agree. A workout of one activity may only say so on its activity, or its
- * configuration.
- */
-const workoutIndoor = (
-  metadata: Metadata | null,
-  activities: ReadonlyArray<WorkoutActivity>,
-): boolean | null => indoor(metadata) ?? agreed(activities, activityIndoor);
-
-/**
- * Whether a workout was indoors, from its `metadata` and `activities` columns, as the tool's
- * `indoor` says: what cards' workout windows keep by (851-4031).
- */
-export const storedWorkoutIndoor = (metadata: unknown, activities: unknown): boolean | null =>
-  workoutIndoor(
-    Option.getOrNull(decodeMetadata(metadata)),
-    Option.getOrElse(decodeActivities(activities), () => []),
-  );
 
 /** The kinds of distance a workout can record, the usual ones first. */
 const distanceTypes = [

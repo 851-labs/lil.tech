@@ -387,6 +387,14 @@ const clockTime = (text: string): number | undefined => {
 const clockText = (minutes: number) =>
   `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 
+/** The versions this reads, "1 or 2" (or "1 and 2"). */
+const versions = (word: string) => {
+  const sorted = [...readableCardSpecVersions].sort((a, b) => a - b).map(String);
+  return sorted.length > 1
+    ? `${sorted.slice(0, -1).join(", ")} ${word} ${sorted.at(-1)!}`
+    : (sorted[0] ?? "");
+};
+
 // MARK: - The validator
 
 class Validator {
@@ -411,7 +419,11 @@ class Validator {
     // Version
     const version = member(input, "version");
     if (version === undefined || version === null) {
-      this.fail("version", "required", "version is required: the spec's format, 1 or 2.");
+      this.fail(
+        "version",
+        "required",
+        `version is required: the spec's format, ${versions("or")}.`,
+      );
     } else if (typeof version === "number") {
       if (!(isWhole(version, 0, 1_000_000) && readableCardSpecVersions.includes(version))) {
         // Every other rule is a version's: this is the one error.
@@ -421,14 +433,14 @@ class Validator {
             code: "unsupportedVersion",
             message:
               `version ${String(version)} isn't supported. This server reads card spec versions ` +
-              "1 and 2.",
+              `${versions("and")}.`,
           },
         ];
         return undefined;
       }
       this.inputVersion = version;
     } else {
-      this.fail("version", "invalidType", "version must be a whole number: 1 or 2.");
+      this.fail("version", "invalidType", `version must be a whole number: ${versions("or")}.`);
     }
 
     // Display

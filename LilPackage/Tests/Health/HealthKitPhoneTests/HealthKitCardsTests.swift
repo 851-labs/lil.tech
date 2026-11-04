@@ -424,7 +424,7 @@ struct Reference {
       .map {
         CardWorkout(
           start: ms($0.startDate), end: ms($0.endDate),
-          activityType: Int($0.workoutActivityType.rawValue))
+          activityType: Int($0.workoutActivityType.rawValue), indoor: nil)
       }
   }
 

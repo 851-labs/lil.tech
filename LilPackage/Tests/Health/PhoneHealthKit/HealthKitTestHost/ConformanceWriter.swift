@@ -71,7 +71,8 @@ enum ConformanceWriter {
         {
           configuration.swimmingLocationType = swimming
         }
-        if activity == .swimming {
+        // A pool swim needs a lap length, and HealthKit refuses one for open water.
+        if activity == .swimming, configuration.swimmingLocationType == .pool {
           configuration.lapLength = HKQuantity(unit: .meter(), doubleValue: 25)
         }
         return configuration
@@ -93,7 +94,7 @@ enum ConformanceWriter {
             workoutConfiguration: try configuration(
               activity.activityType, locationType: activity.locationType,
               swimmingLocationType: activity.swimmingLocationType),
-            start: date(activity.start), end: date(activity.end),
+            start: date(activity.start), end: activity.end.map(date),
             metadata: metadata(activity.indoor)))
       }
       try await builder.endCollection(at: date(workout.end))

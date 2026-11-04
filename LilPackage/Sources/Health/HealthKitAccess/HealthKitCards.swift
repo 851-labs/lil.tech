@@ -240,19 +240,12 @@ public struct HealthKitCardEngine: Sendable {
   /// agree; `nil` when nothing says.
   static func indoor(_ workout: HKWorkout) -> Bool? {
     CardWorkout.indoor(
-      workout: indoor(metadata: workout.metadata),
+      workout: CardWorkout.indoor(metadataValue: workout.metadata?[HKMetadataKeyIndoorWorkout]),
       activities: workout.workoutActivities.map { activity in
-        indoor(metadata: activity.metadata)
-          ?? CardWorkout.indoor(locationType: activity.workoutConfiguration.locationType.rawValue)
+        CardWorkout.indoor(metadataValue: activity.metadata?[HKMetadataKeyIndoorWorkout])
+          ?? CardWorkout.indoor(
+            locationType: Double(activity.workoutConfiguration.locationType.rawValue))
       })
-  }
-
-  /// `HKMetadataKeyIndoorWorkout`: a Boolean, or 0 or 1 from apps that write it as a number, as
-  /// the Mac and the server read it.
-  static func indoor(metadata: [String: Any]?) -> Bool? {
-    guard let value = metadata?[HKMetadataKeyIndoorWorkout] as? NSNumber else { return nil }
-    if CFGetTypeID(value) == CFBooleanGetTypeID() { return value.boolValue }
-    return value.doubleValue == 1 ? true : value.doubleValue == 0 ? false : nil
   }
 
   /// Samples of `type` that end after `range` starts and start before it ends, by start, made

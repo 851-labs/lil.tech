@@ -92,7 +92,8 @@ struct CardSpecValidator {
     // Version
     switch input["version"] {
     case nil, .null?:
-      fail("version", .required, "version is required: the spec's format, 1 or 2.")
+      fail(
+        "version", .required, "version is required: the spec's format, \(Self.versions("or")).")
     case .number(let version)?:
       if !(Self.isWhole(version, in: 0...1_000_000)
         && HealthCards.readableVersions.contains(Int(version)))
@@ -102,13 +103,13 @@ struct CardSpecValidator {
           CardSpecError(
             path: "version", code: .unsupportedVersion,
             message: "version \(CardJSON.text(of: version)) isn't supported. This server reads "
-              + "card spec versions 1 and 2.")
+              + "card spec versions \(Self.versions("and")).")
         ]
         return nil
       }
       inputVersion = Int(version)
     case _?:
-      fail("version", .invalidType, "version must be a whole number: 1 or 2.")
+      fail("version", .invalidType, "version must be a whole number: \(Self.versions("or")).")
     }
 
     // Display
@@ -1060,6 +1061,13 @@ struct CardSpecValidator {
   static func isWhole(_ value: Double, in range: ClosedRange<Int>) -> Bool {
     value == value.rounded() && value >= Double(range.lowerBound)
       && value <= Double(range.upperBound)
+  }
+
+  /// The versions this reads, "1 or 2" (or "1 and 2").
+  static func versions(_ word: String) -> String {
+    let versions = HealthCards.readableVersions.sorted().map(String.init)
+    guard versions.count > 1 else { return versions.first ?? "" }
+    return versions.dropLast().joined(separator: ", ") + " \(word) " + versions.last!
   }
 
   /// "a, b or c"

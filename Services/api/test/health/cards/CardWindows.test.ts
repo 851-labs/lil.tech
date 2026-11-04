@@ -74,7 +74,8 @@ const windowCard = (
   series: ReadonlyArray<unknown>,
   bucket = "night",
   formulas: ReadonlyArray<unknown> = [],
-) => spec({ version: 1, display: { name: "Card" }, series, formulas, bucket, range: "W" });
+  version = 1,
+) => spec({ version, display: { name: "Card" }, series, formulas, bucket, range: "W" });
 
 const values = (data: ReturnType<typeof run>) => data.series[0]!.points.map((point) => point.value);
 
@@ -415,12 +416,12 @@ describe("edge cases", () => {
 describe("workouts", () => {
   const [running, cycling, walking] = [37, 13, 52];
   const workouts = [
-    { start: date(10, 20, 7), end: date(10, 20, 7, 30), activityType: running },
-    { start: date(10, 20, 18), end: date(10, 20, 19), activityType: cycling },
+    { start: date(10, 20, 7), end: date(10, 20, 7, 30), activityType: running, indoor: null },
+    { start: date(10, 20, 18), end: date(10, 20, 19), activityType: cycling, indoor: null },
     // Two runs recorded over each other: 07:00 to 08:00.
-    { start: date(10, 21, 7), end: date(10, 21, 7, 45), activityType: running },
-    { start: date(10, 21, 7, 30), end: date(10, 21, 8), activityType: running },
-    { start: date(10, 21, 12), end: date(10, 21, 12, 30), activityType: walking },
+    { start: date(10, 21, 7), end: date(10, 21, 7, 45), activityType: running, indoor: null },
+    { start: date(10, 21, 7, 30), end: date(10, 21, 8), activityType: running, indoor: null },
+    { start: date(10, 21, 12), end: date(10, 21, 12, 30), activityType: walking, indoor: null },
   ];
 
   it("keep readings during workouts of the activities given, overlapping ones merged", () => {
@@ -462,6 +463,38 @@ describe("workouts", () => {
     ]);
   });
 
+  it("keep readings during workouts indoors or outdoors, leaving out those that don't say", () => {
+    const located = [
+      { start: date(10, 20, 7), end: date(10, 20, 7, 30), activityType: running, indoor: false },
+      { start: date(10, 20, 18), end: date(10, 20, 19), activityType: cycling, indoor: true },
+      { start: date(10, 21, 7), end: date(10, 21, 7, 45), activityType: running, indoor: true },
+      // Says nothing of where it was.
+      { start: date(10, 21, 12), end: date(10, 21, 12, 30), activityType: running, indoor: null },
+    ];
+    const readings = everyMinute(date(10, 20, 6), date(10, 21, 20), (at) =>
+      located.some((item) => at >= item.start && at < item.end) ? 140 : 70,
+    );
+    const points = (window: unknown) =>
+      run(
+        windowCard([{ type: "Heart Rate", aggregation: "count", window }], "day", [], 2),
+        "W",
+        date(10, 20),
+        { readings: { [heartRate]: readings }, workouts: located },
+      ).series[0]!.points.map((point) => [point.value, point.start]);
+    const [day1, day2] = [date(10, 20), date(10, 21)];
+    assert.deepStrictEqual(points({ kind: "workout", location: "outdoor" }), [[30, day1]]);
+    assert.deepStrictEqual(points({ kind: "workout", location: "indoor" }), [
+      [60, day1],
+      [45, day2],
+    ]);
+    assert.deepStrictEqual(points({ kind: "workout", activities: [37], location: "indoor" }), [
+      [45, day2],
+    ]);
+    assert.deepStrictEqual(points({ kind: "workout", location: null }), [
+      [90, day1],
+      [75, day2],
+    ]);
+  });
   it("weigh a workout's last reading across the period's end as without the period", () => {
     const card = spec({
       version: 1,
@@ -475,7 +508,12 @@ describe("workouts", () => {
       {
         _tag: "workouts",
         workouts: [
-          { start: date(10, 20, 23, 30), end: date(10, 21, 0, 30), activityType: running },
+          {
+            start: date(10, 20, 23, 30),
+            end: date(10, 21, 0, 30),
+            activityType: running,
+            indoor: null,
+          },
         ],
       },
     ]);

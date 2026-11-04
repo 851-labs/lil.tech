@@ -329,13 +329,21 @@ struct CardWindowsTests {
   func workoutsByActivity() throws {
     let (running, cycling, walking) = (37, 13, 52)
     let workouts = [
-      CardWorkout(start: ms(date(10, 20, 7)), end: ms(date(10, 20, 7, 30)), activityType: running),
-      CardWorkout(start: ms(date(10, 20, 18)), end: ms(date(10, 20, 19)), activityType: cycling),
-      // Two runs recorded over each other: 07:00 to 08:00.
-      CardWorkout(start: ms(date(10, 21, 7)), end: ms(date(10, 21, 7, 45)), activityType: running),
-      CardWorkout(start: ms(date(10, 21, 7, 30)), end: ms(date(10, 21, 8)), activityType: running),
       CardWorkout(
-        start: ms(date(10, 21, 12)), end: ms(date(10, 21, 12, 30)), activityType: walking),
+        start: ms(date(10, 20, 7)), end: ms(date(10, 20, 7, 30)), activityType: running, indoor: nil
+      ),
+      CardWorkout(
+        start: ms(date(10, 20, 18)), end: ms(date(10, 20, 19)), activityType: cycling, indoor: nil),
+      // Two runs recorded over each other: 07:00 to 08:00.
+      CardWorkout(
+        start: ms(date(10, 21, 7)), end: ms(date(10, 21, 7, 45)), activityType: running, indoor: nil
+      ),
+      CardWorkout(
+        start: ms(date(10, 21, 7, 30)), end: ms(date(10, 21, 8)), activityType: running, indoor: nil
+      ),
+      CardWorkout(
+        start: ms(date(10, 21, 12)), end: ms(date(10, 21, 12, 30)), activityType: walking,
+        indoor: nil),
     ]
     let readings = everyMinute(date(10, 20, 6)..<date(10, 21, 20)) { at in
       workouts.first { ms(at) >= $0.start && ms(at) < $0.end }.map {
@@ -377,7 +385,8 @@ struct CardWindowsTests {
         indoor: true),
       // Says nothing of where it was.
       CardWorkout(
-        start: ms(date(10, 21, 12)), end: ms(date(10, 21, 12, 30)), activityType: running),
+        start: ms(date(10, 21, 12)), end: ms(date(10, 21, 12, 30)), activityType: running,
+        indoor: nil),
     ]
     let readings = everyMinute(date(10, 20, 6)..<date(10, 21, 20)) { at in
       workouts.first { ms(at) >= $0.start && ms(at) < $0.end } == nil ? 70 : 140
@@ -405,7 +414,9 @@ struct CardWindowsTests {
   @Test
   func aWorkoutAcrossThePeriodsEnd() throws {
     let workouts = [
-      CardWorkout(start: ms(date(10, 20, 23, 30)), end: ms(date(10, 21, 0, 30)), activityType: 37)
+      CardWorkout(
+        start: ms(date(10, 20, 23, 30)), end: ms(date(10, 21, 0, 30)), activityType: 37, indoor: nil
+      )
     ]
     let readings = [
       reading(date(10, 20, 23, 30), 100), reading(date(10, 20, 23, 50), 160),

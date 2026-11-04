@@ -78,7 +78,7 @@ export interface CardWorkout {
   readonly start: number;
   readonly end: number;
   readonly activityType: number;
-  readonly indoor?: boolean | null | undefined;
+  readonly indoor: boolean | null;
 }
 
 /** What a run needs fetched for one of its series. */

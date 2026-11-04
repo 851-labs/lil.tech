@@ -18,12 +18,15 @@ public struct CardWorkout: Hashable, Sendable {
   /// it (851-4031).
   public var indoor: Bool?
 
-  public init(start: Int, end: Int, activityType: Int, indoor: Bool? = nil) {
+  public init(start: Int, end: Int, activityType: Int, indoor: Bool?) {
     self.start = start
     self.end = end
     self.activityType = activityType
     self.indoor = indoor
   }
+
+  // Where a workout was, the rule the Mac's and the iPhone's engines and the Mac's `workouts`
+  // tool share (the server's port is `WorkoutLocation.ts`).
 
   /// Whether a workout was indoors, as every engine and the Health tools' `indoor` read it: as
   /// the workout says (`workout`), else as its activities say, if those that say agree.
@@ -36,8 +39,16 @@ public struct CardWorkout: Hashable, Sendable {
 
   /// Indoors or not, by an `HKWorkoutSessionLocationType` raw value: 2 indoor, 3 outdoor, and
   /// `nil` for 1 (unknown) or anything else.
-  public static func indoor(locationType: Int?) -> Bool? {
+  public static func indoor(locationType: Double?) -> Bool? {
     locationType == 2 ? true : locationType == 3 ? false : nil
+  }
+
+  /// `HKMetadataKeyIndoorWorkout`'s value: a Boolean, or 0 or 1 from apps that write it as a
+  /// number; `nil` for anything else.
+  public static func indoor(metadataValue value: Any?) -> Bool? {
+    guard let number = value as? NSNumber else { return nil }
+    if CFGetTypeID(number) == CFBooleanGetTypeID() { return number.boolValue }
+    return number.doubleValue == 1 ? true : number.doubleValue == 0 ? false : nil
   }
 }
 
@@ -209,7 +220,7 @@ extension CardWindows {
   /// every one, and where `location` says, or anywhere), merged where they overlap or touch, and
   /// clipped to `span`. A workout that doesn't say where it was is in neither location.
   static func workoutStretches(
-    activities: [Int]?, location: CardWorkoutLocation? = nil, workouts: [CardWorkout],
+    activities: [Int]?, location: CardWorkoutLocation?, workouts: [CardWorkout],
     in span: Range<Int>
   ) -> [CardStretch] {
     let matching = workouts.filter { workout in
