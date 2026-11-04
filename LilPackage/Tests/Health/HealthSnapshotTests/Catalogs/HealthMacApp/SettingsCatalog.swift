@@ -407,9 +407,7 @@
       card(4, "create_card", name: "Sleeping Heart Rate"),
       card(5, "create_card", name: "Sleeping Heart Rate", outcome: "error", rows: 0),
       card(6, "preview_card", types: ["HKQuantityTypeIdentifierHeartRate"], range: "M", rows: 30),
-      card(
-        7, "get_card", name: "Morning Weight", types: ["HKQuantityTypeIdentifierBodyMass"],
-        range: "M", rows: 24),
+      card(7, "get_card", types: ["HKQuantityTypeIdentifierBodyMass"], range: "M", rows: 24),
       card(8, "list_cards", rows: 7),
     ]
   }()

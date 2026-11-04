@@ -10,9 +10,13 @@ public enum CardToolChange: String, CaseIterable, Sendable {
   case delete = "delete_card"
   case reorder = "reorder_cards"
 
-  /// The change a tool makes, or `nil` for one that only reads (`get_card`, `preview_card`…).
-  public init?(tool: String) {
-    self.init(rawValue: tool)
+  /// A remote access log entry's sentence (`RemoteAgentAccess`'s `tool`, `cardName` and
+  /// `outcome`), or `nil` for a tool that only reads (`get_card`, `preview_card`…). It's done
+  /// when the server wrote it: `ok`, or `too_large`, whose answer wasn't sent but whose write
+  /// was. Any other outcome (`error`, or one added later) says what was asked.
+  public static func sentence(tool: String, cardName: String?, outcome: String) -> String? {
+    CardToolChange(rawValue: tool)?.sentence(
+      cardName: cardName, done: outcome == "ok" || outcome == "too_large")
   }
 
   /// The change in a sentence, with the card's name, the person's own words: "Created card
@@ -34,7 +38,7 @@ public enum CardToolChange: String, CaseIterable, Sendable {
   /// command.
   public static func logged(_ command: String) -> (change: CardToolChange, cardName: String?)? {
     let parts = command.split(separator: " ", maxSplits: 1)
-    guard let tool = parts.first, let change = CardToolChange(tool: String(tool)) else {
+    guard let tool = parts.first, let change = CardToolChange(rawValue: String(tool)) else {
       return nil
     }
     let arguments = parts.count > 1 ? try? CardJSON(parsing: Data(parts[1].utf8)) : nil

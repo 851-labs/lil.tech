@@ -554,8 +554,10 @@ struct RemoteAccessRow: View {
       Text(entry.at, format: .dateTime.month(.abbreviated).day().hour().minute())
         .monospacedDigit()
     } label: {
-      if let change = CardToolChange(tool: entry.tool) {
-        Text(change.sentence(cardName: entry.cardName, done: entry.outcome == "ok"))
+      if let change = CardToolChange.sentence(
+        tool: entry.tool, cardName: entry.cardName, outcome: entry.outcome)
+      {
+        Text(change)
           .lineLimit(1)
       } else {
         Text(entry.request { id in HealthCatalog.type(id: id)?.name ?? id })

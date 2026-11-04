@@ -21,11 +21,19 @@ struct CardToolChangeTests {
     #expect(CardToolChange.delete.sentence(cardName: nil, done: false) == "Delete a card")
   }
 
-  @Test func onlyWritesAreChanges() {
-    #expect(CardToolChange(tool: "get_card") == nil)
-    #expect(CardToolChange(tool: "preview_card") == nil)
-    #expect(CardToolChange(tool: "list_cards") == nil)
-    #expect(CardToolChange(tool: "update_card") == .update)
+  @Test func remoteEntriesAreDoneOnceWritten() {
+    func sentence(_ tool: String, _ outcome: String) -> String? {
+      CardToolChange.sentence(tool: tool, cardName: "Steps", outcome: outcome)
+    }
+    #expect(sentence("create_card", "ok") == "Created card “Steps”")
+    // Written, though its answer was too large to send.
+    #expect(sentence("update_card", "too_large") == "Changed card “Steps”")
+    #expect(sentence("delete_card", "error") == "Delete card “Steps”")
+    #expect(sentence("reorder_cards", "a_later_outcome") == "Reorder cards")
+    // Reads aren't changes.
+    #expect(sentence("get_card", "ok") == nil)
+    #expect(sentence("preview_card", "ok") == nil)
+    #expect(sentence("list_cards", "ok") == nil)
   }
 
   @Test func readsTheLocalLogsEntries() {

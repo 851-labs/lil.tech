@@ -41,8 +41,8 @@ export interface AgentAccess {
   /** How many rows went back: the items of the answer's lists. */
   readonly rows: number;
   /**
-   * The card a card tool read, created, changed or deleted (`card_…`), if one (851-4011). Never
-   * its spec or values.
+   * The card a card tool created, changed or deleted (`card_…`), if one (851-4011). Never its
+   * spec or values.
    */
   readonly cardId: string | null;
   /** That card's name, the person's own words, so the apps can say what an agent changed. */

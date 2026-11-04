@@ -7,7 +7,8 @@
 
   // Recent Access (`RecentAccessView`), from Connected Agents: what agents read, newest first,
   // nothing yet, loading, failed, loading or failing to load the next page, a log read to its
-  // end, and an agent's card changes. Times are in Los Angeles (the scheme's `TZ`). Synthetic data only (`SyntheticAgents`).
+  // end, and an agent's card changes. Times are in Los Angeles (the scheme's `TZ`). Synthetic
+  // data only (`SyntheticAgents`).
 
   extension PhoneSnapshotTests {
     @Test(arguments: recentAccessCatalog.selectedStates)

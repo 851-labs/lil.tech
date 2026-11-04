@@ -149,8 +149,7 @@
         6, "preview_card", types: ["HKQuantityTypeIdentifierHeartRate"], range: "M", id: nil,
         rows: 30),
       card(
-        7, "get_card", name: "Morning Weight", types: ["HKQuantityTypeIdentifierBodyMass"],
-        range: "M", rows: 24),
+        7, "get_card", types: ["HKQuantityTypeIdentifierBodyMass"], range: "M", rows: 24),
       card(8, "list_cards", id: nil, rows: 7),
     ]
 

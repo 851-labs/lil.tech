@@ -67,8 +67,10 @@ struct RecentAccessRow: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 3) {
-      if let change = CardToolChange(tool: entry.tool) {
-        Text(change.sentence(cardName: entry.cardName, done: entry.outcome == "ok"))
+      if let change = CardToolChange.sentence(
+        tool: entry.tool, cardName: entry.cardName, outcome: entry.outcome)
+      {
+        Text(change)
           .font(.callout)
           .lineLimit(1)
       } else {

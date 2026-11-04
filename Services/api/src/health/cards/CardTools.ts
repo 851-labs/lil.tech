@@ -457,15 +457,6 @@ const nameOf = (spec: Json | undefined): string | null => {
   return typeof name === "string" ? name : null;
 };
 
-/**
- * An input spec's name: its canonical form's, or, with errors, the one it gives, as the Mac's
- * server logs it (`HealthTools.cardName`), so a refused create still says which card it was.
- */
-const inputName = (input: unknown) => {
-  const result = canonicalOf(input);
-  return nameOf(result.spec ?? specJson(input));
-};
-
 /** The card an answer holds (`HealthCardResult`'s `card`), encoded. */
 const answeredCard = (encoded: unknown): LoggedCard | undefined => {
   if (!Predicate.hasProperty(encoded, "card") || !Predicate.isObject(encoded.card))
@@ -476,10 +467,14 @@ const answeredCard = (encoded: unknown): LoggedCard | undefined => {
   return { cardId: id, cardName: nameOf(spec) };
 };
 
-/** An input spec's types: its canonical form's, or, with errors, those of its series named. */
-const inputTypes = (input: unknown) => {
-  const result = canonicalOf(input);
-  return typesOf(result.spec ?? specJson(input));
+/**
+ * What the log reads an input spec's types and name from: its canonical form, or, with errors,
+ * the spec as given (its series named, and its name as the Mac's server logs it,
+ * `HealthTools.cardName`, so a refused create still says which card it was).
+ */
+const inputSpec = (params: object): Json | undefined => {
+  if (!Predicate.hasProperty(params, "spec")) return undefined;
+  return canonicalOf(params.spec).spec ?? specJson(params.spec);
 };
 
 const field = (params: object, name: string): string | null =>
@@ -507,8 +502,8 @@ const points = (encoded: unknown) => {
  * What the access log keeps of each card tool's calls (`docs/decisions/cards.md`, The access log):
  * the types of the spec it's given or of the card it names, read before the call runs (so a
  * deleted card's are known), `range` and `date` for runs, `rows` the points or cards returned,
- * and the card it read, created, changed or deleted, with its name (851-4011): the stored card's,
- * the input spec's, or for a write that went through, the card it wrote. Never the spec.
+ * and the card it created, changed or deleted, with its name (851-4011): the stored card's, the
+ * input spec's, or for a write that went through, the card it wrote. Never the spec.
  */
 export const cardToolLogs = (
   sql: StoreSql,
@@ -524,12 +519,12 @@ export const cardToolLogs = (
     const id = field(params, "id");
     return id === null ? undefined : readCard(sql, id);
   };
-  const storedSpec = (params: object) => stored(params)?.spec;
-  const storedTypes = (params: object) => typesOf(storedSpec(params));
-  /** A card the call names, if there is one: never an ID an agent made up. */
-  const storedCard = (params: object): LoggedCard => {
-    const card = stored(params);
-    return { cardId: card?.id ?? null, cardName: nameOf(card?.spec) };
+  /** The ID a call names, if it's a card's: never one an agent made up. */
+  const storedId = (params: object) => {
+    const id = field(params, "id");
+    return id !== null && sql.exec("SELECT 1 FROM health_card WHERE id = ?", id).length > 0
+      ? id
+      : null;
   };
   const rangeOf = (spec: Json | undefined) => {
     const range = spec !== undefined && isJsonObject(spec) ? spec["range"] : undefined;
@@ -537,56 +532,55 @@ export const cardToolLogs = (
   };
   const inputRange = (params: object) =>
     rangeOf(Predicate.hasProperty(params, "spec") ? canonicalOf(params.spec).spec : undefined);
-  const none = askedForNothing;
   const one = () => 1;
-  const specName = (params: object) =>
-    Predicate.hasProperty(params, "spec") ? inputName(params.spec) : null;
+  /** A write's types and name, from the spec it's given. */
+  const written = (params: object) => {
+    const spec = inputSpec(params);
+    return { ...askedForNothing, types: typesOf(spec), cardName: nameOf(spec) };
+  };
   return {
-    list_cards: { askedFor: () => none },
+    list_cards: { askedFor: () => askedForNothing },
+    // A read names no card: the log keeps the cards agents changed (the privacy policy's "which
+    // card it created, changed or deleted"), and a read's types say what it read.
     get_card: {
       askedFor: (params) => {
-        const card = stored(params);
+        const spec = stored(params)?.spec;
         return {
-          types: typesOf(card?.spec),
-          range: field(params, "range") ?? rangeOf(card?.spec),
+          ...askedForNothing,
+          types: typesOf(spec),
+          range: field(params, "range") ?? rangeOf(spec),
           date: dayField(params),
-          ...storedCard(params),
         };
       },
       rows: points,
     },
     preview_card: {
       askedFor: (params) => ({
-        ...none,
-        types: Predicate.hasProperty(params, "spec") ? inputTypes(params.spec) : null,
+        ...askedForNothing,
+        types: typesOf(inputSpec(params)),
         range: field(params, "range") ?? inputRange(params),
         date: dayField(params),
       }),
       rows: points,
     },
-    create_card: {
-      askedFor: (params) => ({
-        ...none,
-        types: Predicate.hasProperty(params, "spec") ? inputTypes(params.spec) : null,
-        cardName: specName(params),
-      }),
-      rows: one,
-      card: answeredCard,
-    },
+    create_card: { askedFor: written, rows: one, card: answeredCard },
     update_card: {
-      askedFor: (params) => ({
-        ...none,
-        types: Predicate.hasProperty(params, "spec") ? inputTypes(params.spec) : null,
-        cardId: storedCard(params).cardId,
-        cardName: specName(params),
-      }),
+      askedFor: (params) => ({ ...written(params), cardId: storedId(params) }),
       rows: one,
       card: answeredCard,
     },
     delete_card: {
-      askedFor: (params) => ({ ...none, types: storedTypes(params), ...storedCard(params) }),
+      askedFor: (params) => {
+        const card = stored(params);
+        return {
+          ...askedForNothing,
+          types: typesOf(card?.spec),
+          cardId: card?.id ?? null,
+          cardName: nameOf(card?.spec),
+        };
+      },
       rows: one,
     },
-    reorder_cards: { askedFor: () => none },
+    reorder_cards: { askedFor: () => askedForNothing },
   };
 };

@@ -483,8 +483,8 @@ extension HealthTools {
   /// read before it goes, as the remote server's log reads it. `nil` for a card that isn't there.
   public static func cardName(id: String, _ db: Database) throws -> String? {
     guard let card = try HealthCard.find(id).fetchOne(db),
-      case .string(let name)? = (try? CardJSON(parsing: Data(card.spec.utf8)))?["display"]?["name"]
+      let spec = try? CardJSON(parsing: Data(card.spec.utf8))
     else { return nil }
-    return name
+    return cardName(of: spec)
   }
 }

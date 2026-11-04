@@ -162,16 +162,18 @@ enum HealthMCPServer {
       try HealthDatabase.openForReading(at: url).read { db in try value(db) }
     }
     do {
+      let access = AgentAccessStore(directory: context.directory)
       var logged = loggedArguments(name, arguments)
       // A delete logs the card's name too, read before it goes, so Settings can say which card
-      // (851-4011), as the remote server's log does. Only for the log: nothing reaches the agent.
-      if case .delete(let id) = write,
-        let cardName = try? read({ db in try HealthTools.cardName(id: id, db) })
-      {
-        logged["name"] = .string(cardName)
+      // (851-4011), as the remote server's log does. Only for the log, nothing reaches the agent,
+      // and only once access is known to be on: nothing is read while it's off.
+      if case .delete(let id) = write {
+        guard try access.isEnabled() else { throw AgentAccessError.off }
+        if let cardName = try? read({ db in try HealthTools.cardName(id: id, db) }) {
+          logged["name"] = .string(cardName)
+        }
       }
-      try AgentAccessStore(directory: context.directory)
-        .authorize(command: logEntry(name, logged), process: context.process)
+      try access.authorize(command: logEntry(name, logged), process: context.process)
       NSTimeZone.resetSystemTimeZone()
       let tools = HealthTools(now: context.now(), defaultTimeZone: context.timeZone)
       switch write {

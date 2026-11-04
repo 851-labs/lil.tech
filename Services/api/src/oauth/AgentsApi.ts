@@ -98,8 +98,8 @@ export class AgentAccessEntry extends Schema.Class<AgentAccessEntry>(
   /** How many rows the answer held. */
   rows: Schema.Int,
   /**
-   * The card a card tool read, created, changed or deleted (`card_…`), if any (851-4011): left
-   * out for other tools, and for a card that wasn't there.
+   * The card a card tool created, changed or deleted (`card_…`), if any (851-4011): left out
+   * for other tools, reads, and a card that wasn't there.
    */
   cardId: Schema.optionalKey(Schema.String),
   /**

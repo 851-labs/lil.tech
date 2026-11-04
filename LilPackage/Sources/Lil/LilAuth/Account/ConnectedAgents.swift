@@ -86,7 +86,7 @@ public struct RemoteAgentAccess: Equatable, Identifiable, Sendable {
   /// How it went (`ok`, or why not), and how many rows it read.
   public var outcome: String
   public var rows: Int
-  /// The card a card tool read, created, changed or deleted, if any (851-4011).
+  /// The card a card tool created, changed or deleted, if any (851-4011).
   public var cardID: String?
   /// That card's name, the person's own words, so settings can say what an agent changed.
   public var cardName: String?

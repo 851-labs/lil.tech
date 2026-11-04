@@ -448,7 +448,7 @@ describe("the card tools", () => {
 });
 
 describe("the card tools' log", () => {
-  it.effect("names the card each call read or changed, never one an agent made up (851-4011)", () =>
+  it.effect("names the card each write changed, never one an agent made up (851-4011)", () =>
     Effect.gen(function* () {
       const { call, cardLog } = yield* setup;
       const created = (yield* call("create_card", { spec: restingHeartRate })).value.card.id;
@@ -470,7 +470,8 @@ describe("the card tools' log", () => {
       yield* call("delete_card", { id: created });
       assert.deepStrictEqual(cardLog(), [
         { tool: "create_card", outcome: "ok", card_id: created, card_name: "Resting Heart Rate" },
-        { tool: "get_card", outcome: "ok", card_id: created, card_name: "Resting Heart Rate" },
+        // A read names no card.
+        { tool: "get_card", outcome: "ok", card_id: null, card_name: null },
         { tool: "update_card", outcome: "ok", card_id: created, card_name: "Resting Pulse" },
         { tool: "list_cards", outcome: "ok", card_id: null, card_name: null },
         { tool: "preview_card", outcome: "ok", card_id: null, card_name: null },
