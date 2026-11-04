@@ -4,7 +4,7 @@
     "Each batch is applied as the server ingests an iPhone's upload (device-scoped records are stamped with the batch's device, and reportedAt with receivedAt), and as the Mac then syncs it.",
     "Times in lines are Unix milliseconds. The conformance cases are in cases.json.",
     "A workout dated later today (16:30, after the cases' 15:00) hasn't happened, so it doesn't count yet.",
-    "Workouts: the 13 October run at 18:00Z has no metadata and a route HealthKit didn't link (found by its times); 14 October's is a treadmill run, indoor, with an empty route linked; 18 October's is outdoor, with its route, elevation and weather; 20 October's is a third-party app's, named, its indoor flag a number; the ride only says it's indoors on its one activity. September has a pool swim and a multisport race with an open-water swim, a route, a blank name and its elevation in feet.",
+    "Workouts: the 13 October run at 18:00Z has no metadata and a route HealthKit didn't link (found by its times); 14 October's is a treadmill run, indoor, with an empty route linked; 18 October's is outdoor, with its route, elevation and weather; 20 October's is a third-party app's, named, its indoor flag a number; the ride only says it's indoors on its one activity. September has a pool swim and a multisport race with an open-water swim, a route, a blank name and its elevation in feet. The week of 14 September has workouts as iPhones upload them since 851-4030: each activity's configured location (locationType, swimmingLocationType) and the WorkoutKit plan in the metadata (LilWorkoutPlan): a ride only its configuration calls indoor, a custom plan's run named by the plan, a third-party run whose brand name and metadata win, a goal plan's pool swim, a swim-bike-run plan's race, a blank plan name, and an unreadable location type and plan.",
     "Heart rate on 20 October comes from the Watch and the iPhone, with gaps over an hour, so time-weighted averages depend on each source's next reading. Sleep has the Watch's stages and the iPhone's estimates; medications a schedule, as-needed doses and an archived one; Health Details one characteristic Not Set."
   ],
   "batches": [
@@ -1094,6 +1094,280 @@
             "appleStandHoursGoal": 12,
             "activityMoveMode": "activeEnergy",
             "paused": false
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000017",
+          "row": {
+            "activityType": 13,
+            "startDate": 1789369200000,
+            "endDate": 1789372800000,
+            "duration": 3600,
+            "activities": [
+              {
+                "id": "0c0f0000-0000-4000-8000-000000000201",
+                "activityType": 13,
+                "startDate": 1789369200000,
+                "endDate": 1789372800000,
+                "duration": 3600.0,
+                "locationType": 2,
+                "swimmingLocationType": 0,
+                "metadata": null,
+                "statistics": {}
+              }
+            ],
+            "events": [],
+            "statistics": {},
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000018",
+          "row": {
+            "activityType": 37,
+            "startDate": 1789495200000,
+            "endDate": 1789497600000,
+            "duration": 2400,
+            "activities": [
+              {
+                "id": "0c0f0000-0000-4000-8000-000000000202",
+                "activityType": 37,
+                "startDate": 1789495200000,
+                "endDate": 1789497600000,
+                "duration": 2400.0,
+                "locationType": 3,
+                "swimmingLocationType": 0,
+                "metadata": null,
+                "statistics": {}
+              }
+            ],
+            "events": [],
+            "statistics": {},
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "HKTimeZone": "Europe/London",
+              "LilWorkoutPlan": {
+                "kind": "custom",
+                "name": "Test Hill Repeats",
+                "activityType": 37,
+                "locationType": 3
+              }
+            }
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000019",
+          "row": {
+            "activityType": 37,
+            "startDate": 1789538400000,
+            "endDate": 1789540200000,
+            "duration": 1800,
+            "activities": [
+              {
+                "id": "0c0f0000-0000-4000-8000-000000000203",
+                "activityType": 37,
+                "startDate": 1789538400000,
+                "endDate": 1789540200000,
+                "duration": 1800.0,
+                "locationType": 3,
+                "swimmingLocationType": 0,
+                "metadata": {
+                  "HKIndoorWorkout": true
+                },
+                "statistics": {}
+              }
+            ],
+            "events": [],
+            "statistics": {},
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "HKWorkoutBrandName": "Test Brand Run",
+              "LilWorkoutPlan": {
+                "kind": "custom",
+                "name": "Test Plan Run",
+                "activityType": 37,
+                "locationType": 3
+              }
+            }
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-00000000001a",
+          "row": {
+            "activityType": 46,
+            "startDate": 1789626600000,
+            "endDate": 1789628400000,
+            "duration": 1800,
+            "activities": [
+              {
+                "id": "0c0f0000-0000-4000-8000-000000000204",
+                "activityType": 46,
+                "startDate": 1789626600000,
+                "endDate": 1789628400000,
+                "duration": 1800.0,
+                "locationType": 2,
+                "swimmingLocationType": 1,
+                "metadata": null,
+                "statistics": {}
+              }
+            ],
+            "events": [],
+            "statistics": {},
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "LilWorkoutPlan": {
+                "kind": "goal",
+                "name": null,
+                "activityType": 46,
+                "locationType": 2
+              }
+            }
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-00000000001b",
+          "row": {
+            "activityType": 82,
+            "startDate": 1789804800000,
+            "endDate": 1789810200000,
+            "duration": 5400,
+            "activities": [
+              {
+                "id": "0c0f0000-0000-4000-8000-000000000205",
+                "activityType": 46,
+                "startDate": 1789804800000,
+                "endDate": 1789806000000,
+                "duration": 1200.0,
+                "locationType": 3,
+                "swimmingLocationType": 2,
+                "metadata": null,
+                "statistics": {}
+              },
+              {
+                "id": "0c0f0000-0000-4000-8000-000000000206",
+                "activityType": 83,
+                "startDate": 1789806000000,
+                "endDate": 1789806300000,
+                "duration": 300.0,
+                "locationType": 1,
+                "swimmingLocationType": 0,
+                "metadata": null,
+                "statistics": {}
+              },
+              {
+                "id": "0c0f0000-0000-4000-8000-000000000207",
+                "activityType": 13,
+                "startDate": 1789806300000,
+                "endDate": 1789808700000,
+                "duration": 2400.0,
+                "locationType": 3,
+                "swimmingLocationType": 0,
+                "metadata": null,
+                "statistics": {}
+              },
+              {
+                "id": "0c0f0000-0000-4000-8000-000000000208",
+                "activityType": 37,
+                "startDate": 1789808700000,
+                "endDate": 1789810200000,
+                "duration": 1500.0,
+                "metadata": null,
+                "statistics": {}
+              }
+            ],
+            "events": [],
+            "statistics": {},
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "LilWorkoutPlan": {
+                "kind": "swimBikeRun",
+                "name": "Test Sprint Triathlon",
+                "activityType": 82,
+                "locationType": null
+              }
+            }
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-00000000001c",
+          "row": {
+            "activityType": 37,
+            "startDate": 1789887600000,
+            "endDate": 1789889400000,
+            "duration": 1800,
+            "activities": [
+              {
+                "id": "0c0f0000-0000-4000-8000-000000000209",
+                "activityType": 37,
+                "startDate": 1789887600000,
+                "endDate": 1789889400000,
+                "duration": 1800.0,
+                "locationType": 1,
+                "swimmingLocationType": 0,
+                "metadata": null,
+                "statistics": {}
+              }
+            ],
+            "events": [],
+            "statistics": {},
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "LilWorkoutPlan": {
+                "kind": "custom",
+                "name": " \t",
+                "activityType": 37,
+                "locationType": 1
+              }
+            }
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-00000000001d",
+          "row": {
+            "activityType": 52,
+            "startDate": 1789920000000,
+            "endDate": 1789922700000,
+            "duration": 2700,
+            "activities": [
+              {
+                "id": "0c0f0000-0000-4000-8000-000000000210",
+                "activityType": 52,
+                "startDate": 1789920000000,
+                "endDate": 1789922700000,
+                "duration": 2700.0,
+                "swimmingLocationType": 0,
+                "locationType": "2",
+                "metadata": null,
+                "statistics": {}
+              }
+            ],
+            "events": [],
+            "statistics": {},
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "LilWorkoutPlan": "Test Walk"
+            }
           }
         }
       ]

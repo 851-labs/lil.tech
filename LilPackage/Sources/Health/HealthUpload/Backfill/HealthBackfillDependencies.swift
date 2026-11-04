@@ -250,7 +250,7 @@ extension HealthReader: DependencyKey {
           if let correlation = sample as? HKCorrelation {
             mutations += try HealthEncoder.correlation(correlation)
           } else if let workout = sample as? HKWorkout {
-            mutations.append(HealthEncoder.workout(WorkoutRecord(workout)))
+            mutations.append(HealthEncoder.workout(try await WorkoutRecord(workout)))
           } else if let log = sample as? HKStateOfMind {
             mutations.append(HealthEncoder.stateOfMind(log))
           } else if let assessment = sample as? HKScoredAssessment {

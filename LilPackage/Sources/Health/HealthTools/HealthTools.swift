@@ -236,7 +236,7 @@ public struct HealthTools: Sendable {
         return HealthWorkoutItem(
           id: workout.id, activityType: workout.activityType,
           activity: HealthCatalog.workoutActivityName(workout.activityType),
-          name: metadata.brandName,
+          name: metadata.name,
           start: time.localTime(Date(unixMilliseconds: workout.startDate)),
           end: time.localTime(Date(unixMilliseconds: workout.endDate)),
           duration: workout.duration,
@@ -256,8 +256,8 @@ public struct HealthTools: Sendable {
                 end: activity.endDate.map {
                   time.localTime(Date(timeIntervalSince1970: $0 / 1000))
                 },
-                duration: activity.duration, indoor: activity.metadata.indoor,
-                swimmingLocation: activity.metadata.swimmingLocation)
+                duration: activity.duration, indoor: activity.indoor,
+                swimmingLocation: activity.swimmingLocation)
             })
       })
   }

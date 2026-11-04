@@ -103,8 +103,13 @@ export const HealthWorkout = defineEntity("health_workout", {
     duration: Column.real,
     /**
      * `HKWorkoutActivity`s, in order: `{ id, activityType, startDate, endDate, duration,
-     * metadata, statistics }`. Often empty: HealthKit only has them for workouts recorded with
-     * activities (e.g. multisport), so read `activityType` and `statistics` for the whole.
+     * locationType, swimmingLocationType, metadata, statistics }`. Often empty: HealthKit only
+     * has them for workouts recorded with activities (e.g. multisport, and most since watchOS
+     * 9), so read `activityType` and `statistics` for the whole. `locationType` and
+     * `swimmingLocationType` are the activity's `HKWorkoutConfiguration`'s
+     * (`HKWorkoutSessionLocationType`: 1 unknown, 2 indoor, 3 outdoor;
+     * `HKWorkoutSwimmingLocationType`: 0 unknown, 1 pool, 2 open water), from iPhones since
+     * 851-4030; earlier uploads don't have them.
      */
     activities: Column.json,
     /** `HKWorkoutEvent`s, in order: `{ type, startDate, endDate, metadata }`. */
@@ -114,6 +119,16 @@ export const HealthWorkout = defineEntity("health_workout", {
      * in the type's unit from the Swift `HealthCatalog` module, or null.
      */
     statistics: Column.json,
+    /**
+     * Besides HealthKit's metadata keys, `metadata` has the WorkoutKit plan the workout was
+     * recorded from (`HKWorkout.workoutPlan`), if any, under `LilWorkoutPlan` (851-4030):
+     * `{ kind, name, activityType, locationType }`, `kind` one of `goal`, `custom`, `pacer`,
+     * `swimBikeRun` (or `unknown`, for a kind WorkoutKit adds later), `name` the plan's display name or null (only custom and swim-bike-run
+     * workouts have one), `activityType` an `HKWorkoutActivityType`, and `locationType` an
+     * `HKWorkoutSessionLocationType`, null for swim-bike-run. Kept in the metadata rather than a
+     * field of its own, which every Mac would bootstrap its whole copy again to get. Earlier
+     * uploads don't have it; the iPhone reads its workouts again once to add it.
+     */
     ...provenance,
   },
   // The JSON fields' shapes, so a client can rely on them.

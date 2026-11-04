@@ -17,6 +17,7 @@
 		4D000000000000000000000C /* HealthCards in Frameworks */ = {isa = PBXBuildFile; productRef = 4D0000000000000000000002 /* HealthCards */; };
 		4D000000000000000000000D /* HealthCatalog in Frameworks */ = {isa = PBXBuildFile; productRef = 4D0000000000000000000003 /* HealthCatalog */; };
 		4D000000000000000000000E /* HealthConformance in Frameworks */ = {isa = PBXBuildFile; productRef = 4D0000000000000000000004 /* HealthConformance */; };
+		4D000000000000000000000F /* HealthUpload in Frameworks */ = {isa = PBXBuildFile; productRef = 4D0000000000000000000005 /* HealthUpload */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -82,6 +83,7 @@
 				4D000000000000000000000C /* HealthCards in Frameworks */,
 				4D000000000000000000000D /* HealthCatalog in Frameworks */,
 				4D000000000000000000000E /* HealthConformance in Frameworks */,
+				4D000000000000000000000F /* HealthUpload in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -173,6 +175,7 @@
 				4D0000000000000000000002 /* HealthCards */,
 				4D0000000000000000000003 /* HealthCatalog */,
 				4D0000000000000000000004 /* HealthConformance */,
+				4D0000000000000000000005 /* HealthUpload */,
 			);
 			productName = HealthKitPhoneTests;
 			productReference = 4B0000000000000000000004 /* HealthKitPhoneTests.xctest */;
@@ -481,6 +484,10 @@
 		4D0000000000000000000004 /* HealthConformance */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = HealthConformance;
+		};
+		4D0000000000000000000005 /* HealthUpload */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HealthUpload;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

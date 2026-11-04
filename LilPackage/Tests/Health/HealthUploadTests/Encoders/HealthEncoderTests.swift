@@ -4,6 +4,7 @@ import HealthKit
 import LilAPI
 import LilGzip
 import Testing
+import WorkoutKit
 
 @testable import HealthUpload
 
@@ -290,6 +291,93 @@ struct HealthEncoderTests {
     #expect(statistics["HKQuantityTypeIdentifierActiveEnergyBurned"]?["sum"] as? Double == 312.5)
     #expect(statistics["HKQuantityTypeIdentifierHeartRate"]?["average"] as? Double == 151)
     #expect(statistics["HKQuantityTypeIdentifierHeartRate"]?["sum"] is NSNull)
+  }
+
+  @Test
+  func workoutActivitiesLocationsAndPlan() throws {
+    let workout = WorkoutRecord(
+      id: UUID(uuidString: "6F1C2A40-0000-4000-8000-0000000000B1")!,
+      activityType: HKWorkoutActivityType.swimming.rawValue, duration: 1800,
+      activities: [
+        .init(
+          id: UUID(uuidString: "6F1C2A40-0000-4000-8000-0000000000B2")!,
+          activityType: HKWorkoutActivityType.swimming.rawValue, startDate: start,
+          endDate: start.addingTimeInterval(1800), duration: 1800,
+          locationType: HKWorkoutSessionLocationType.indoor.rawValue,
+          swimmingLocationType: HKWorkoutSwimmingLocationType.pool.rawValue, metadata: nil,
+          statistics: [])
+      ],
+      events: [], statistics: [],
+      provenance: [
+        "startDate": .number(1_760_400_000_000), "endDate": .number(1_760_401_800_000),
+        "sourceName": .string("Test Watch"), "sourceBundleId": .string("com.example.test"),
+        "metadata": .object(["HKLapLength": .string("25 m")]),
+      ],
+      plan: WorkoutRecord.Plan(
+        WorkoutPlan(
+          .custom(
+            CustomWorkout(activity: .swimming, location: .indoor, displayName: "Test Laps")))))
+
+    let mutation = HealthEncoder.workout(workout)
+    _ = try row(mutation, as: Components.Schemas.HealthWorkout.self)
+    let encoded = try #require(try line(mutation)["row"] as? [String: Any])
+    let activity = try #require((encoded["activities"] as? [[String: Any]])?.first)
+    #expect(activity["locationType"] as? Int == 2)
+    #expect(activity["swimmingLocationType"] as? Int == 1)
+    // The plan goes in the metadata, beside HealthKit's keys.
+    let metadata = try #require(encoded["metadata"] as? [String: Any])
+    #expect(metadata["HKLapLength"] as? String == "25 m")
+    let plan = try #require(metadata["LilWorkoutPlan"] as? [String: Any])
+    #expect(plan["kind"] as? String == "custom")
+    #expect(plan["name"] as? String == "Test Laps")
+    #expect(plan["activityType"] as? Int == 46)
+    #expect(plan["locationType"] as? Int == 2)
+
+    // Without a plan or metadata, there's no metadata.
+    var plain = workout
+    plain.plan = nil
+    plain.provenance["metadata"] = .null
+    let plainRow = try #require(try line(HealthEncoder.workout(plain))["row"] as? [String: Any])
+    #expect(plainRow["metadata"] is NSNull)
+    // A plan without metadata makes some.
+    plain.plan = WorkoutRecord.Plan(WorkoutPlan(.goal(SingleGoalWorkout(activity: .running))))
+    let planRow = try #require(try line(HealthEncoder.workout(plain))["row"] as? [String: Any])
+    let goal = try #require(
+      (planRow["metadata"] as? [String: Any])?["LilWorkoutPlan"] as? [String: Any])
+    #expect(goal["kind"] as? String == "goal")
+    #expect(goal["name"] is NSNull)
+    #expect(goal["locationType"] as? Int == 1)
+  }
+
+  @Test
+  func workoutPlans() {
+    #expect(
+      WorkoutRecord.Plan(
+        WorkoutPlan(.goal(SingleGoalWorkout(activity: .cycling, location: .outdoor))))
+        == .init(kind: "goal", name: nil, activityType: 13, locationType: 3))
+    #expect(
+      WorkoutRecord.Plan(
+        WorkoutPlan(
+          .custom(CustomWorkout(activity: .running, location: .outdoor, displayName: "Test 5K"))))
+        == .init(kind: "custom", name: "Test 5K", activityType: 37, locationType: 3))
+    #expect(
+      WorkoutRecord.Plan(
+        WorkoutPlan(
+          .swimBikeRun(
+            SwimBikeRunWorkout(
+              activities: [.swimming(.openWater), .cycling(.outdoor), .running(.outdoor)],
+              displayName: "Test Sprint"))))
+        == .init(
+          kind: "swimBikeRun", name: "Test Sprint",
+          activityType: HKWorkoutActivityType.swimBikeRun.rawValue, locationType: nil))
+    #expect(
+      WorkoutRecord.Plan(
+        WorkoutPlan(
+          .pacer(
+            PacerWorkout(
+              activity: .running, location: .outdoor, distance: .init(value: 5, unit: .kilometers),
+              time: .init(value: 25, unit: .minutes)))))
+        == .init(kind: "pacer", name: nil, activityType: 37, locationType: 3))
   }
 
   @Test

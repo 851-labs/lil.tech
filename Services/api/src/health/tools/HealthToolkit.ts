@@ -344,14 +344,14 @@ export const workoutsLimit = 100;
 const workoutIndoor = Schema.NullOr(Schema.Boolean).annotate({
   description:
     "Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than " +
-    "outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or null if it " +
-    "doesn't say.",
+    "outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout) or, failing " +
+    "that, as it was set up (its workout configuration's location), or null if neither says.",
 });
 
 const swimmingLocation = Schema.NullOr(Schema.String).annotate({
   description:
-    "For swims: pool or openWater (HKMetadataKeySwimmingLocationType), or null if it " +
-    "doesn't say.",
+    "For swims: pool or openWater (HKMetadataKeySwimmingLocationType, else its workout " +
+    "configuration's), or null if neither says.",
 });
 
 export const HealthWorkoutActivityItem = Schema.Struct({
@@ -372,8 +372,9 @@ export const HealthWorkoutItem = Schema.Struct({
   activity: Schema.String.annotate({ description: "The activity's name, e.g. Running." }),
   name: Schema.NullOr(Schema.String).annotate({
     description:
-      "The workout's own name, from the app that recorded it (HKMetadataKeyWorkoutBrandName). " +
-      "Apple's Workout app doesn't name workouts, so it's usually null.",
+      "The workout's own name, from the app that recorded it (HKMetadataKeyWorkoutBrandName), " +
+      "else the name of the planned workout it followed (a custom or swim-bike-run workout " +
+      "made in an app with WorkoutKit). Usually null: the Workout app doesn't name its own.",
   }),
   start: LocalTime,
   end: LocalTime,
@@ -391,12 +392,14 @@ export const HealthWorkoutItem = Schema.Struct({
     description:
       "Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than " +
       "outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or as its " +
-      "activities say, if they agree. Null if it doesn't say: then hasRoute is the best hint.",
+      "activities say (their metadata, else how each was set up: its workout configuration's " +
+      "location), if they agree. Null if none says: then hasRoute is the best hint.",
   }),
   swimmingLocation: swimmingLocation.annotate({
     description:
       "For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or " +
-      "its activities say, if they agree, or null if they don't say.",
+      "its activities say (their metadata, else their workout configurations), if they " +
+      "agree, or null if none says.",
   }),
   hasRoute: Schema.Boolean.annotate({
     description:
