@@ -1,9 +1,9 @@
 public import Foundation
-import GRDB
+public import GRDB
 public import HealthCards
 import HealthCatalog
 import SQLite3
-public import SQLiteData
+import SQLiteData
 
 // The Mac's card engine (docs/decisions/cards.md, The Mac): cards' shared core (`CardRun`) over
 // this database. Totals come from `cumulativeTotals`, as Metric Detail's do, and readings from the
@@ -12,6 +12,17 @@ public import SQLiteData
 // stretches only (851-3196).
 
 extension HealthDatabase {
+  /// Every table a card reads, which Summary follows to show its headlines (851-3237): a card
+  /// query that reads another must add it here, or Summary misses its changes.
+  /// `CardQueriesTests.cardTablesCoverWhatHeadlinesRead` checks it.
+  public static let cardTables: [any DatabaseRegionConvertible] = [
+    GRDB.Table<Row>(HealthSample.tableName),
+    GRDB.Table<Row>(HealthStatistic.tableName),
+    GRDB.Table<Row>(HealthStatisticsDevice.tableName),
+    GRDB.Table<Row>(HealthProvenance.tableName),
+    GRDB.Table<Row>(HealthWorkout.tableName),
+  ]
+
   /// A card over the period of `range` containing `date`.
   public static func cardData(
     _ spec: CardSpec, range: CardRange, date: Date, now: Date, calendar: Calendar,

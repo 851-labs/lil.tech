@@ -115,11 +115,11 @@
   private func headline(
     of card: Card, in database: any DatabaseReader = catalogDatabase
   ) -> CardRow.Headline {
-    guard let spec = card.spec else { return .loading }
-    let result = try! database.read { db in
-      try CardHeadlineRequest(spec: spec, day: previewNow).fetch(db)
+    let headlines = try! database.read { db in
+      CardHeadlinesRequest(cards: [card], day: previewNow).fetch(
+        now: previewNow, calendar: previewCalendar, db)
     }
-    return .loaded(result?.headline)
+    return headlines[card.id] ?? .loading
   }
 
   /// The catalog database's week highlights (two weeks of data), after a made-up trend.

@@ -293,6 +293,7 @@ let package = Package(
       dependencies: [
         "HealthCardEditor",
         "HealthAgentAccess",
+        "HealthCardStore",
         "HealthCards",
         "HealthCatalog",
         "LilTestSupport",
@@ -303,6 +304,7 @@ let package = Package(
         "LilAuth",
         "LilSync",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
       ],
       path: "Tests/Health/HealthMacAppTests"
     ),

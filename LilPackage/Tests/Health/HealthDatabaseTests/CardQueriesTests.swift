@@ -1,3 +1,4 @@
+import Dependencies
 import Foundation
 import GRDB
 import HealthCards
@@ -19,6 +20,36 @@ private func spec(_ json: String) throws -> CardSpec {
 
 @Suite
 struct CardQueriesTests {
+  /// Summary follows the tables cards read (`cardTables`, 851-3237): every table a headline reads
+  /// is one of them, for the seed, the design's example cards, and a device filter and a workout
+  /// window, which read tables the others don't.
+  @Test
+  func cardTablesCoverWhatHeadlinesRead() async throws {
+    let specs =
+      HealthCards.welcomeSeed.map(\.spec) + exampleCards.compactMap(\.spec) + [
+        try spec(
+          #"{"version": 1, "display": {"name": "Watch"}, "series": [{"type": "Heart Rate", "filter": {"deviceModels": ["Watch"]}}], "range": "M"}"#
+        ),
+        try spec(
+          #"{"version": 1, "display": {"name": "Runs"}, "series": [{"type": "Heart Rate", "window": {"kind": "workout", "activities": [37]}}], "range": "M"}"#
+        ),
+      ]
+    let declared = try await exampleCardsDatabase.read { db in
+      try HealthDatabase.cardTables.reduce(DatabaseRegion()) { $0.union(try $1.databaseRegion(db)) }
+    }
+    for spec in specs {
+      let read = LockIsolated(DatabaseRegion())
+      let observation = ValueObservation.tracking { db in
+        try HealthDatabase.cardHeadline(spec, now: previewNow, calendar: previewCalendar, db)
+      }
+      .handleEvents(willTrackRegion: { region in read.withValue { $0.formUnion(region) } })
+      for try await _ in observation.values(in: exampleCardsDatabase) { break }
+      #expect(!read.value.isEmpty, "\(spec.display.name)")
+      #expect(
+        declared.union(read.value) == declared, "\(spec.display.name) reads \(read.value)")
+    }
+  }
+
   /// The welcome seed's cards chart exactly as Metric Detail charts their types, to the bit, at
   /// every range, this period and the one before, on the catalogs' demo data.
   @Test(arguments: HealthCards.welcomeSeed)
