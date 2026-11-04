@@ -82,12 +82,14 @@ public struct ToolTime: Sendable {
 
   /// The start of a `YYYY-MM-DD` day, which must exist (not 2026-02-31) and be in `years`, or the
   /// tool's error, in the remote server's words (`toolDate`), for the Health tools and the card
-  /// tools alike. The year is checked first, so 1900-02-30 gets the same message on both.
+  /// tools alike. The year is checked first, so 1900-02-29 gets the same message on both.
   public func day(_ text: String) throws -> Date {
-    let invalid = HealthToolError("Invalid date: \(text). Use a day that exists, as YYYY-MM-DD.")
+    func invalid() -> HealthToolError {
+      HealthToolError("Invalid date: \(text). Use a day that exists, as YYYY-MM-DD.")
+    }
     guard let parts = text.wholeMatch(of: /(\d{4})-(\d{2})-(\d{2})/),
       let year = Int(parts.1), let month = Int(parts.2), let day = Int(parts.3)
-    else { throw invalid }
+    else { throw invalid() }
     guard Self.years.contains(year) else {
       throw HealthToolError(
         "Invalid date: \(text). Use a day from \(Self.years.lowerBound)-01-01 to "
@@ -96,7 +98,7 @@ public struct ToolTime: Sendable {
     guard let date = calendar.date(from: DateComponents(year: year, month: month, day: day)),
       calendar.dateComponents([.year, .month, .day], from: date)
         == DateComponents(year: year, month: month, day: day)
-    else { throw invalid }
+    else { throw invalid() }
     return calendar.startOfDay(for: date)
   }
 }

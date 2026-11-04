@@ -112,32 +112,22 @@ export const startOfLocalDay = (day: string, zone: DateTime.TimeZone): number =>
  */
 export const toolYears = { first: 2000, last: 2999 } as const;
 
-const daysInMonth = (year: number, month: number) =>
-  month === 2
-    ? year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
-      ? 29
-      : 28
-    : [4, 6, 9, 11].includes(month)
-      ? 30
-      : 31;
-
 /**
  * What's wrong with a `date`, in the Mac's words (`ToolTime.day`), or undefined for a day the tools
  * take: one that exists, written `YYYY-MM-DD` (not 2026-02-31 or 2026-2-3), in `toolYears`. The
- * year is checked first, so both servers give the same message for 1900-02-30.
+ * year is checked first, so both servers give the same message for 1900-02-29.
  */
 const dateProblem = (text: string): string | undefined => {
-  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
-  const [year, month, day] = parts === null ? [] : parts.slice(1).map(Number);
-  if (year === undefined || month === undefined || day === undefined) {
-    return `Invalid date: ${text}. Use a day that exists, as YYYY-MM-DD.`;
-  }
+  const invalid = `Invalid date: ${text}. Use a day that exists, as YYYY-MM-DD.`;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return invalid;
+  const year = Number(text.slice(0, 4));
   if (year < toolYears.first || year > toolYears.last) {
     return `Invalid date: ${text}. Use a day from ${toolYears.first}-01-01 to ${toolYears.last}-12-31.`;
   }
-  return month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth(year, month)
-    ? undefined
-    : `Invalid date: ${text}. Use a day that exists, as YYYY-MM-DD.`;
+  // A day that doesn't exist (2026-02-31) is refused, or rolls over into another, which reads back
+  // as another day.
+  const day = DateTime.make(`${text}T00:00:00Z`);
+  return Option.exists(day, (day) => DateTime.formatIsoDate(day) === text) ? undefined : invalid;
 };
 
 /**

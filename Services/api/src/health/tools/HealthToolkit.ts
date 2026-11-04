@@ -43,7 +43,9 @@ const range = Schema.Literals(["D", "W", "M", "6M", "Y"]).annotate({
  */
 const date = Schema.optionalKey(
   Schema.String.annotate({
-    description: "The last day of the period, as YYYY-MM-DD in `timeZone`. Defaults to today.",
+    description:
+      "The last day of the period, as YYYY-MM-DD in `timeZone`, from 2000 to 2999. Defaults to " +
+      "today.",
   }),
 );
 
