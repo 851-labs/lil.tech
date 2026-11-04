@@ -156,6 +156,8 @@ export class TestStores extends Context.Service<
   TestStores,
   {
     readonly sqlFor: (userId: UserId) => TestStoreSql | undefined;
+    /** A store's own methods, e.g. its `applyMutations`, as its MCP servers write with them. */
+    readonly storeFor: (userId: UserId) => UserStoreMethods | undefined;
     readonly snapshotFiles: SnapshotFiles;
     readonly storedSnapshotFiles: Map<string, Uint8Array>;
   }
@@ -205,6 +207,7 @@ export const TestUserStores = Layer.unwrap(
       Layer.succeed(UserStores, stores),
       Layer.succeed(TestStores, {
         sqlFor: (userId) => opened.get(userStoreName(userId))?.sql,
+        storeFor: (userId) => opened.get(userStoreName(userId))?.store,
         snapshotFiles: files,
         storedSnapshotFiles: stored,
       }),

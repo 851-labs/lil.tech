@@ -1795,7 +1795,8 @@ let mcpToolsJSON = #"""
           "description": "The period to run it over: D a calendar day, W a calendar week, M a calendar month, 6M six calendar months, Y a calendar year, containing `date`. One of the card's bucket's ranges. Defaults to the card's own."
         },
         "date": {
-          "type": "string"
+          "type": "string",
+          "description": "A day in the period, as YYYY-MM-DD in `timeZone`. Defaults to today."
         },
         "timeZone": {
           "type": "string",
@@ -2826,7 +2827,8 @@ let mcpToolsJSON = #"""
           "description": "The period to run it over: D a calendar day, W a calendar week, M a calendar month, 6M six calendar months, Y a calendar year, containing `date`. One of the card's bucket's ranges. Defaults to the card's own."
         },
         "date": {
-          "type": "string"
+          "type": "string",
+          "description": "A day in the period, as YYYY-MM-DD in `timeZone`. Defaults to today."
         },
         "timeZone": {
           "type": "string",

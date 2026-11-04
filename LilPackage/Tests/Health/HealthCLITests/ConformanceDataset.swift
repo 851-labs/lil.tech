@@ -53,9 +53,12 @@ enum Conformance {
   /// iPhone computes for itself (statistics, and its `self` statistics device) are keyed by the
   /// device and say which one it is, and a device's `reportedAt` is when the server applied its
   /// batch. Then `pins`, as a Mac from before pins were retired (851-2990) writes them
-  /// (`POST /v1/sync/mutations`): the server still takes them, and this Mac skips them.
+  /// (`POST /v1/sync/mutations`): the server still takes them, and this Mac skips them. Then
+  /// `cards`, whole `health_card` rows by ID, as the store has them once it's seeded and a Mac has
+  /// pushed its own (`CardToolConformanceTests`, 851-3217).
   static func changes(
-    _ batches: [ConformanceBatch], pins: [Case.Pin]? = nil
+    _ batches: [ConformanceBatch], pins: [Case.Pin]? = nil,
+    cards: [(id: String, row: [String: Any])] = []
   ) -> [[String: Any]] {
     var changes: [[String: Any]] = []
     func append(_ entity: String, _ op: String, _ id: String, _ row: [String: Any]?, at: Int) {
@@ -87,6 +90,9 @@ enum Conformance {
     for pin in pins ?? [] {
       append("health_pin", "upsert", pin.id, ["position": pin.position], at: 0)
     }
+    for card in cards {
+      append("health_card", "upsert", card.id, card.row, at: 0)
+    }
     return changes
   }
 
@@ -97,12 +103,13 @@ enum Conformance {
       pins: pins)
   }
 
-  /// Syncs `batches`, then `pins`, into `database` as the app's sync engine pulls them: one page
-  /// of the change feed.
+  /// Syncs `batches`, then `pins` and `cards`, into `database` as the app's sync engine pulls
+  /// them: one page of the change feed.
   static func sync(
-    _ batches: [ConformanceBatch], into database: any DatabaseWriter, pins: [Case.Pin]? = nil
+    _ batches: [ConformanceBatch], into database: any DatabaseWriter, pins: [Case.Pin]? = nil,
+    cards: [(id: String, row: [String: Any])] = []
   ) async throws {
-    let changes = changes(batches, pins: pins)
+    let changes = changes(batches, pins: pins, cards: cards)
     let page = try JSONSerialization.data(withJSONObject: [
       "epoch": 1, "changes": changes, "next": changes.count, "head": changes.count,
       "hasMore": false,

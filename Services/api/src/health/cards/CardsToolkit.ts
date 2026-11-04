@@ -2,7 +2,6 @@ import { Effect, Schema } from "effect";
 import { Tool, Toolkit } from "effect/ai";
 import {
   HealthToolError,
-  isDay,
   LocalDate,
   LocalTime,
   timeZone,
@@ -161,11 +160,13 @@ const cardRange = Schema.optionalKey(
   }),
 );
 
+/**
+ * Any string, as the Mac's `lil-health mcp` takes it: the run checks it's a day that exists
+ * (`cardData`), so both servers answer one that isn't alike, `Unknown date: …` (851-3217), rather
+ * than this server with its decoding's `Invalid parameters` and the Mac with the tool's message.
+ */
 const cardDate = Schema.optionalKey(
-  Schema.String.check(
-    Schema.isPattern(/^\d{4}-\d{2}-\d{2}$/),
-    Schema.makeFilter((day: string) => isDay(day) || "must be a day that exists"),
-  ).annotate({
+  Schema.String.annotate({
     description: "A day in the period, as YYYY-MM-DD in `timeZone`. Defaults to today.",
   }),
 );

@@ -57,11 +57,11 @@ const KnownUser = Layer.effectDiscard(
 
 /**
  * A fresh store with `batches` ingested one by one, at each batch's time, then `after` run on it
- * (in the same stores), giving the store's SQL.
+ * (in the same stores, which it can reach through `TestStores` too), giving the store's SQL.
  */
 export const storeWithBatches = <E>(
   batches: ReadonlyArray<Batch>,
-  after: Effect.Effect<void, E, UserStores> = Effect.void,
+  after: Effect.Effect<void, E, UserStores | TestStores> = Effect.void,
 ) =>
   Effect.gen(function* () {
     const { files } = yield* TestHealthOutbox;
