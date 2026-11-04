@@ -1,0 +1,28 @@
+{
+  "app" : "health-mac",
+  "catalog" : "HealthMacApp/ReorderCardsCatalog.swift",
+  "screen" : "Reorder Cards",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/ReorderCardsCatalog/reorder-cards.welcome-seed-dark.png",
+      "id" : "reorder-cards.welcome-seed",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/ReorderCardsCatalog/reorder-cards.welcome-seed-light.png",
+      "name" : "Welcome seed",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/ReorderCardsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/ReorderCardsCatalog/reorder-cards.two-cards-dark.png",
+      "id" : "reorder-cards.two-cards",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/ReorderCardsCatalog/reorder-cards.two-cards-light.png",
+      "name" : "Two cards",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/ReorderCardsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/ReorderCardsCatalog/reorder-cards.many-cards-one-from-a-later-version-dark.png",
+      "id" : "reorder-cards.many-cards-one-from-a-later-version",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/__Snapshots__/ReorderCardsCatalog/reorder-cards.many-cards-one-from-a-later-version-light.png",
+      "name" : "Many cards, one from a later version",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/ReorderCardsCatalog.swift"
+    }
+  ]
+}

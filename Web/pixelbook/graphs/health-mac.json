@@ -119,6 +119,11 @@
       "title": "Card Editor"
     },
     {
+      "id": "reorder-cards",
+      "screen": "HealthMacApp/ReorderCardsCatalog.swift",
+      "title": "Reorder Cards"
+    },
+    {
       "id": "category",
       "screen": "HealthMacApp/CategoryCatalog.swift"
     },
@@ -537,6 +542,11 @@
       "from": "card",
       "to": "card-editor",
       "label": "Edit…"
+    },
+    {
+      "from": "summary",
+      "to": "reorder-cards",
+      "label": "Reorder Cards… in the toolbar"
     },
     {
       "from": "summary",

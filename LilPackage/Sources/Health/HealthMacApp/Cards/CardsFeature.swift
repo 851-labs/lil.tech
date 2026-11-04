@@ -23,7 +23,8 @@ import SQLiteData
 /// the server does, once per account.
 ///
 /// It presents the card editor (851-3208): New Card…, Edit… and Delete…, from Summary and a
-/// card's page, write through it.
+/// card's page, write through it. And Reorder Cards… (851-3210), a list to drag the cards into
+/// order, since Summary's grouped form can't reorder its rows by dragging.
 @Reducer
 public struct CardsFeature {
   @ObservableState
@@ -42,6 +43,8 @@ public struct CardsFeature {
     @Presents public var editor: CardEditorFeature.State?
     /// Delete…'s confirmation, from a Summary row.
     @Presents public var alert: AlertState<Action.Alert>?
+    /// Whether Reorder Cards… is open (851-3210).
+    public var isReordering = false
 
     /// Cards given, e.g. in catalogs, are shown at once; otherwise they're read (``Action/task``).
     public init(cards: [Card]? = nil) {
@@ -56,6 +59,11 @@ public struct CardsFeature {
     /// `HealthCards.maxCards`.
     public var canCreateCard: Bool {
       isLoaded && cards.count < HealthCards.maxCards
+    }
+
+    /// Whether there's an order to change: the cards are read, and there are two or more.
+    public var canReorderCards: Bool {
+      isLoaded && cards.count > 1
     }
 
     /// One write: the mutations for sync, and the cards they upsert or delete.
@@ -98,6 +106,10 @@ public struct CardsFeature {
     case editCardButtonTapped(id: Card.ID)
     /// Delete…: asks first.
     case deleteCardButtonTapped(id: Card.ID)
+    /// Reorder Cards…: the cards in a list, to drag into order.
+    case reorderCardsButtonTapped
+    /// Done, or the sheet closed.
+    case reorderingFinished
     case editor(PresentationAction<CardEditorFeature.Action>)
     case alert(PresentationAction<Alert>)
     /// The first unsaved write is in the local table and sync's queue.
@@ -211,6 +223,15 @@ public struct CardsFeature {
       case .deleteCardButtonTapped(let id):
         guard let card = state.cards[id: id] else { return .none }
         state.alert = .confirmDeleteCard(named: card.storedName, .confirmDelete(id: card.id))
+        return .none
+
+      case .reorderCardsButtonTapped:
+        guard state.canReorderCards else { return .none }
+        state.isReordering = true
+        return .none
+
+      case .reorderingFinished:
+        state.isReordering = false
         return .none
 
       case .alert(.presented(.confirmDelete(let id))):

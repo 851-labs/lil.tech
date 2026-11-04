@@ -220,6 +220,37 @@ struct CardsFeatureTests {
     #expect(pushed.value.count == 2)
   }
 
+  /// Reorder Cards… (851-3210) opens only when there's an order to change, and its drags are
+  /// ordinary moves: one write, of the moved card.
+  @Test
+  func reorderCardsOpensWithTwoOrMoreCards() async throws {
+    let loading = store(cards: nil)
+    await loading.send(.reorderCardsButtonTapped)
+    let one = store(cards: Array(seedCards.prefix(1)))
+    await one.send(.reorderCardsButtonTapped)
+
+    let store = store()
+    await store.send(.reorderCardsButtonTapped) {
+      $0.isReordering = true
+    }
+    // Weight dragged between Active Energy (a2) and Walking + Running Distance (a3).
+    var weight = seedCards[5]
+    weight.position = "a2V"
+    weight.updatedAt = nowMilliseconds
+    await store.send(.moveCards(fromOffsets: [5], toOffset: 3)) {
+      $0.cards.remove(id: "card_seed_weight")
+      $0.cards.insert(weight, at: 3)
+      $0.unsaved = [.init(mutations: [try weight.upsert()], upserted: [weight])]
+    }
+    await store.receive(\.pushFinished) {
+      $0.unsaved = []
+    }
+    #expect(pushed.value == [[try weight.upsert()]])
+    await store.send(.reorderingFinished) {
+      $0.isReordering = false
+    }
+  }
+
   /// The server keeps the write that arrives last, so writes go to sync one at a time, in the
   /// order they were made, each shown over what's read until it's stored.
   @Test(.timeLimit(.minutes(1)))
