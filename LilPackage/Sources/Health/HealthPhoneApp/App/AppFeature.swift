@@ -163,11 +163,16 @@ public struct AppFeature {
       case .healthAccess(.delegate(.finished)):
         state.$offeredPerObject.withLock { $0 = true }
         state.healthAccess = nil
+        // Asked: unknown until Health answers again (Summary checks when it shows), so Summary's
+        // rows wait rather than run on the answer from before (851-4035).
+        state.syncStatus.needsHealthAccess = nil
         // Onboarding is done: the first upload starts, and carries on after the app is left.
         return .send(.startUpload)
 
       case .healthAccess(.delegate(.skipped)):
         state.healthAccess = nil
+        // The system sheet may have been answered before Not Now.
+        state.syncStatus.needsHealthAccess = nil
         return .send(.startUpload)
 
       case .healthAccess:

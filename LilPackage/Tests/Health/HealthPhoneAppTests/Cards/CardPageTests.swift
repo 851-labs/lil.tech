@@ -15,7 +15,7 @@ struct CardPageTests {
   private func kept(_ spec: CardSpec?, _ headline: CardRow.Headline)
     -> (run: CardHeadlines.Run, headline: CardRow.Headline)
   {
-    (CardHeadlines.Run(spec: spec, day: day, generation: 0), headline)
+    (CardHeadlines.Run(spec: spec, day: day, generation: 0, needsHealthAccess: false), headline)
   }
 
   private func headline(at date: Date) -> CardHeadline {

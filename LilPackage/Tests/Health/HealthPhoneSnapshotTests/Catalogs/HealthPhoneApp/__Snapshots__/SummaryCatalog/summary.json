@@ -25,6 +25,13 @@
       "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.health-access-not-given-dark.png",
+      "id" : "summary.health-access-not-given",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.health-access-not-given-light.png",
+      "name" : "Health access not given",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/SummaryCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.no-data-dark.png",
       "id" : "summary.no-data",
       "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/SummaryCatalog/summary.no-data-light.png",

@@ -126,9 +126,11 @@ struct AppFeatureTests {
       $0.healthAccess = HealthAccessFeature.State()
     }
     await store.receive(\.otherIPhonesFound)
+    // Answered: Summary's rows wait until Health is asked again (851-4035).
     await store.send(.healthAccess(.delegate(.finished))) {
       $0.healthAccess = nil
       $0.$offeredPerObject.withLock { $0 = true }
+      $0.syncStatus.needsHealthAccess = nil
     }
 
     await store.receive(\.startUpload)
@@ -173,11 +175,13 @@ struct AppFeatureTests {
     await store.receive(\.otherIPhonesFound)
     await store.send(.healthAccess(.delegate(.skipped))) {
       $0.healthAccess = nil
+      $0.syncStatus.needsHealthAccess = nil
     }
     await store.receive(\.startUpload)
     await store.send(.signedInChanged(true))
     await store.receive(\.consentChecked)
     await store.receive(\.healthAccessChecked) {
+      $0.syncStatus.needsHealthAccess = true
       $0.healthAccess = HealthAccessFeature.State()
     }
   }
