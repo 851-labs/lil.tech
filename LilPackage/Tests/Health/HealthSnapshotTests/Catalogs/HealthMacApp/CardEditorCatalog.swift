@@ -11,12 +11,12 @@
   import Testing
 
   // The card editor (`CardEditorView`, 851-3208) and its query builder (851-3209): a new card
-  // before and after its type is picked, a seed card and an example card edited, inline validation
-  // errors, a refused save, the symbol grid and another symbol and color chosen; the five example
-  // cards built from a new card by the builder's actions, a workout window with a filter, a
-  // difference, four series, an error the controls can't rule out, and the type list. The preview
-  // is the card from the catalog database at `previewNow`, by the app's request. Synthetic data
-  // only.
+  // before and after its type is picked, a seed card and example cards edited (one whose latest
+  // night isn't in its type's latest week, 851-3987), inline validation errors, a refused save,
+  // the symbol grid and another symbol and color chosen; the five example cards built from a new
+  // card by the builder's actions, a workout window with a filter, a difference, four series, an
+  // error the controls can't rule out, and the type list. The preview is the card from the
+  // catalog database at `previewNow`, by the app's request. Synthetic data only.
 
   extension MacSnapshotTests {
     @Test(arguments: cardEditorCatalog.selectedStates)
@@ -41,6 +41,11 @@
       // Two lines: the preview has the legend.
       CatalogState("Editing morning weight") {
         editor(editing(exampleCards[4]), in: exampleCardsDatabase)
+      },
+      // The preview opens where the card's page does: on last week, its latest night, though
+      // heart rate goes on this week (851-3987).
+      CatalogState("Editing heart rate before sleep, none this week") {
+        editor(editing(weeklyHeartRateBeforeSleep), in: lapsedBeforeSleepDatabase)
       },
       // Another symbol and color, from the grid and the swatches.
       CatalogState("Another symbol and color") {

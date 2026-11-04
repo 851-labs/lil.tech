@@ -206,8 +206,8 @@ struct CardColorSwatches: View {
   }
 }
 
-/// The editor's live preview, from the local database: the card at its range, on the latest
-/// period with data, as its page opens (851-3188). The last spec's stays, with the delayed
+/// The editor's live preview, from the local database: the card at its range, on the period its
+/// page opens on (851-3188, 851-3987). The last spec's stays, with the delayed
 /// spinner, while the next loads (851-3084, 851-3086).
 struct CardEditorPreview: View {
   let spec: CardSpec?
@@ -291,7 +291,7 @@ struct CardPreviewContent: View {
   }
 }
 
-/// A card at its range, on the latest period with its lead's data, as its page opens.
+/// A card at its range, on the period its page opens on (`CardSpec.openingOffset`).
 struct CardPreviewRequest: FetchKeyRequest {
   let spec: CardSpec
 
@@ -300,11 +300,7 @@ struct CardPreviewRequest: FetchKeyRequest {
     // catalogs fix them.
     @Dependency(\.date.now) var now
     @Dependency(\.calendar) var calendar
-    let range = spec.range
-    let latest = try spec.leadType.flatMap {
-      try HealthDatabase.latestPeriodDate(of: $0, by: now, calendar: calendar, db)
-    }
-    let offset = range.openingOffset(latest: latest, now: now, calendar: calendar)
-    return try CardDataRequest(spec: spec, range: range, offset: offset).fetch(db)
+    let offset = try spec.openingOffset(in: spec.range, now: now, calendar: calendar, db)
+    return try CardDataRequest(spec: spec, range: spec.range, offset: offset).fetch(db)
   }
 }

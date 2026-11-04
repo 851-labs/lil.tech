@@ -58,6 +58,27 @@ public struct CardHeadline: Equatable, Sendable {
     }
     return ends
   }
+
+  /// The dates whose periods of `range` a card's page may open on for a headline's bucket
+  /// starting at `start` (851-3987), to try in order. Its start's, unless the bucket straddles
+  /// two of the range's periods (a week across a month's end), when its last moment by `now`
+  /// comes first: a period shows a bucket that starts before it, but counts only its own
+  /// readings, so an engine runs the later period and opens on it if it has the bucket's point,
+  /// else on the start's.
+  public static func openingDates(
+    forBucketAt start: Date, grain: CardGrain, range: CardRange, now: Date, calendar: Calendar
+  ) -> [Date] {
+    guard let end = calendar.dateInterval(of: grain.component, for: start)?.end else {
+      return [start]
+    }
+    let last = min(end.addingTimeInterval(-0.001), now)
+    guard
+      last > start,
+      range.offset(containing: last, now: now, calendar: calendar)
+        != range.offset(containing: start, now: now, calendar: calendar)
+    else { return [start] }
+    return [last, start]
+  }
 }
 
 extension CardSpec {

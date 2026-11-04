@@ -11,7 +11,8 @@
   // The full-page card (`CardDetailContent`, 851-3207): the welcome seed's and the design's five
   // example cards over a period, from the catalog database at `previewNow` (and the Summary
   // catalog's copy of it with readings before falling asleep), its loading, empty and failed
-  // states, a goal line, and a card of a later version. Synthetic data only.
+  // states, a goal line, a windowed card opening on its latest bucket's period (and looking for
+  // it), and a card of a later version. Synthetic data only.
 
   extension MacSnapshotTests {
     @Test(arguments: cardDetailCatalog.selectedStates)
@@ -49,6 +50,19 @@
       CatalogState("HRV, month") { example(2, .month) },
       CatalogState("Heart rate before sleep, week") { example(3, .week) },
       CatalogState("Heart rate before sleep, month") { example(3, .month) },
+      // Heart rate goes on this week, but its latest night is last week's: the page opens on it,
+      // as the Summary row's headline is, not on heart rate's latest data (851-3987).
+      CatalogState("Heart rate before sleep, none this week") {
+        opening(weeklyHeartRateBeforeSleep, in: lapsedBeforeSleepDatabase)
+      },
+      // Before it knows which: its dates "–", while the headline's search runs.
+      CatalogState("Heart rate before sleep, finding its latest night") {
+        NavigationStack {
+          CardDetailContent(
+            spec: weeklyHeartRateBeforeSleep.spec!, range: .constant(.week),
+            offset: .constant(nil), state: .loading)
+        }
+      },
       CatalogState("Morning weight, week") { example(4, .week) },
       CatalogState("Morning weight, month") { example(4, .month) },
       // In pounds (851-3116), plotted in them.
@@ -69,7 +83,11 @@
       ["Body temperature, week", "Body temperature, month"],
       ["Sleeping heart rate, week", "Sleeping heart rate, month"],
       ["HRV, week", "HRV, month"],
-      ["Heart rate before sleep, week", "Heart rate before sleep, month"],
+      [
+        "Heart rate before sleep, week", "Heart rate before sleep, month",
+        "Heart rate before sleep, none this week",
+        "Heart rate before sleep, finding its latest night",
+      ],
       ["Morning weight, week", "Morning weight, month", "Morning weight, month, US"],
     ])
 
@@ -82,6 +100,13 @@
     return Card(
       id: "card_01JB7Z0000000000000000000G", spec: spec, position: "a9", createdAt: 0,
       updatedAt: 0)
+  }()
+
+  /// The example of heart rate before falling asleep, by the week.
+  let weeklyHeartRateBeforeSleep: Card = {
+    var card = exampleCards[3]
+    card.spec!.range = .week
+    return card
   }()
 
   /// No data at all.
@@ -98,6 +123,19 @@
       CardDetailContent(
         spec: card.spec!, range: .constant(range), offset: .constant(0),
         state: state ?? .loaded(period(card, range, in: database)))
+    }
+  }
+
+  /// A card's page as it opens, on the period of its headline from `database`, which the
+  /// editor's preview opens on too (`CardPreviewRequest`).
+  @MainActor
+  private func opening(_ card: Card, in database: any DatabaseReader) -> some View {
+    let spec = card.spec!
+    let period = try! database.read { try CardPreviewRequest(spec: spec).fetch($0)! }
+    return NavigationStack {
+      CardDetailContent(
+        spec: spec, range: .constant(spec.range), offset: .constant(period.offset),
+        state: .loaded(period))
     }
   }
 

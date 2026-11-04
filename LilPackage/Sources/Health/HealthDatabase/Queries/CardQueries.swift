@@ -108,6 +108,39 @@ extension HealthDatabase {
     }
   }
 
+  /// When the period of `range` a card's page and the editor's preview open on is from
+  /// (851-3188, 851-3987): its headline's, as its Summary row and the iPhone's page find it, so
+  /// they agree. `nil` for No Data: the current period. Without a window, filter or formula
+  /// that's the lead type's latest data (`latestPeriodDate`, which the headline's run ends on),
+  /// one seek of an index, cheap enough for a page to read before it first draws. With one, the
+  /// lead type's latest data may have none of the card's readings, so it's the headline's bucket,
+  /// from its search (up to 8 runs of a card: off the main thread), and when that bucket
+  /// straddles two periods, the later one if it has the bucket's point
+  /// (`CardHeadline.openingDates`).
+  public static func cardOpeningDate(
+    _ spec: CardSpec, range: CardRange, now: Date, calendar: Calendar, _ db: Database
+  ) throws -> Date? {
+    switch spec.headlineLookup {
+    case nil:
+      return nil
+    case .latestReading(let type), .latestData(let type):
+      return try latestPeriodDate(of: type, by: now, calendar: calendar, db)
+    case .search:
+      guard let headline = try cardHeadline(spec, now: now, calendar: calendar, db) else {
+        return nil
+      }
+      let dates = CardHeadline.openingDates(
+        forBucketAt: headline.date, grain: headline.data.grain, range: range, now: now,
+        calendar: calendar)
+      for date in dates.dropLast() {
+        let data = try cardData(
+          spec, range: range, date: date, now: now, calendar: calendar, db)
+        if data.leadPoints.contains(where: { $0.start == headline.date }) { return date }
+      }
+      return dates.last
+    }
+  }
+
   /// A type's readings starting in `range` (Unix milliseconds), oldest first, that match
   /// `filter`: a range of the (type, startDate) index. A covering index would save SQLite about
   /// 40% of its part, but would copy every sample's type and source again (851-3195).

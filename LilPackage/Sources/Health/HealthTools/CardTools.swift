@@ -220,7 +220,7 @@ extension HealthTools {
   }
 
   /// `get_card`: a card run over `range` (default its own) for the period containing `date`
-  /// (`YYYY-MM-DD`, default today).
+  /// (`YYYY-MM-DD`, default the period its page opens on, `HealthDatabase.cardOpeningDate`).
   public func getCard(
     id: String, range: CardRange? = nil, date: String? = nil, timeZone: String? = nil,
     firstWeekday: ToolWeekday? = nil, _ db: Database
@@ -267,7 +267,10 @@ extension HealthTools {
         throw HealthToolError("Unknown date: \(date). Use a day that exists, as YYYY-MM-DD.")
       }
     } else {
-      day = now
+      // The period the card's page opens on, as the apps' pages do (851-3987).
+      day =
+        try HealthDatabase.cardOpeningDate(
+          spec, range: range, now: now, calendar: calendar, db) ?? now
     }
     let data = try HealthDatabase.cardData(
       spec, range: range, date: day, now: now, calendar: calendar, db)

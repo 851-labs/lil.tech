@@ -77,32 +77,63 @@ struct CardDetailView: View {
 }
 
 /// A card over a chosen period, as Metric Detail charts a type: the bucket's ranges and earlier
-/// periods in the toolbar, opening on the latest period with data (851-3188), and keeping the
-/// period shown while the next loads (851-3084). Follows the local database as sync changes it.
+/// periods in the toolbar, opening on the period of its latest data (851-3188, 851-3987), and
+/// keeping the period shown while the next loads (851-3084). Follows the local database as sync
+/// changes it.
 struct CardChartPage: View {
   let spec: CardSpec
   @State private var range: CardRange
-  /// The period shown, or the latest with data before it.
-  @State private var offset: Int
+  /// The period shown, 0 the current one: `nil` while the page looks for the period it opens on.
+  @State private var offset: Int? = nil
   /// Loaded by the view's task, with the period and spec it's for.
   @Fetch private var chart: CardPeriod? = nil
+  @Dependency(\.defaultDatabase) private var database
+  /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
+  @Dependency(\.date.now) private var now
+  @Dependency(\.calendar) private var calendar
 
   init(spec: CardSpec) {
     self.spec = spec
     let range = spec.range
     _range = State(initialValue: range)
-    // The lead's type's latest data, read before the page first draws, as Metric Detail's.
-    _offset = State(initialValue: spec.leadType.map { range.openingOffset(of: $0) } ?? 0)
+    // Without a window, filter or formula, one seek of an index, read before the page first
+    // draws, as Metric Detail's, so it never shows another period first and then moves
+    // (851-3084). With one, the headline's search, which the page's task runs off the main
+    // thread, with the dates "–" until it knows the period, as the iPhone's page does.
+    if spec.headlineLookup != .search {
+      @Dependency(\.defaultDatabase) var database
+      @Dependency(\.date.now) var now
+      @Dependency(\.calendar) var calendar
+      _offset = State(
+        initialValue: (try? database.read {
+          try spec.openingOffset(in: range, now: now, calendar: calendar, $0)
+        }) ?? 0)
+    }
   }
 
-  private var request: CardDataRequest {
-    CardDataRequest(spec: spec, range: range, offset: offset)
+  /// What the page loads: the period chosen, or, before it knows which, the one it opens on.
+  private struct Load: Equatable {
+    var spec: CardSpec
+    var range: CardRange
+    var offset: Int?
   }
 
   var body: some View {
     CardDetailContent(spec: spec, range: $range, offset: $offset, state: state)
-      .task(id: request) {
-        _ = try? await $chart.load(request, scheduler: MainQueueScheduler())
+      .task(id: Load(spec: spec, range: range, offset: offset)) {
+        guard let offset else {
+          // `offset` changes the task's ID, which runs it again for that period.
+          let (spec, range, now, calendar) = (spec, range, now, calendar)
+          let opening = try? await database.read { db in
+            try spec.openingOffset(in: range, now: now, calendar: calendar, db)
+          }
+          guard !Task.isCancelled, self.offset == nil else { return }
+          self.offset = opening ?? 0
+          return
+        }
+        _ = try? await $chart.load(
+          CardDataRequest(spec: spec, range: range, offset: offset),
+          scheduler: MainQueueScheduler())
       }
   }
 
@@ -115,6 +146,19 @@ struct CardChartPage: View {
       chart,
       isUpdating: $chart.isLoading || chart.range != range || chart.offset != offset
         || chart.spec != spec)
+  }
+}
+
+extension CardSpec {
+  /// The period of `range` a card's page and the editor's preview open on, as an offset from the
+  /// current one: its headline's (`HealthDatabase.cardOpeningDate`, 851-3987), so a card with a
+  /// window or filter opens where its Summary row's value is, not on its type's latest data.
+  func openingOffset(
+    in range: CardRange, now: Date, calendar: Calendar, _ db: Database
+  ) throws -> Int {
+    let latest = try HealthDatabase.cardOpeningDate(
+      self, range: range, now: now, calendar: calendar, db)
+    return range.openingOffset(latest: latest, now: now, calendar: calendar)
   }
 }
 
@@ -146,13 +190,14 @@ struct CardDetailContent: View {
   let spec: CardSpec
   /// The period chosen in the toolbar, which can be ahead of the one shown.
   @Binding private var selectedRange: CardRange
-  @Binding private var selectedOffset: Int
+  /// `nil` until the page knows which period it opens on: its dates read "–" until then.
+  @Binding private var selectedOffset: Int?
   let state: State
   /// From dependencies, so snapshot catalogs fix them (`previewNow`, `previewCalendar`).
   @Dependency(\.calendar) private var calendar
   @Dependency(\.date.now) private var now
 
-  init(spec: CardSpec, range: Binding<CardRange>, offset: Binding<Int>, state: State) {
+  init(spec: CardSpec, range: Binding<CardRange>, offset: Binding<Int?>, state: State) {
     self.spec = spec
     _selectedRange = range
     _selectedOffset = offset
@@ -191,7 +236,12 @@ struct CardDetailContent: View {
     // Only the bucket's ranges, in the toolbar, with ‹ Today › and the View menu's commands.
     .periodControls(
       PagePeriod(
-        range: $selectedRange, offset: $selectedOffset,
+        range: $selectedRange,
+        // Until the page knows its period, ‹, Today and › wait, and another range is looked
+        // for afresh (the page's search runs again for it) rather than shown from today's.
+        offset: Binding(
+          get: { selectedOffset ?? 0 },
+          set: { if selectedOffset != nil { selectedOffset = $0 } }),
         ranges: spec.bucket.ranges, now: now, calendar: calendar))
   }
 }
