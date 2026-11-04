@@ -9,9 +9,9 @@ extension View {
   ///
   /// The chart stays the same view either way, so a period gaining data or losing it updates the
   /// chart rather than replacing it, and only its element's children and label change. Not
-  /// `accessibilityHidden` on the chart and on an element over it: on the Mac, an ancestor's
-  /// `.accessibilityHidden(false)`, such as `delayedProgress`'s once loaded, shows what its
-  /// descendants hid, so a chart with points also had "No data for …" (851-4042).
+  /// `accessibilityHidden` on the chart and on an element over it: an ancestor's
+  /// `.accessibilityHidden(false)`, such as `delayedProgress`'s once loaded did until 851-4047,
+  /// shows what its descendants hid, so a chart with points also had "No data for …" (851-4042).
   public func chartAccessibility(
     _ name: String, period: String, isEmpty: Bool, emptyLabel: String? = nil
   ) -> some View {
