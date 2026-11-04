@@ -11,8 +11,14 @@ import { localTime, toolTimeZone } from "../tools/ToolTime.ts";
 import { findHealthType } from "../tools/ToolTypes.ts";
 import { isJsonObject, type Json, type JsonObject } from "./CardJson.ts";
 import { cardPositionBetween, cardPositionsBetween } from "./CardPosition.ts";
-import { bucketRanges, type CardRange, CardSpec, maxCards } from "./CardSpec.ts";
-import { type CardSpecError, canonicalCardSpec } from "./CardSpecValidator.ts";
+import {
+  bucketRanges,
+  type CardRange,
+  CardSpec,
+  maxCards,
+  readableCardSpecVersions,
+} from "./CardSpec.ts";
+import { type CardSpecError, type CardSpecResult, canonicalCardSpec } from "./CardSpecValidator.ts";
 import { requireCardsScope } from "./CardsScope.ts";
 import type { CardsToolkit } from "./CardsToolkit.ts";
 import { HealthCard } from "./HealthCards.ts";
@@ -98,42 +104,57 @@ const specJson = (input: unknown): Json | undefined => {
   }
 };
 
+/**
+ * Each object spec's canonical form, once per call: the access log (`cardToolLogs`) and the tool
+ * both need it, and it's the same object for both.
+ */
+const canonicalized = new WeakMap<object, CardSpecResult>();
+
 /** A spec input canonicalized (`canonicalCardSpec`), or every error it has. */
-const canonicalOf = (input: unknown) => {
+const canonicalOf = (input: unknown): CardSpecResult => {
+  if (Predicate.isObject(input)) {
+    const cached = canonicalized.get(input);
+    if (cached !== undefined) return cached;
+  }
   const json = specJson(input);
-  return json === undefined
-    ? {
-        errors: [
-          { path: "", code: "invalidJSON", message: "The spec isn't valid JSON." },
-        ] satisfies ReadonlyArray<CardSpecError>,
-      }
-    : canonicalCardSpec(json);
+  const result: CardSpecResult =
+    json === undefined
+      ? { errors: [{ path: "", code: "invalidJSON", message: "The spec isn't valid JSON." }] }
+      : canonicalCardSpec(json);
+  if (Predicate.isObject(input)) canonicalized.set(input, result);
+  return result;
 };
 
-const decodeSpec = Schema.decodeUnknownResult(CardSpec);
-
-/** A spec input canonicalized, as JSON and as the engine's type, or the tool's error. */
+/** A spec input canonicalized, as JSON, or the tool's error listing every one it has. */
 const canonical = (input: unknown) =>
   Effect.suspend(() => {
     const result = canonicalOf(input);
-    if (result.errors !== undefined) return fail(specErrorsMessage(result.errors));
-    const decoded = decodeSpec(result.spec);
-    // The validator checks more than the schema, so a spec it passes always decodes.
-    if (Result.isFailure(decoded)) return Effect.die(decoded.failure);
-    return Effect.succeed({ json: result.spec, spec: decoded.success });
+    return result.errors === undefined
+      ? Effect.succeed(result.spec)
+      : fail(specErrorsMessage(result.errors));
   });
 
-/** A stored card's spec, for the engine: this server only runs versions it reads. */
-const runnable = (card: StoredCard) =>
+const decodeSpec = Schema.decodeUnknownResult(CardSpec);
+
+/**
+ * A canonical spec as the engine's type. This server runs the versions it reads; one it can't
+ * decode otherwise (which the validator and the schema agreeing rules out) is the tool's error.
+ */
+const runnable = (spec: Json) =>
   Effect.suspend(() => {
-    const decoded = decodeSpec(card.spec);
+    const decoded = decodeSpec(spec);
     if (Result.isSuccess(decoded)) return Effect.succeed(decoded.success);
-    const version = isJsonObject(card.spec) ? card.spec["version"] : undefined;
+    const version = isJsonObject(spec) ? spec["version"] : undefined;
     return fail(
-      `This card's spec is version ${JSON.stringify(version ?? null)}, which this server can't ` +
-        "run. Replace it with update_card, or ask the person to update lil health.",
+      typeof version === "number" && readableCardSpecVersions.includes(version)
+        ? "lil health's server can't run this card's spec. Replace it with update_card."
+        : `This card's spec is version ${JSON.stringify(version ?? null)}, which this server ` +
+            "can't run. Replace it with update_card, or ask the person to update lil health.",
     );
   });
+
+/** The latest of a card's times and now: a card's `updatedAt` never goes back. */
+const updatedAt = (card: StoredCard, now: number) => Math.max(now, card.updatedAt, card.createdAt);
 
 /** The range a run is over: the call's, if the card's bucket offers it, else the card's own. */
 const runRange = (spec: CardSpec, range: CardRange | undefined) => {
@@ -274,7 +295,7 @@ export const storeCardTools = (sql: StoreSql, write: CardWrite): CardToolImpleme
 
   get_card: Effect.fnUntraced(function* (params) {
     const card = yield* findCard(sql, params.id);
-    const spec = yield* runnable(card);
+    const spec = yield* runnable(card.spec);
     const range = yield* runRange(spec, params.range);
     const data = yield* cardData(sql, spec, { ...params, range });
     const { zone } = yield* toolTimeZone(params.timeZone);
@@ -282,7 +303,8 @@ export const storeCardTools = (sql: StoreSql, write: CardWrite): CardToolImpleme
   }),
 
   preview_card: Effect.fnUntraced(function* (params) {
-    const { json, spec } = yield* canonical(params.spec);
+    const json = yield* canonical(params.spec);
+    const spec = yield* runnable(json);
     const range = yield* runRange(spec, params.range);
     const data = yield* cardData(sql, spec, { ...params, range });
     return { spec: json, data };
@@ -290,10 +312,14 @@ export const storeCardTools = (sql: StoreSql, write: CardWrite): CardToolImpleme
 
   create_card: Effect.fnUntraced(function* (params) {
     yield* requireCardsScope;
-    const { json } = yield* canonical(params.spec);
+    const json = yield* canonical(params.spec);
     const { zone, name } = yield* toolTimeZone(params.timeZone);
-    const cards = readCards(sql);
-    if (cards.length >= maxCards) {
+    // How many there are, and the last one's position, without reading every spec.
+    const [count] = sql.exec("SELECT count(*) AS count FROM health_card");
+    const [last] = sql.exec(
+      "SELECT position FROM health_card ORDER BY position DESC, id DESC LIMIT 1",
+    );
+    if (Number(count?.["count"] ?? 0) >= maxCards) {
       return yield* fail(
         `You have ${maxCards} cards, the most lil health keeps. Delete one first.`,
       );
@@ -302,7 +328,7 @@ export const storeCardTools = (sql: StoreSql, write: CardWrite): CardToolImpleme
     const card: StoredCard = {
       id: yield* newCardId,
       spec: json,
-      position: cardPositionBetween(cards.at(-1)?.position ?? null, null),
+      position: cardPositionBetween((last?.["position"] as string | undefined) ?? null, null),
       createdAt: now,
       updatedAt: now,
       seed: null,
@@ -313,12 +339,12 @@ export const storeCardTools = (sql: StoreSql, write: CardWrite): CardToolImpleme
 
   update_card: Effect.fnUntraced(function* (params) {
     yield* requireCardsScope;
-    const { json } = yield* canonical(params.spec);
+    const json = yield* canonical(params.spec);
     const { zone, name } = yield* toolTimeZone(params.timeZone);
     const stored = yield* findCard(sql, params.id);
     const now = yield* Clock.currentTimeMillis;
     // Its place, creation and seed stay. Another device's clock may have run ahead.
-    const card: StoredCard = { ...stored, spec: json, updatedAt: Math.max(now, stored.createdAt) };
+    const card: StoredCard = { ...stored, spec: json, updatedAt: updatedAt(stored, now) };
     yield* writing(write, [upsert(card)]);
     return { timeZone: name, card: cardItem(card, zone) };
   }),
@@ -335,19 +361,20 @@ export const storeCardTools = (sql: StoreSql, write: CardWrite): CardToolImpleme
     const cards = readCards(sql);
     const byId = new Map(cards.map((card) => [card.id, card]));
     const seen = new Set<string>();
-    const unknown: Array<string> = [];
-    const twice: Array<string> = [];
+    // Each id once in the message, however often it's given.
+    const unknown = new Set<string>();
+    const twice = new Set<string>();
     for (const id of params.ids) {
-      if (!byId.has(id)) unknown.push(id);
-      else if (seen.has(id)) twice.push(id);
+      if (!byId.has(id)) unknown.add(id);
+      else if (seen.has(id)) twice.add(id);
       else seen.add(id);
     }
     const missing = cards.filter((card) => !seen.has(card.id)).map((card) => card.id);
-    if (unknown.length > 0 || twice.length > 0 || missing.length > 0) {
+    if (unknown.size > 0 || twice.size > 0 || missing.length > 0) {
       const problems = [
         missing.length > 0 ? `missing ${missing.join(", ")}` : undefined,
-        unknown.length > 0 ? `unknown ${unknown.join(", ")}` : undefined,
-        twice.length > 0 ? `more than once ${twice.join(", ")}` : undefined,
+        unknown.size > 0 ? `unknown ${[...unknown].join(", ")}` : undefined,
+        twice.size > 0 ? `more than once ${[...twice].join(", ")}` : undefined,
       ].filter(Predicate.isNotUndefined);
       return yield* fail(
         `reorder_cards needs every card's id once: ${problems.join("; ")}. list_cards lists them.`,
@@ -365,7 +392,7 @@ export const storeCardTools = (sql: StoreSql, write: CardWrite): CardToolImpleme
             upsert({
               ...card,
               position: moved.get(card.id)!,
-              updatedAt: Math.max(now, card.createdAt),
+              updatedAt: updatedAt(card, now),
             }),
           ),
       );
@@ -432,31 +459,30 @@ export const cardToolLogs = (
     readonly rows?: (encoded: unknown) => number;
   };
 } => {
-  const storedTypes = (params: object) => {
+  const storedSpec = (params: object) => {
     const id = field(params, "id");
-    return id === null ? null : typesOf(readCard(sql, id)?.spec);
+    return id === null ? undefined : readCard(sql, id)?.spec;
   };
-  const storedRange = (params: object) => {
-    const id = field(params, "id");
-    const spec = id === null ? undefined : readCard(sql, id)?.spec;
+  const storedTypes = (params: object) => typesOf(storedSpec(params));
+  const rangeOf = (spec: Json | undefined) => {
     const range = spec !== undefined && isJsonObject(spec) ? spec["range"] : undefined;
     return typeof range === "string" ? range : null;
   };
-  const inputRange = (params: object) => {
-    const result = Predicate.hasProperty(params, "spec") ? canonicalOf(params.spec) : undefined;
-    const range = result?.spec?.["range"];
-    return typeof range === "string" ? range : null;
-  };
+  const inputRange = (params: object) =>
+    rangeOf(Predicate.hasProperty(params, "spec") ? canonicalOf(params.spec).spec : undefined);
   const none: AskedFor = { types: null, range: null, date: null };
   const one = () => 1;
   return {
     list_cards: { askedFor: () => none },
     get_card: {
-      askedFor: (params) => ({
-        types: storedTypes(params),
-        range: field(params, "range") ?? storedRange(params),
-        date: field(params, "date"),
-      }),
+      askedFor: (params) => {
+        const spec = storedSpec(params);
+        return {
+          types: typesOf(spec),
+          range: field(params, "range") ?? rangeOf(spec),
+          date: field(params, "date"),
+        };
+      },
       rows: points,
     },
     preview_card: {

@@ -17,6 +17,7 @@ import {
   cardRanges,
   CardSpecInput,
   maxCards,
+  storeMaxCards,
 } from "./CardSpec.ts";
 
 // The card tools (851-3215, `docs/decisions/cards.md`, MCP tools): how agents read, preview,
@@ -424,9 +425,9 @@ export const ReorderCards = annotated(
       "Puts lil health's Summary cards in a new order: give every card's id once, in the order " +
       `you want (list_cards lists them). Only cards whose place changes are written. ${writeNote}`,
     parameters: Schema.Struct({
-      ids: Schema.Array(Schema.String).annotate({
-        description: "Every card's id, each once, in the new order.",
-      }),
+      ids: Schema.Array(Schema.String)
+        .check(Schema.isMaxLength(storeMaxCards))
+        .annotate({ description: "Every card's id, each once, in the new order." }),
     }),
     success: HealthCardOrderResult,
     failure: HealthToolError,

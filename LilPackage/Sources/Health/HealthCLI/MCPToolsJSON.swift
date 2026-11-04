@@ -4538,6 +4538,7 @@ let mcpToolsJSON = #"""
           "items": {
             "type": "string"
           },
+          "maxItems": 200,
           "description": "Every card's id, each once, in the new order."
         }
       },

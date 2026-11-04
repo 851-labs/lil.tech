@@ -182,7 +182,13 @@ const logged =
       const request = yield* Effect.serviceOption(HttpServerRequest.HttpServerRequest);
       const agent = agentOf(request);
       const call = Effect.gen(function* () {
-        const asked = log.askedFor(params);
+        // A row whatever it is, even if reading what the call asked for fails.
+        let asked: AskedFor = { types: null, range: null, date: null };
+        try {
+          asked = log.askedFor(params);
+        } catch (error) {
+          yield* Effect.logWarning("Couldn't read what a tool call asked for", error);
+        }
         let exit: Exit.Exit<A, HealthToolError> = yield* Effect.exit(run(params));
         let bytes = 0;
         let rows = 0;

@@ -295,6 +295,30 @@ describe("the card tools", () => {
     }),
   );
 
+  it.effect("never move a card's updatedAt back, when another device's clock ran ahead", () =>
+    Effect.gen(function* () {
+      const { store, call } = yield* setup;
+      const id = makeCardId(now, new Uint8Array(10));
+      const ahead = now + 60 * 60 * 1000;
+      yield* store.applyMutations([
+        {
+          entity: "health_card",
+          op: "upsert",
+          id,
+          row: {
+            spec: canonicalCardSpec(restingHeartRate).spec!,
+            position: "a0",
+            createdAt: now - 1000,
+            updatedAt: ahead,
+            seed: null,
+          },
+        },
+      ]);
+      const updated = yield* call("update_card", { id, spec: restingHeartRate });
+      assert.strictEqual(updated.value.card.updatedAt, "2026-10-20T16:00:00+00:00");
+    }),
+  );
+
   it.effect("keep at most 100 cards", () =>
     Effect.gen(function* () {
       const { store, call } = yield* setup;
@@ -322,7 +346,9 @@ describe("the card tools", () => {
         ids.push((yield* call("create_card", { spec: restingHeartRate })).value.card.id);
       }
       const [a, b, c, d] = ids as [string, string, string, string];
-      const refused = yield* call("reorder_cards", { ids: [b, b, c, "card_seed_steps"] });
+      const refused = yield* call("reorder_cards", {
+        ids: [b, b, c, "card_seed_steps", "card_seed_steps"],
+      });
       assert.strictEqual(
         refused.text,
         `reorder_cards needs every card's id once: missing ${a}, ${d}; unknown card_seed_steps; ` +
