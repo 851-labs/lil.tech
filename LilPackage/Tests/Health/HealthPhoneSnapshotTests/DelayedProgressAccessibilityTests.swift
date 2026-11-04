@@ -10,9 +10,14 @@
 
   extension PhoneSnapshotTests {
     @Test func delayedProgressKeepsContentsAccessibility() throws {
-      let plain = try withAccessibility(of: DelayedProgressContent(), accessibilityLabels(under:))
+      let isReady = { (labels: [String]) in
+        labels.contains("Read") && labels.contains("Nothing Here")
+      }
+      let plain = try withAccessibility(
+        of: DelayedProgressContent(), until: isReady, accessibilityLabels(under:))
       let loaded = try withAccessibility(
-        of: DelayedProgressContent().delayedProgress(isLoading: false), accessibilityLabels(under:))
+        of: DelayedProgressContent().delayedProgress(isLoading: false), until: isReady,
+        accessibilityLabels(under:))
       #expect(plain.contains("Read"), "The content was read: \(plain)")
       #expect(loaded == plain)
     }
@@ -24,19 +29,22 @@
         $0.delayedProgressTiming = DelayedProgressTiming(delay: .zero, minimumVisible: .seconds(60))
         $0.continuousClock = ContinuousClock()
       } operation: {
-        try withAccessibility(of: LoaderView(loader: loader), after: { loader.isLoading = false }) {
-          accessibilityLabels(under: $0)
-        }
+        // Loading, with the spinner over the content, then loaded while it stays.
+        try withAccessibility(
+          of: LoaderView(loader: loader),
+          until: { (["Beside"] + contentLabels).allSatisfy($0.contains) },
+          after: { loader.isLoading = false }, accessibilityLabels(under:))
       }
       // Read, beside the spinner: VoiceOver reads the window, not none of it.
       #expect(labels.contains("Beside"), "\(labels)")
-      for hidden in ["Loaded", "Summary", "UIKit Button"] {
+      for hidden in contentLabels {
         #expect(!labels.contains(hidden), "\(labels)")
       }
       // What it hid: the content, laid out.
-      let content = try withAccessibility(of: LoadedContent(), accessibilityLabels(under:))
-      #expect(
-        ["Loaded", "Summary", "UIKit Button"].allSatisfy(content.contains), "\(content)")
+      let content = try withAccessibility(
+        of: LoadedContent(), until: { contentLabels.allSatisfy($0.contains) },
+        accessibilityLabels(under:))
+      #expect(contentLabels.allSatisfy(content.contains), "\(content)")
     }
   }
 
@@ -72,6 +80,9 @@
       }
     }
   }
+
+  /// What `LoadedContent` reads.
+  private let contentLabels = ["Loaded", "Summary", "UIKit Button"]
 
   /// A page with a list (UIKit's collection view) and a UIKit view of its own.
   private struct LoadedContent: View {

@@ -6,30 +6,40 @@
 
   extension PhoneSnapshotTests {
     /// Shows `view` in the host app's window with accessibility on, as VoiceOver turns it on, and
-    /// reads its accessibility elements with `read`, from its hosting view.
+    /// reads its accessibility elements with `read`, from its hosting view, once `isReady` says
+    /// what it read is all there (or 5 seconds have passed): UIKit makes them a moment after the
+    /// view lays out, longer on a busy Mac.
     func withAccessibility<Result>(
-      of view: some View, _ read: @MainActor (UIView) throws -> Result
+      of view: some View, until isReady: (Result) -> Bool = { _ in true },
+      _ read: @MainActor (UIView) throws -> Result
     ) throws -> Result {
-      try hosting(view) { try read($0) }
+      try hosting(view) { root in try poll(until: isReady) { try read(root) } }
     }
 
-    /// Like `withAccessibility(of:_:)`, read again after `change`, once what it reads has
+    /// Like `withAccessibility(of:until:_:)`, read again after `change`, once what it reads has
     /// changed: UIKit's elements follow the view a moment after it changes.
     func withAccessibility<Result: Equatable>(
-      of view: some View, after change: () -> Void,
+      of view: some View, until isReady: (Result) -> Bool, after change: () -> Void,
       _ read: @MainActor (UIView) throws -> Result
     ) throws -> Result {
       try hosting(view) { root in
-        let before = try read(root)
+        let before = try poll(until: isReady) { try read(root) }
         change()
-        let deadline = Date().addingTimeInterval(2)
-        var after = try read(root)
-        while after == before, Date() < deadline {
-          RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-          after = try read(root)
-        }
-        return after
+        return try poll(until: { $0 != before }) { try read(root) }
       }
+    }
+
+    /// `read`'s result once `isReady` says so, or after 5 seconds.
+    private func poll<Result>(
+      until isReady: (Result) -> Bool, _ read: @MainActor () throws -> Result
+    ) throws -> Result {
+      let deadline = Date().addingTimeInterval(5)
+      var result = try read()
+      while !isReady(result), Date() < deadline {
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        result = try read()
+      }
+      return result
     }
 
     private func hosting<Result>(
