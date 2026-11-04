@@ -165,6 +165,8 @@ struct CardChartPage: View {
   private func load() async {
     let now = date.now
     isLoading = true
+    // A failure is the last run's: this one shows the period loaded last, updating, or loading.
+    failure = nil
     defer { if !Task.isCancelled { isLoading = false } }
     do {
       guard let offset else {
@@ -229,13 +231,14 @@ struct CardDetailContent: View {
         Section {
           Picker("Range", selection: $range) {
             ForEach(ranges, id: \.self) { range in
-              Text(range.rawValue)
-                .accessibilityLabel(range.periodName)
-                .tag(range)
+              Text(range.rawValue).tag(range)
             }
           }
           .pickerStyle(.segmented)
           .labelsHidden()
+          // Until the page knows which period it opens on: a range chosen meanwhile would open
+          // on its current period, not the latest data's.
+          .disabled(offset == nil)
           .listRowBackground(Color.clear)
           .listRowInsets(EdgeInsets())
         }

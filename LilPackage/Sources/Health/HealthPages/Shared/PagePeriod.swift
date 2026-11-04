@@ -20,25 +20,17 @@ extension PeriodRange {
   }
 }
 
+// The card range of the same name's periods (`HealthUI`), which a card's page has too.
 extension ChartRange: PeriodRange {
   public func firstDay(offset: Int, now: Date, calendar: Calendar) -> Date {
-    interval(offset: offset, now: now, calendar: calendar).start
+    card.firstDay(offset: offset, now: now, calendar: calendar)
   }
 
   public func lastDay(offset: Int, now: Date, calendar: Calendar) -> Date {
-    let interval = interval(offset: offset, now: now, calendar: calendar)
-    return calendar.startOfDay(for: interval.end.addingTimeInterval(-1))
+    card.lastDay(offset: offset, now: now, calendar: calendar)
   }
 
-  public var periodName: String {
-    switch self {
-    case .day: "Day"
-    case .week: "Week"
-    case .month: "Month"
-    case .sixMonths: "6 Months"
-    case .year: "Year"
-    }
-  }
+  public var periodName: String { card.periodName }
 }
 
 /// The range and period a page shows, for its toolbar and the View menu's commands (851-2821,

@@ -298,6 +298,18 @@ public struct CardChart: View {
     .chartLegend(.hidden)
     .chartPlotStyle { $0.clipped() }
     .chartXSelection(value: $hovered)
+    #if os(iOS)
+      // A finger held on the chart, then moved, picks a point: a swipe that starts on the chart
+      // scrolls the page, as in Health, rather than selecting (851-3212).
+      .chartGesture { proxy in
+        LongPressGesture(minimumDuration: 0.25)
+        .sequenced(before: DragGesture(minimumDistance: 0))
+        .onChanged { value in
+          if case .second(true, let drag?) = value { proxy.selectXValue(at: drag.location.x) }
+        }
+        .onEnded { _ in hovered = nil }
+      }
+    #endif
     .valueAxis(shown, domain: yDomain)
     .emptyChartAccessibility(
       isEmpty,
