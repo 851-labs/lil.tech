@@ -4,6 +4,8 @@ import {
   type MetadataKind,
   metadataKinds,
   metadataValue,
+  type Quantity,
+  quantities,
   quantity,
   readMetadataValue,
 } from "../../src/health/MetadataValues.ts";
@@ -78,6 +80,12 @@ describe("MetadataValues", () => {
     assert.strictEqual(quantity("temperature", "212 degF"), 100);
     assert.strictEqual(quantity("temperature", "0 K"), -273.15);
     assert.closeTo(quantity("speed", "36 km/hr")!, 10, 1e-12);
+  });
+
+  it("reads each quantity in its own unit as it is", () => {
+    for (const [measures, { unit }] of Object.entries(quantities)) {
+      assert.strictEqual(quantity(measures as Quantity, `7 ${unit}`), 7, measures);
+    }
   });
 
   it("reads humidity over 100 as 100 times too large", () => {

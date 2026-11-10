@@ -47,12 +47,17 @@ enum SampleDetails {
   /// set it.
   typealias Setter = @Sendable (inout HealthSampleDetails, [String: Any]) -> Void
 
+  /// `field`'s setter from `key`, whose kind must read values of the field's type.
   static func set<Value>(
     _ field: any WritableKeyPath<HealthSampleDetails, Value?> & Sendable, _ key: String
   ) -> Setter {
-    { details, metadata in
-      guard details[keyPath: field] == nil,
-        let value = HealthMetadataValues.value(key, in: metadata)
+    let kind = HealthMetadataValues.kinds[key]
+    assert(
+      kind.map { HealthMetadataValues.valueType(of: $0) == Value.self } == true,
+      "\(key) isn't read as \(Value.self)")
+    return { details, metadata in
+      guard details[keyPath: field] == nil, let kind,
+        let value = HealthMetadataValues.read(kind, metadata[key])
       else { return }
       switch value {
       case .text(let text): details[keyPath: field] = text as? Value

@@ -69,7 +69,8 @@ public enum HealthMetadataValues {
       uniqueKeysWithValues: allCases.map { ($0, $0.makeConversions()) })
 
     var conversions: [String: @Sendable (Double) -> Double] {
-      Self.conversionsByQuantity[self] ?? [:]
+      // Every case is in it: it's made from `allCases`.
+      Self.conversionsByQuantity[self]!
     }
 
     private func makeConversions() -> [String: @Sendable (Double) -> Double] {
@@ -192,6 +193,15 @@ public enum HealthMetadataValues {
     return read(kind, metadata?[key])
   }
 
+  /// The type a value of `kind` is read as: `Bool`, `Double` or `String`.
+  public static func valueType(of kind: Kind) -> Any.Type {
+    switch kind {
+    case .boolean: Bool.self
+    case .number, .quantity: Double.self
+    case .text, .named, .activity: String.self
+    }
+  }
+
   /// A value of `kind`, or nil if it isn't one.
   public static func read(_ kind: Kind, _ value: Any?) -> Value? {
     switch kind {
@@ -251,11 +261,14 @@ public enum HealthMetadataValues {
     return HealthCatalog.workoutActivityName(Int(raw))
   }
 
+  /// A number and a unit, as `HKQuantity.description` writes them: "120 count/min", "4250 cm".
+  nonisolated(unsafe) static let quantityText =
+    /([+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?) (\S+)/
+
   /// A quantity's description in `quantity`'s unit, or nil in a unit it isn't read in.
   public static func quantity(_ quantity: Quantity, _ value: Any?) -> Double? {
     guard let description = value as? String,
-      let match = description.wholeMatch(
-        of: /([+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?) (\S+)/),
+      let match = description.wholeMatch(of: quantityText),
       let number = Double(match.1), let convert = quantity.conversions[String(match.2)]
     else { return nil }
     let converted = convert(number)

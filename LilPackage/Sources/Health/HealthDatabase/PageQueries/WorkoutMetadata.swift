@@ -41,7 +41,8 @@ public struct WorkoutMetadata: Equatable, Sendable {
   public var weatherCondition: String?
   /// `HKMetadataKeyWeatherTemperature`, in degrees Celsius.
   public var weatherTemperature: Double?
-  /// `HKMetadataKeyWeatherHumidity`, a percent from 0 to 100 (see `HealthMetadataValues.Quantity.humidity`).
+  /// `HKMetadataKeyWeatherHumidity`, a percent from 0 to 100 (see
+  /// `HealthMetadataValues.Quantity.humidity`).
   public var weatherHumidity: Double?
   /// `HKMetadataKeySwimmingStrokeStyle`, as `HKSwimmingStrokeStyle` names it (`freestyle`…), on
   /// laps and segments.

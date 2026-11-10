@@ -90,6 +90,12 @@ import Testing
     #expect(abs(speed - 10) < 1e-12)
   }
 
+  @Test func readsEachQuantityInItsOwnUnitAsItIs() {
+    for quantity in HealthMetadataValues.Quantity.allCases {
+      #expect(HealthMetadataValues.quantity(quantity, "7 \(quantity.unit)") == 7, "\(quantity)")
+    }
+  }
+
   @Test func readsHumidityOver100As100TimesTooLarge() {
     #expect(HealthMetadataValues.quantity(.humidity, "72 %") == 72)
     #expect(HealthMetadataValues.quantity(.humidity, "100 %") == 100)
