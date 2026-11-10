@@ -228,11 +228,16 @@ public struct HealthSampleSeries: Codable, Equatable, Sendable {
 }
 
 /// What a sample's metadata says (`sampleDetailFields` in `HealthToolkit.ts`, 851-4166), read
-/// by `SampleDetails`. Every field is left out of the JSON when it's nil, as the toolkit's optional
-/// keys are: synthesized `Codable` does that.
+/// by `SampleDetails`, and its recorded times (`recordedTimeFields` there, set by `RecordedZones`,
+/// 851-4177), which the JSON has beside them. Every field is left out of the JSON when it's nil,
+/// as the toolkit's optional keys are: synthesized `Codable` does that.
 public struct HealthSampleDetails: Codable, Equatable, Sendable {
   public var userEntered: Bool?
+  /// The zone it was recorded in, when it's a name the tools take, and its start and end on that
+  /// zone's clock (`RecordedZones`, 851-4177).
   public var recordedTimeZone: String?
+  public var recordedStart: String?
+  public var recordedEnd: String?
   /// A correlation's samples, by type.
   public var values: [HealthCorrelatedValue]?
   public var food: String?
@@ -372,6 +377,11 @@ public struct HealthWorkoutItem: Codable, Equatable, Sendable {
   public var name: String?
   public var start: String
   public var end: String
+  /// The zone it was recorded in (`HKTimeZone`), when it's a name the tools take, and its start
+  /// and end on that zone's clock (851-4177); `nil` without one, and left out of the JSON.
+  public var recordedTimeZone: String? = nil
+  public var recordedStart: String? = nil
+  public var recordedEnd: String? = nil
   /// Seconds, pauses left out.
   public var duration: Double
   /// Kilocalories.
@@ -399,6 +409,9 @@ public struct HealthWorkoutItem: Codable, Equatable, Sendable {
     try container.encode(name, .name)
     try container.encode(start, .start)
     try container.encode(end, .end)
+    try container.encodeIfPresent(recordedTimeZone, forKey: .recordedTimeZone)
+    try container.encodeIfPresent(recordedStart, forKey: .recordedStart)
+    try container.encodeIfPresent(recordedEnd, forKey: .recordedEnd)
     try container.encode(duration, .duration)
     try container.encode(activeEnergy, .activeEnergy)
     try container.encode(distance, .distance)
@@ -567,6 +580,11 @@ public struct HealthWorkoutDetail: Codable, Equatable, Sendable {
   public var name: String?
   public var start: String
   public var end: String
+  /// The zone it was recorded in (`HKTimeZone`), when it's a name the tools take, and its start
+  /// and end on that zone's clock (851-4177); `nil` without one, and left out of the JSON.
+  public var recordedTimeZone: String? = nil
+  public var recordedStart: String? = nil
+  public var recordedEnd: String? = nil
   /// Seconds, pauses left out.
   public var duration: Double
   /// Kilocalories.
@@ -617,6 +635,9 @@ public struct HealthWorkoutDetail: Codable, Equatable, Sendable {
     try container.encode(name, .name)
     try container.encode(start, .start)
     try container.encode(end, .end)
+    try container.encodeIfPresent(recordedTimeZone, forKey: .recordedTimeZone)
+    try container.encodeIfPresent(recordedStart, forKey: .recordedStart)
+    try container.encodeIfPresent(recordedEnd, forKey: .recordedEnd)
     try container.encode(duration, .duration)
     try container.encode(activeEnergy, .activeEnergy)
     try container.encode(distance, .distance)
@@ -654,10 +675,15 @@ public struct HealthWorkoutResult: HealthToolOutput {
 // MARK: - sleep
 
 public struct HealthSleepNight: Codable, Equatable, Sendable {
-  /// The day the night ends on.
+  /// The day the night ends on, on its recorded zone's clock when it has one (851-4174).
   public var date: String
   public var start: String
   public var end: String
+  /// The zone it was recorded in (`HKTimeZone`), when it's a name the tools take, and its start
+  /// and end on that zone's clock (851-4177); `nil` without one, and left out of the JSON.
+  public var recordedTimeZone: String? = nil
+  public var recordedStart: String? = nil
+  public var recordedEnd: String? = nil
   // Seconds, each.
   public var inBed: Double
   public var asleep: Double
@@ -718,6 +744,10 @@ public struct HealthActivityRingsResult: HealthToolOutput {
 /// A State of Mind log, in the words of the Mac's State of Mind page.
 public struct HealthStateOfMindItem: Codable, Equatable, Sendable {
   public var time: String
+  /// The zone it was recorded in, when it's a name the tools take, and its time on that zone's
+  /// clock (851-4177); `nil` without one, and left out of the JSON.
+  public var recordedTimeZone: String? = nil
+  public var recordedTime: String? = nil
   /// `Momentary Emotion` or `Daily Mood` (`Unknown` for one a later iOS adds).
   public var kind: String
   /// From -1 (very unpleasant) to 1 (very pleasant).
@@ -746,6 +776,10 @@ public struct HealthAssessmentItem: Codable, Equatable, Sendable {
   /// The type's name, e.g. `Anxiety Risk (GAD-7)`.
   public var name: String
   public var time: String
+  /// The zone it was recorded in, when it's a name the tools take, and its time on that zone's
+  /// clock (851-4177); `nil` without one, and left out of the JSON.
+  public var recordedTimeZone: String? = nil
+  public var recordedTime: String? = nil
   public var score: Int
   public var maximumScore: Int
   /// E.g. `Mild`, or `Unknown` for one a later iOS adds.

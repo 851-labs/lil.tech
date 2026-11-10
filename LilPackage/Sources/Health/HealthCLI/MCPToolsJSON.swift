@@ -645,6 +645,18 @@ let mcpToolsJSON = #"""
               "type": "string",
               "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
             },
+            "recordedTimeZone": {
+              "type": "string",
+              "description": "The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records."
+            },
+            "recordedStart": {
+              "type": "string",
+              "description": "When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+            },
+            "recordedEnd": {
+              "type": "string",
+              "description": "When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+            },
             "value": {
               "anyOf": [
                 {
@@ -695,10 +707,6 @@ let mcpToolsJSON = #"""
             "userEntered": {
               "type": "boolean",
               "description": "True if someone entered it by hand, e.g. in the Health app (HKMetadataKeyWasUserEntered)."
-            },
-            "recordedTimeZone": {
-              "type": "string",
-              "description": "The time zone where it was recorded (HKMetadataKeyTimeZone), e.g. America/New_York. Times here are still in the output's `timeZone`."
             },
             "values": {
               "type": "array",
@@ -1102,6 +1110,18 @@ let mcpToolsJSON = #"""
             "end": {
               "type": "string",
               "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+            },
+            "recordedTimeZone": {
+              "type": "string",
+              "description": "The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records."
+            },
+            "recordedStart": {
+              "type": "string",
+              "description": "When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+            },
+            "recordedEnd": {
+              "type": "string",
+              "description": "When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
             },
             "duration": {
               "type": "number",
@@ -1647,6 +1667,18 @@ let mcpToolsJSON = #"""
               "type": "string",
               "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
             },
+            "recordedTimeZone": {
+              "type": "string",
+              "description": "The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records."
+            },
+            "recordedStart": {
+              "type": "string",
+              "description": "When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+            },
+            "recordedEnd": {
+              "type": "string",
+              "description": "When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+            },
             "duration": {
               "type": "number",
               "description": "Seconds of activity, excluding pauses."
@@ -2023,6 +2055,18 @@ let mcpToolsJSON = #"""
               "type": "string",
               "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
             },
+            "recordedTimeZone": {
+              "type": "string",
+              "description": "The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records."
+            },
+            "recordedStart": {
+              "type": "string",
+              "description": "When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+            },
+            "recordedEnd": {
+              "type": "string",
+              "description": "When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+            },
             "duration": {
               "type": "number",
               "description": "Seconds, from start to end."
@@ -2186,6 +2230,18 @@ let mcpToolsJSON = #"""
             "end": {
               "type": "string",
               "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+            },
+            "recordedTimeZone": {
+              "type": "string",
+              "description": "The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records."
+            },
+            "recordedStart": {
+              "type": "string",
+              "description": "When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+            },
+            "recordedEnd": {
+              "type": "string",
+              "description": "When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
             },
             "duration": {
               "type": "number",
@@ -2515,7 +2571,7 @@ let mcpToolsJSON = #"""
   },
   {
     "name": "sleep",
-    "description": "Sleep per night in a period: time in bed, asleep and awake, and the sleep stages (core, deep, REM), from the person's sleep tracking.",
+    "description": "Sleep per night in a period: time in bed, asleep and awake, and the sleep stages (core, deep, REM), from the person's sleep tracking. As in Apple Health, a night slept in another time zone is dated by that zone's clock, and says which zone it was (recordedTimeZone) and its times on that clock.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2568,7 +2624,7 @@ let mcpToolsJSON = #"""
           "items": {
             "$ref": "#/$defs/HealthSleepNight"
           },
-          "description": "Each night that ends in the period, oldest first."
+          "description": "Each night whose date is in the period, oldest first. A night slept in another zone is dated by that zone's clock, so its start and end can fall outside the period."
         }
       },
       "required": [
@@ -2585,7 +2641,7 @@ let mcpToolsJSON = #"""
           "properties": {
             "date": {
               "type": "string",
-              "description": "The day the night ends on."
+              "description": "The day the night ends on (sleep from 6 PM counts toward the next day), as YYYY-MM-DD, on the clock of the zone it was slept in when it has one (recordedTimeZone), as Apple Health dates it, else in the output's `timeZone`."
             },
             "start": {
               "type": "string",
@@ -2594,6 +2650,18 @@ let mcpToolsJSON = #"""
             "end": {
               "type": "string",
               "description": "When its last sleep sample ends."
+            },
+            "recordedTimeZone": {
+              "type": "string",
+              "description": "The time zone it was slept in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo: its last-ending sample's that has one, so a night across a change of zone (a flight) is the zone it ended in. Left out when none has one. start and end stay in the output's `timeZone`."
+            },
+            "recordedStart": {
+              "type": "string",
+              "description": "When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+            },
+            "recordedEnd": {
+              "type": "string",
+              "description": "When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
             },
             "inBed": {
               "type": "number",
@@ -2915,6 +2983,14 @@ let mcpToolsJSON = #"""
               "type": "string",
               "description": "When it was logged: a momentary emotion's moment, or for a daily mood, a time in the day it describes."
             },
+            "recordedTimeZone": {
+              "type": "string",
+              "description": "The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records."
+            },
+            "recordedTime": {
+              "type": "string",
+              "description": "Its time, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+            },
             "kind": {
               "type": "string",
               "description": "Momentary Emotion (how they felt right then) or Daily Mood (how they felt over the day), or Unknown for one a later iOS adds."
@@ -3056,6 +3132,14 @@ let mcpToolsJSON = #"""
             "time": {
               "type": "string",
               "description": "When it was taken."
+            },
+            "recordedTimeZone": {
+              "type": "string",
+              "description": "The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records."
+            },
+            "recordedTime": {
+              "type": "string",
+              "description": "Its time, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
             },
             "score": {
               "type": "integer",

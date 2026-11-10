@@ -3,6 +3,7 @@ import type { StoreSql } from "../../store/StoreSql.ts";
 import { healthCatalogType } from "../HealthCatalog.ts";
 import { scoredAssessments, stateOfMindLogs } from "./HealthQueries.ts";
 import { assessmentsLimit, type HealthToolkit, stateOfMindLimit } from "./HealthToolkit.ts";
+import { RecordedZones } from "./RecordedTimes.ts";
 import { localTime, type ToolRange, toolPeriod, toolTimeZone } from "./ToolTime.ts";
 
 // The Mental Wellbeing tools (851-4160): State of Mind logs and GAD-7 and PHQ-9 assessments, in
@@ -122,6 +123,7 @@ export const healthStateOfMind = Effect.fn("healthStateOfMind")(function* (
   const now = yield* Clock.currentTimeMillis;
   const period = yield* toolPeriod(input.range, input.date, now, zone);
   const { count, logs } = stateOfMindLogs(sql, period.start, period.end, stateOfMindLimit);
+  const zones = new RecordedZones();
   const result: StateOfMindResult = {
     timeZone: name,
     range: input.range,
@@ -130,6 +132,7 @@ export const healthStateOfMind = Effect.fn("healthStateOfMind")(function* (
     count,
     logs: logs.map((log) => ({
       time: localTime(log.startDate, zone),
+      ...zones.namedAt(log.recordedTimeZone, log.startDate),
       kind: stateOfMindKinds[log.kind - 1] ?? "Unknown",
       valence: log.valence,
       classification: valenceClassifications[log.valenceClassification - 1] ?? "Unknown",
@@ -197,6 +200,7 @@ export const healthAssessments = Effect.fn("healthAssessments")(function* (
     period.end,
     assessmentsLimit,
   );
+  const zones = new RecordedZones();
   const result: AssessmentsResult = {
     timeZone: name,
     range: input.range,
@@ -212,6 +216,7 @@ export const healthAssessments = Effect.fn("healthAssessments")(function* (
           type: assessment.type,
           name: healthCatalogType(assessment.type)?.name ?? assessment.type,
           time: localTime(assessment.startDate, zone),
+          ...zones.namedAt(assessment.recordedTimeZone, assessment.startDate),
           score: assessment.score,
           maximumScore: kind.maximumScore,
           risk: kind.risks[assessment.risk - 1] ?? "Unknown",

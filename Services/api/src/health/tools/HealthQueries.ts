@@ -3,6 +3,7 @@ import type { SqlRow, SqlValue, StoreSql } from "../../store/StoreSql.ts";
 import { type HealthCatalogType, healthCatalogTypes } from "../HealthCatalog.ts";
 import { statisticsBucketMillis } from "../HealthEntities.ts";
 import { cardSeries, cardSeriesReach } from "../cards/CardSeries.ts";
+import { recordedZoneSql } from "./RecordedTimes.ts";
 import { startOfLocalDay } from "./ToolTime.ts";
 
 // Reads of the user's store for the Health tools. They follow the Mac's `HealthDatabase` queries,
@@ -1074,6 +1075,8 @@ export interface StateOfMindRow {
   readonly labels: string;
   readonly associations: string;
   readonly sourceName: string;
+  /** Its `HKTimeZone`, if it's a string (`recordedZoneSql`). */
+  readonly recordedTimeZone: unknown;
 }
 
 /**
@@ -1086,7 +1089,7 @@ export const stateOfMindLogs = (sql: StoreSql, from: number, to: number, limit: 
   const logs = sql
     .exec(
       `SELECT id, start_date, kind, valence, valence_classification, labels, associations,
-        source_name
+        source_name, ${recordedZoneSql} AS recorded_time_zone
       FROM health_state_of_mind WHERE ${where} ORDER BY start_date DESC, id DESC LIMIT ?`,
       from,
       to,
@@ -1101,6 +1104,7 @@ export const stateOfMindLogs = (sql: StoreSql, from: number, to: number, limit: 
       labels: row["labels"] as string,
       associations: row["associations"] as string,
       sourceName: row["source_name"] as string,
+      recordedTimeZone: row["recorded_time_zone"],
     }));
   const count =
     logs.length < limit
@@ -1123,6 +1127,8 @@ export interface ScoredAssessmentRow {
   readonly score: number;
   readonly risk: number;
   readonly answers: string;
+  /** Its `HKTimeZone`, if it's a string (`recordedZoneSql`). */
+  readonly recordedTimeZone: unknown;
 }
 
 /**
@@ -1140,7 +1146,8 @@ export const scoredAssessments = (
   const where = `type IN (${types.map(() => "?").join(", ")}) AND start_date >= ? AND start_date < ?`;
   const assessments = sql
     .exec(
-      `SELECT id, type, start_date, score, risk, answers FROM health_scored_assessment
+      `SELECT id, type, start_date, score, risk, answers, ${recordedZoneSql} AS recorded_time_zone
+      FROM health_scored_assessment
       WHERE ${where} ORDER BY start_date DESC, id DESC LIMIT ?`,
       ...types,
       from,
@@ -1154,6 +1161,7 @@ export const scoredAssessments = (
       score: Number(row["score"]),
       risk: Number(row["risk"]),
       answers: row["answers"] as string,
+      recordedTimeZone: row["recorded_time_zone"],
     }));
   const count =
     assessments.length < limit

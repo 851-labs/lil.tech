@@ -47,13 +47,17 @@ public struct WorkoutMetadata: Equatable, Sendable {
   /// `HKMetadataKeySwimmingStrokeStyle`, as `HKSwimmingStrokeStyle` names it (`freestyle`…), on
   /// laps and segments.
   public var strokeStyle: String?
+  /// `HKTimeZone`, the zone it was recorded in, as text: the tools take it when it's a name
+  /// (`RecordedZones`, 851-4177).
+  public var timeZoneName: String?
 
   public init(
     indoor: Bool? = nil, swimmingLocation: String? = nil, brandName: String? = nil,
     elevationAscended: Double? = nil, planName: String? = nil, elevationDescended: Double? = nil,
     averageSpeed: Double? = nil, maximumSpeed: Double? = nil, averageMETs: Double? = nil,
     lapLength: Double? = nil, swolf: Double? = nil, weatherCondition: String? = nil,
-    weatherTemperature: Double? = nil, weatherHumidity: Double? = nil, strokeStyle: String? = nil
+    weatherTemperature: Double? = nil, weatherHumidity: Double? = nil, strokeStyle: String? = nil,
+    timeZoneName: String? = nil
   ) {
     self.indoor = indoor
     self.swimmingLocation = swimmingLocation
@@ -70,6 +74,7 @@ public struct WorkoutMetadata: Equatable, Sendable {
     self.weatherTemperature = weatherTemperature
     self.weatherHumidity = weatherHumidity
     self.strokeStyle = strokeStyle
+    self.timeZoneName = timeZoneName
   }
 
   /// Its name: the app's (`brandName`), else its plan's.
@@ -100,7 +105,8 @@ public struct WorkoutMetadata: Equatable, Sendable {
       weatherCondition: value("HKWeatherCondition")?.string,
       weatherTemperature: value("HKWeatherTemperature")?.double,
       weatherHumidity: value("HKWeatherHumidity")?.double,
-      strokeStyle: value("HKSwimmingStrokeStyle")?.string)
+      strokeStyle: value("HKSwimmingStrokeStyle")?.string,
+      timeZoneName: value("HKTimeZone")?.string)
   }
 
   /// Indoors or not, by an `HKWorkoutSessionLocationType` raw value: 2 indoor, 3 outdoor, and

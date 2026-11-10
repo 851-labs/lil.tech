@@ -33,6 +33,7 @@ import {
   readingsOfSeries,
 } from "./CardSeries.ts";
 import type { CardFilter } from "./CardSpec.ts";
+import { recordedZoneSql } from "../tools/RecordedTimes.ts";
 import { namedTimeZone } from "../tools/ToolTime.ts";
 import { storedWorkoutIndoor } from "../WorkoutMetadata.ts";
 
@@ -272,7 +273,7 @@ export const cardSleepRecords = (sql: StoreSql, range: CardInterval): Array<Card
   return sql
     .rows(
       `SELECT start_date, end_date, category_value, source_bundle_id,
-        CASE WHEN json_valid(metadata) THEN metadata ->> '$.HKTimeZone' END
+        ${recordedZoneSql}
       FROM health_sample s
       WHERE type = ? AND start_date < ? AND end_date > ? AND category_value IS NOT NULL
         AND ${liveSample}

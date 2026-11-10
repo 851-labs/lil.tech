@@ -285,6 +285,38 @@ const when = <S extends Schema.Top>(schema: S, description: string) =>
 /** An enum-like field: HealthKit's case name, without its prefix, as a plain string. */
 const caseName = (description: string) => when(Schema.String, description);
 
+const recordedTimeZone = when(
+  Schema.String,
+  "The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. " +
+    "Left out when it has none, or one that isn't an IANA name. Its other times stay in the " +
+    "output's `timeZone`, so they compare across records.",
+);
+
+/** A time on the clock of the zone a record was recorded in (851-4177). */
+const recordedClock = (what: string) =>
+  when(
+    Schema.String,
+    `${what}, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. ` +
+      "2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with " +
+      "recordedTimeZone.",
+  );
+
+/**
+ * A record's recorded times (851-4177, `docs/decisions/health.md` › Recorded time zones): the zone
+ * it was recorded in, and its start and end on that zone's clock, when it has one.
+ */
+const recordedTimeFields = {
+  recordedTimeZone,
+  recordedStart: recordedClock("When it starts"),
+  recordedEnd: recordedClock("When it ends"),
+};
+
+/** The recorded zone, and the time on its clock, of a record of one time. */
+const recordedMomentFields = {
+  recordedTimeZone,
+  recordedTime: recordedClock("Its time"),
+};
+
 export const HealthSampleDevice = Schema.Struct({
   name: when(Schema.String, "The device's name, e.g. Apple Watch."),
   manufacturer: when(Schema.String, "Who made it, e.g. Apple Inc."),
@@ -335,11 +367,6 @@ export const sampleDetailFields = {
   userEntered: when(
     Schema.Boolean,
     "True if someone entered it by hand, e.g. in the Health app (HKMetadataKeyWasUserEntered).",
-  ),
-  recordedTimeZone: when(
-    Schema.String,
-    "The time zone where it was recorded (HKMetadataKeyTimeZone), e.g. America/New_York. Times " +
-      "here are still in the output's `timeZone`.",
   ),
   values: when(
     Schema.Array(HealthCorrelatedValue),
@@ -497,6 +524,7 @@ export const HealthSampleItem = Schema.Struct({
   id: Schema.String.annotate({ description: "HealthKit's UUID for the sample." }),
   start: LocalTime,
   end: LocalTime,
+  ...recordedTimeFields,
   value: Schema.NullOr(Schema.Finite).annotate({
     description:
       "A quantity's value, in `unit`: for a series, HealthKit's for all of it, its total or its " +
@@ -621,6 +649,7 @@ export const HealthWorkoutItem = Schema.Struct({
   }),
   start: LocalTime,
   end: LocalTime,
+  ...recordedTimeFields,
   duration: Schema.Finite.annotate({ description: "Seconds of activity, excluding pauses." }),
   activeEnergy: Schema.NullOr(Schema.Finite).annotate({ description: "Kilocalories." }),
   distance: Schema.NullOr(Schema.Finite).annotate({ description: "Meters." }),
@@ -895,6 +924,7 @@ export const HealthWorkoutRouteItem = Schema.Struct({
   }),
   start: LocalTime,
   end: LocalTime,
+  ...recordedTimeFields,
   duration: Schema.Finite.annotate({ description: "Seconds, from start to end." }),
   pointCount: Schema.Int.annotate({ description: "How many GPS points it has." }),
   source: Schema.String.annotate({ description: "The app or device that recorded it." }),
@@ -1071,9 +1101,22 @@ export const WorkoutRoutePoints = readOnly(
 // -------------------------------------------------------------------------------------------------
 
 export const HealthSleepNight = Schema.Struct({
-  date: LocalDate.annotate({ description: "The day the night ends on." }),
+  date: LocalDate.annotate({
+    description:
+      "The day the night ends on (sleep from 6 PM counts toward the next day), as YYYY-MM-DD, " +
+      "on the clock of the zone it was slept in when it has one (recordedTimeZone), as Apple " +
+      "Health dates it, else in the output's `timeZone`.",
+  }),
   start: LocalTime.annotate({ description: "When the night's first sleep sample starts." }),
   end: LocalTime.annotate({ description: "When its last sleep sample ends." }),
+  recordedTimeZone: when(
+    Schema.String,
+    "The time zone it was slept in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo: its last-ending " +
+      "sample's that has one, so a night across a change of zone (a flight) is the zone it " +
+      "ended in. Left out when none has one. start and end stay in the output's `timeZone`.",
+  ),
+  recordedStart: recordedClock("When it starts"),
+  recordedEnd: recordedClock("When it ends"),
   inBed: Schema.Finite.annotate({ description: "Seconds in bed." }),
   asleep: Schema.Finite.annotate({ description: "Seconds asleep, in any stage." }),
   awake: Schema.Finite.annotate({ description: "Seconds awake during the night." }),
@@ -1088,7 +1131,9 @@ export const HealthSleepNight = Schema.Struct({
 export const HealthSleepResult = Schema.Struct({
   ...periodFields,
   nights: Schema.Array(HealthSleepNight).annotate({
-    description: "Each night that ends in the period, oldest first.",
+    description:
+      "Each night whose date is in the period, oldest first. A night slept in another zone is " +
+      "dated by that zone's clock, so its start and end can fall outside the period.",
   }),
 });
 
@@ -1096,7 +1141,9 @@ export const Sleep = readOnly(
   Tool.make("sleep", {
     description:
       "Sleep per night in a period: time in bed, asleep and awake, and the sleep stages (core, " +
-      "deep, REM), from the person's sleep tracking.",
+      "deep, REM), from the person's sleep tracking. As in Apple Health, a night slept in " +
+      "another time zone is dated by that zone's clock, and says which zone it was " +
+      "(recordedTimeZone) and its times on that clock.",
     parameters: Schema.Struct({ range, date, timeZone }),
     success: HealthSleepResult,
     failure: HealthToolError,
@@ -1181,6 +1228,7 @@ export const HealthStateOfMindItem = Schema.Struct({
       "When it was logged: a momentary emotion's moment, or for a daily mood, a time in the " +
       "day it describes.",
   }),
+  ...recordedMomentFields,
   kind: Schema.String.annotate({
     description:
       "Momentary Emotion (how they felt right then) or Daily Mood (how they felt over the " +
@@ -1249,6 +1297,7 @@ export const HealthAssessmentItem = Schema.Struct({
     description: "Its name in Health: Anxiety Risk (GAD-7) or Depression Risk (PHQ-9).",
   }),
   time: LocalTime.annotate({ description: "When it was taken." }),
+  ...recordedMomentFields,
   score: Schema.Int.annotate({
     description: "The total of the answers' points, from 0 to maximumScore.",
   }),

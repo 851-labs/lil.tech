@@ -38,10 +38,13 @@ extension HealthTools {
       .order { ($0.startDate.desc(), $0.id.desc()) }
       .limit(Self.workoutRoutesLimit)
       .fetchAll(db)
+    let zones = RecordedZones()
     return HealthWorkoutRoutesResult(
       timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
       end: time.localTime(period.end), count: count,
-      routes: routes.map { Self.routeItem($0, pointCount: $0.locationCount, time: time) })
+      routes: routes.map {
+        Self.routeItem($0, pointCount: $0.locationCount, time: time, zones: zones)
+      })
   }
 
   // MARK: - workout_route
@@ -61,12 +64,15 @@ extension HealthTools {
           latitude: Self.rounded($0.latitude, 1000), longitude: Self.rounded($0.longitude, 1000))
       }
     }
-    let item = Self.routeItem(route, pointCount: points.count, time: time)
+    let item = Self.routeItem(
+      route, pointCount: points.count, time: time, zones: RecordedZones())
     return HealthWorkoutRouteResult(
       timeZone: time.name,
       route: HealthWorkoutRouteDetail(
         id: item.id, workout: item.workout, start: item.start, end: item.end,
-        duration: item.duration, pointCount: item.pointCount, source: item.source,
+        recordedTimeZone: item.recordedTimeZone, recordedStart: item.recordedStart,
+        recordedEnd: item.recordedEnd, duration: item.duration, pointCount: item.pointCount,
+        source: item.source,
         distance: HealthDatabase.routeDistance(points), elevationGain: gain, elevationLoss: loss,
         bounds: Self.bounds(points), startArea: area(points.first), endArea: area(points.last),
         simplified: Self.shape(points, time: time)))
@@ -151,14 +157,17 @@ extension HealthTools {
     }
   }
 
-  /// What both lists say of a route.
-  private static func routeItem(_ route: HealthWorkoutRoute, pointCount: Int, time: ToolTime)
-    -> HealthWorkoutRouteItem
-  {
-    HealthWorkoutRouteItem(
+  /// What both lists say of a route, `zones` looking up the zones routes were recorded in.
+  private static func routeItem(
+    _ route: HealthWorkoutRoute, pointCount: Int, time: ToolTime, zones: RecordedZones
+  ) -> HealthWorkoutRouteItem {
+    let recorded = zones.times(json: route.metadata, start: route.startDate, end: route.endDate)
+    return HealthWorkoutRouteItem(
       id: route.id, workout: route.workout,
       start: time.localTime(Date(unixMilliseconds: route.startDate)),
       end: time.localTime(Date(unixMilliseconds: route.endDate)),
+      recordedTimeZone: recorded.timeZone, recordedStart: recorded.start,
+      recordedEnd: recorded.end,
       duration: Double(route.endDate - route.startDate) / 1000, pointCount: pointCount,
       source: route.sourceName)
   }
@@ -280,6 +289,11 @@ public struct HealthWorkoutRouteItem: Codable, Equatable, Sendable {
   public var workout: String?
   public var start: String
   public var end: String
+  /// The zone it was recorded in (`HKTimeZone`), when it's a name the tools take, and its start
+  /// and end on that zone's clock (851-4177); `nil` without one, and left out of the JSON.
+  public var recordedTimeZone: String? = nil
+  public var recordedStart: String? = nil
+  public var recordedEnd: String? = nil
   /// Seconds.
   public var duration: Double
   public var pointCount: Int
@@ -291,6 +305,9 @@ public struct HealthWorkoutRouteItem: Codable, Equatable, Sendable {
     try container.encode(workout, .workout)
     try container.encode(start, .start)
     try container.encode(end, .end)
+    try container.encodeIfPresent(recordedTimeZone, forKey: .recordedTimeZone)
+    try container.encodeIfPresent(recordedStart, forKey: .recordedStart)
+    try container.encodeIfPresent(recordedEnd, forKey: .recordedEnd)
     try container.encode(duration, .duration)
     try container.encode(pointCount, .pointCount)
     try container.encode(source, .source)
@@ -346,6 +363,11 @@ public struct HealthWorkoutRouteDetail: Codable, Equatable, Sendable {
   public var workout: String?
   public var start: String
   public var end: String
+  /// The zone it was recorded in (`HKTimeZone`), when it's a name the tools take, and its start
+  /// and end on that zone's clock (851-4177); `nil` without one, and left out of the JSON.
+  public var recordedTimeZone: String? = nil
+  public var recordedStart: String? = nil
+  public var recordedEnd: String? = nil
   public var duration: Double
   public var pointCount: Int
   public var source: String
@@ -365,6 +387,9 @@ public struct HealthWorkoutRouteDetail: Codable, Equatable, Sendable {
     try container.encode(workout, .workout)
     try container.encode(start, .start)
     try container.encode(end, .end)
+    try container.encodeIfPresent(recordedTimeZone, forKey: .recordedTimeZone)
+    try container.encodeIfPresent(recordedStart, forKey: .recordedStart)
+    try container.encodeIfPresent(recordedEnd, forKey: .recordedEnd)
     try container.encode(duration, .duration)
     try container.encode(pointCount, .pointCount)
     try container.encode(source, .source)

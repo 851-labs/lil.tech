@@ -178,6 +178,31 @@ struct CardNightZonesTests {
     #expect(CardNights.runZones(records.reversed()) == [tokyo, tokyo])
   }
 
+  /// A night keeps its zone's name as its records gave it (851-4177), which `TimeZone` may not:
+  /// it calls `UTC` `GMT`. Ties compare those names, as the server's do: `Pacific/Auckland` sorts
+  /// before `UTC`, though not before `GMT`.
+  @Test
+  func aNightKeepsItsZonesName() throws {
+    let utcZone = try #require(CardTimeZone.named("UTC"))
+    #expect(utcZone.identifier == "GMT")
+    let records = [
+      CardSleepRecord(
+        start: utc(11, 23), end: utc(12, 6), value: core, source: watch, timeZone: utcZone,
+        timeZoneName: "UTC"),
+      record(utc(12, 0), utc(12, 6), rem, TimeZone(identifier: "Pacific/Auckland")),
+    ]
+    let nights = CardNights.nights(
+      records, days: day(12, calendar("UTC"))..<day(13, calendar("UTC")),
+      calendar: calendar("UTC"))
+    // Both end at 06:00Z.
+    #expect(nights.map(\.timeZoneName) == ["Pacific/Auckland"])
+    #expect(CardNights.runs(records).map(\.timeZoneName) == ["Pacific/Auckland"])
+    #expect(
+      CardSleepRecord(start: 0, end: 1, value: core, source: watch, timeZone: tokyo).timeZoneName
+        == "Asia/Tokyo")
+    #expect(CardSleepRecord(start: 0, end: 1, value: core, source: watch).timeZoneName == nil)
+  }
+
   /// A night in a zone 21 hours ahead of the calendar's starts long before the calendar's night
   /// could: the fetch reaches it (`recordRange`), and it's the calendar's day of its date.
   @Test

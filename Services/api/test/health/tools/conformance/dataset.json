@@ -530,6 +530,86 @@
           }
         },
         {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000701",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1786370400000,
+            "endDate": 1786384800000,
+            "categoryValue": 3,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "HKTimeZone": "Asia/Tokyo"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000702",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1786384800000,
+            "endDate": 1786397400000,
+            "categoryValue": 5,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "HKTimeZone": "Asia/Tokyo"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000703",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1786741200000,
+            "endDate": 1786752000000,
+            "categoryValue": 3,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "HKTimeZone": "America/New_York"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000704",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1786752000000,
+            "endDate": 1786757400000,
+            "categoryValue": 4,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "HKTimeZone": "Europe/London"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000705",
+          "row": {
+            "type": "HKCategoryTypeIdentifierSleepAnalysis",
+            "startDate": 1786757400000,
+            "endDate": 1786770000000,
+            "categoryValue": 3,
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "HKTimeZone": "Europe/London"
+            }
+          }
+        },
+        {
           "entity": "health_workout",
           "op": "upsert",
           "id": "0c0f0000-0000-4000-8000-000000000014",
@@ -626,7 +706,10 @@
             "locationCount": 31,
             "locations": "f8c310f9e64dc4fcd41f743b8074fb558fd68f7ba8bef593e3f75699546771b0",
             "sourceName": "Test Apple Watch",
-            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "HKTimeZone": "Europe/London"
+            }
           }
         },
         {
@@ -2242,7 +2325,10 @@
             "labels": [4, 29, 37],
             "associations": [17, 11],
             "sourceName": "Health",
-            "sourceBundleId": "com.apple.Health"
+            "sourceBundleId": "com.apple.Health",
+            "metadata": {
+              "HKTimeZone": "+09:00"
+            }
           }
         },
         {
@@ -2258,7 +2344,10 @@
             "labels": [],
             "associations": [],
             "sourceName": "Test Apple Watch",
-            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "HKTimeZone": "Asia/Tokyo"
+            }
           }
         },
         {
@@ -2418,7 +2507,10 @@
             "risk": 5,
             "answers": [3, 3, 2, 3, 2, 2, 3, 3, 4],
             "sourceName": "Health",
-            "sourceBundleId": "com.apple.Health"
+            "sourceBundleId": "com.apple.Health",
+            "metadata": {
+              "HKTimeZone": "America/New_York"
+            }
           }
         },
         {
