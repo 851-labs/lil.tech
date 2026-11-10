@@ -92,7 +92,9 @@ extension SleepNight {
   }
 
   /// Its bedtime by the clock, placed as Sleep's W and M charts place it (from its first segment,
-  /// 851-3098), if it's a night's sleep rather than a day's (`latestBedtime`).
+  /// 851-3098), if it's a night's sleep rather than a day's (`latestBedtime`). On the page's
+  /// calendar, as its charts are: 851-4178 moves both to the night's own clock
+  /// (`CardNights.clock(day:timeZone:calendar:)` with `timeZone`), as cards' nights are.
   func nightBedtime(calendar: Calendar) -> Double? {
     guard let bedtime, let start = segments.map(\.start).min() else { return nil }
     return CardNights.nightBedtime(

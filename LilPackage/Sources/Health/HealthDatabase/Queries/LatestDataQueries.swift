@@ -1,4 +1,5 @@
 public import Foundation
+import HealthCards
 import HealthCatalog
 public import SQLiteData
 
@@ -57,7 +58,7 @@ extension HealthDatabase {
     guard let latest else { return nil }
     let lower = latest - 2 * 86_400_000
     let asleep = SleepStage.allCases.filter(\.isAsleep).map { Optional($0.rawValue) }
-    let start =
+    let asleepStart =
       try HealthSample
       .where {
         $0.type.eq(sleepType) && $0.startDate <= latest && $0.startDate >= lower
@@ -66,7 +67,22 @@ extension HealthDatabase {
       .order { $0.startDate.desc() }
       .select(\.startDate)
       .limit(1)
-      .fetchOne(db) ?? latest
+      .fetchOne(db)
+    let start = asleepStart ?? latest
+    // Time asleep's night as `sleepNights` names it (851-4174), on its zone's clock, which can be
+    // two days from the calendar's: the latest of the nights around it, from sleep started by now.
+    let day = calendar.startOfDay(for: Date(unixMilliseconds: start))
+    if asleepStart != nil, let first = calendar.date(byAdding: .day, value: -3, to: day),
+      let end = calendar.date(byAdding: .day, value: 4, to: day)
+    {
+      let range = CardNights.recordRange(days: first..<end)
+      let records = try sleepRecords(
+        in: range.lowerBound..<min(range.upperBound, upper + 1), startingFrom: range.lowerBound,
+        db)
+      if let night = CardNights.nights(records, days: first..<end, calendar: calendar).last {
+        return night.day
+      }
+    }
     return calendar.startOfDay(
       for: Date(unixMilliseconds: start).addingTimeInterval(nightStartOffset))
   }

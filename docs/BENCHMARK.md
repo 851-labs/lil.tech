@@ -165,6 +165,19 @@ LIL_BENCHMARKS=1 swift test -c release --filter CardQueriesBenchmark
   - **A faster parser.** The series' JSON arrays are read from their bytes (68 ms down to 12).
   - **Only the series near a window's stretches are read,** each parsed once, rather than the whole year's for every window.
 
+**Recorded time zones** (851-4174, `docs/decisions/cards.md` › Recorded time zones): the year's nights now say where they were recorded (`HKTimeZone`), as a Watch's do: London, but a week in Tokyo every month, and the run also times Sleep's nights over the year (`sleepNights`, what Sleep's page and the `sleep` tool read), with the records' read alone. **2026-11-10**, Apple M1 Pro, beside other agents' builds (load 10–95). CPU ms, before and after:
+
+| Card | Before | After |
+| --- | ---: | ---: |
+| Heart rate, `asleep`, by the night | 95 | 97 |
+| Heart rate, `beforeSleep` 5 minutes, by the night | 10 | 16 |
+| A year of nights (`sleepNights`, 3,660 records) | 4.7 | 10.2–11.8 |
+| Of which reading the records | | 4.1–4.6 |
+
+- **Reading each record's zone** adds about 2 ms a year: `json_valid`, `json_type` and `json_extract` on each sleep record's metadata, which SQLite parses once a row (dropping `json_type` changed nothing).
+- **Grouping** adds about 2.5 ms: each source's records split into runs, and placed on their run's clock. Zones are looked up once a run, not once a record: comparing and hashing a `TimeZone` per record cost a millisecond more. Without any zone, the core skips the runs (4.0 ms against 5.8 for the same nights in London).
+- **The windows' cost is the nights':** `asleep` is reading readings, so within the noise, and `beforeSleep`'s 6 ms are the year's nights.
+
 ## Cards on the server
 
 What a card costs the server's engine (851-3197, `docs/decisions/cards.md`, The server), on the Mac's benchmark data (above) in a `node:sqlite` store: a year of heart rate a minute (525,600 samples) and as many of active energy, a year of a Watch's nights and a 45-minute workout a day. `CardEngineBenchmark` (`Services/api/test/health/cards`) runs each card over Y, with a 7-day moving average, five times, and prints the median's CPU time (the process's):

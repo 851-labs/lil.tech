@@ -727,7 +727,8 @@ struct CardQueriesBenchmark {
     }
 
     // A year of a Watch's nights (10 records each, two awake in the night) and a 45-minute run
-    // every day, for sleep and workout windows (851-3196).
+    // every day, for sleep and workout windows (851-3196). Each record says where it was
+    // recorded, as a Watch's do (851-4174): London, but a week in Tokyo every month.
     try database.write { db in
       let stages: [(SleepStage, Double, Double)] = [
         (.inBed, -1.5, 7.25), (.core, -1, 0.5), (.deep, 0.5, 1.5), (.core, 1.5, 2.5),
@@ -743,7 +744,8 @@ struct CardQueriesBenchmark {
               startDate: midnight.addingTimeInterval(from * 3600).unixMilliseconds,
               endDate: midnight.addingTimeInterval(to * 3600).unixMilliseconds,
               categoryValue: stage.rawValue, sourceName: "Apple Watch",
-              sourceBundleID: "com.apple.health.81F3A2C4-5D6E-4F70-8A9B-0C1D2E3F4A5B"),
+              sourceBundleID: "com.apple.health.81F3A2C4-5D6E-4F70-8A9B-0C1D2E3F4A5B",
+              metadata: #"{"HKTimeZone":"\#(day % 30 < 7 ? "Asia/Tokyo" : "Europe/London")"}"#),
             db)
         }
         let run = midnight.addingTimeInterval(18 * 3600)
@@ -778,5 +780,20 @@ struct CardQueriesBenchmark {
         "A year, \(withSeries ? "with series, " : "")heart rate \(name): \(total) ms, \(points) points"
       )
     }
+    // Sleep's page and the `sleep` tool, Y: the nights alone.
+    var nights = 0
+    let sleep = try median(database) { db in
+      nights = try HealthDatabase.sleepNights(
+        endingOn: start.addingTimeInterval(364 * 86_400), count: 365, calendar: calendar, db
+      ).count
+    }
+    let days = start..<start.addingTimeInterval(365 * 86_400)
+    var records: [CardSleepRecord] = []
+    let reading = try median(database) { db in
+      records = try HealthDatabase.sleepRecords(in: CardNights.recordRange(days: days), db)
+    }
+    print(
+      "A year of nights (sleepNights): \(sleep) ms, \(nights) nights, of which reading \(records.count) records \(reading) ms"
+    )
   }
 }

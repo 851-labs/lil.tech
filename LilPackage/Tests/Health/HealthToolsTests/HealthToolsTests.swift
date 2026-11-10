@@ -484,6 +484,33 @@ struct HealthToolsTests {
       ])
   }
 
+  /// A night slept in Tokyo (851-4174) is Tokyo's night, the 20th, though the call's UTC reads
+  /// 14:00 on the 19th. Its times stay in the call's zone.
+  @Test
+  func sleepNamesANightByItsRecordedZone() throws {
+    let sleep = HealthDatabase.sleepType
+    func inTokyo(_ sample: HealthSample) -> HealthSample {
+      var sample = sample
+      sample.metadata = #"{"HKTimeZone":"Asia/Tokyo"}"#
+      return sample
+    }
+    try database.write { db in
+      try HealthSample.insert {
+        inTokyo(sample(sleep, at: utc(14, day: 19), minutes: 210, category: 3))
+        inTokyo(sample(sleep, at: utc(17.5, day: 19), minutes: 240, category: 5))
+      }
+      .execute(db)
+    }
+    let result = try database.read { try tools.sleep(range: .week, timeZone: "UTC", $0) }
+    #expect(
+      result.nights == [
+        HealthSleepNight(
+          date: "2026-10-20", start: "2026-10-19T14:00:00+00:00",
+          end: "2026-10-19T21:30:00+00:00", inBed: 7.5 * 3600, asleep: 7.5 * 3600, awake: 0,
+          core: 3.5 * 3600, deep: 0, rem: 4 * 3600, unspecified: 0)
+      ])
+  }
+
   // MARK: - medications, details
 
   @Test

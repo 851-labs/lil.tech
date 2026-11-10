@@ -39,11 +39,17 @@ public struct SleepNight: Equatable, Identifiable, Sendable {
   public var segments: [SleepSegment]
   /// Time in bed: from in-bed records, or, without any, from the first segment to the last.
   public var inBed: TimeInterval
+  /// The zone it was recorded in (`CardNight.timeZone`, 851-4174), or `nil` for the calendar's:
+  /// its date and clock are that zone's.
+  public var timeZone: TimeZone?
 
-  public init(day: Date, segments: [SleepSegment], inBed: TimeInterval) {
+  public init(
+    day: Date, segments: [SleepSegment], inBed: TimeInterval, timeZone: TimeZone? = nil
+  ) {
     self.day = day
     self.segments = segments
     self.inBed = inBed
+    self.timeZone = timeZone
   }
 
   public var asleep: TimeInterval {
@@ -107,25 +113,52 @@ extension HealthDatabase {
               end: Date(unixMilliseconds: record.end))
           }
         },
-        inBed: Double(night.inBed) / 1000)
+        inBed: Double(night.inBed) / 1000, timeZone: night.timeZone)
     }
   }
 
   /// Sleep analysis records that end after `range` starts and start before it ends (Unix
-  /// milliseconds), by start: In Bed records can start well before a night.
-  static func sleepRecords(in range: Range<Int>, _ db: Database) throws -> [CardSleepRecord] {
+  /// milliseconds), by start: In Bed records can start well before a night. Each with the zone it
+  /// was recorded in (`HKTimeZone`, 851-4174), which its night follows, when that's a name the
+  /// tools take (`CardTimeZone.named`). Metadata that isn't JSON, or a zone that isn't a string,
+  /// loses only the zone. `startingFrom` leaves out records starting before it, which bounds the
+  /// index's range from below too: only In Bed records start long before a night.
+  static func sleepRecords(
+    in range: Range<Int>, startingFrom earliest: Int = .min, _ db: Database
+  ) throws -> [CardSleepRecord] {
     let (lower, upper) = (range.lowerBound, range.upperBound)
+    var zones: [String: TimeZone?] = [:]
     return
       try HealthSample
       .where {
-        $0.type.eq(sleepType) && $0.startDate < upper && $0.endDate > lower
-          && $0.categoryValue.isNot(nil)
+        $0.type.eq(sleepType) && $0.startDate >= earliest && $0.startDate < upper
+          && $0.endDate > lower && $0.categoryValue.isNot(nil)
       }
       .order(by: \.startDate)
-      .select { ($0.startDate, $0.endDate, $0.categoryValue, $0.sourceBundleID) }
+      .select {
+        (
+          $0.startDate, $0.endDate, $0.categoryValue, $0.sourceBundleID,
+          #sql(
+            """
+            CASE WHEN json_valid(\($0.metadata)) AND json_type(\($0.metadata), '$.HKTimeZone') = 'text'
+            THEN json_extract(\($0.metadata), '$.HKTimeZone') END
+            """, as: String?.self)
+        )
+      }
       .fetchAll(db)
-      .compactMap { start, end, value, source in
-        value.map { CardSleepRecord(start: start, end: end, value: $0, source: source) }
+      .compactMap { start, end, value, source, zone in
+        // A few names among thousands of records: each checked once.
+        let timeZone = zone.flatMap { name in
+          zones[name]
+            ?? {
+              let zone = CardTimeZone.named(name)
+              zones[name] = zone
+              return zone
+            }()
+        }
+        return value.map {
+          CardSleepRecord(start: start, end: end, value: $0, source: source, timeZone: timeZone)
+        }
       }
   }
 }
