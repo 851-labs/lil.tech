@@ -18,6 +18,7 @@ import {
   metadataCleanupStep,
 } from "../health/MetadataCleanup.ts";
 import { DisposableBucket } from "../Deployment.ts";
+import { HealthToolError } from "../health/tools/HealthToolkit.ts";
 import { makeStoreMcpServers } from "../mcp/StoreMcpServers.ts";
 import { requestPath } from "../oauth/Requests.ts";
 import type { HealthBatch } from "../health/HealthBatches.ts";
@@ -74,6 +75,7 @@ import {
   type BlobFiles,
   nextBlobSweepAt,
   noBlobFiles,
+  readBlobPrefix,
   retryBlobSweepLater,
   sweepBlobs,
 } from "./BlobSweep.ts";
@@ -863,6 +865,27 @@ export const UserStoreLive = UserStore.make(
         sql,
         record: store.recordAgentAccess,
         write: store.applyMutations,
+        // The route tools' locations (851-4164), under the prefix the store recorded with its
+        // first blob: a store without one has none.
+        blobs: (sha256) => {
+          const prefix = readBlobPrefix(sql);
+          if (prefix === null) return Effect.succeed(null);
+          return blobBucket.get(`${prefix}${sha256}`).pipe(
+            Effect.flatMap((object) => (object === null ? Effect.succeed(null) : object.bytes())),
+            inRuntime,
+            Effect.catch((error) =>
+              Effect.logWarning("Couldn't read a health blob", error).pipe(
+                Effect.andThen(
+                  Effect.fail(
+                    new HealthToolError({
+                      message: "Couldn't read the route's points. Try again in a moment.",
+                    }),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       });
       return {
         ...store,

@@ -14,10 +14,19 @@ public struct HealthTools: Sendable {
   /// The IANA name of the time zone for calls that don't give one, or `nil` for the Mac's (UTC
   /// where the conformance cases expect the remote server's default).
   public var defaultTimeZone: String?
+  /// A health blob's bytes, by its SHA-256: a route's points (851-4164), which the app downloads
+  /// when they're needed, as its pages do.
+  public var blob: @Sendable (_ sha256: String) throws -> Data
 
-  public init(now: Date = Date(), defaultTimeZone: String? = nil) {
+  public init(
+    now: Date = Date(), defaultTimeZone: String? = nil,
+    blob: @escaping @Sendable (_ sha256: String) throws -> Data = { _ in
+      throw HealthToolError("lil health's data on this Mac has no route points.")
+    }
+  ) {
     self.now = now
     self.defaultTimeZone = defaultTimeZone
+    self.blob = blob
   }
 
   /// The most samples one call returns, and how many it returns by default.

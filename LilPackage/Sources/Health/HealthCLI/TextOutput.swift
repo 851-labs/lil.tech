@@ -394,3 +394,88 @@ func durationText(_ seconds: Double) -> String {
   if minutes > 0 { return "\(minutes)m" }
   return "\(total)s"
 }
+
+// MARK: - Routes (851-4164)
+
+extension HealthWorkoutRoutesResult: TextOutput {
+  var text: String {
+    var lines = [
+      "Workout routes, \(range): \(day(start)) to \(lastDay(end)) (\(timeZone))",
+      "\(count) \(count == 1 ? "route" : "routes")",
+    ]
+    if !routes.isEmpty { lines.append("") }
+    for route in routes {
+      lines.append(
+        "  "
+          + [
+            time(route.start), durationText(route.duration), "\(route.pointCount) points",
+            route.source, route.workout.map { "workout \($0)" } ?? "no workout", route.id,
+          ].joined(separator: "   "))
+    }
+    if routes.count < count {
+      lines.append("  … and \(count - routes.count) more")
+    }
+    return lines.joined(separator: "\n") + "\n"
+  }
+}
+
+extension HealthWorkoutRouteResult: TextOutput {
+  var text: String {
+    let route = self.route
+    var lines = [
+      "Route \(route.id)   \(time(route.start))   \(durationText(route.duration)) (\(timeZone))",
+      (route.workout.map { "Workout \($0), from " } ?? "From ") + route.source,
+      "",
+    ]
+    var figures = [numberText(route.distance / 1000) + " km", "\(route.pointCount) points"]
+    if let gain = route.elevationGain, let loss = route.elevationLoss {
+      figures.insert(
+        contentsOf: ["climbed \(numberText(gain)) m", "descended \(numberText(loss)) m"], at: 1)
+    }
+    lines.append(figures.joined(separator: "   "))
+    if let start = route.startArea, let end = route.endArea {
+      lines.append(
+        "Starts near \(coordinate(start.latitude, start.longitude)), ends near "
+          + coordinate(end.latitude, end.longitude))
+    }
+    let shape = route.simplified
+    lines += [
+      "",
+      "Shape: \(shape.pointCount) of its points, within \(numberText(shape.tolerance)) m",
+    ]
+    lines += shape.points.map { point in
+      "  "
+        + ([time(point.time), coordinate(point.latitude, point.longitude)]
+        + (point.altitude.map { [numberText($0) + " m"] } ?? [])).joined(separator: "   ")
+    }
+    lines += ["", "Every point: route \(route.id) --points"]
+    return lines.joined(separator: "\n") + "\n"
+  }
+}
+
+extension HealthWorkoutRoutePointsResult: TextOutput {
+  var text: String {
+    var lines = ["Route \(id): \(points.count) of its \(pointCount) points (\(timeZone))", ""]
+    for point in points {
+      let parts = [
+        String(point.time.prefix(19)).replacingOccurrences(of: "T", with: " "),
+        coordinate(point.latitude, point.longitude),
+        point.altitude.map { numberText($0) + " m" },
+        point.speed.map { numberText($0) + " m/s" },
+        point.course.map { numberText($0) + "°" },
+        point.horizontalAccuracy.map { "±" + numberText($0) + " m" },
+      ]
+      lines.append("  " + parts.compactMap(\.self).joined(separator: "   "))
+    }
+    if let nextCursor {
+      lines.append("")
+      lines.append("More: --points --cursor \(nextCursor)")
+    }
+    return lines.joined(separator: "\n") + "\n"
+  }
+}
+
+/// A latitude and longitude as written: `51.50012, -0.12`.
+private func coordinate(_ latitude: Double, _ longitude: Double) -> String {
+  "\(latitude), \(longitude)"
+}

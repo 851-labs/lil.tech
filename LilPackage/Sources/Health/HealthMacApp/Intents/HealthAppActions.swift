@@ -26,6 +26,9 @@ public enum HealthAppAction: Equatable, Sendable {
   case deleteCard(id: String)
   /// Every card's ID once, in the new order.
   case reorderCards(ids: [String])
+  /// Downloads a health blob into the cache (`blobCache`), by its SHA-256, for `lil-health`'s
+  /// route tools (851-4164), which read it from there.
+  case downloadBlob(sha256: String)
 
   /// The action as the access log shows it, e.g. `open Steps` or `export ~/Downloads`.
   public var command: String {
@@ -37,6 +40,7 @@ public enum HealthAppAction: Equatable, Sendable {
     case .updateCard(let id, let spec): AgentAction.updateCard(id: id, spec: spec).command
     case .deleteCard(let id): AgentAction.deleteCard(id: id).command
     case .reorderCards(let ids): AgentAction.reorderCards(ids: ids).command
+    case .downloadBlob(let sha256): AgentAction.downloadBlob(sha256: sha256).command
     }
   }
 
@@ -93,6 +97,10 @@ public enum HealthAppActionError: Error, Equatable, LocalizedError,
   case folderNotWritable(String)
   /// A card write was refused, saying why as the remote server's card tools do (851-4014).
   case cardNotSaved(String)
+  /// A route's points couldn't be downloaded for `lil-health` (851-4164).
+  case downloadFailed
+  /// A route's points aren't on the server: not uploaded yet, or gone.
+  case blobNotFound
 
   public var errorDescription: String? {
     switch self {
@@ -108,6 +116,10 @@ public enum HealthAppActionError: Error, Equatable, LocalizedError,
     case .folderNotWritable(let path):
       "lil health can't save to \(path). Check its access in System Settings › Privacy & Security › Files & Folders."
     case .cardNotSaved(let message): message
+    case .downloadFailed:
+      "lil health couldn't download the route's points. Check that this Mac is online, then try again."
+    // As the remote server says it.
+    case .blobNotFound: "The route's points aren't on the server. Try again later."
     }
   }
 

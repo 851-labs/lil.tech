@@ -63,6 +63,9 @@ extension HealthCLI {
     /// For a card write from `lil-health mcp` to answer once claimed (851-4014): the app's wait
     /// for sign-in after a launch, then a little more, as for `open`. 15 s.
     public var cardWait: Duration
+    /// For a route's points the route tools asked the app to download (851-4164), once claimed:
+    /// a long route is a few megabytes. 30 s.
+    public var blobWait: Duration
     /// Between looks at the request.
     public var pollInterval: Duration
     /// Between looks at an export the app has claimed, which can take minutes: the request's
@@ -72,6 +75,7 @@ extension HealthCLI {
     public init(
       claimWait: Duration = .seconds(15), syncWait: Duration = .seconds(75),
       openWait: Duration = .seconds(15), cardWait: Duration = .seconds(15),
+      blobWait: Duration = .seconds(30),
       pollInterval: Duration = .milliseconds(200),
       slowPollInterval: Duration = .seconds(1)
     ) {
@@ -79,6 +83,7 @@ extension HealthCLI {
       self.syncWait = syncWait
       self.openWait = openWait
       self.cardWait = cardWait
+      self.blobWait = blobWait
       self.pollInterval = pollInterval
       self.slowPollInterval = slowPollInterval
     }

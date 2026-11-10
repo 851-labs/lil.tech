@@ -19,8 +19,12 @@ struct HealthToolkitConformanceTests {
     try folder.access.setEnabled(true)
     // Without a time zone, the remote server answers in UTC and the Mac in its own: the cases
     // are written for the remote's default, so this Mac is in UTC.
+    // The routes' points, as the app keeps them once it has downloaded them (851-4164).
+    let blobs = folder.directory.appending(path: "HealthBlobs")
+    try Conformance.writeBlobs(into: blobs)
     let connection = try await MCPConnection(
-      folder.directory, now: try Conformance.date(testCase.now), timeZone: "UTC")
+      folder.directory, now: try Conformance.date(testCase.now), timeZone: "UTC",
+      blobDirectory: blobs)
 
     guard case .object(let arguments) = Value(testCase.arguments) else {
       Issue.record("\(testCase.name): arguments aren't an object")

@@ -22,12 +22,13 @@ struct MCPConnection {
   init(
     _ directory: URL, now: Date = now, process: String = "claude", timeZone: String = "UTC",
     app: HealthCLI.AppConnection = .notInstalled,
-    timing: HealthCLI.Timing = HealthCLI.Timing(claimWait: .seconds(10), cardWait: .seconds(10))
+    timing: HealthCLI.Timing = HealthCLI.Timing(claimWait: .seconds(10), cardWait: .seconds(10)),
+    blobDirectory: URL? = nil
   ) async throws {
     server = await HealthMCPServer.makeServer(
       context: HealthCLI.Context(
         directory: directory, now: { now }, process: process, timeZone: timeZone, app: app,
-        timing: timing))
+        timing: timing, blobDirectory: blobDirectory))
     let (clientTransport, serverTransport) = await InMemoryTransport.createConnectedPair()
     try await server.start(transport: serverTransport)
     client = MCP.Client(name: "HealthMCPServerTests", version: "1")
@@ -79,8 +80,8 @@ struct HealthMCPServerTests {
       return
     }
     #expect(roundTrip == fileJSON)
-    #expect(listed.map(\.name).count == 18)
-    #expect(fileTools.count == 18)
+    #expect(listed.map(\.name).count == 21)
+    #expect(fileTools.count == 21)
     await connection.close()
   }
 

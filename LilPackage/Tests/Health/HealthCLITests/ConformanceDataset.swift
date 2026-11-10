@@ -97,6 +97,20 @@ enum Conformance {
     return changes
   }
 
+  /// Writes the blobs the dataset's rows refer to (`blobs.json`, base64 by SHA-256) into
+  /// `directory`, as the app's blob cache keeps them (851-4164).
+  static func writeBlobs(into directory: URL) throws {
+    struct File: Decodable { var blobs: [String: String] }
+    let file = try JSONDecoder().decode(
+      File.self, from: Data(contentsOf: Self.directory.appending(path: "blobs.json")))
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    for (sha256, base64) in file.blobs {
+      // Not base64: a damaged file.
+      guard let data = Data(base64Encoded: base64) else { throw CocoaError(.fileReadCorruptFile) }
+      try data.write(to: directory.appending(path: sha256))
+    }
+  }
+
   /// Syncs the tools' dataset, with `pins`, into `database` as the app's sync engine pulls it.
   static func sync(into database: any DatabaseWriter, pins: [Case.Pin]?) async throws {
     try await sync(

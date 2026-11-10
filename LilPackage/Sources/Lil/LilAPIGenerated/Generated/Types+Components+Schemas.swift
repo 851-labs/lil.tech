@@ -6943,7 +6943,7 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/swimmingLocation`.
             public var swimmingLocation: Swift.String?
-            /// Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't.
+            /// Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't. workout_route reads it, by the workout's ID.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/hasRoute`.
             public var hasRoute: Swift.Bool
@@ -6973,7 +6973,7 @@ extension Components {
             ///   - elevationAscended: Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended).
             ///   - indoor: Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or as its activities say (their metadata, else how each was set up: its workout configuration's location), if they agree. Null if none says: then hasRoute is the best hint.
             ///   - swimmingLocation: For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or its activities say (their metadata, else their workout configurations), if they agree, or null if none says.
-            ///   - hasRoute: Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't.
+            ///   - hasRoute: Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't. workout_route reads it, by the workout's ID.
             ///   - source: The app or device that recorded it.
             ///   - activities: A multisport workout's activities (e.g. swim, transition, bike, run), in order. Empty for a workout of one activity.
             ///   - additionalProperties: A container of undocumented properties.
@@ -8062,7 +8062,7 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/swimmingLocation`.
             public var swimmingLocation: Swift.String?
-            /// Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't.
+            /// Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't. workout_route reads it, by the workout's ID.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/hasRoute`.
             public var hasRoute: Swift.Bool
@@ -8152,7 +8152,7 @@ extension Components {
             ///   - elevationAscended: Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). Read from text with 6 significant digits, so rounded to that.
             ///   - indoor: Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or as its activities say (their metadata, else how each was set up: its workout configuration's location), if they agree. Null if none says: then hasRoute is the best hint.
             ///   - swimmingLocation: For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or its activities say (their metadata, else their workout configurations), if they agree, or null if none says.
-            ///   - hasRoute: Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't.
+            ///   - hasRoute: Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't. workout_route reads it, by the workout's ID.
             ///   - source: The app or device that recorded it.
             ///   - activities: A multisport workout's legs (e.g. swim, transition, bike, run), in order, each with its own statistics. Empty for a workout of one activity, whose statistics are the workout's.
             ///   - elevationDescended: Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). Read from text with 6 significant digits, so rounded to that.
@@ -8626,6 +8626,1246 @@ extension Components {
                 try container.encode(
                     self.workout,
                     forKey: .workout
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteItem`.
+        public struct HealthWorkoutRouteItem: Codable, Hashable, Sendable {
+            /// HealthKit's UUID for the route.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteItem/id`.
+            public var id: Swift.String
+            /// The ID of the workout HealthKit linked it to, or null if it links none: then workout_route still finds it by the ID of a workout it was recorded during.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteItem/workout`.
+            public var workout: Swift.String?
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteItem/start`.
+            public var start: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteItem/end`.
+            public var end: Swift.String
+            /// Seconds, from start to end.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteItem/duration`.
+            public var duration: Swift.Double
+            /// How many GPS points it has.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteItem/pointCount`.
+            public var pointCount: Swift.Int
+            /// The app or device that recorded it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteItem/source`.
+            public var source: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutRouteItem`.
+            ///
+            /// - Parameters:
+            ///   - id: HealthKit's UUID for the route.
+            ///   - workout: The ID of the workout HealthKit linked it to, or null if it links none: then workout_route still finds it by the ID of a workout it was recorded during.
+            ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - duration: Seconds, from start to end.
+            ///   - pointCount: How many GPS points it has.
+            ///   - source: The app or device that recorded it.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                workout: Swift.String? = nil,
+                start: Swift.String,
+                end: Swift.String,
+                duration: Swift.Double,
+                pointCount: Swift.Int,
+                source: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.workout = workout
+                self.start = start
+                self.end = end
+                self.duration = duration
+                self.pointCount = pointCount
+                self.source = source
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case workout
+                case start
+                case end
+                case duration
+                case pointCount
+                case source
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.workout = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .workout
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.duration = try container.decode(
+                    Swift.Double.self,
+                    forKey: .duration
+                )
+                self.pointCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .pointCount
+                )
+                self.source = try container.decode(
+                    Swift.String.self,
+                    forKey: .source
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "workout",
+                    "start",
+                    "end",
+                    "duration",
+                    "pointCount",
+                    "source"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encodeIfPresent(
+                    self.workout,
+                    forKey: .workout
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.duration,
+                    forKey: .duration
+                )
+                try container.encode(
+                    self.pointCount,
+                    forKey: .pointCount
+                )
+                try container.encode(
+                    self.source,
+                    forKey: .source
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoutesResult`.
+        public struct HealthWorkoutRoutesResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoutesResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The range asked for: D, W, M, 6M or Y.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoutesResult/range`.
+            public var range: Swift.String
+            /// When the period starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoutesResult/start`.
+            public var start: Swift.String
+            /// When the period ends (exclusive).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoutesResult/end`.
+            public var end: Swift.String
+            /// Routes that start in the period, all of them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoutesResult/count`.
+            public var count: Swift.Int
+            /// The routes, newest first, at most 100.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoutesResult/routes`.
+            public var routes: [Components.Schemas.HealthWorkoutRouteItem]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutRoutesResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - range: The range asked for: D, W, M, 6M or Y.
+            ///   - start: When the period starts.
+            ///   - end: When the period ends (exclusive).
+            ///   - count: Routes that start in the period, all of them.
+            ///   - routes: The routes, newest first, at most 100.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                range: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                count: Swift.Int,
+                routes: [Components.Schemas.HealthWorkoutRouteItem],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.range = range
+                self.start = start
+                self.end = end
+                self.count = count
+                self.routes = routes
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case range
+                case start
+                case end
+                case count
+                case routes
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.range = try container.decode(
+                    Swift.String.self,
+                    forKey: .range
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.routes = try container.decode(
+                    [Components.Schemas.HealthWorkoutRouteItem].self,
+                    forKey: .routes
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "range",
+                    "start",
+                    "end",
+                    "count",
+                    "routes"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.range,
+                    forKey: .range
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.count,
+                    forKey: .count
+                )
+                try container.encode(
+                    self.routes,
+                    forKey: .routes
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthRouteShapePoint`.
+        public struct HealthRouteShapePoint: Codable, Hashable, Sendable {
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthRouteShapePoint/time`.
+            public var time: Swift.String
+            /// Degrees, to 5 decimal places.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthRouteShapePoint/latitude`.
+            public var latitude: Swift.Double
+            /// Degrees, to 5 decimal places.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthRouteShapePoint/longitude`.
+            public var longitude: Swift.Double
+            /// Meters above sea level. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthRouteShapePoint/altitude`.
+            public var altitude: Swift.Double?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthRouteShapePoint`.
+            ///
+            /// - Parameters:
+            ///   - time: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - latitude: Degrees, to 5 decimal places.
+            ///   - longitude: Degrees, to 5 decimal places.
+            ///   - altitude: Meters above sea level. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                time: Swift.String,
+                latitude: Swift.Double,
+                longitude: Swift.Double,
+                altitude: Swift.Double? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.time = time
+                self.latitude = latitude
+                self.longitude = longitude
+                self.altitude = altitude
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case time
+                case latitude
+                case longitude
+                case altitude
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.time = try container.decode(
+                    Swift.String.self,
+                    forKey: .time
+                )
+                self.latitude = try container.decode(
+                    Swift.Double.self,
+                    forKey: .latitude
+                )
+                self.longitude = try container.decode(
+                    Swift.Double.self,
+                    forKey: .longitude
+                )
+                self.altitude = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .altitude
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "time",
+                    "latitude",
+                    "longitude",
+                    "altitude"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.time,
+                    forKey: .time
+                )
+                try container.encode(
+                    self.latitude,
+                    forKey: .latitude
+                )
+                try container.encode(
+                    self.longitude,
+                    forKey: .longitude
+                )
+                try container.encodeIfPresent(
+                    self.altitude,
+                    forKey: .altitude
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// Its shape, simplified (Ramer-Douglas-Peucker): enough to draw it, or to tell where it went and when.
+        ///
+        /// - Remark: Generated from `#/components/schemas/HealthRouteShape`.
+        public struct HealthRouteShape: Codable, Hashable, Sendable {
+            /// Meters: no point of the route is further than this from the line through points. 5 m, doubled until it keeps at most 500 points.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthRouteShape/tolerance`.
+            public var tolerance: Swift.Double
+            /// How many points it kept.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthRouteShape/pointCount`.
+            public var pointCount: Swift.Int
+            /// The points it kept, in order, the first and last included.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthRouteShape/points`.
+            public var points: [Components.Schemas.HealthRouteShapePoint]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthRouteShape`.
+            ///
+            /// - Parameters:
+            ///   - tolerance: Meters: no point of the route is further than this from the line through points. 5 m, doubled until it keeps at most 500 points.
+            ///   - pointCount: How many points it kept.
+            ///   - points: The points it kept, in order, the first and last included.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                tolerance: Swift.Double,
+                pointCount: Swift.Int,
+                points: [Components.Schemas.HealthRouteShapePoint],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.tolerance = tolerance
+                self.pointCount = pointCount
+                self.points = points
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case tolerance
+                case pointCount
+                case points
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.tolerance = try container.decode(
+                    Swift.Double.self,
+                    forKey: .tolerance
+                )
+                self.pointCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .pointCount
+                )
+                self.points = try container.decode(
+                    [Components.Schemas.HealthRouteShapePoint].self,
+                    forKey: .points
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "tolerance",
+                    "pointCount",
+                    "points"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.tolerance,
+                    forKey: .tolerance
+                )
+                try container.encode(
+                    self.pointCount,
+                    forKey: .pointCount
+                )
+                try container.encode(
+                    self.points,
+                    forKey: .points
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail`.
+        public struct HealthWorkoutRouteDetail: Codable, Hashable, Sendable {
+            /// HealthKit's UUID for the route.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/id`.
+            public var id: Swift.String
+            /// The ID of the workout HealthKit linked it to, or null if it links none: then workout_route still finds it by the ID of a workout it was recorded during.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/workout`.
+            public var workout: Swift.String?
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/start`.
+            public var start: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/end`.
+            public var end: Swift.String
+            /// Seconds, from start to end.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/duration`.
+            public var duration: Swift.Double
+            /// How many GPS points it has.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/pointCount`.
+            public var pointCount: Swift.Int
+            /// The app or device that recorded it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/source`.
+            public var source: Swift.String
+            /// Meters along its points, from each to the next on the Earth's surface. The workout's own distance, which the Watch also measures by motion, may differ a little.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/distance`.
+            public var distance: Swift.Double
+            /// Meters climbed: every rise from one point to the next, among the points with a known altitude, to 2 decimal places. From GPS, so noisier, and usually higher, than the workout's elevationAscended, which the barometer measures. Null without two such points.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/elevationGain`.
+            public var elevationGain: Swift.Double?
+            /// Meters descended, as elevationGain counts climbs.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/elevationLoss`.
+            public var elevationLoss: Swift.Double?
+            /// The box its points fit in, to 5 decimal places (about a meter).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/bounds`.
+            public struct BoundsPayload: Codable, Hashable, Sendable {
+                /// The lowest latitude, in degrees.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/bounds/south`.
+                public var south: Swift.Double
+                /// The lowest longitude, in degrees.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/bounds/west`.
+                public var west: Swift.Double
+                /// The highest latitude, in degrees.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/bounds/north`.
+                public var north: Swift.Double
+                /// The highest longitude, in degrees.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/bounds/east`.
+                public var east: Swift.Double
+                /// A container of undocumented properties.
+                public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+                /// Creates a new `BoundsPayload`.
+                ///
+                /// - Parameters:
+                ///   - south: The lowest latitude, in degrees.
+                ///   - west: The lowest longitude, in degrees.
+                ///   - north: The highest latitude, in degrees.
+                ///   - east: The highest longitude, in degrees.
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(
+                    south: Swift.Double,
+                    west: Swift.Double,
+                    north: Swift.Double,
+                    east: Swift.Double,
+                    additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+                ) {
+                    self.south = south
+                    self.west = west
+                    self.north = north
+                    self.east = east
+                    self.additionalProperties = additionalProperties
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case south
+                    case west
+                    case north
+                    case east
+                }
+                public init(from decoder: any Swift.Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.south = try container.decode(
+                        Swift.Double.self,
+                        forKey: .south
+                    )
+                    self.west = try container.decode(
+                        Swift.Double.self,
+                        forKey: .west
+                    )
+                    self.north = try container.decode(
+                        Swift.Double.self,
+                        forKey: .north
+                    )
+                    self.east = try container.decode(
+                        Swift.Double.self,
+                        forKey: .east
+                    )
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                        "south",
+                        "west",
+                        "north",
+                        "east"
+                    ])
+                }
+                public func encode(to encoder: any Swift.Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(
+                        self.south,
+                        forKey: .south
+                    )
+                    try container.encode(
+                        self.west,
+                        forKey: .west
+                    )
+                    try container.encode(
+                        self.north,
+                        forKey: .north
+                    )
+                    try container.encode(
+                        self.east,
+                        forKey: .east
+                    )
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// The box its points fit in, to 5 decimal places (about a meter).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/bounds`.
+            public var bounds: Components.Schemas.HealthWorkoutRouteDetail.BoundsPayload?
+            /// About where it starts: its first point, to 3 decimal places (about 100 m).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/startArea`.
+            public struct StartAreaPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/startArea/latitude`.
+                public var latitude: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/startArea/longitude`.
+                public var longitude: Swift.Double
+                /// A container of undocumented properties.
+                public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+                /// Creates a new `StartAreaPayload`.
+                ///
+                /// - Parameters:
+                ///   - latitude:
+                ///   - longitude:
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(
+                    latitude: Swift.Double,
+                    longitude: Swift.Double,
+                    additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+                ) {
+                    self.latitude = latitude
+                    self.longitude = longitude
+                    self.additionalProperties = additionalProperties
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case latitude
+                    case longitude
+                }
+                public init(from decoder: any Swift.Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.latitude = try container.decode(
+                        Swift.Double.self,
+                        forKey: .latitude
+                    )
+                    self.longitude = try container.decode(
+                        Swift.Double.self,
+                        forKey: .longitude
+                    )
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                        "latitude",
+                        "longitude"
+                    ])
+                }
+                public func encode(to encoder: any Swift.Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(
+                        self.latitude,
+                        forKey: .latitude
+                    )
+                    try container.encode(
+                        self.longitude,
+                        forKey: .longitude
+                    )
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// About where it starts: its first point, to 3 decimal places (about 100 m).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/startArea`.
+            public var startArea: Components.Schemas.HealthWorkoutRouteDetail.StartAreaPayload?
+            /// About where it ends: its last point, to 3 decimal places (about 100 m).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/endArea`.
+            public struct EndAreaPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/endArea/latitude`.
+                public var latitude: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/endArea/longitude`.
+                public var longitude: Swift.Double
+                /// A container of undocumented properties.
+                public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+                /// Creates a new `EndAreaPayload`.
+                ///
+                /// - Parameters:
+                ///   - latitude:
+                ///   - longitude:
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(
+                    latitude: Swift.Double,
+                    longitude: Swift.Double,
+                    additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+                ) {
+                    self.latitude = latitude
+                    self.longitude = longitude
+                    self.additionalProperties = additionalProperties
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case latitude
+                    case longitude
+                }
+                public init(from decoder: any Swift.Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.latitude = try container.decode(
+                        Swift.Double.self,
+                        forKey: .latitude
+                    )
+                    self.longitude = try container.decode(
+                        Swift.Double.self,
+                        forKey: .longitude
+                    )
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                        "latitude",
+                        "longitude"
+                    ])
+                }
+                public func encode(to encoder: any Swift.Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(
+                        self.latitude,
+                        forKey: .latitude
+                    )
+                    try container.encode(
+                        self.longitude,
+                        forKey: .longitude
+                    )
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// About where it ends: its last point, to 3 decimal places (about 100 m).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/endArea`.
+            public var endArea: Components.Schemas.HealthWorkoutRouteDetail.EndAreaPayload?
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/simplified`.
+            public var simplified: Components.Schemas.HealthRouteShape
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutRouteDetail`.
+            ///
+            /// - Parameters:
+            ///   - id: HealthKit's UUID for the route.
+            ///   - workout: The ID of the workout HealthKit linked it to, or null if it links none: then workout_route still finds it by the ID of a workout it was recorded during.
+            ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - duration: Seconds, from start to end.
+            ///   - pointCount: How many GPS points it has.
+            ///   - source: The app or device that recorded it.
+            ///   - distance: Meters along its points, from each to the next on the Earth's surface. The workout's own distance, which the Watch also measures by motion, may differ a little.
+            ///   - elevationGain: Meters climbed: every rise from one point to the next, among the points with a known altitude, to 2 decimal places. From GPS, so noisier, and usually higher, than the workout's elevationAscended, which the barometer measures. Null without two such points.
+            ///   - elevationLoss: Meters descended, as elevationGain counts climbs.
+            ///   - bounds: The box its points fit in, to 5 decimal places (about a meter).
+            ///   - startArea: About where it starts: its first point, to 3 decimal places (about 100 m).
+            ///   - endArea: About where it ends: its last point, to 3 decimal places (about 100 m).
+            ///   - simplified:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                workout: Swift.String? = nil,
+                start: Swift.String,
+                end: Swift.String,
+                duration: Swift.Double,
+                pointCount: Swift.Int,
+                source: Swift.String,
+                distance: Swift.Double,
+                elevationGain: Swift.Double? = nil,
+                elevationLoss: Swift.Double? = nil,
+                bounds: Components.Schemas.HealthWorkoutRouteDetail.BoundsPayload? = nil,
+                startArea: Components.Schemas.HealthWorkoutRouteDetail.StartAreaPayload? = nil,
+                endArea: Components.Schemas.HealthWorkoutRouteDetail.EndAreaPayload? = nil,
+                simplified: Components.Schemas.HealthRouteShape,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.workout = workout
+                self.start = start
+                self.end = end
+                self.duration = duration
+                self.pointCount = pointCount
+                self.source = source
+                self.distance = distance
+                self.elevationGain = elevationGain
+                self.elevationLoss = elevationLoss
+                self.bounds = bounds
+                self.startArea = startArea
+                self.endArea = endArea
+                self.simplified = simplified
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case workout
+                case start
+                case end
+                case duration
+                case pointCount
+                case source
+                case distance
+                case elevationGain
+                case elevationLoss
+                case bounds
+                case startArea
+                case endArea
+                case simplified
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.workout = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .workout
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.duration = try container.decode(
+                    Swift.Double.self,
+                    forKey: .duration
+                )
+                self.pointCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .pointCount
+                )
+                self.source = try container.decode(
+                    Swift.String.self,
+                    forKey: .source
+                )
+                self.distance = try container.decode(
+                    Swift.Double.self,
+                    forKey: .distance
+                )
+                self.elevationGain = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .elevationGain
+                )
+                self.elevationLoss = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .elevationLoss
+                )
+                self.bounds = try container.decodeIfPresent(
+                    Components.Schemas.HealthWorkoutRouteDetail.BoundsPayload.self,
+                    forKey: .bounds
+                )
+                self.startArea = try container.decodeIfPresent(
+                    Components.Schemas.HealthWorkoutRouteDetail.StartAreaPayload.self,
+                    forKey: .startArea
+                )
+                self.endArea = try container.decodeIfPresent(
+                    Components.Schemas.HealthWorkoutRouteDetail.EndAreaPayload.self,
+                    forKey: .endArea
+                )
+                self.simplified = try container.decode(
+                    Components.Schemas.HealthRouteShape.self,
+                    forKey: .simplified
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "workout",
+                    "start",
+                    "end",
+                    "duration",
+                    "pointCount",
+                    "source",
+                    "distance",
+                    "elevationGain",
+                    "elevationLoss",
+                    "bounds",
+                    "startArea",
+                    "endArea",
+                    "simplified"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encodeIfPresent(
+                    self.workout,
+                    forKey: .workout
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.duration,
+                    forKey: .duration
+                )
+                try container.encode(
+                    self.pointCount,
+                    forKey: .pointCount
+                )
+                try container.encode(
+                    self.source,
+                    forKey: .source
+                )
+                try container.encode(
+                    self.distance,
+                    forKey: .distance
+                )
+                try container.encodeIfPresent(
+                    self.elevationGain,
+                    forKey: .elevationGain
+                )
+                try container.encodeIfPresent(
+                    self.elevationLoss,
+                    forKey: .elevationLoss
+                )
+                try container.encodeIfPresent(
+                    self.bounds,
+                    forKey: .bounds
+                )
+                try container.encodeIfPresent(
+                    self.startArea,
+                    forKey: .startArea
+                )
+                try container.encodeIfPresent(
+                    self.endArea,
+                    forKey: .endArea
+                )
+                try container.encode(
+                    self.simplified,
+                    forKey: .simplified
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteResult`.
+        public struct HealthWorkoutRouteResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteResult/timeZone`.
+            public var timeZone: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteResult/route`.
+            public var route: Components.Schemas.HealthWorkoutRouteDetail
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutRouteResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - route:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                route: Components.Schemas.HealthWorkoutRouteDetail,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.route = route
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case route
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.route = try container.decode(
+                    Components.Schemas.HealthWorkoutRouteDetail.self,
+                    forKey: .route
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "route"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.route,
+                    forKey: .route
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthRoutePoint`.
+        public struct HealthRoutePoint: Codable, Hashable, Sendable {
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthRoutePoint/time`.
+            public var time: Swift.String
+            /// Degrees.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthRoutePoint/latitude`.
+            public var latitude: Swift.Double
+            /// Degrees.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthRoutePoint/longitude`.
+            public var longitude: Swift.Double
+            /// Meters above sea level. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthRoutePoint/altitude`.
+            public var altitude: Swift.Double?
+            /// Meters: the radius the true position is within. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthRoutePoint/horizontalAccuracy`.
+            public var horizontalAccuracy: Swift.Double?
+            /// Meters: how far the true altitude may be. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthRoutePoint/verticalAccuracy`.
+            public var verticalAccuracy: Swift.Double?
+            /// Meters per second. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthRoutePoint/speed`.
+            public var speed: Swift.Double?
+            /// Degrees from true north it was heading. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthRoutePoint/course`.
+            public var course: Swift.Double?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthRoutePoint`.
+            ///
+            /// - Parameters:
+            ///   - time: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - latitude: Degrees.
+            ///   - longitude: Degrees.
+            ///   - altitude: Meters above sea level. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know.
+            ///   - horizontalAccuracy: Meters: the radius the true position is within. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know.
+            ///   - verticalAccuracy: Meters: how far the true altitude may be. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know.
+            ///   - speed: Meters per second. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know.
+            ///   - course: Degrees from true north it was heading. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                time: Swift.String,
+                latitude: Swift.Double,
+                longitude: Swift.Double,
+                altitude: Swift.Double? = nil,
+                horizontalAccuracy: Swift.Double? = nil,
+                verticalAccuracy: Swift.Double? = nil,
+                speed: Swift.Double? = nil,
+                course: Swift.Double? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.time = time
+                self.latitude = latitude
+                self.longitude = longitude
+                self.altitude = altitude
+                self.horizontalAccuracy = horizontalAccuracy
+                self.verticalAccuracy = verticalAccuracy
+                self.speed = speed
+                self.course = course
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case time
+                case latitude
+                case longitude
+                case altitude
+                case horizontalAccuracy
+                case verticalAccuracy
+                case speed
+                case course
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.time = try container.decode(
+                    Swift.String.self,
+                    forKey: .time
+                )
+                self.latitude = try container.decode(
+                    Swift.Double.self,
+                    forKey: .latitude
+                )
+                self.longitude = try container.decode(
+                    Swift.Double.self,
+                    forKey: .longitude
+                )
+                self.altitude = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .altitude
+                )
+                self.horizontalAccuracy = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .horizontalAccuracy
+                )
+                self.verticalAccuracy = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .verticalAccuracy
+                )
+                self.speed = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .speed
+                )
+                self.course = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .course
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "time",
+                    "latitude",
+                    "longitude",
+                    "altitude",
+                    "horizontalAccuracy",
+                    "verticalAccuracy",
+                    "speed",
+                    "course"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.time,
+                    forKey: .time
+                )
+                try container.encode(
+                    self.latitude,
+                    forKey: .latitude
+                )
+                try container.encode(
+                    self.longitude,
+                    forKey: .longitude
+                )
+                try container.encodeIfPresent(
+                    self.altitude,
+                    forKey: .altitude
+                )
+                try container.encodeIfPresent(
+                    self.horizontalAccuracy,
+                    forKey: .horizontalAccuracy
+                )
+                try container.encodeIfPresent(
+                    self.verticalAccuracy,
+                    forKey: .verticalAccuracy
+                )
+                try container.encodeIfPresent(
+                    self.speed,
+                    forKey: .speed
+                )
+                try container.encodeIfPresent(
+                    self.course,
+                    forKey: .course
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoutePointsResult`.
+        public struct HealthWorkoutRoutePointsResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoutePointsResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The route's ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoutePointsResult/id`.
+            public var id: Swift.String
+            /// How many points the route has, all of them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoutePointsResult/pointCount`.
+            public var pointCount: Swift.Int
+            /// This page's points, in order.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoutePointsResult/points`.
+            public var points: [Components.Schemas.HealthRoutePoint]
+            /// Pass it as `cursor` for the next page; null on the last page.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRoutePointsResult/nextCursor`.
+            public var nextCursor: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutRoutePointsResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - id: The route's ID.
+            ///   - pointCount: How many points the route has, all of them.
+            ///   - points: This page's points, in order.
+            ///   - nextCursor: Pass it as `cursor` for the next page; null on the last page.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                id: Swift.String,
+                pointCount: Swift.Int,
+                points: [Components.Schemas.HealthRoutePoint],
+                nextCursor: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.id = id
+                self.pointCount = pointCount
+                self.points = points
+                self.nextCursor = nextCursor
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case id
+                case pointCount
+                case points
+                case nextCursor
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.pointCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .pointCount
+                )
+                self.points = try container.decode(
+                    [Components.Schemas.HealthRoutePoint].self,
+                    forKey: .points
+                )
+                self.nextCursor = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .nextCursor
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "id",
+                    "pointCount",
+                    "points",
+                    "nextCursor"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.pointCount,
+                    forKey: .pointCount
+                )
+                try container.encode(
+                    self.points,
+                    forKey: .points
+                )
+                try container.encodeIfPresent(
+                    self.nextCursor,
+                    forKey: .nextCursor
                 )
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }

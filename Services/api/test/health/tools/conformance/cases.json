@@ -3,7 +3,8 @@
     "The Health toolkit's conformance cases (851-2841): each runs one tool call on dataset.json, with the clock at `now`, after a Mac from before pins were retired (851-2990) pushes `pins` (if any), and both MCP servers must answer `expected` (or fail with the tool error `expectedError`, word for word).",
     "Outputs match as JSON, except that numbers may differ by a relative 1e-9 (sums added in another order).",
     "Write expected outputs by hand, from the dataset and the tools' descriptions, not by copying what an implementation returns.",
-    "Arguments outside a tool's input schema (a range not in its list, a missing type, a limit out of bounds) are the tool's error on both servers, in the remote's words: `Invalid parameters for tool '<tool>': ` and each issue with where it is, in the schema's order (851-4034). A `date` is any string in the schema, and the tool refuses one that isn't a day from 2000-01-01 to 2999-12-31: `Invalid date: …` (851-4044), as the card tools do."
+    "Arguments outside a tool's input schema (a range not in its list, a missing type, a limit out of bounds) are the tool's error on both servers, in the remote's words: `Invalid parameters for tool '<tool>': ` and each issue with where it is, in the schema's order (851-4034). A `date` is any string in the schema, and the tool refuses one that isn't a day from 2000-01-01 to 2999-12-31: `Invalid date: …` (851-4044), as the card tools do.",
+    "The route tools (851-4164) read routes' points from blobs.json, as the server reads them from R2 and the Mac from the app's blob cache. Their simplified shapes' expected points come from a reference implementation written apart from both servers, since hundreds of points can't be worked out by hand; the rest is by hand."
   ],
   "cases": [
     {
@@ -3286,6 +3287,587 @@
         "timeZone": 0
       },
       "expectedError": "Invalid parameters for tool 'summary': Expected string\n  at [\"timeZone\"]"
+    },
+    {
+      "name": "workout_routes: the month's routes with points, newest first, with the workout HealthKit linked (none for the unlinked run's or the cycling app's), in London",
+      "tool": "workout_routes",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "M",
+        "timeZone": "Europe/London"
+      },
+      "expected": {
+        "timeZone": "Europe/London",
+        "range": "M",
+        "start": "2026-09-21T00:00:00+01:00",
+        "end": "2026-10-21T00:00:00+01:00",
+        "count": 3,
+        "routes": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000173",
+            "workout": "0c0f0000-0000-4000-8000-000000000013",
+            "start": "2026-10-18T08:00:00+01:00",
+            "end": "2026-10-18T08:30:00+01:00",
+            "duration": 1800,
+            "pointCount": 31,
+            "source": "Test Apple Watch"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000175",
+            "workout": null,
+            "start": "2026-10-16T09:00:00+01:00",
+            "end": "2026-10-16T09:20:00+01:00",
+            "duration": 1200,
+            "pointCount": 5,
+            "source": "Test Cycling App"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000171",
+            "workout": null,
+            "start": "2026-10-13T19:01:00+01:00",
+            "end": "2026-10-13T19:39:00+01:00",
+            "duration": 2280,
+            "pointCount": 9,
+            "source": "Test Apple Watch"
+          }
+        ]
+      }
+    },
+    {
+      "name": "workout_routes: a day whose only route has no points lists none",
+      "tool": "workout_routes",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "D",
+        "date": "2026-10-14"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-10-14T00:00:00+00:00",
+        "end": "2026-10-15T00:00:00+00:00",
+        "count": 0,
+        "routes": []
+      }
+    },
+    {
+      "name": "workout_route: a run's linked route by the workout's ID: distance, elevation gain and loss past an unknown altitude, and its four corners at 5 m, without its point with invalid coordinates",
+      "tool": "workout_route",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000013"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "route": {
+          "id": "0c0f0000-0000-4000-8000-000000000173",
+          "workout": "0c0f0000-0000-4000-8000-000000000013",
+          "start": "2026-10-18T07:00:00+00:00",
+          "end": "2026-10-18T07:30:00+00:00",
+          "duration": 1800,
+          "pointCount": 30,
+          "source": "Test Apple Watch",
+          "distance": 3362.6508116027053,
+          "elevationGain": 16.2,
+          "elevationLoss": 16.2,
+          "bounds": {
+            "south": 51.5,
+            "west": -0.12,
+            "north": 51.509,
+            "east": -0.106
+          },
+          "startArea": {
+            "latitude": 51.5,
+            "longitude": -0.12
+          },
+          "endArea": {
+            "latitude": 51.5,
+            "longitude": -0.12
+          },
+          "simplified": {
+            "tolerance": 5,
+            "pointCount": 4,
+            "points": [
+              {
+                "time": "2026-10-18T07:00:00+00:00",
+                "latitude": 51.5,
+                "longitude": -0.12,
+                "altitude": 10
+              },
+              {
+                "time": "2026-10-18T07:10:00+00:00",
+                "latitude": 51.509,
+                "longitude": -0.12,
+                "altitude": 20
+              },
+              {
+                "time": "2026-10-18T07:20:00+00:00",
+                "latitude": 51.509,
+                "longitude": -0.106,
+                "altitude": 25
+              },
+              {
+                "time": "2026-10-18T07:30:00+00:00",
+                "latitude": 51.5,
+                "longitude": -0.12,
+                "altitude": 10
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "workout_route: the route HealthKit didn't link, by the workout it was recorded during, with no known altitude, its point dated 1970 left out",
+      "tool": "workout_route",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000011",
+        "timeZone": "America/Los_Angeles"
+      },
+      "expected": {
+        "timeZone": "America/Los_Angeles",
+        "route": {
+          "id": "0c0f0000-0000-4000-8000-000000000171",
+          "workout": null,
+          "start": "2026-10-13T11:01:00-07:00",
+          "end": "2026-10-13T11:39:00-07:00",
+          "duration": 2280,
+          "pointCount": 8,
+          "source": "Test Apple Watch",
+          "distance": 1005.9667891080015,
+          "elevationGain": null,
+          "elevationLoss": null,
+          "bounds": {
+            "south": 51.52,
+            "west": -0.1,
+            "north": 51.52899,
+            "east": -0.09957
+          },
+          "startArea": {
+            "latitude": 51.52,
+            "longitude": -0.1
+          },
+          "endArea": {
+            "latitude": 51.529,
+            "longitude": -0.1
+          },
+          "simplified": {
+            "tolerance": 5,
+            "pointCount": 5,
+            "points": [
+              {
+                "time": "2026-10-13T11:01:00-07:00",
+                "latitude": 51.52,
+                "longitude": -0.1,
+                "altitude": null
+              },
+              {
+                "time": "2026-10-13T11:11:00-07:00",
+                "latitude": 51.5227,
+                "longitude": -0.1,
+                "altitude": null
+              },
+              {
+                "time": "2026-10-13T11:16:00-07:00",
+                "latitude": 51.52405,
+                "longitude": -0.09957,
+                "altitude": null
+              },
+              {
+                "time": "2026-10-13T11:21:00-07:00",
+                "latitude": 51.5254,
+                "longitude": -0.1,
+                "altitude": null
+              },
+              {
+                "time": "2026-10-13T11:39:00-07:00",
+                "latitude": 51.52899,
+                "longitude": -0.1,
+                "altitude": null
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "workout_route: a route with no workout, by its own ID",
+      "tool": "workout_route",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000175",
+        "timeZone": "Europe/London"
+      },
+      "expected": {
+        "timeZone": "Europe/London",
+        "route": {
+          "id": "0c0f0000-0000-4000-8000-000000000175",
+          "workout": null,
+          "start": "2026-10-16T09:00:00+01:00",
+          "end": "2026-10-16T09:20:00+01:00",
+          "duration": 1200,
+          "pointCount": 5,
+          "source": "Test Cycling App",
+          "distance": 1106.7983234988951,
+          "elevationGain": 8,
+          "elevationLoss": 0,
+          "bounds": {
+            "south": 51.53,
+            "west": -0.09,
+            "north": 51.53,
+            "east": -0.074
+          },
+          "startArea": {
+            "latitude": 51.53,
+            "longitude": -0.09
+          },
+          "endArea": {
+            "latitude": 51.53,
+            "longitude": -0.074
+          },
+          "simplified": {
+            "tolerance": 5,
+            "pointCount": 2,
+            "points": [
+              {
+                "time": "2026-10-16T09:00:00+01:00",
+                "latitude": 51.53,
+                "longitude": -0.09,
+                "altitude": 40
+              },
+              {
+                "time": "2026-10-16T09:20:00+01:00",
+                "latitude": 51.53,
+                "longitude": -0.074,
+                "altitude": 48
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "workout_route: a race's 600 points keep more than 500 at 5 m and 10 m, so the tolerance doubles to 20 m",
+      "tool": "workout_route",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000016"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "route": {
+          "id": "0c0f0000-0000-4000-8000-000000000174",
+          "workout": "0c0f0000-0000-4000-8000-000000000016",
+          "start": "2026-09-12T07:00:00+00:00",
+          "end": "2026-09-12T09:00:00+00:00",
+          "duration": 7200,
+          "pointCount": 600,
+          "source": "Test Apple Watch",
+          "distance": 10304.184450610883,
+          "elevationGain": 58.8,
+          "elevationLoss": 53.9,
+          "bounds": {
+            "south": 51.45,
+            "west": -0.1501,
+            "north": 51.50391,
+            "east": -0.1499
+          },
+          "startArea": {
+            "latitude": 51.45,
+            "longitude": -0.15
+          },
+          "endArea": {
+            "latitude": 51.504,
+            "longitude": -0.15
+          },
+          "simplified": {
+            "tolerance": 20,
+            "pointCount": 2,
+            "points": [
+              {
+                "time": "2026-09-12T07:00:00+00:00",
+                "latitude": 51.45,
+                "longitude": -0.1499,
+                "altitude": 5
+              },
+              {
+                "time": "2026-09-12T08:59:48+00:00",
+                "latitude": 51.50391,
+                "longitude": -0.1501,
+                "altitude": 9.9
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "workout_route: a treadmill run's route has no points",
+      "tool": "workout_route",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000012"
+      },
+      "expectedError": "The workout 0c0f0000-0000-4000-8000-000000000012 has no route: it was recorded without GPS (hasRoute is false)."
+    },
+    {
+      "name": "workout_route: a route without points isn't found by its own ID",
+      "tool": "workout_route",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000172"
+      },
+      "expectedError": "No workout or route with ID 0c0f0000-0000-4000-8000-000000000172. workouts and workout_routes list them, with their IDs."
+    },
+    {
+      "name": "workout_route: the ID is required",
+      "tool": "workout_route",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {},
+      "expectedError": "Invalid parameters for tool 'workout_route': Missing key\n  at [\"id\"]"
+    },
+    {
+      "name": "workout_route_points: the first page of a run's route, by the workout's ID: a time with a fraction rounds down, and a point with invalid coordinates is left out",
+      "tool": "workout_route_points",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000013",
+        "limit": 4
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "0c0f0000-0000-4000-8000-000000000173",
+        "pointCount": 30,
+        "points": [
+          {
+            "time": "2026-10-18T07:00:00+00:00",
+            "latitude": 51.5,
+            "longitude": -0.12,
+            "altitude": 10,
+            "horizontalAccuracy": 4.2,
+            "verticalAccuracy": 3.1,
+            "speed": 1.67,
+            "course": 0
+          },
+          {
+            "time": "2026-10-18T07:01:00+00:00",
+            "latitude": 51.5009,
+            "longitude": -0.12,
+            "altitude": 11,
+            "horizontalAccuracy": 4.2,
+            "verticalAccuracy": 3.1,
+            "speed": 1.67,
+            "course": 0
+          },
+          {
+            "time": "2026-10-18T07:02:00+00:00",
+            "latitude": 51.5018,
+            "longitude": -0.12,
+            "altitude": 12,
+            "horizontalAccuracy": 4.2,
+            "verticalAccuracy": 3.1,
+            "speed": 1.67,
+            "course": 0
+          },
+          {
+            "time": "2026-10-18T07:04:00+00:00",
+            "latitude": 51.5036,
+            "longitude": -0.12,
+            "altitude": 14,
+            "horizontalAccuracy": 4.2,
+            "verticalAccuracy": 3.1,
+            "speed": 1.67,
+            "course": 0
+          }
+        ],
+        "nextCursor": "4"
+      }
+    },
+    {
+      "name": "workout_route_points: a page from a cursor, with an unknown speed and course, and an unknown altitude",
+      "tool": "workout_route_points",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000173",
+        "cursor": "6",
+        "limit": 9,
+        "timeZone": "Asia/Kolkata"
+      },
+      "expected": {
+        "timeZone": "Asia/Kolkata",
+        "id": "0c0f0000-0000-4000-8000-000000000173",
+        "pointCount": 30,
+        "points": [
+          {
+            "time": "2026-10-18T12:37:00+05:30",
+            "latitude": 51.5063,
+            "longitude": -0.12,
+            "altitude": 17,
+            "horizontalAccuracy": 4.2,
+            "verticalAccuracy": 3.1,
+            "speed": null,
+            "course": null
+          },
+          {
+            "time": "2026-10-18T12:38:00+05:30",
+            "latitude": 51.5072,
+            "longitude": -0.12,
+            "altitude": 18,
+            "horizontalAccuracy": 4.2,
+            "verticalAccuracy": 3.1,
+            "speed": 1.67,
+            "course": 0
+          },
+          {
+            "time": "2026-10-18T12:39:00+05:30",
+            "latitude": 51.5081,
+            "longitude": -0.12,
+            "altitude": 19,
+            "horizontalAccuracy": 4.2,
+            "verticalAccuracy": 3.1,
+            "speed": 1.67,
+            "course": 0
+          },
+          {
+            "time": "2026-10-18T12:40:00+05:30",
+            "latitude": 51.509,
+            "longitude": -0.12,
+            "altitude": 20,
+            "horizontalAccuracy": 4.2,
+            "verticalAccuracy": 3.1,
+            "speed": 1.67,
+            "course": 0
+          },
+          {
+            "time": "2026-10-18T12:41:00+05:30",
+            "latitude": 51.509,
+            "longitude": -0.1186,
+            "altitude": 20.5,
+            "horizontalAccuracy": 4.2,
+            "verticalAccuracy": 3.1,
+            "speed": 1.67,
+            "course": 90
+          },
+          {
+            "time": "2026-10-18T12:42:00+05:30",
+            "latitude": 51.509,
+            "longitude": -0.1172,
+            "altitude": 21,
+            "horizontalAccuracy": 4.2,
+            "verticalAccuracy": 3.1,
+            "speed": 1.67,
+            "course": 90
+          },
+          {
+            "time": "2026-10-18T12:43:00+05:30",
+            "latitude": 51.509,
+            "longitude": -0.1158,
+            "altitude": 21.5,
+            "horizontalAccuracy": 4.2,
+            "verticalAccuracy": 3.1,
+            "speed": 1.67,
+            "course": 90
+          },
+          {
+            "time": "2026-10-18T12:44:00+05:30",
+            "latitude": 51.509,
+            "longitude": -0.1144,
+            "altitude": 22,
+            "horizontalAccuracy": 4.2,
+            "verticalAccuracy": 3.1,
+            "speed": 1.67,
+            "course": 90
+          },
+          {
+            "time": "2026-10-18T12:45:00+05:30",
+            "latitude": 51.509,
+            "longitude": -0.11299999999999999,
+            "altitude": null,
+            "horizontalAccuracy": 4.2,
+            "verticalAccuracy": null,
+            "speed": 1.67,
+            "course": 90
+          }
+        ],
+        "nextCursor": "15"
+      }
+    },
+    {
+      "name": "workout_route_points: the last page has no next cursor",
+      "tool": "workout_route_points",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000173",
+        "cursor": "28"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "0c0f0000-0000-4000-8000-000000000173",
+        "pointCount": 30,
+        "points": [
+          {
+            "time": "2026-10-18T07:29:00+00:00",
+            "latitude": 51.5009,
+            "longitude": -0.1186,
+            "altitude": 11.5,
+            "horizontalAccuracy": 4.2,
+            "verticalAccuracy": 3.1,
+            "speed": 1.67,
+            "course": 225
+          },
+          {
+            "time": "2026-10-18T07:30:00+00:00",
+            "latitude": 51.5,
+            "longitude": -0.12,
+            "altitude": 10,
+            "horizontalAccuracy": 4.2,
+            "verticalAccuracy": 3.1,
+            "speed": 1.67,
+            "course": 225
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "workout_route_points: a cursor past the end",
+      "tool": "workout_route_points",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000173",
+        "cursor": "31"
+      },
+      "expectedError": "Invalid cursor: 31. Pass the previous page's nextCursor."
+    },
+    {
+      "name": "workout_route_points: a cursor that isn't one",
+      "tool": "workout_route_points",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000173",
+        "cursor": "+3"
+      },
+      "expectedError": "Invalid cursor: +3. Pass the previous page's nextCursor."
+    },
+    {
+      "name": "workout_route_points: a limit past 1000",
+      "tool": "workout_route_points",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000173",
+        "limit": 1001
+      },
+      "expectedError": "Invalid parameters for tool 'workout_route_points': Expected a value between 1 and 1000\n  at [\"limit\"]"
+    },
+    {
+      "name": "workout_route_points: an unknown ID",
+      "tool": "workout_route_points",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-0000000000ff"
+      },
+      "expectedError": "No workout or route with ID 0c0f0000-0000-4000-8000-0000000000ff. workouts and workout_routes list them, with their IDs."
     }
   ]
 }

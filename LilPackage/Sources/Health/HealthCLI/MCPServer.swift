@@ -155,8 +155,12 @@ enum HealthMCPServer {
       // database once the app has migrated it.
       let database = try HealthDatabase.openForReading(
         at: context.directory.appending(path: "Health.sqlite"))
-      let tools = HealthTools(now: context.now(), defaultTimeZone: context.timeZone)
-      return try result(try await database.read { db in try query(tools, db) })
+      let tools = context.tools()
+      // Asking the app for a route's points it hasn't downloaded, if a call needs them.
+      return try result(
+        try await HealthCLI.withBlobs(context: context) {
+          try await database.read { db in try query(tools, db) }
+        })
     } catch {
       return failure(error)
     }
@@ -375,6 +379,29 @@ private struct ToolCall {
       let timeZone = arguments.string("timeZone")
       guard let id, arguments.isValid else { throw arguments.invalid }
       query = { tools, db in try tools.workout(id: id, timeZone: timeZone, db) }
+    case "workout_routes":
+      let range = arguments.required("range", arguments.range)
+      let date = arguments.string("date")
+      let timeZone = arguments.string("timeZone")
+      guard let range, arguments.isValid else { throw arguments.invalid }
+      query = { tools, db in
+        try tools.workoutRoutes(range: range, date: date, timeZone: timeZone, db)
+      }
+    case "workout_route":
+      let id = arguments.required("id", arguments.string)
+      let timeZone = arguments.string("timeZone")
+      guard let id, arguments.isValid else { throw arguments.invalid }
+      query = { tools, db in try tools.workoutRoute(id: id, timeZone: timeZone, db) }
+    case "workout_route_points":
+      let id = arguments.required("id", arguments.string)
+      let timeZone = arguments.string("timeZone")
+      let cursor = arguments.string("cursor")
+      let limit = arguments.integer("limit", in: 1...HealthTools.routePointsLimit)
+      guard let id, arguments.isValid else { throw arguments.invalid }
+      query = { tools, db in
+        try tools.workoutRoutePoints(
+          id: id, timeZone: timeZone, cursor: cursor, limit: limit, db)
+      }
     case "sleep":
       let range = arguments.required("range", arguments.range)
       let date = arguments.string("date")

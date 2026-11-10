@@ -393,6 +393,18 @@
       #expect(try json(.export(folder: "/tmp")) == #"{"action":"export","folder":"\/tmp"}"#)
     }
 
+    /// A blob the route tools ask the app to download (851-4164), stored by its SHA-256.
+    @Test
+    func blobDownloadsRoundTrip() throws {
+      let action = AgentAction.downloadBlob(sha256: String(repeating: "ab", count: 32))
+      let json = try JSONEncoder().encode(action)
+      #expect(try JSONDecoder().decode(AgentAction.self, from: json) == action)
+      #expect(
+        try JSONSerialization.jsonObject(with: json) as? [String: String] == [
+          "action": "downloadBlob", "sha256": String(repeating: "ab", count: 32),
+        ])
+    }
+
     /// The local MCP server's card writes (851-4014), stored with their canonical spec, and
     /// logged with their arguments in short, never the spec.
     @Test

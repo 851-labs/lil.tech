@@ -39,7 +39,7 @@ extension HealthAppActionRequest: AgentCardRequest {
     case .updateCard(let id, let spec): .update(id: id, spec: spec)
     case .deleteCard(let id): .delete(id: id)
     case .reorderCards(let ids): .reorder(ids: ids)
-    case .open, .sync, .export: nil
+    case .open, .sync, .export, .downloadBlob: nil
     }
   }
 

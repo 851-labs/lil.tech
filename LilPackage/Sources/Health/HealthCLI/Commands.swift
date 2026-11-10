@@ -23,13 +23,14 @@ struct LilHealthCommand: ParsableCommand {
       open, sync and export ask lil health to do it, under the same setting, launching it if \
       it isn't running.
 
-      Exit statuses: 64 for a usage error, 65 for an unknown type, workout, time zone, date, \
+      Exit statuses: 64 for a usage error, 65 for an unknown type, workout, route, time zone, date, \
       page or folder, 69 if there's no lil health data to read, or lil health isn't installed, didn't answer or \
       isn't signed in, 75 if its sync or export failed, 77 while access is off.
       """,
     subcommands: [
       SummaryCommand.self, TypesCommand.self, MetricCommand.self, SamplesCommand.self,
-      WorkoutsCommand.self, WorkoutCommand.self, SleepCommand.self, MedicationsCommand.self,
+      WorkoutsCommand.self, WorkoutCommand.self, RoutesCommand.self, RouteCommand.self,
+      SleepCommand.self, MedicationsCommand.self,
       DetailsCommand.self,
       SearchCommand.self, SyncCommand.self, OpenCommand.self, ExportCommand.self,
       MCPCommand.self,
@@ -206,6 +207,51 @@ struct WorkoutCommand: QueryCommand {
 
   func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
     Answer(try tools.workout(id: id, timeZone: timeZone, db))
+  }
+}
+
+struct RoutesCommand: QueryCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "routes",
+    abstract: "GPS routes in a range, newest first, with the workout each belongs to.")
+
+  @Option(name: .shortAndLong, help: rangeHelp) var range = RangeArgument(.month)
+  @Option(help: dateHelp) var date: String?
+  @Option(help: timeZoneHelp) var timeZone: String?
+  @OptionGroup var output: OutputOptions
+
+  func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
+    Answer(try tools.workoutRoutes(range: range.range, date: date, timeZone: timeZone, db))
+  }
+}
+
+struct RouteCommand: QueryCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "route",
+    abstract: "A GPS route: its distance, elevation and simplified shape, or its every point.",
+    discussion: """
+      Without --points, a summary and a simplified shape (workout_route). With --points, its \
+      points a page at a time, with their speed, course and accuracy (workout_route_points). \
+      lil health downloads a route's points the first time they're read, as its pages do.
+      """)
+
+  @Argument(help: "A workout's ID, from `workouts --json`, or a route's, from `routes --json`.")
+  var id: String
+  @Flag(help: "List its points, a page at a time.") var points = false
+  @Option(help: "With --points, the previous page's next cursor.") var cursor: String?
+  @Option(
+    help: """
+      With --points, points per page, at most \(HealthTools.routePointsLimit). Defaults to \
+      \(HealthTools.routePointsDefaultLimit).
+      """)
+  var limit: Int?
+  @Option(help: timeZoneHelp) var timeZone: String?
+  @OptionGroup var output: OutputOptions
+
+  func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
+    guard points else { return Answer(try tools.workoutRoute(id: id, timeZone: timeZone, db)) }
+    return Answer(
+      try tools.workoutRoutePoints(id: id, timeZone: timeZone, cursor: cursor, limit: limit, db))
   }
 }
 
