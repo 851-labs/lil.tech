@@ -112,7 +112,8 @@ describe("workout", () => {
         [agentGrantHeader]: "agr_01jbtest000000000000000000",
         [agentClientHeader]: "Test Agent",
       });
-      assert.notOk((response.message?.["result"] as Record<string, unknown>)["isError"]);
+      const result = response.message?.["result"] as Record<string, unknown> | undefined;
+      assert.notOk(result?.["isError"]);
       assert.deepInclude(logged[0], { tool: "workout", outcome: "ok", rows: 1 });
     }),
   );
