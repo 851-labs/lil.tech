@@ -53,6 +53,29 @@
       CatalogState("Up to date") {
         statusView(SyncStatusFeature.State(progress: progress(done: .max)))
       },
+      // Records that didn't go up (851-4151): they couldn't be read, were too large, or the
+      // server refused them.
+      CatalogState("Up to date, some not uploaded") {
+        statusView(
+          SyncStatusFeature.State(
+            progress: {
+              var progress = progress(done: .max)
+              progress.heldBack = [
+                "HKQuantityTypeIdentifierHeartRate": 3, "HKWorkoutTypeIdentifier": 1,
+                "HKCategoryTypeIdentifierSleepAnalysis": 1_204,
+              ]
+              return progress
+            }()))
+      },
+      CatalogState("Uploading, some not uploaded") {
+        statusView(
+          SyncStatusFeature.State(
+            progress: {
+              var progress = progress(done: 40, running: true)
+              progress.heldBack = ["HKQuantityTypeIdentifierStepCount": 2]
+              return progress
+            }()))
+      },
       CatalogState("Paused offline") {
         statusView(
           SyncStatusFeature.State(

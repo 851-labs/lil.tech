@@ -93,6 +93,16 @@ struct SyncStatusFeatureTests {
   }
 
   @Test
+  func listsTheTypesWithRecordsHeldBackByName() {
+    var held = progress([steps: .init(isDone: true, uploadedRecords: 10)])
+    held.heldBack = [steps: 2, sleep: 1, energy: 0]
+    #expect(
+      SyncStatusFeature.State(progress: held).heldBack.map { "\($0.name): \($0.records)" }
+        == ["Sleep: 1", "Steps: 2"])
+    #expect(SyncStatusFeature.State(progress: progress([:])).heldBack.isEmpty)
+  }
+
+  @Test
   func followsTheBackfill() async throws {
     let store = TestStore(initialState: SyncStatusFeature.State()) {
       SyncStatusFeature()

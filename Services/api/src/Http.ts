@@ -685,6 +685,13 @@ export const HealthHandlers = HttpApiBuilder.group(
           if (batch === null) return yield* new HealthBatchNotFound({ id: params.id });
           return batch;
         }).pipe(Effect.catchTag("AccountDeleted", () => Effect.fail(userGone))),
+      )
+      .handle("batchStatus", ({ payload }) =>
+        Effect.gen(function* () {
+          const { userId } = yield* CurrentSession;
+          const batches = yield* stores.forUser(userId).healthBatches(payload.ids);
+          return { batches };
+        }).pipe(Effect.catchTag("AccountDeleted", () => Effect.fail(userGone))),
       );
   }),
 );

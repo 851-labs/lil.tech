@@ -12,6 +12,13 @@ export const RejectedLine = Schema.Struct({
   /** 1-based line number in the batch file. */
   line: Schema.Int,
   message: Schema.String,
+  /**
+   * The line's entity and ID, as uploaded, when the line could be read that far (851-4151), so
+   * the client knows which record to send again. Missing for a line that isn't a mutation, and
+   * from batches applied before they were added.
+   */
+  entity: Schema.optionalKey(Schema.String),
+  id: Schema.optionalKey(Schema.String),
 }).annotate({ identifier: "lil/api/health/RejectedLine" });
 export type RejectedLine = typeof RejectedLine.Type;
 
@@ -37,6 +44,21 @@ export const HealthBatch = Schema.Struct({
   failure: Schema.optionalKey(Schema.String),
 }).annotate({ identifier: "lil/api/health/HealthBatch", description: "An uploaded health batch" });
 export type HealthBatch = typeof HealthBatch.Type;
+
+/** The most batches `POST /v1/health/batches/status` takes at once. */
+export const maxHealthBatchStatusIds = 100;
+
+export const HealthBatchStatusRequest = Schema.Struct({
+  ids: Schema.Array(HealthBatchId).check(Schema.isMaxLength(maxHealthBatchStatusIds)),
+}).annotate({ identifier: "lil/api/health/HealthBatchStatusRequest" });
+
+export const HealthBatchStatuses = Schema.Struct({
+  /** The batches asked for that the server received, in the order asked. */
+  batches: Schema.Array(HealthBatch),
+}).annotate({
+  identifier: "lil/api/health/HealthBatchStatuses",
+  description: "Uploaded health batches' statuses",
+});
 
 export class HealthBatchNotFound extends Schema.TaggedError<HealthBatchNotFound>()(
   "HealthBatchNotFound",

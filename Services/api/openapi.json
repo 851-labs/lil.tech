@@ -1369,6 +1369,72 @@
         }
       }
     },
+    "/v1/health/batches/status": {
+      "post": {
+        "tags": [
+          "health"
+        ],
+        "operationId": "healthBatchStatus",
+        "parameters": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uploaded health batches' statuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthBatchStatuses"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TooManyRequests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TooManyRequests"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UserStoreUnavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserStoreUnavailable"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthBatchStatusRequest"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/v1/health/blobs/{sha256}": {
       "put": {
         "tags": [
@@ -2198,23 +2264,20 @@
         ],
         "description": "A stored health blob"
       },
-      "HealthBatchNotFound": {
+      "HealthBatchStatuses": {
         "type": "object",
         "properties": {
-          "_tag": {
-            "type": "string",
-            "enum": [
-              "HealthBatchNotFound"
-            ]
-          },
-          "id": {
-            "type": "string"
+          "batches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthBatch_1"
+            }
           }
         },
         "required": [
-          "_tag",
-          "id"
-        ]
+          "batches"
+        ],
+        "description": "Uploaded health batches' statuses"
       },
       "HealthBatch_1": {
         "type": "object",
@@ -2277,11 +2340,50 @@
           },
           "message": {
             "type": "string"
+          },
+          "entity": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
           }
         },
         "required": [
           "line",
           "message"
+        ]
+      },
+      "HealthBatchStatusRequest": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "ids"
+        ]
+      },
+      "HealthBatchNotFound": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": [
+              "HealthBatchNotFound"
+            ]
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "_tag",
+          "id"
         ]
       },
       "HealthBatchTooLarge": {

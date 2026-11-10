@@ -89,12 +89,19 @@ public struct HealthPage: Sendable {
   /// Where the next page starts, archived.
   public var anchor: Data
   public var hasMore: Bool
+  /// The IDs of the objects read that couldn't be encoded (or whose series couldn't be read, once
+  /// the type skips them), which the backfill holds back to try again (851-4151).
+  public var failed: [String]
 
-  public init(mutations: [HealthMutation], blobs: [Data] = [], anchor: Data, hasMore: Bool) {
+  public init(
+    mutations: [HealthMutation], blobs: [Data] = [], anchor: Data, hasMore: Bool,
+    failed: [String] = []
+  ) {
     self.mutations = mutations
     self.blobs = blobs
     self.anchor = anchor
     self.hasMore = hasMore
+    self.failed = failed
   }
 }
 
@@ -143,13 +150,25 @@ public struct HealthReader: Sendable {
   /// Up to `limit` added and deleted objects of `type` after `anchor` (from the start if `nil`).
   public var page:
     @Sendable (_ type: HealthBackfillType, _ anchor: Data?, _ limit: Int) async throws -> HealthPage
+  /// The objects of `type` with these IDs (lowercase UUIDs), encoded as a page is, for records
+  /// held back to try again (851-4151). Those Health no longer has are left out. Its anchor and
+  /// `hasMore` mean nothing.
+  public var records:
+    @Sendable (_ type: HealthBackfillType, _ ids: [String]) async throws -> HealthPage
 
   public init(
     page:
       @escaping @Sendable (_ type: HealthBackfillType, _ anchor: Data?, _ limit: Int) async throws
-      -> HealthPage
+      -> HealthPage,
+    records:
+      @escaping @Sendable (_ type: HealthBackfillType, _ ids: [String]) async throws -> HealthPage =
+      { _, _ in
+        reportIssue("Unimplemented: @Dependency(\\.healthReader).records")
+        throw CancellationError()
+      }
   ) {
     self.page = page
+    self.records = records
   }
 
   struct UnknownType: Error {
@@ -238,65 +257,98 @@ public struct HealthReader: Sendable {
 extension HealthReader: DependencyKey {
   public static var liveValue: Self {
     let store = HKHealthStore()
-    return Self { type, anchorData, limit in
-      guard let sampleType = type.sampleType else { throw UnknownType(id: type.id) }
-      let result = try await anchoredPage(
-        sampleType, after: try unarchiveAnchor(anchorData), limit: limit, in: store)
-      var mutations: [HealthMutation] = []
-      var blobs: [Data] = []
-      for sample in result.addedSamples {
-        // One sample that can't be encoded is reported and skipped, so it can't stop the rest.
-        do {
-          if let correlation = sample as? HKCorrelation {
-            mutations += try HealthEncoder.correlation(correlation)
-          } else if let workout = sample as? HKWorkout {
-            mutations.append(HealthEncoder.workout(try await WorkoutRecord(workout)))
-          } else if let log = sample as? HKStateOfMind {
-            mutations.append(HealthEncoder.stateOfMind(log))
-          } else if let assessment = sample as? HKScoredAssessment {
-            mutations.append(try HealthEncoder.scoredAssessment(assessment))
-          } else if let audiogram = sample as? HKAudiogramSample {
-            mutations.append(HealthEncoder.audiogram(audiogram))
-          } else if let route = sample as? HKWorkoutRoute {
-            let (mutation, blob) = HealthEncoder.workoutRoute(
-              try await WorkoutRouteRecord(route, store: store))
-            mutations.append(mutation)
-            if let blob { blobs.append(blob) }
-          } else if let series = sample as? HKHeartbeatSeriesSample {
-            mutations.append(
-              HealthEncoder.heartbeatSeries(try await HeartbeatSeriesRecord(series, store: store)))
-          } else if let dose = sample as? HKMedicationDoseEvent {
-            mutations.append(HealthEncoder.medicationDose(MedicationDoseRecord(dose)))
-          } else if let ecg = sample as? HKElectrocardiogram {
-            let (mutation, blob) = HealthEncoder.electrocardiogram(
-              try await ElectrocardiogramRecord(ecg, store: store))
-            mutations.append(mutation)
-            if let blob { blobs.append(blob) }
-          } else {
-            mutations.append(try HealthEncoder.sample(sample))
-          }
-        } catch let error as Locked {
-          // Not this sample's fault: the page is read again once the device is unlocked.
-          throw error
-        } catch is CancellationError {
-          throw CancellationError()
-        } catch let error as SeriesUnavailable {
-          // Not the record's fault either: skipping it would move the anchor past it, unless
-          // the type's reads kept failing.
-          guard type.skipsUnreadableSeries else { throw error }
-          reportIssue(error)
-        } catch {
-          reportIssue(error)
+    return Self(
+      page: { type, anchorData, limit in
+        guard let sampleType = type.sampleType else { throw UnknownType(id: type.id) }
+        let result = try await anchoredPage(
+          sampleType, after: try unarchiveAnchor(anchorData), limit: limit, in: store)
+        var page = try await encode(result.addedSamples, of: type, store: store)
+        let entity = type.entity
+        page.mutations += result.deletedObjects.map {
+          .delete(entity, id: HealthEncoder.id($0.uuid))
         }
+        page.anchor = try NSKeyedArchiver.archivedData(
+          withRootObject: result.newAnchor, requiringSecureCoding: true)
+        page.hasMore = result.addedSamples.count + result.deletedObjects.count >= limit
+        return page
+      },
+      records: { type, ids in
+        guard let sampleType = type.sampleType else { throw UnknownType(id: type.id) }
+        let uuids = Set(ids.compactMap(UUID.init(uuidString:)))
+        guard !uuids.isEmpty else {
+          return HealthPage(mutations: [], anchor: Data(), hasMore: false)
+        }
+        let samples: [HKSample]
+        do {
+          samples = try await HKSampleQueryDescriptor(
+            predicates: [
+              .sample(type: sampleType, predicate: HKQuery.predicateForObjects(with: uuids))
+            ],
+            sortDescriptors: []
+          ).result(for: store)
+        } catch {
+          throw Locked.mapped(error)
+        }
+        return try await encode(samples, of: type, store: store)
+      })
+  }
+
+  /// Encodes samples of `type` as mutations, with their blobs. One that can't be encoded is
+  /// reported and left out, with its ID in `failed`, so it can't stop the rest (851-4151).
+  static func encode(
+    _ samples: [HKSample], of type: HealthBackfillType, store: HKHealthStore
+  ) async throws -> HealthPage {
+    var mutations: [HealthMutation] = []
+    var blobs: [Data] = []
+    var failed: [String] = []
+    for sample in samples {
+      do {
+        if let correlation = sample as? HKCorrelation {
+          mutations += try HealthEncoder.correlation(correlation)
+        } else if let workout = sample as? HKWorkout {
+          mutations.append(HealthEncoder.workout(try await WorkoutRecord(workout)))
+        } else if let log = sample as? HKStateOfMind {
+          mutations.append(HealthEncoder.stateOfMind(log))
+        } else if let assessment = sample as? HKScoredAssessment {
+          mutations.append(try HealthEncoder.scoredAssessment(assessment))
+        } else if let audiogram = sample as? HKAudiogramSample {
+          mutations.append(HealthEncoder.audiogram(audiogram))
+        } else if let route = sample as? HKWorkoutRoute {
+          let (mutation, blob) = HealthEncoder.workoutRoute(
+            try await WorkoutRouteRecord(route, store: store))
+          mutations.append(mutation)
+          if let blob { blobs.append(blob) }
+        } else if let series = sample as? HKHeartbeatSeriesSample {
+          mutations.append(
+            HealthEncoder.heartbeatSeries(try await HeartbeatSeriesRecord(series, store: store)))
+        } else if let dose = sample as? HKMedicationDoseEvent {
+          mutations.append(HealthEncoder.medicationDose(MedicationDoseRecord(dose)))
+        } else if let ecg = sample as? HKElectrocardiogram {
+          let (mutation, blob) = HealthEncoder.electrocardiogram(
+            try await ElectrocardiogramRecord(ecg, store: store))
+          mutations.append(mutation)
+          if let blob { blobs.append(blob) }
+        } else {
+          mutations.append(try HealthEncoder.sample(sample))
+        }
+      } catch let error as Locked {
+        // Not this sample's fault: the page is read again once the device is unlocked.
+        throw error
+      } catch is CancellationError {
+        throw CancellationError()
+      } catch let error as SeriesUnavailable {
+        // Not the record's fault either: skipping it would move the anchor past it, unless
+        // the type's reads kept failing. Then it's held back and tried again.
+        guard type.skipsUnreadableSeries else { throw error }
+        reportIssue(error)
+        failed.append(HealthEncoder.id(sample.uuid))
+      } catch {
+        reportIssue(error)
+        failed.append(HealthEncoder.id(sample.uuid))
       }
-      let entity = type.entity
-      mutations += result.deletedObjects.map { .delete(entity, id: HealthEncoder.id($0.uuid)) }
-      return HealthPage(
-        mutations: mutations, blobs: blobs,
-        anchor: try NSKeyedArchiver.archivedData(
-          withRootObject: result.newAnchor, requiringSecureCoding: true),
-        hasMore: result.addedSamples.count + result.deletedObjects.count >= limit)
     }
+    return HealthPage(
+      mutations: mutations, blobs: blobs, anchor: Data(), hasMore: false, failed: failed)
   }
 
   public static var testValue: Self {
@@ -577,5 +629,98 @@ extension HealthBlobUploader: DependencyKey {
 
   public static var testValue: Self {
     Self { _, _ in reportIssue("Unimplemented: @Dependency(\\.healthBlobUploader).upload") }
+  }
+}
+
+extension DependencyValues {
+  /// Asks the server how uploaded batches went.
+  public var healthBatchStatusReader: HealthBatchStatusReader {
+    get { self[HealthBatchStatusReader.self] }
+    set { self[HealthBatchStatusReader.self] = newValue }
+  }
+}
+
+/// What the server did with an uploaded batch (`POST /v1/health/batches/status`, 851-4151): the
+/// queue applies it after the upload is accepted, and may refuse some of its lines, or fail it
+/// whole.
+public struct HealthBatchStatus: Equatable, Sendable {
+  public var id: String
+  /// `queued`, `applying`, `applied` or `failed`.
+  public var status: String
+  /// Lines refused, of an applied batch.
+  public var rejected: Int
+  /// The first 100 of them, with the records they were (when the server could tell).
+  public var rejectedLines: [RejectedLine]
+  /// Why a failed batch failed.
+  public var failure: String?
+
+  public init(
+    id: String, status: String, rejected: Int = 0, rejectedLines: [RejectedLine] = [],
+    failure: String? = nil
+  ) {
+    self.id = id
+    self.status = status
+    self.rejected = rejected
+    self.rejectedLines = rejectedLines
+    self.failure = failure
+  }
+
+  public struct RejectedLine: Equatable, Sendable {
+    public var entity: String?
+    public var id: String?
+
+    public init(entity: String?, id: String?) {
+      self.entity = entity
+      self.id = id
+    }
+  }
+}
+
+public struct HealthBatchStatusReader: Sendable {
+  /// The statuses of up to `maxBatches` batches, those the server never received left out.
+  public var statuses: @Sendable (_ ids: [String]) async throws -> [HealthBatchStatus]
+
+  public init(
+    statuses: @escaping @Sendable (_ ids: [String]) async throws -> [HealthBatchStatus]
+  ) {
+    self.statuses = statuses
+  }
+
+  /// The most the server answers for at once.
+  public static let maxBatches = 100
+}
+
+extension HealthBatchStatusReader: DependencyKey {
+  public static var liveValue: Self {
+    @Dependency(\.api) var api
+    return Self { ids in
+      let output = try await api.healthBatchStatus(body: .json(.init(ids: ids)))
+      switch output {
+      case .ok(let response):
+        return try response.body.json.batches.map { batch in
+          HealthBatchStatus(
+            id: batch.id, status: batch.status, rejected: batch.rejected ?? 0,
+            rejectedLines: (batch.rejectedLines ?? []).map {
+              .init(entity: $0.entity, id: $0.id)
+            },
+            failure: batch.failure)
+        }
+      case .unauthorized: throw HealthBatchUploader.Rejected(statusCode: 401)
+      case .serviceUnavailable: throw HealthBatchUploader.Rejected(statusCode: 503)
+      case .tooManyRequests(let response):
+        let seconds = Components.Schemas.TooManyRequests.retryAfterSeconds {
+          try response.body.json
+        }
+        throw HealthBatchUploader.RateLimited(retryAfter: TimeInterval(seconds))
+      case .undocumented(let statusCode, _):
+        throw HealthBatchUploader.Rejected(statusCode: statusCode)
+      }
+    }
+  }
+
+  /// Every batch applied whole, so tests that don't check batches needn't answer: not reported
+  /// as unimplemented.
+  public static var testValue: Self {
+    Self { ids in ids.map { HealthBatchStatus(id: $0, status: "applied") } }
   }
 }

@@ -20,6 +20,21 @@ public struct SyncStatusView: View {
       Section {
         StatusHeader(store: store)
       }
+      let heldBack = store.heldBack
+      if !heldBack.isEmpty {
+        Section {
+          ForEach(heldBack) { type in
+            LabeledContent(type.name) {
+              Text(type.records.formatted())
+                .monospacedDigit()
+            }
+          }
+        } header: {
+          Text("Not Uploaded")
+        } footer: {
+          Text("lil health tries these again later.")
+        }
+      }
       let categories = store.categories
       if !categories.isEmpty {
         Section {

@@ -86,6 +86,8 @@ const decodeMutation = Schema.decodeUnknownResult(Schema.fromJsonString(Mutation
 interface ParsedLine {
   readonly line: number;
   readonly mutation: Mutation;
+  /** Its entity and ID as uploaded, before a device-scoped ID is stamped, for rejecting it. */
+  readonly uploaded: Pick<RejectedLine, "entity" | "id">;
 }
 
 class BatchUnreadable extends Schema.TaggedError<BatchUnreadable>()("BatchUnreadable", {
@@ -93,19 +95,17 @@ class BatchUnreadable extends Schema.TaggedError<BatchUnreadable>()("BatchUnread
 }) {}
 
 /**
- * Checks one line: valid JSON, a mutation of a health entity, an ID in the entity's form, and for
- * an upsert a full row (ingestion sends whole records). Checking here means the store rarely
- * rejects a chunk.
+ * Checks one decoded line: a mutation of a health entity, an ID in the entity's form, and for an
+ * upsert a full row (ingestion sends whole records). Checking here means the store rarely rejects
+ * a chunk.
  */
 const parseLine = (
-  content: string,
+  decoded: Mutation,
   deviceId: DeviceId | undefined,
   now: number,
   deviceRetired: boolean,
 ): Result.Result<Mutation, string> => {
-  const decoded = decodeMutation(content);
-  if (Result.isFailure(decoded)) return Result.fail(decoded.failure.message);
-  let mutation = decoded.success;
+  let mutation = decoded;
   const entity = healthEntitiesByName.get(mutation.entity);
   if (entity === undefined) return Result.fail(`Not a health entity: ${mutation.entity}`);
   if (entity.deviceScoped !== undefined) {
@@ -290,18 +290,20 @@ const applyHealthBatch = Effect.fnUntraced(function* (
       // at once, rather than one store call each.
       if (error.message === deviceSignedOut) {
         deviceRetired = true;
-        const kept = chunk.filter(({ line, mutation }) => {
+        const kept = chunk.filter(({ line, mutation, uploaded }) => {
           const refused =
             mutation.op === "upsert" &&
             healthEntitiesByName.get(mutation.entity)?.deviceScoped !== undefined;
-          if (refused) rejected.push({ line, message: error.message });
+          if (refused) rejected.push({ line, message: error.message, ...uploaded });
           return !refused;
         });
         chunk.splice(0, chunk.length, ...kept);
         continue;
       }
       const [invalid] = chunk.splice(error.index, 1);
-      if (invalid !== undefined) rejected.push({ line: invalid.line, message: error.message });
+      if (invalid !== undefined) {
+        rejected.push({ line: invalid.line, message: error.message, ...invalid.uploaded });
+      }
     }
   });
   // The chunk being applied while the next one is read: at most one, so they apply in order.
@@ -325,17 +327,24 @@ const applyHealthBatch = Effect.fnUntraced(function* (
         rejected.push({ line, message: `Longer than ${maxBatchLineLength} characters` });
         return;
       }
+      const decoded = decodeMutation(content);
+      if (Result.isFailure(decoded)) {
+        rejected.push({ line, message: decoded.failure.message });
+        return;
+      }
+      // Named in a rejection, so the client knows which record didn't apply (851-4151).
+      const uploaded = { entity: decoded.success.entity, id: decoded.success.id };
       const parsed = parseLine(
-        content,
+        decoded.success,
         message.deviceId,
         yield* Clock.currentTimeMillis,
         deviceRetired,
       );
       if (Result.isFailure(parsed)) {
-        rejected.push({ line, message: parsed.failure });
+        rejected.push({ line, message: parsed.failure, ...uploaded });
         return;
       }
-      chunk.push({ line, mutation: parsed.success });
+      chunk.push({ line, mutation: parsed.success, uploaded });
       chunkBytes += content.length;
       if (chunk.length >= healthChunkSize || chunkBytes >= healthChunkBytes) {
         yield* settle;

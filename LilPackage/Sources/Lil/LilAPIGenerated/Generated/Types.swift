@@ -68,6 +68,9 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PUT /v1/health/batches/{id}`.
     /// - Remark: Generated from `#/paths//v1/health/batches/{id}/put(healthUploadBatch)`.
     func healthUploadBatch(_ input: Operations.HealthUploadBatch.Input) async throws -> Operations.HealthUploadBatch.Output
+    /// - Remark: HTTP `POST /v1/health/batches/status`.
+    /// - Remark: Generated from `#/paths//v1/health/batches/status/post(healthBatchStatus)`.
+    func healthBatchStatus(_ input: Operations.HealthBatchStatus.Input) async throws -> Operations.HealthBatchStatus.Output
     /// - Remark: HTTP `GET /v1/health/blobs/{sha256}`.
     /// - Remark: Generated from `#/paths//v1/health/blobs/{sha256}/get(healthBlob)`.
     func healthBlob(_ input: Operations.HealthBlob.Input) async throws -> Operations.HealthBlob.Output
@@ -268,6 +271,17 @@ extension APIProtocol {
     ) async throws -> Operations.HealthUploadBatch.Output {
         try await healthUploadBatch(Operations.HealthUploadBatch.Input(
             path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// - Remark: HTTP `POST /v1/health/batches/status`.
+    /// - Remark: Generated from `#/paths//v1/health/batches/status/post(healthBatchStatus)`.
+    public func healthBatchStatus(
+        headers: Operations.HealthBatchStatus.Input.Headers = .init(),
+        body: Operations.HealthBatchStatus.Input.Body
+    ) async throws -> Operations.HealthBatchStatus.Output {
+        try await healthBatchStatus(Operations.HealthBatchStatus.Input(
             headers: headers,
             body: body
         ))

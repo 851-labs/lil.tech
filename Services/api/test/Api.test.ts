@@ -1997,6 +1997,58 @@ describe("/v1/health/batches", () => {
     ),
   );
 
+  it.live("reports many batches' statuses at once, with the records they rejected", () =>
+    withApi((handler) =>
+      Effect.gen(function* () {
+        const { tokens } = yield* consentingSignIn;
+        const outbox = yield* TestHealthOutbox;
+        const applied = "00000000-0000-4000-8000-0000000000c1";
+        const queued = "00000000-0000-4000-8000-0000000000c2";
+        const unknown = "00000000-0000-4000-8000-0000000000c3";
+        const refused = { ...lines[0], id: "6f1c2a40-0000-4000-8000-000000000002", row: {} };
+        yield* upload(handler, tokens.accessToken, applied, batchFile([...lines, refused]));
+        yield* upload(handler, tokens.accessToken, queued, batchFile(lines));
+        const [message] = outbox.sent;
+        if (message !== undefined) yield* ingestHealthBatch(message);
+        const statuses = (ids: ReadonlyArray<string>) =>
+          send(
+            handler,
+            new Request("https://api.lil.tech/v1/health/batches/status", {
+              method: "POST",
+              headers: { ...bearer(tokens.accessToken), "content-type": "application/json" },
+              body: JSON.stringify({ ids }),
+            }),
+          );
+
+        const response = yield* statuses([queued, unknown, applied]);
+        assert.strictEqual(response.status, 200);
+        const { batches } = response.body as { batches: Array<Record<string, unknown>> };
+        // In the order asked, without the one never received.
+        assert.deepStrictEqual(
+          batches.map(({ id, status }) => ({ id, status })),
+          [
+            { id: queued, status: "queued" },
+            { id: applied, status: "applied" },
+          ],
+        );
+        assert.deepInclude(batches[1], { lines: 2, applied: 1, rejected: 1 });
+        const rejectedLines = (batches[1]?.["rejectedLines"] ?? []) as Array<unknown>;
+        assert.deepInclude(rejectedLines[0], {
+          line: 2,
+          entity: "health_sample",
+          id: refused.id,
+        });
+
+        // At most 100 at once.
+        const tooMany = Array.from(
+          { length: 101 },
+          (_, n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
+        );
+        assert.strictEqual((yield* statuses(tooMany)).status, 400);
+      }),
+    ),
+  );
+
   it.live("takes uploads only with consent to the current policy", () =>
     withApi((handler) =>
       Effect.gen(function* () {
