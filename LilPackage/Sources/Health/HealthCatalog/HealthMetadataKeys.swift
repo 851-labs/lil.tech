@@ -114,12 +114,8 @@ extension HealthCatalog {
   ]
 
   /// Keys that aren't HealthKit's but are kept: lil health's own, the WorkoutKit plan the
-  /// iPhone adds to a workout's metadata (`HealthEncoder.workoutPlanKey`, 851-4030), and the
-  /// noise notifications' level and duration under the names the Mac reads them by
-  /// (`NotificationQueries`), until it reads HealthKit's (the 2026-11-09 sync audit's item 3).
-  static let otherKeptMetadataKeys = [
-    "LilWorkoutPlan", "HKAudioExposureLevel", "HKAudioExposureDuration",
-  ]
+  /// iPhone adds to a workout's metadata (`HealthEncoder.workoutPlanKey`, 851-4030).
+  static let otherKeptMetadataKeys = ["LilWorkoutPlan"]
 
   /// Every metadata key lil health keeps. Any other is dropped.
   public static let keptMetadataKeys: Set<String> = Set(
