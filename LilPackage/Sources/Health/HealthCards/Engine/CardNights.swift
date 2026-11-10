@@ -2,7 +2,9 @@ public import Foundation
 
 // Nights from sleep records (docs/decisions/cards.md, Event windows › Nights): Sleep's nights
 // (851-3098), which its page, its highlights and cards' sleep windows all group here, so the Mac
-// and the iPhone name the same nights.
+// and the iPhone name the same nights. A night follows the zone its records were recorded in
+// (851-4174, cards.md › Recorded time zones), as Apple Health draws it. The server's
+// `CardNights.ts` ports this file rule for rule.
 
 /// One sleep analysis record (`HKCategoryTypeIdentifierSleepAnalysis`), as every engine reads it.
 public struct CardSleepRecord: Hashable, Sendable {
@@ -14,12 +16,16 @@ public struct CardSleepRecord: Hashable, Sendable {
   public var value: Int
   /// The source's bundle ID: a night uses one source.
   public var source: String
+  /// The zone it was recorded in (`HKTimeZone`), when that's a name the tools' `timeZone` takes
+  /// (`CardTimeZone.named(_:)`), else `nil`. Its night follows it (`CardNights.nights`).
+  public var timeZone: TimeZone?
 
-  public init(start: Int, end: Int, value: Int, source: String) {
+  public init(start: Int, end: Int, value: Int, source: String, timeZone: TimeZone? = nil) {
     self.start = start
     self.end = end
     self.value = value
     self.source = source
+    self.timeZone = timeZone
   }
 
   public static let inBed = 0
@@ -35,8 +41,12 @@ public struct CardSleepRecord: Hashable, Sendable {
 
 /// A night's sleep, named by the day it ends on, as Health does.
 public struct CardNight: Hashable, Sendable {
-  /// The start of the day the night belongs to.
+  /// The start of the day the night belongs to, in the engine's calendar: the calendar's day of
+  /// the date the night has on its own clock.
   public var day: Date
+  /// The zone it was recorded in (`CardNights.nights`), or `nil` for the calendar's. Its date,
+  /// bedtime and clock are that zone's (`CardNights.clock(day:timeZone:calendar:)`).
+  public var timeZone: TimeZone?
   /// The chosen source's records in its main session, by start: its stages, awake included, but
   /// not In Bed.
   public var records: [CardSleepRecord]
@@ -45,10 +55,11 @@ public struct CardNight: Hashable, Sendable {
   public var inBed: Int
 
   /// `records` are sorted by start (ties keep their order), as F, W and the stretches need.
-  public init(day: Date, records: [CardSleepRecord], inBed: Int) {
+  public init(day: Date, records: [CardSleepRecord], inBed: Int, timeZone: TimeZone? = nil) {
     self.day = day
     self.records = records.sorted { $0.start < $1.start }
     self.inBed = inBed
+    self.timeZone = timeZone
   }
 
   /// `F`: when sleep started, the start of its first record asleep (not getting into bed, or lying
@@ -73,15 +84,16 @@ public struct CardNight: Hashable, Sendable {
     return stretches
   }
 
-  /// Its bedtime on the clock, in hours from its day's midnight (`CardNights.clockHours`, placed
-  /// from its first record), if it's a night's sleep rather than a day's: sleep that starts before
-  /// noon (`CardNights.latestBedtime`). `nil` for a day's sleep.
+  /// Its bedtime on its own clock (its zone's), in hours from its day's midnight there
+  /// (`CardNights.clockHours`, placed from its first record), if it's a night's sleep rather than
+  /// a day's: sleep that starts before noon (`CardNights.latestBedtime`). `nil` for a day's sleep.
   public func nightBedtime(calendar: Calendar) -> Double? {
     guard let fallingAsleep, let first = records.map(\.start).min() else { return nil }
+    let clock = CardNights.clock(day: day, timeZone: timeZone, calendar: calendar)
     return CardNights.nightBedtime(
       fallingAsleep: Date(unixMilliseconds: fallingAsleep),
       firstStart: Date(unixMilliseconds: first),
-      day: day, calendar: calendar)
+      day: clock.day, calendar: clock.calendar)
   }
 }
 
@@ -99,19 +111,32 @@ public enum CardNights {
   /// highlights and cards leave out.
   public static let latestBedtime: Double = 12
 
+  /// How far a day's midnight in another zone can be from the calendar's: 26 hours, from
+  /// UTC−12 to UTC+14. A night recorded in another zone starts up to that far outside the
+  /// calendar's days (851-4174).
+  public static let zoneReach: TimeInterval = 26 * 3600
+
   /// The records the nights of `days` (local midnights, the first day's up to the day after the
-  /// last's) are made of: those that end after the first night can start and start before the
-  /// day after the last's can, in Unix milliseconds. In Bed records may start before it.
+  /// last's) are made of, in any zone: those that end after the first night can start and start
+  /// before the day after the last's can, `zoneReach` wider on each side, in Unix milliseconds.
+  /// In Bed records may start before it. Cards' sleep windows (`CardWindowFetch.sleep`), Sleep's
+  /// page and the `sleep` tools all fetch it, and `nights` keeps the nights of `days`.
   public static func recordRange(days: Range<Date>) -> Range<Int> {
-    days.lowerBound.addingTimeInterval(-startOffset)
-      .unixMilliseconds..<days.upperBound.addingTimeInterval(-startOffset).unixMilliseconds
+    days.lowerBound.addingTimeInterval(-startOffset - zoneReach)
+      .unixMilliseconds..<days.upperBound.addingTimeInterval(-startOffset + zoneReach)
+      .unixMilliseconds
   }
 
   /// The nights of `days`, oldest first, leaving out days without sleep, from `records` (by start,
   /// as `recordRange(days:)` gives them). Nights' and days' sleep both: Sleep's page shows a
   /// day's, which `CardNight.nightBedtime(calendar:)` tells apart.
-  /// - **The day:** a record belongs to the day `startOffset` after its start, when it starts in
-  ///   the range.
+  /// - **The zone** (851-4174): each source's records (but In Bed) are split into runs where
+  ///   sleep stops for `sessionGap` or more, in absolute time, as sessions are. A run's zone is
+  ///   that of the last-ending of its records that have one (ties to the name that sorts first),
+  ///   else the calendar's (`nil`). A night's main session is part of one run, so the night has
+  ///   its run's zone. Records in one zone, or in none, give the nights they always did.
+  /// - **The day:** a record belongs to the day `startOffset` after its start on its run's
+  ///   zone's clock: the calendar's day of that date. Only the nights of `days` are kept.
   /// - **Source:** each night uses one source, the one with the most time asleep that day
   ///   (usually the Watch), ties to the bundle ID that sorts first, so overlapping sources (an
   ///   iPhone's estimate, a Watch's stages) don't add up.
@@ -123,49 +148,144 @@ public enum CardNights {
   public static func nights(
     _ records: [CardSleepRecord], days: Range<Date>, calendar: Calendar
   ) -> [CardNight] {
-    let range = recordRange(days: days)
-    let offset = Int(startOffset * 1000)
     let records = records.filter(\.isKnown)
     let inBedRecords = records.filter { $0.value == CardSleepRecord.inBed }
-    var bucketer = CardBucketer(CardGrain.day, calendar: calendar)
-    var byDay: [Date: [CardSleepRecord]] = [:]
-    for record in records
-    where record.value != CardSleepRecord.inBed && range.contains(record.start) {
-      byDay[bucketer.start(ofMilliseconds: record.start + offset), default: []].append(record)
+    var byDay: [Date: [Placed]] = [:]
+    for (placed, day) in place(records.filter { $0.value != CardSleepRecord.inBed }, calendar)
+    where days.contains(day) {
+      byDay[day, default: []].append(placed)
     }
-    return byDay.compactMap { day, records -> CardNight? in
+    return byDay.compactMap { day, placed -> CardNight? in
       var asleepBySource: [String: Int] = [:]
-      for record in records where record.isAsleep {
+      for record in placed.map(\.record) where record.isAsleep {
         asleepBySource[record.source, default: 0] += record.duration
       }
       guard
         let source = asleepBySource.max(by: { ($0.value, $1.key) < ($1.value, $0.key) })?.key
       else { return nil }
-      let session = mainSession(records.filter { $0.source == source })
-      guard let start = session.map(\.start).min(), let end = session.map(\.end).max()
+      let session = mainSession(placed.filter { $0.record.source == source })
+      let records = session.map(\.record)
+      guard let start = records.map(\.start).min(), let end = records.map(\.end).max()
       else { return nil }
       let inBed = union(inBedRecords.filter { $0.start < end && $0.end > start })
-      return CardNight(day: day, records: session, inBed: inBed > 0 ? inBed : end - start)
+      return CardNight(
+        day: day, records: records, inBed: inBed > 0 ? inBed : end - start,
+        timeZone: session[0].timeZone)
     }
     .sorted { $0.day < $1.day }
   }
 
+  /// Each of `records`' days as `nights` names them, in their order: the day `startOffset`
+  /// after its start on its run's zone's clock (`runs`). Sleep's page opens on the latest
+  /// (`HealthDatabase.latestSleepNight`). In Bed records, and values it doesn't know, are in no
+  /// run, so on the calendar's.
+  public static func days(of records: [CardSleepRecord], calendar: Calendar) -> [Date] {
+    let inRuns = { (record: CardSleepRecord) in
+      record.isKnown && record.value != CardSleepRecord.inBed
+    }
+    var placed = place(records.filter(inRuns), calendar)[...]
+    var days = NightDays(calendar: calendar)
+    let offset = Int(startOffset * 1000)
+    return records.map { record in
+      inRuns(record)
+        ? placed.popFirst()!.day
+        : days.day(ofMilliseconds: record.start + offset, clock: 0)
+    }
+  }
+
+  /// `records` (none In Bed) with their runs' zones (`runs`) and their days on those zones'
+  /// clocks, as the calendar's days. Zones are looked up once a run, not once a record.
+  private static func place(
+    _ records: [CardSleepRecord], _ calendar: Calendar
+  ) -> [(placed: Placed, day: Date)] {
+    let offset = Int(startOffset * 1000)
+    var days = NightDays(calendar: calendar)
+    var placed: [(placed: Placed, day: Date)?] = Array(repeating: nil, count: records.count)
+    for run in runs(records) {
+      let clock = days.clock(run.timeZone)
+      for index in run.indices {
+        let record = records[index]
+        placed[index] = (
+          Placed(record: record, timeZone: run.timeZone),
+          days.day(ofMilliseconds: record.start + offset, clock: clock)
+        )
+      }
+    }
+    return placed.map { $0! }
+  }
+
+  /// A record and its run's zone (`runs`).
+  private struct Placed {
+    var record: CardSleepRecord
+    var timeZone: TimeZone?
+  }
+
+  /// `records`' runs, by their indices: each source's records split where sleep stops for
+  /// `sessionGap` or more (as `mainSession` splits them), each run taking the zone of the
+  /// last-ending of its records that have one, ties to the name that sorts first, so the
+  /// records' order never matters; `nil` for a run without any, the calendar's. When no record
+  /// has a zone (as before 851-4174, or from apps that don't say), one run of them all.
+  static func runs(_ records: [CardSleepRecord]) -> [(indices: [Int], timeZone: TimeZone?)] {
+    guard records.contains(where: { $0.timeZone != nil }) else {
+      return [(Array(records.indices), nil)]
+    }
+    let gap = Int(sessionGap * 1000)
+    var runs: [(indices: [Int], timeZone: TimeZone?)] = []
+    for indices in Dictionary(grouping: records.indices, by: { records[$0].source }).values {
+      var run: [Int] = []
+      func close() {
+        var zone: (end: Int, zone: TimeZone)?
+        for index in run {
+          guard let own = records[index].timeZone else { continue }
+          let end = records[index].end
+          if let last = zone,
+            end < last.end || (end == last.end && own.identifier >= last.zone.identifier)
+          {
+            continue
+          }
+          zone = (end, own)
+        }
+        runs.append((run, zone?.zone))
+        run = []
+      }
+      var lastEnd: Int?
+      for index in indices.sorted(by: { records[$0].start < records[$1].start }) {
+        let record = records[index]
+        if let lastEnd, record.start - lastEnd >= gap { close() }
+        run.append(index)
+        lastEnd = max(lastEnd ?? record.end, record.end)
+      }
+      close()
+    }
+    return runs
+  }
+
+  /// Each of `records`' runs' zones (`runs`), in their order.
+  static func runZones(_ records: [CardSleepRecord]) -> [TimeZone?] {
+    var zones = [TimeZone?](repeating: nil, count: records.count)
+    for run in runs(records) {
+      for index in run.indices { zones[index] = run.timeZone }
+    }
+    return zones
+  }
+
   /// The session with the most sleep among `records`, splitting where sleep stops for
   /// `sessionGap` or more.
-  private static func mainSession(_ records: [CardSleepRecord]) -> [CardSleepRecord] {
+  private static func mainSession(_ records: [Placed]) -> [Placed] {
     let gap = Int(sessionGap * 1000)
-    var sessions: [[CardSleepRecord]] = []
+    var sessions: [[Placed]] = []
     var lastEnd: Int?
-    for record in records.sorted(by: { $0.start < $1.start }) {
+    for placed in records.sorted(by: { $0.record.start < $1.record.start }) {
+      let record = placed.record
       if let lastEnd, record.start - lastEnd < gap, !sessions.isEmpty {
-        sessions[sessions.count - 1].append(record)
+        sessions[sessions.count - 1].append(placed)
       } else {
-        sessions.append([record])
+        sessions.append([placed])
       }
       lastEnd = max(lastEnd ?? record.end, record.end)
     }
-    let asleep = { (session: [CardSleepRecord]) in
-      session.filter(\.isAsleep).reduce(0) { $0 + $1.duration }
+    let asleep = { (session: [Placed]) in
+      session.lazy.map(\.record).filter(\.isAsleep).reduce(0) { $0 + $1.duration }
     }
     return sessions.max { asleep($0) < asleep($1) } ?? []
   }
@@ -184,6 +304,26 @@ public enum CardNights {
     }
     if let open = current { total += open.end - open.start }
     return total
+  }
+
+  /// A night's clock: the calendar in its zone (`CardNight.timeZone`), and the midnight there
+  /// that starts its day's date. The calendar and `day` themselves for a night in none, or in the
+  /// calendar's.
+  public static func clock(
+    day: Date, timeZone: TimeZone?, calendar: Calendar
+  ) -> (calendar: Calendar, day: Date) {
+    guard let timeZone, timeZone != calendar.timeZone else { return (calendar, day) }
+    var zoned = calendar
+    zoned.timeZone = timeZone
+    return (zoned, sameDate(day, from: calendar, in: zoned))
+  }
+
+  /// The start of the day in `target` with the date `day` has in `source`. Through noon, so a
+  /// zone whose clocks skip midnight still has the day.
+  static func sameDate(_ day: Date, from source: Calendar, in target: Calendar) -> Date {
+    var date = source.dateComponents([.era, .year, .month, .day], from: day)
+    date.hour = 12
+    return target.date(from: date).map(target.startOfDay(for:)) ?? day
   }
 
   /// Where `date` goes in the night that started at `start`, in hours from the start of `day`,
@@ -205,5 +345,40 @@ public enum CardNights {
   ) -> Double? {
     let hours = clockHours(fallingAsleep, from: day, start: firstStart, calendar: calendar)
     return hours < latestBedtime ? hours : nil
+  }
+}
+
+/// Days of sleep records' starts on their nights' clocks (`CardNights.nights`), as the
+/// calendar's days: per day, not per record, as the cards' time-zone math is (851-2906).
+private struct NightDays {
+  let calendar: Calendar
+  /// The calendar's bucketer, then one for each other zone, with its days' starts mapped to the
+  /// calendar's days.
+  var clocks: [(bucketer: CardBucketer, days: [Date: Date])]
+  var indices: [TimeZone: Int] = [:]
+
+  init(calendar: Calendar) {
+    self.calendar = calendar
+    clocks = [(CardBucketer(CardGrain.day, calendar: calendar), [:])]
+  }
+
+  /// Which clock places records in `timeZone`: 0, the calendar's, for none or the calendar's.
+  mutating func clock(_ timeZone: TimeZone?) -> Int {
+    guard let timeZone, timeZone != calendar.timeZone else { return 0 }
+    if let index = indices[timeZone] { return index }
+    var zoned = calendar
+    zoned.timeZone = timeZone
+    clocks.append((CardBucketer(CardGrain.day, calendar: zoned), [:]))
+    indices[timeZone] = clocks.count - 1
+    return clocks.count - 1
+  }
+
+  mutating func day(ofMilliseconds milliseconds: Int, clock: Int) -> Date {
+    let start = clocks[clock].bucketer.start(ofMilliseconds: milliseconds)
+    guard clock != 0 else { return start }
+    if let day = clocks[clock].days[start] { return day }
+    let day = CardNights.sameDate(start, from: clocks[clock].bucketer.calendar, in: calendar)
+    clocks[clock].days[start] = day
+    return day
   }
 }

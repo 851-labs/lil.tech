@@ -1,4 +1,5 @@
 public import Foundation
+import HealthCards
 
 /// A tool's failure, as the toolkit's `HealthToolError`: its message is what the person or agent
 /// sees, e.g. an unknown time zone.
@@ -25,7 +26,7 @@ public struct ToolTime: Sendable {
   /// wrong case.
   public init(timeZone name: String?) throws {
     let name = name ?? TimeZone.current.identifier
-    guard Self.isIANAName(name), let zone = TimeZone(identifier: name) else {
+    guard let zone = CardTimeZone.named(name) else {
       // `TimeZone` is case-sensitive: say which name was meant, as the remote server does.
       if let match = TimeZone.knownTimeZoneIdentifiers.first(where: {
         $0.lowercased() == name.lowercased()
@@ -39,13 +40,6 @@ public struct ToolTime: Sendable {
     calendar.locale = Locale(identifier: "en_US_POSIX")
     self.name = name
     self.calendar = calendar
-  }
-
-  /// An IANA name's shape: not a UTC offset such as `+01:00`, nor `GMT+0100`, which `TimeZone`
-  /// also accepts. The same pattern as the remote server's.
-  private static func isIANAName(_ name: String) -> Bool {
-    name.wholeMatch(of: /[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*/) != nil
-      && !name.hasPrefix("GMT+") && !name.hasPrefix("GMT-")
   }
 
   public var timeZone: TimeZone { calendar.timeZone }

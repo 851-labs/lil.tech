@@ -1,4 +1,5 @@
 public import Foundation
+import HealthCards
 import HealthCatalog
 public import SQLiteData
 
@@ -67,7 +68,12 @@ extension HealthDatabase {
       .select(\.startDate)
       .limit(1)
       .fetchOne(db) ?? latest
-    return calendar.startOfDay(
-      for: Date(unixMilliseconds: start).addingTimeInterval(nightStartOffset))
+    // Its day on its night's clock (851-4174): its run's zone's, from the records around it.
+    let records = try sleepRecords(
+      in: start - Int(CardNights.sessionGap * 1000) * 8..<upper + 1, db)
+    return records.lastIndex { $0.start == start }
+      .map { CardNights.days(of: records, calendar: calendar)[$0] }
+      ?? calendar.startOfDay(
+        for: Date(unixMilliseconds: start).addingTimeInterval(nightStartOffset))
   }
 }

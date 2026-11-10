@@ -949,12 +949,13 @@ struct SleepQueriesTests {
   }
 
   private func stage(
-    _ value: Int, from start: Date, hours: Double, source: String = "com.apple.health.watch"
+    _ value: Int, from start: Date, hours: Double, source: String = "com.apple.health.watch",
+    metadata: String? = nil
   ) -> HealthSample {
     HealthSample(
       id: UUID().uuidString, type: sleep, startDate: start.unixMilliseconds,
       endDate: start.addingTimeInterval(hours * 3600).unixMilliseconds, categoryValue: value,
-      sourceName: "Test", sourceBundleID: source)
+      sourceName: "Test", sourceBundleID: source, metadata: metadata)
   }
 
   private func nights(endingOn day: Int, count: Int) throws -> [SleepNight] {
@@ -1075,6 +1076,56 @@ struct SleepQueriesTests {
     #expect(night.asleep == 6 * 3600)
     #expect(night.inBed == 7 * 3600)
     #expect(!night.hasStages)
+  }
+
+  /// A night slept in Tokyo (851-4174), seen from UTC, is Tokyo's: 23:00 JST on the 14th to
+  /// 06:30 JST on the 15th is the 15th's night, though UTC's clock reads 14:00 on the 14th.
+  /// Sleep's page opens on it.
+  @Test
+  func aNightFollowsTheZoneItWasRecordedIn() throws {
+    let tokyo = #"{"HKTimeZone":"Asia/Tokyo"}"#
+    try database.write { db in
+      try HealthSample.insert {
+        stage(0, from: utc(13.75), hours: 8, metadata: tokyo)
+        stage(3, from: utc(14), hours: 3.5, metadata: tokyo)
+        stage(5, from: utc(17.5), hours: 4, metadata: tokyo)
+      }.execute(db)
+    }
+    let nights = try nights(endingOn: 16, count: 4)
+    #expect(nights.map(\.day) == [utc(0, day: 15)])
+    #expect(nights.first?.timeZone == TimeZone(identifier: "Asia/Tokyo"))
+    #expect(nights.first?.asleep == 7.5 * 3600)
+    #expect(nights.first?.inBed == 8.0 * 3600)
+    let latest = try database.read { db in
+      try HealthDatabase.latestPeriodDate(
+        of: self.sleep, by: utc(12, day: 20), calendar: self.utcCalendar, db)
+    }
+    #expect(latest == utc(0, day: 15))
+  }
+
+  /// A record's zone is read only from JSON metadata whose `HKTimeZone` is a zone's name: other
+  /// metadata loses only the zone, and the record stays.
+  @Test
+  func onlyAZonesNameIsAZone() throws {
+    let metadata: [String?] = [
+      #"{"HKTimeZone":"Europe/Kyiv"}"#, #"{"HKTimeZone":"Europe/Kiev"}"#, nil, "not JSON",
+      #"{"HKTimeZone":9}"#, #"{"HKTimeZone":"+09:00"}"#, #"{"HKTimeZone":"europe/kyiv"}"#,
+      #"{"HKTimeZone":null}"#, "{}", #"["Europe/Kyiv"]"#,
+    ]
+    try database.write { db in
+      try HealthSample.insert {
+        for (index, metadata) in metadata.enumerated() {
+          stage(3, from: utc(Double(index), day: 10), hours: 0.5, metadata: metadata)
+        }
+      }.execute(db)
+    }
+    let records = try database.read { db in
+      try HealthDatabase.sleepRecords(
+        in: utc(0, day: 10).unixMilliseconds..<utc(0, day: 11).unixMilliseconds, db)
+    }
+    #expect(
+      records.map(\.timeZone?.identifier)
+        == ["Europe/Kyiv", "Europe/Kiev", nil, nil, nil, nil, nil, nil, nil, nil])
   }
 }
 

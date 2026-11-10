@@ -83,9 +83,12 @@ struct CardWindowsTests {
     #expect(night.nightBedtime(calendar: london) == -1)
     // A day's sleep is a night of Sleep's page, but no night's sleep.
     #expect(nights[1].nightBedtime(calendar: london) == nil)
+    // From 18:00 the evening before the first day to 18:00 on the last, 26 hours wider on each
+    // side for nights recorded in other zones (851-4174).
+    let reach = 26 * 3_600_000
     #expect(
       CardNights.recordRange(days: date(10, 19)..<date(10, 26))
-        == ms(date(10, 18, 18))..<ms(date(10, 25, 18)))
+        == ms(date(10, 18, 18)) - reach..<ms(date(10, 25, 18)) + reach)
   }
 
   /// A source's records split into sessions where sleep stops for 3 hours or more, the one with
