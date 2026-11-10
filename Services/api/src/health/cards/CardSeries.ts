@@ -1,4 +1,3 @@
-import { seriesLookbackMillis } from "../tools/HealthQueries.ts";
 import type { CardReading } from "./CardEngine.ts";
 
 // Quantity series' values as readings (851-4172, `docs/decisions/cards.md` › Readings and weights):
@@ -8,12 +7,12 @@ import type { CardReading } from "./CardEngine.ts";
 // uploaded without its values stays one reading.
 
 /**
- * How long after its start (in milliseconds) a series' values count: a week, the tools'
- * `seriesLookbackMillis` (851-4171), as the Swift core's `CardSeries.reach`. A range reads the
+ * How long after its start (in milliseconds) a series' values count: a week, which the tools'
+ * `seriesLookbackMillis` is (851-4171), as the Swift core's `CardSeries.reach`. A range reads the
  * series that started this long before it too; values later than that, or after the sample's end,
  * count nowhere.
  */
-export const cardSeriesReach = seriesLookbackMillis;
+export const cardSeriesReach = 7 * 24 * 60 * 60 * 1000;
 
 interface Range {
   readonly start: number;
@@ -170,23 +169,4 @@ export const mergedReadings = (
   while (single < singles.length) merged.push(singles[single++]!);
   while (value < values.length) merged.push(values[value++]!);
   return merged;
-};
-
-/**
- * The latest reading started by `now` of a type whose latest sample started by then is `sample`,
- * for a Summary row's headline: the sample, or a series' value starting after it, or the sample's
- * own latest value when it's a series (`sampleIsSeries`). `values`: the readings starting from the
- * sample's start to `now` of the series that can have them.
- */
-export const latestSeriesReading = (
-  sample: CardReading,
-  sampleIsSeries: boolean,
-  values: ReadonlyArray<CardReading>,
-): CardReading => {
-  let latest: CardReading | null = sampleIsSeries ? null : sample;
-  for (const value of values) {
-    if (latest === null || value.start > latest.start) latest = value;
-  }
-  // A series whose values all start after `now`: its sample's value.
-  return latest ?? sample;
 };

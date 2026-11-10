@@ -430,7 +430,7 @@ public struct HealthKitCardEngine: Sendable {
   }
 
   /// The query's single samples' readings starting in `range`: its series are read by
-  /// `seriesReadings`.
+  /// `series(_:for:needsSampleIDs:)`.
   private func singleReadings(_ query: ReadingQuery, in range: Range<Int>, needsSampleIDs: Bool)
     async throws -> [CardReading]
   {
@@ -460,7 +460,7 @@ public struct HealthKitCardEngine: Sendable {
   }
 
   /// The query's series (samples with a `count` over 1) that can have values in one of `ranges`
-  /// (in order), by start then ID, each with every value, in order: those starting a day before
+  /// (in order), by start then ID, each with every value, in order: those starting a week before
   /// one or later (`CardSeries.starts(for:)`), and before its end, whose samples end in it or
   /// later, since a series' values are within its sample. An `HKSampleQuery` for the series,
   /// then, when there are any, an `HKQuantitySeriesSampleQuery` for each one's values, by its
@@ -493,7 +493,7 @@ public struct HealthKitCardEngine: Sendable {
           return finish(.failure(error ?? HKError(.errorHealthDataUnavailable)))
         }
         var series: [CardSeries.Series] = []
-        // A series can have values in a range it starts at most a day before, and before its
+        // A series can have values in a range it starts at most a week before, and before its
         // end, and ends in or after. Of the ranges ending after its start, the first is the one
         // to check: later ones start later. Ranges are in order and apart, and the samples come
         // by start, so it only moves on.
@@ -612,13 +612,17 @@ public struct HealthKitCardEngine: Sendable {
   }
 
   /// A type's latest reading started by `now`, in its catalog unit; `nil` without one.
-  /// A series' latest value is its latest reading (`CardSeries.latestReading`, 851-4172).
+  /// A series' most recent value is its reading, as the Mac's and the server's tools take it
+  /// (`HealthDatabase.latestReading`, 851-4171): HealthKit's value for a whole heart rate series
+  /// is its average, which isn't a reading anyone took. A series that started before the latest
+  /// sample (up to `CardSeries.reach`) whose most recent value is later, by `now`, is the latest
+  /// (a workout's, past a strap's reading during it). Ties go to the higher ID.
   public func latestReading(of typeID: String, startedBy now: Date) async throws -> CardReading? {
     guard let type = HKObjectType.quantityType(forIdentifier: .init(rawValue: typeID)),
       let unit = HealthCatalog.type(id: typeID)?.unit.map(HKUnit.init(from:))
     else { return nil }
     let predicate = NSPredicate(format: "%K <= %@", HKPredicateKeyPathStartDate, now as NSDate)
-    let latest: CardReading? = try await run { finish in
+    let sample: HKQuantitySample? = try await run { finish in
       HKSampleQuery(
         sampleType: type, predicate: predicate, limit: 1,
         sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
@@ -626,29 +630,60 @@ public struct HealthKitCardEngine: Sendable {
         guard let samples else {
           return finish(.failure(error ?? HKError(.errorHealthDataUnavailable)))
         }
-        finish(
-          .success(
-            Self.readings(
-              samples, unit: unit, in: .min ..< .max, needsSampleIDs: true,
-              skippingSeries: false
-            ).first))
+        finish(.success(samples.first as? HKQuantitySample))
       }
     }
-    guard let latest else { return nil }
-    let since = latest.start..<(now.milliseconds + 1)
-    let series = try await series(
-      ReadingQuery(type: type, unit: unit, predicates: []), for: [since], needsSampleIDs: true)
-    return CardSeries.latestReading(
-      sample: latest, sampleIsSeries: series.contains { $0.sample.sampleID == latest.sampleID },
-      values: CardSeries.readings(of: series, in: since).flatMap(\.self))
+    guard let sample else { return nil }
+    let latest = Self.mostRecent(of: sample, unit: unit)
+    let start = sample.startDate.milliseconds
+    let earlier = NSCompoundPredicate(
+      andPredicateWithSubpredicates: [
+        HKQuery.predicateForSamples(
+          withStart: Date(milliseconds: start - CardSeries.reach - 1),
+          end: Date(milliseconds: start + 1), options: .strictStartDate),
+        NSPredicate(format: "%K > 1", HKPredicateKeyPathCount),
+      ])
+    let upper = now.milliseconds
+    let later: CardReading? = try await run { finish in
+      HKSampleQuery(
+        sampleType: type, predicate: earlier, limit: HKObjectQueryNoLimit, sortDescriptors: nil
+      ) { _, samples, error in
+        guard let samples else {
+          return finish(.failure(error ?? HKError(.errorHealthDataUnavailable)))
+        }
+        let candidates = samples.compactMap { sample -> CardReading? in
+          guard let series = sample as? HKDiscreteQuantitySample, series.count > 1,
+            (start - CardSeries.reach...start).contains(series.startDate.milliseconds)
+          else { return nil }
+          let reading = Self.mostRecent(of: series, unit: unit)
+          return reading.start > latest.start && reading.start <= upper ? reading : nil
+        }
+        finish(.success(candidates.max { ($0.start, $0.sampleID) < ($1.start, $1.sampleID) }))
+      }
+    }
+    return later ?? latest
+  }
+
+  /// A sample as a reading: a discrete series' most recent value, else its own.
+  private static func mostRecent(of sample: HKQuantitySample, unit: HKUnit) -> CardReading {
+    let id = sample.uuid.uuidString.lowercased()
+    let source = sample.sourceRevision.source.bundleIdentifier
+    if let series = sample as? HKDiscreteQuantitySample, series.count > 1 {
+      let interval = series.mostRecentQuantityDateInterval
+      return CardReading(
+        start: interval.start.milliseconds, end: interval.end.milliseconds,
+        value: series.mostRecentQuantity.doubleValue(for: unit), source: source, sampleID: id)
+    }
+    return CardReading(
+      start: sample.startDate.milliseconds, end: sample.endDate.milliseconds,
+      value: sample.quantity.doubleValue(for: unit), source: source, sampleID: id)
   }
 
   /// Quantity samples (oldest first) as the core's readings, those starting in `range` (Unix
   /// milliseconds, half-open whatever HealthKit's end is). Made on HealthKit's queue, as its
   /// handler gets them, so a year's samples are never kept beside their readings.
   private static func readings(
-    _ samples: [HKSample], unit: HKUnit, in range: Range<Int>, needsSampleIDs: Bool,
-    skippingSeries: Bool = true
+    _ samples: [HKSample], unit: HKUnit, in range: Range<Int>, needsSampleIDs: Bool
   ) -> [CardReading] {
     var readings: [CardReading] = []
     readings.reserveCapacity(samples.count)
@@ -657,8 +692,8 @@ public struct HealthKitCardEngine: Sendable {
     var source = ""
     for case let sample as HKQuantitySample in samples {
       let start = sample.startDate.milliseconds
-      // A series is read as its values (`seriesReadings`).
-      guard range.contains(start), sample.count == 1 || !skippingSeries else { continue }
+      // A series is read as its values (`series(_:for:needsSampleIDs:)`).
+      guard range.contains(start), sample.count == 1 else { continue }
       let bundleID = sample.sourceRevision.source.bundleIdentifier
       if bundleID != source { source = bundleID }
       readings.append(

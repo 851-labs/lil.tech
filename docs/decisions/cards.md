@@ -457,7 +457,10 @@ A quantity series (`health_quantity_series`, 851-4149, `docs/decisions/health.md
 - **A series uploaded without its values** (more than `HealthEncoder.maxSeriesValues`, or arrays that don't line up) is one reading on the Mac and the server, its sample's, for every aggregation.
   - **The tools differ:** a card's reading has one value, so a card's `min` and `max` see the sample's value. The tools' minimum and maximum take the series' own (851-4171).
   - **The iPhone** always has the values, so it differs from the Mac and the server for such a series. It's rare. The tools' dataset has one (14 April 2026), which no card case reads; the iPhone's writer writes it as a single sample.
-- **Headlines:** a Summary row's latest reading (`latestReading`) is a series' latest value started by now, not its sample's, which is the whole series' (`CardSeries.latestReading`). It looks among the series that can have values since the latest sample started: a series from one source that started before another source's latest sample can have a later value.
+- **Headlines:** a Summary row's latest reading is the tools' latest reading (`HealthDatabase.latestReading`, the server's `latestReading`, 851-4171), and on the iPhone the same rule from HealthKit's `mostRecentQuantity`:
+  - a series' most recent value, not its sample's, which is the whole series' average;
+  - or a series that started up to a week before the latest sample whose most recent value is later, by now (a workout's, past a strap's reading during it);
+  - ties go to the higher ID.
 - **The Mac and the server** read a range's series by a new index of the series' (type, start) (the Mac's migration "Index quantity series by type and start", the store's migration 30), joined to their samples.
   - The samples query leaves out the series' samples, but only when a series starts in the range. A type without series reads exactly as before, plus one seek of the series' index (0.004 ms on the Mac).
     - **The Mac** leaves them out as it reads: it skips a row starting with one of them whose ID is one of theirs, reading the ID only for those rows. `NOT IN` the range's series, a lookup per row, took a year's card from 145 ms of fetching to 300 on a year of a run a day's series; this takes it to 200.

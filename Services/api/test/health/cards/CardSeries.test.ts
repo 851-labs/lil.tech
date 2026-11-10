@@ -6,7 +6,6 @@ import {
   cardSeries,
   cardSeriesReach,
   cardSeriesStarts,
-  latestSeriesReading,
   mergedReadings,
   readingsOfSeries,
   seriesReadings,
@@ -123,17 +122,5 @@ describe("CardSeries", () => {
       mergedReadings([], [b, a.slice(2)]).map(({ value }) => value),
       [21, 25, 40],
     );
-  });
-
-  it("finds the latest reading", () => {
-    const sample = reading(1000, 75, { source: strap, id: "s" });
-    const later = [reading(1000, 60, { id: "a" }), reading(1500, 90, { id: "a" })];
-    assert.strictEqual(latestSeriesReading(sample, false, later).value, 90);
-    // A value starting with the sample doesn't replace it.
-    assert.strictEqual(latestSeriesReading(sample, false, [later[0]!]).value, 75);
-    // The sample is the series: its latest value by now.
-    assert.strictEqual(latestSeriesReading(later[0]!, true, later).value, 90);
-    // A series without values by now: its sample.
-    assert.strictEqual(latestSeriesReading(sample, true, []).value, 75);
   });
 });

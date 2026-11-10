@@ -93,9 +93,11 @@ const insertSeries = (
     device: series.device ?? null,
   });
   const uploaded = series.uploadedValues ?? true;
+  const last = series.start + seconds.at(-1)! * 1000;
   sql.exec(
-    `INSERT INTO health_quantity_series (id, type, start_date, count, times, durations, "values")
-    VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO health_quantity_series (id, type, start_date, count, times, durations, "values",
+      most_recent, most_recent_start_date, most_recent_end_date)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     heartRate,
     series.start,
@@ -103,6 +105,9 @@ const insertSeries = (
     uploaded ? JSON.stringify(seconds) : null,
     uploaded ? JSON.stringify(seconds.map(() => 0)) : null,
     uploaded ? JSON.stringify(series.values) : null,
+    series.values.at(-1)!,
+    last,
+    last,
   );
   return id;
 };
@@ -490,7 +495,7 @@ describe("cardHeadline", () => {
     assert.strictEqual(headline?.data.series[0]!.points.length, 2);
   });
 
-  it("is a series' latest value started by then, from any source, not its sample's", () => {
+  it("is a series' most recent value, as the tools' latest, not its sample's", () => {
     const sql = makeStore();
     insertSeries(sql, {
       start: date(10, 20, 9),
@@ -505,8 +510,8 @@ describe("cardHeadline", () => {
       date: "2026-10-20T10:30:00+01:00",
     });
     assert.strictEqual(headline(date(10, 20, 10, 18))?.value, 75);
-    // The series is the latest sample: its latest value by then.
-    assert.strictEqual(headline(date(10, 20, 9, 45))?.value, 140);
+    // The series is the latest sample: its most recent value, as the tools take it.
+    assert.strictEqual(headline(date(10, 20, 9, 45))?.value, 90);
   });
 
   it("is a total's latest day with data, from its statistics or samples", () => {

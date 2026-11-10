@@ -442,7 +442,9 @@ struct CardQueriesTests {
         times: uploadedValues ? json(seconds) : nil,
         durations: uploadedValues ? json(seconds.map { _ in 0 }) : nil,
         values: uploadedValues ? json(values) : nil, minimum: values.min(),
-        maximum: values.max(), mostRecent: values.last)
+        maximum: values.max(), mostRecent: values.last,
+        mostRecentStartDate: start.addingTimeInterval(seconds.last ?? 0).unixMilliseconds,
+        mostRecentEndDate: start.addingTimeInterval(seconds.last ?? 0).unixMilliseconds)
     )
   }
 
@@ -523,8 +525,9 @@ struct CardQueriesTests {
     }
   }
 
-  /// A Summary row's latest reading is a series' latest value started by then, from any source,
-  /// not its sample's, which is the whole series' (851-4172).
+  /// A Summary row's latest reading is a series' most recent value, not its sample's, which is
+  /// the whole series', as the tools' latest (`latestReading`, 851-4171): a later one, by then,
+  /// from a series that started before another source's latest sample too (851-4172).
   @Test
   func aSeriesLatestValueIsTheLatestReading() throws {
     try database.write { db in
@@ -550,8 +553,8 @@ struct CardQueriesTests {
     #expect(try headline(at: date(10, 20, 12))?.value == 90)
     #expect(try headline(at: date(10, 20, 12))?.date == date(10, 20, 10.5))
     #expect(try headline(at: date(10, 20, 10.3))?.value == 75)
-    // The series is the latest sample: its latest value by then.
-    #expect(try headline(at: date(10, 20, 9.75))?.value == 140)
+    // The series is the latest sample: its most recent value, as the tools take it.
+    #expect(try headline(at: date(10, 20, 9.75))?.value == 90)
   }
 
   /// A night card's nights are Sleep's: on the catalogs' demo data, last night's heart rate while

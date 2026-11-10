@@ -17,12 +17,8 @@ import {
   headlineSearchEnds,
   leadPoints,
 } from "./CardEngine.ts";
-import {
-  fetchCardData,
-  fetchCardWindow,
-  latestCardReading,
-  latestDataStart,
-} from "./CardQueries.ts";
+import { latestReading } from "../tools/HealthQueries.ts";
+import { fetchCardData, fetchCardWindow, latestDataStart } from "./CardQueries.ts";
 import type {
   CardAggregation,
   CardBucket,
@@ -215,13 +211,14 @@ export const cardHeadline = (
     case undefined:
       return null;
     case "latestReading": {
-      const reading = latestCardReading(sql, lookup.type, now);
-      if (reading === null) return null;
+      // A series' most recent value, as the tools' latest (851-4171, 851-4172).
+      const reading = latestReading(sql, lookup.type, now);
+      if (reading === null || reading.value === null) return null;
       return {
         value: reading.value,
-        date: localTime(reading.start, calendar.zone),
+        date: localTime(reading.startDate, calendar.zone),
         kind: "reading",
-        data: json(run(reading.start)),
+        data: json(run(reading.startDate)),
       };
     }
     case "latestData": {

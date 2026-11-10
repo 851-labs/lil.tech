@@ -100,13 +100,6 @@ public enum CardSeries {
     return readings
   }
 
-  /// Whether one of `series` (by start) starts in `range`: then the samples in it are read
-  /// leaving series out, which are read as their values.
-  public static func anyStarts(in range: Range<Int>, _ series: [Series]) -> Bool {
-    let first = series.partitioningIndex { $0.sample.start >= range.lowerBound }
-    return first < series.endIndex && series[first].sample.start < range.upperBound
-  }
-
   /// Readings of single samples (oldest first, as fetched) with series' readings (each series'
   /// in order, the series by start), oldest first: by start, a single sample before a series'
   /// value starting in the same millisecond, and series' values starting together in their
@@ -147,22 +140,6 @@ public enum CardSeries {
     merged += singles[single...]
     merged += values[value...]
     return merged
-  }
-
-  /// The latest reading started by `now` of a type whose latest sample started by then is
-  /// `sample`, for a Summary row's headline (`CardSpec.HeadlineLookup.latestReading`): the
-  /// sample, or a series' value starting after it, or the sample's own latest value when it's a
-  /// series (`sampleIsSeries`). `values`: the readings starting from the sample's start to `now`
-  /// of the series that can have them (`starts(for:)`).
-  public static func latestReading(
-    sample: CardReading, sampleIsSeries: Bool, values: [CardReading]
-  ) -> CardReading {
-    var latest: CardReading? = sampleIsSeries ? nil : sample
-    for value in values where value.start > latest?.start ?? .min {
-      latest = value
-    }
-    // A series whose values all start after `now`: its sample's value.
-    return latest ?? sample
   }
 }
 

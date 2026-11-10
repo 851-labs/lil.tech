@@ -67,19 +67,14 @@ public struct QuantitySeriesSample: Equatable, Sendable {
   /// `seriesLookback` after its start; or, without its values, one for the sample, at its start
   /// (none without a value either).
   public var readings: [CardReading] {
-    guard let values else {
-      return value.map {
-        [CardReading(start: start, end: end, value: $0, source: source, sampleID: id)]
-      } ?? []
-    }
-    let reach = start + HealthDatabase.seriesLookbackMilliseconds
-    return values.values.indices.compactMap { index in
-      let interval = values.interval(at: index, sampleStart: start)
-      guard interval.start <= end, interval.start < reach else { return nil }
-      return CardReading(
-        start: interval.start, end: interval.end, value: values.values[index], source: source,
-        sampleID: id)
-    }
+    let sample = CardReading(
+      start: start, end: end, value: value ?? 0, source: source, sampleID: id)
+    guard let values else { return value == nil ? [] : [sample] }
+    // The cards' rules, one copy (`CardSeries.Series`, 851-4172).
+    return CardSeries.Series(
+      sample: sample, start: start, times: values.times, durations: values.durations,
+      values: values.values
+    ).values ?? []
   }
 }
 

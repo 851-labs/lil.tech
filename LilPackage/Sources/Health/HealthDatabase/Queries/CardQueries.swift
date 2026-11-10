@@ -111,10 +111,12 @@ extension HealthDatabase {
     case nil:
       return nil
     case .latestReading(let type):
-      guard let reading = try latestCardReading(of: type, startedBy: now, db) else { return nil }
-      let date = Date(unixMilliseconds: reading.start)
+      // A series' most recent value, as the tools' latest (851-4171, 851-4172).
+      guard let reading = try latestReading(of: type, startedBy: now, db),
+        let value = reading.value
+      else { return nil }
       return CardHeadline(
-        value: reading.value, date: date, kind: .reading, data: try run(endingOn: date))
+        value: value, date: reading.start, kind: .reading, data: try run(endingOn: reading.start))
     case .latestData(let type):
       guard let date = try latestPeriodDate(of: type, by: now, calendar: calendar, db) else {
         return nil
@@ -126,25 +128,6 @@ extension HealthDatabase {
       }
       return nil
     }
-  }
-
-  /// A type's latest reading started by `now`: its latest sample's, or a series' latest value
-  /// (`CardSeries.latestReading`, 851-4172).
-  static func latestCardReading(of type: String, startedBy now: Date, _ db: Database) throws
-    -> CardReading?
-  {
-    guard let sample = try latestSample(of: type, startedBy: now, db), let value = sample.value
-    else { return nil }
-    let upper = now.unixMilliseconds + 1
-    var parsed: [String: CardSeries.Series] = [:]
-    let series = try cardSeries(
-      of: type, for: sample.startDate..<upper, nil, parsed: &parsed, db)
-    return CardSeries.latestReading(
-      sample: CardReading(
-        start: sample.startDate, end: sample.endDate, value: value,
-        source: sample.sourceBundleID, sampleID: sample.id),
-      sampleIsSeries: series.contains { $0.sample.sampleID == sample.id },
-      values: CardSeries.readings(of: series, in: sample.startDate..<upper).flatMap(\.self))
   }
 
   /// When the period of `range` a card's page and the editor's preview open on is from
@@ -213,7 +196,7 @@ extension HealthDatabase {
   }
 
   /// The series of `type` that can have values in `range`, by start then ID, whose samples
-  /// match `filter`: those starting a day before it or later (`CardSeries.starts(for:)`), and
+  /// match `filter`: those starting a week before it or later (`CardSeries.starts(for:)`), and
   /// before its end, whose samples end in it or later, since a series' values are within its
   /// sample. A range of the series' (type, startDate) index. A series whose values don't parse is
   /// read as its sample. `parsed`: series parsed already, by ID, which are used again.
@@ -270,8 +253,14 @@ extension HealthDatabase {
     guard let text else { return [] }
     let bytes = UnsafeBufferPointer(start: text, count: Int(count))
     var index = 0
+    func isSpace(_ byte: UInt8) -> Bool {
+      switch byte {
+      case 0x20, 0x0A, 0x0D, 0x09: true
+      default: false
+      }
+    }
     func skipSpaces() {
-      while index < bytes.count, [0x20, 0x0A, 0x0D, 0x09].contains(bytes[index]) { index += 1 }
+      while index < bytes.count, isSpace(bytes[index]) { index += 1 }
     }
     skipSpaces()
     guard index < bytes.count, bytes[index] == UInt8(ascii: "[") else { return [] }
@@ -281,9 +270,8 @@ extension HealthDatabase {
     if index < bytes.count, bytes[index] == UInt8(ascii: "]") { return numbers }
     while index < bytes.count {
       let start = index
-      while index < bytes.count,
-        ![UInt8(ascii: ","), UInt8(ascii: "]"), 0x20, 0x0A, 0x0D, 0x09]
-          .contains(bytes[index])
+      while index < bytes.count, bytes[index] != UInt8(ascii: ","),
+        bytes[index] != UInt8(ascii: "]"), !isSpace(bytes[index])
       {
         index += 1
       }

@@ -403,8 +403,8 @@ struct HealthKitCardsTests {
     #expect(abs(averages[2] - (130 * 1500 + 100 * 3600) / 5100) < 1e-9)
   }
 
-  /// A Summary row's latest reading is a series' latest value started by then, not its sample's,
-  /// as on the Mac (`CardQueriesTests.aSeriesLatestValueIsTheLatestReading`).
+  /// A Summary row's latest reading is a series' most recent value, not its sample's, as on the
+  /// Mac (`CardQueriesTests.aSeriesLatestValueIsTheLatestReading`).
   @Test
   func aSeriesLatestValueIsTheLatestReading() async throws {
     let health = try await SyntheticHealthKit.empty()
@@ -421,9 +421,9 @@ struct HealthKitCardsTests {
     #expect(latest?.date == date(10, 20, 10, 30))
     #expect(
       try await engine.headline(card, now: date(10, 20, 10, 18), calendar: london)?.value == 75)
-    // The series is the latest sample: its latest value by then.
+    // The series is the latest sample: its most recent value, as the tools take it.
     #expect(
-      try await engine.headline(card, now: date(10, 20, 9, 45), calendar: london)?.value == 140)
+      try await engine.headline(card, now: date(10, 20, 9, 45), calendar: london)?.value == 90)
   }
 
   // MARK: - Cancelling

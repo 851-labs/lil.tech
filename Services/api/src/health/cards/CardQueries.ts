@@ -29,7 +29,6 @@ import {
   anySeriesStarts,
   cardSeries,
   cardSeriesStarts,
-  latestSeriesReading,
   mergedReadings,
   readingsOfSeries,
 } from "./CardSeries.ts";
@@ -227,35 +226,6 @@ const singleReadings = (
     };
   }
   return readings;
-};
-
-/**
- * A type's latest reading started by `now`: its latest sample's, or a series' latest value
- * (`latestSeriesReading`, 851-4172). Null without one.
- */
-export const latestCardReading = (sql: StoreSql, type: string, now: number): CardReading | null => {
-  const row = sql.rows(
-    `SELECT s.start_date, s.end_date, s.value, s.source_bundle_id, s.id FROM health_sample s
-    WHERE s.type = ? AND s.start_date <= ? AND ${liveSample}
-    ORDER BY s.start_date DESC, s.id DESC LIMIT 1`,
-    type,
-    now,
-  )[0];
-  if (row === undefined || row[2] === null) return null;
-  const sample: CardReading = {
-    start: Number(row[0]),
-    end: Number(row[1]),
-    value: Number(row[2]),
-    source: row[3] as string,
-    sampleId: row[4] as string,
-  };
-  const since = { start: sample.start, end: now + 1 };
-  const series = cardSeriesIn(sql, type, since, null);
-  return latestSeriesReading(
-    sample,
-    series.some((each) => each.sample.sampleId === sample.sampleId),
-    readingsOfSeries(series, since).flat(),
-  );
 };
 
 /**

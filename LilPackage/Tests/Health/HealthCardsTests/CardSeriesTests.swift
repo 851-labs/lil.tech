@@ -82,7 +82,7 @@ struct CardSeriesTests {
   }
 
   /// The series that can have readings in a range are those starting a week before it or later,
-  /// and before its end; a series starts in it if its sample does.
+  /// and before its end.
   @Test
   func readingsOfSeriesInARange() {
     let day = CardSeries.reach
@@ -94,8 +94,6 @@ struct CardSeriesTests {
     #expect(
       CardSeries.readings(of: all, in: (day + 500)..<(2 * day + 1)).flatMap { $0.map(\.value) }
         == [4, 5])
-    #expect(CardSeries.anyStarts(in: (day + 1)..<(2 * day + 1), all))
-    #expect(!CardSeries.anyStarts(in: (day + 1)..<(2 * day), all))
     #expect(CardSeries.starts(for: 1_000_000_000..<2_000_000_000) == 395_200_000..<2_000_000_000)
   }
 
@@ -112,26 +110,6 @@ struct CardSeriesTests {
     #expect(CardSeries.merged([], [a[...]]) == a)
     // Series one after another need no sort.
     #expect(CardSeries.merged([], [b[...], a[2...]]).map(\.value) == [21, 25, 40])
-  }
-
-  /// The latest reading is a series' value after the latest sample's start, or the sample's own
-  /// latest value when it's a series.
-  @Test
-  func latestReading() {
-    let sample = reading(1000, 75, source: strap, id: "s")
-    let later = [reading(1000, 60, id: "a"), reading(1500, 90, id: "a")]
-    #expect(
-      CardSeries.latestReading(sample: sample, sampleIsSeries: false, values: later).value == 90)
-    // A value starting with the sample doesn't replace it.
-    #expect(
-      CardSeries.latestReading(sample: sample, sampleIsSeries: false, values: [later[0]]).value
-        == 75)
-    // The sample is the series: its latest value by now.
-    #expect(
-      CardSeries.latestReading(sample: later[0], sampleIsSeries: true, values: later).value == 90)
-    // A series without values by now: its sample.
-    #expect(
-      CardSeries.latestReading(sample: sample, sampleIsSeries: true, values: []).value == 75)
   }
 
 }
