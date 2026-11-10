@@ -1,8 +1,8 @@
 #!/bin/bash
 # Checks `scripts/ci-shell` (851-4062), the Swift check's step shell, as the runner uses it: a step
 # signalled as the runner cancels it (SIGINT, then SIGTERM 7.5 seconds later) leaves nothing
-# running, whether its processes are the shell's descendants, in a group of their own, or ignore
-# SIGTERM; a step that ends leaves nothing it started in the background; and a step's status, `-e`
+# running, within the runner's 7.5 seconds, whether its processes are the shell's descendants, in a
+# group of their own, or ignore SIGINT and SIGTERM; a step that ends leaves nothing it started in the background; and a step's status, `-e`
 # and `pipefail` are `shell: bash`'s. `scripts/check --swift` runs it.
 set -eu
 
@@ -11,7 +11,7 @@ temporary=$(mktemp -d)
 trap 'rm -rf "$temporary"' EXIT
 failures=0
 # The steps' processes sleep this long, so a failing test can find them all.
-nap=600.$$
+nap=$((600000 + $$))
 
 fail() {
   echo "scripts/test-ci-shell: $*" >&2
@@ -22,7 +22,7 @@ fail() {
 # behind.
 kill_all() {
   kill -KILL "$@" 2>/dev/null || true
-  pkill -KILL -f "^sleep $nap\$" 2>/dev/null || true
+  pkill -KILL -f "^sleep $nap$" 2>/dev/null || true
 }
 
 # The pids in `$temporary/pids` still running.
@@ -36,10 +36,10 @@ running() {
 }
 
 # Like `scripts/check`: shell scripts running shell scripts, one in a group of its own, one that
-# ignores SIGTERM, each noting its pid.
+# ignores SIGINT and SIGTERM, each noting its pid.
 cat >"$temporary/step" <<EOF
 pids=$temporary/pids
-/bin/sh -c 'echo \$\$ >>"\$1"; trap "" TERM; sleep $nap & echo \$! >>"\$1"; wait' sh "\$pids" &
+/bin/sh -c 'echo \$\$ >>"\$1"; trap "" INT TERM; sleep $nap & echo \$! >>"\$1"; wait' sh "\$pids" &
 perl -e 'setpgrp(0, 0); exec "/bin/sh", "-c", "echo \\\$\\\$ >>\\"\\\$1\\"; sleep $nap; :", "sh", \$ARGV[0]' "\$pids" &
 /bin/sh -c 'echo \$\$ >>"\$1"; /bin/sh -c "echo \\\$\\\$ >>\\"\\\$1\\"; sleep $nap; :" sh "\$1"; :' sh "\$pids"
 EOF
@@ -67,7 +67,7 @@ fi
 status=0
 wait "$shell" || status=$?
 [ "$status" = 130 ] || fail "a cancelled step exited $status, not 130"
-[ $(($(date +%s) - start)) -le 4 ] || fail "took $(($(date +%s) - start)) seconds to stop"
+[ $(($(date +%s) - start)) -le 7 ] || fail "took $(($(date +%s) - start)) seconds to stop"
 left=$(running)
 if [ -n "$left" ]; then
   fail "left running after a cancel: $(echo "$left" | tr '\n' ' ')"
@@ -84,7 +84,8 @@ bash "$scripts/ci-shell" "$temporary/step" >"$temporary/output" 2>&1 || status=$
 left=$(running)
 if [ -n "$left" ]; then
   fail "left running after the step ended: $left"
-  kill_all "$left"
+  # shellcheck disable=SC2086 # A pid a word.
+  kill_all $left
 fi
 
 # `shell: bash`'s options: `-e`, and `pipefail`.

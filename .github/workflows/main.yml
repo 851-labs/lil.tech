@@ -8,11 +8,9 @@ name: main
 #   simulator (`swift-check.yml`).
 # - pixelbook: publishes the merge's state catalog images to Pixelbook, and points its main at them.
 #
-# Deploys and Pixelbook's pointer are never cancelled, so every merge is deployed and published:
-# jobs that must not overlap queue in order (`queue: max` keeps up to 100 waiting, where the
-# default keeps one and cancels the rest). The Swift check runs one merge at a time, never
-# cancelled once it started, and of the merges waiting behind it only the newest is checked,
-# since it has the others' changes (851-4062).
+# Nothing here is ever cancelled, so every merge is deployed and checked: jobs that must not
+# overlap queue in order (`queue: max` keeps up to 100 waiting, where the default keeps one and
+# cancels the rest).
 
 on:
   push:
@@ -95,12 +93,6 @@ jobs:
     name: swift
     needs: changes
     if: needs.changes.outputs.swift == 'true'
-    # One at a time, and the default queue: a newer merge's check replaces one that's waiting
-    # (whose run then shows as cancelled, though it deployed and published), so the minis check
-    # main's newest code next, not each merge in turn.
-    concurrency:
-      group: main-swift
-      cancel-in-progress: false
     uses: ./.github/workflows/swift-check.yml
     with:
       iphone: true

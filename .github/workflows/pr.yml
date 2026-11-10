@@ -52,11 +52,15 @@ jobs:
       group: pr-swift-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       swift: ${{ steps.changes.outputs.swift }}
       services: ${{ steps.changes.outputs.services }}
       iphone: ${{ steps.changes.outputs.iphone }}
       healthkit: ${{ steps.changes.outputs.healthkit }}
+      latest: ${{ steps.latest.outputs.latest }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -66,12 +70,31 @@ jobs:
         uses: ./.github/actions/changes
         with:
           base: ${{ github.event.pull_request.base.sha }}
+      # Groups don't order their jobs by run: a `check` that joined after a newer push's `changes`
+      # would cancel that one, and leave the PR's head unchecked. So a run whose commit is no
+      # longer the PR's head doesn't check it, and its `check` never joins. When GitHub can't say,
+      # it does.
+      - name: check the commit is the pr's head
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .head.sha || true)
+          if [ -n "$head" ] && [ "$head" != "$SHA" ]; then
+            echo "::notice::$SHA is no longer the PR's head ($head), so this run doesn't check it."
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          fi
 
   check:
     name: swift
     needs: changes
     if: >-
       needs.changes.outputs.swift == 'true' &&
+      needs.changes.outputs.latest == 'true' &&
       github.event.pull_request.head.repo.full_name == github.repository
     # A new push cancels the check of the one before (and its `changes`, above, already has).
     concurrency:
