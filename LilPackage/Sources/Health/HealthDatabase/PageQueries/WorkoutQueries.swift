@@ -215,13 +215,24 @@ public struct RouteLocation: Equatable, Sendable {
   public var altitude: Double
   /// Meters a second, or negative if unknown.
   public var speed: Double
+  /// Meters, or negative if unknown: then `altitude` is unknown too.
+  public var horizontalAccuracy: Double
+  public var verticalAccuracy: Double
+  /// Degrees from true north, or negative if unknown.
+  public var course: Double
 
-  public init(time: Date, latitude: Double, longitude: Double, altitude: Double, speed: Double) {
+  public init(
+    time: Date, latitude: Double, longitude: Double, altitude: Double, speed: Double,
+    horizontalAccuracy: Double = -1, verticalAccuracy: Double = -1, course: Double = -1
+  ) {
     self.time = time
     self.latitude = latitude
     self.longitude = longitude
     self.altitude = altitude
     self.speed = speed
+    self.horizontalAccuracy = horizontalAccuracy
+    self.verticalAccuracy = verticalAccuracy
+    self.course = course
   }
 }
 
@@ -394,7 +405,8 @@ extension HealthDatabase {
         }
         return RouteLocation(
           time: Date(timeIntervalSince1970: double(0)), latitude: double(8),
-          longitude: double(16), altitude: float(24), speed: float(36))
+          longitude: double(16), altitude: float(24), speed: float(36),
+          horizontalAccuracy: float(28), verticalAccuracy: float(32), course: float(40))
       }
     }
   }
@@ -443,7 +455,7 @@ extension HealthDatabase {
   }
 
   /// Meters between two points, along the Earth's surface.
-  static func distance(_ a: RouteLocation, _ b: RouteLocation) -> Double {
+  public static func distance(_ a: RouteLocation, _ b: RouteLocation) -> Double {
     let radius = 6_371_000.0
     let (lat1, lat2) = (a.latitude * .pi / 180, b.latitude * .pi / 180)
     let dLat = lat2 - lat1

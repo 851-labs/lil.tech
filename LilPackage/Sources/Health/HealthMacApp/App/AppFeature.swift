@@ -188,6 +188,16 @@ public struct AppFeature {
         case .createCard, .updateCard, .deleteCard, .reorderCards:
           // Written as Summary's are, so they show at once and sync (851-4014).
           return .send(.cards(.agentRequested(request)))
+        case .downloadBlob(let sha256):
+          // Into the cache `lil-health` reads, as a page downloads a route (851-4164).
+          return .run { [blobCache] _ in
+            do {
+              _ = try await blobCache.data(for: sha256)
+              request.finish(.success(.done))
+            } catch {
+              request.finish(.failure(HealthAppActionError.downloadFailed))
+            }
+          }
         }
 
       case .binding:

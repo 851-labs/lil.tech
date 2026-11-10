@@ -49,10 +49,14 @@ public enum HealthCLI {
     public var app: AppConnection
     /// How long they wait for it.
     public var timing: Timing
+    /// The app's cache of health blobs (`BlobCache`), where the route tools read a route's
+    /// points, and ask the app to download them into when they aren't there (851-4164).
+    public var blobDirectory: URL?
 
     public init(
       directory: URL, now: @escaping @Sendable () -> Date, process: String,
-      timeZone: String? = nil, app: AppConnection = .notInstalled, timing: Timing = Timing()
+      timeZone: String? = nil, app: AppConnection = .notInstalled, timing: Timing = Timing(),
+      blobDirectory: URL? = nil
     ) {
       self.directory = directory
       self.now = now
@@ -60,6 +64,7 @@ public enum HealthCLI {
       self.timeZone = timeZone
       self.app = app
       self.timing = timing
+      self.blobDirectory = blobDirectory
     }
 
     /// The app's own folder, the clock, the parent process, and the app.
@@ -71,7 +76,8 @@ public enum HealthCLI {
       #endif
       return Self(
         directory: HealthDatabase.macDirectory, now: { Date() },
-        process: AgentAccessStore.callingProcess() ?? "unknown", app: app)
+        process: AgentAccessStore.callingProcess() ?? "unknown", app: app,
+        blobDirectory: liveBlobDirectory)
     }
   }
 
@@ -137,7 +143,7 @@ public enum HealthCLI {
       .authorize(command: commandLine(arguments), process: context.process)
     let database = try HealthDatabase.openForReading(
       at: context.directory.appending(path: "Health.sqlite"))
-    let tools = HealthTools(now: context.now(), defaultTimeZone: context.timeZone)
+    let tools = context.tools()
     let answer = try database.read { db in try command.answer(tools, db) }
     guard command.output.json else { return answer.text }
     return try encode(answer.json)
@@ -160,6 +166,7 @@ public enum HealthCLI {
     // Including SQLite's: a damaged database, or one the app kept locked past the timeout.
     case is HealthDatabase.ReadError, is DatabaseError: return message(Status.unavailable)
     case is HealthToolError: return message(Status.dataError)
+    case is BlobUnavailable: return message(Status.unavailable)
     default:
       let text = LilHealthCommand.fullMessage(for: error) + "\n"
       let status = LilHealthCommand.exitCode(for: error).rawValue

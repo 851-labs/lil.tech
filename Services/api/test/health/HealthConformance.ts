@@ -5,6 +5,7 @@ import { SqlClient } from "effect/sql";
 import { TestClock } from "effect/testing";
 import type { DeviceId, UserId } from "../../src/core/Ids.ts";
 import { healthBatchKey, ingestHealthBatch } from "../../src/health/HealthIngestion.ts";
+import type { HealthBlobReader } from "../../src/health/tools/WorkoutRoutes.ts";
 import { UserStores } from "../../src/store/UserStores.ts";
 import { TestCore } from "../core/TestCoreDatabase.ts";
 import { TestStores, TestUserStores } from "../store/TestUserStores.ts";
@@ -42,6 +43,21 @@ export const readDataset = (url: URL): ReadonlyArray<Batch> => {
   const file = readJson(url, DatasetFile);
   const base = file.extends === undefined ? [] : readDataset(new URL(file.extends, url));
   return [...base, ...file.batches];
+};
+
+/**
+ * The health blobs a dataset's rows refer to (`blobs.json`, base64 by SHA-256), as the store reads
+ * them from R2 for the route tools (851-4164).
+ */
+export const readBlobs = (url: URL): HealthBlobReader => {
+  const { blobs } = readJson(
+    url,
+    Schema.Struct({ blobs: Schema.Record(Schema.String, Schema.String) }),
+  );
+  return (sha256) =>
+    Effect.succeed(
+      blobs[sha256] === undefined ? null : new Uint8Array(Buffer.from(blobs[sha256], "base64")),
+    );
 };
 
 // Synthetic data only (AGENTS.md).

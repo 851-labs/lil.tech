@@ -4865,7 +4865,7 @@
           },
           "hasRoute": {
             "type": "boolean",
-            "description": "Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't."
+            "description": "Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't. workout_route reads it, by the workout's ID."
           },
           "source": {
             "type": "string",
@@ -5297,7 +5297,7 @@
           },
           "hasRoute": {
             "type": "boolean",
-            "description": "Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't."
+            "description": "Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't. workout_route reads it, by the workout's ID."
           },
           "source": {
             "type": "string",
@@ -5468,6 +5468,426 @@
         "required": [
           "timeZone",
           "workout"
+        ],
+        "additionalProperties": true
+      },
+      "HealthWorkoutRouteItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "HealthKit's UUID for the route."
+          },
+          "workout": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The ID of the workout HealthKit linked it to, or null if it links none: then workout_route still finds it by the ID of a workout it was recorded during."
+          },
+          "start": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "end": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "duration": {
+            "type": "number",
+            "description": "Seconds, from start to end."
+          },
+          "pointCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "How many GPS points it has."
+          },
+          "source": {
+            "type": "string",
+            "description": "The app or device that recorded it."
+          }
+        },
+        "required": [
+          "id",
+          "workout",
+          "start",
+          "end",
+          "duration",
+          "pointCount",
+          "source"
+        ],
+        "additionalProperties": true
+      },
+      "HealthWorkoutRoutesResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "range": {
+            "type": "string",
+            "description": "The range asked for: D, W, M, 6M or Y."
+          },
+          "start": {
+            "type": "string",
+            "description": "When the period starts."
+          },
+          "end": {
+            "type": "string",
+            "description": "When the period ends (exclusive)."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Routes that start in the period, all of them."
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthWorkoutRouteItem"
+            },
+            "description": "The routes, newest first, at most 100."
+          }
+        },
+        "required": [
+          "timeZone",
+          "range",
+          "start",
+          "end",
+          "count",
+          "routes"
+        ],
+        "additionalProperties": true
+      },
+      "HealthRouteShapePoint": {
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "latitude": {
+            "type": "number",
+            "description": "Degrees, to 5 decimal places."
+          },
+          "longitude": {
+            "type": "number",
+            "description": "Degrees, to 5 decimal places."
+          },
+          "altitude": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Meters above sea level. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know."
+          }
+        },
+        "required": [
+          "time",
+          "latitude",
+          "longitude",
+          "altitude"
+        ],
+        "additionalProperties": true
+      },
+      "HealthRouteShape": {
+        "type": "object",
+        "properties": {
+          "tolerance": {
+            "type": "number",
+            "description": "Meters: no point of the route is further than this from the line through points. 5 m, doubled until it keeps at most 500 points."
+          },
+          "pointCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "How many points it kept."
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthRouteShapePoint"
+            },
+            "description": "The points it kept, in order, the first and last included."
+          }
+        },
+        "required": [
+          "tolerance",
+          "pointCount",
+          "points"
+        ],
+        "additionalProperties": true,
+        "description": "Its shape, simplified (Ramer-Douglas-Peucker): enough to draw it, or to tell where it went and when."
+      },
+      "HealthWorkoutRouteDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "HealthKit's UUID for the route."
+          },
+          "workout": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The ID of the workout HealthKit linked it to, or null if it links none: then workout_route still finds it by the ID of a workout it was recorded during."
+          },
+          "start": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "end": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "duration": {
+            "type": "number",
+            "description": "Seconds, from start to end."
+          },
+          "pointCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "How many GPS points it has."
+          },
+          "source": {
+            "type": "string",
+            "description": "The app or device that recorded it."
+          },
+          "distance": {
+            "type": "number",
+            "description": "Meters along its points, from each to the next on the Earth's surface. The workout's own distance, which the Watch also measures by motion, may differ a little."
+          },
+          "elevationGain": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Meters climbed: every rise from one point to the next, among the points with a known altitude, to 2 decimal places. From GPS, so noisier, and usually higher, than the workout's elevationAscended, which the barometer measures. Null without two such points."
+          },
+          "elevationLoss": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Meters descended, as elevationGain counts climbs."
+          },
+          "bounds": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "south": {
+                "type": "number",
+                "description": "The lowest latitude, in degrees."
+              },
+              "west": {
+                "type": "number",
+                "description": "The lowest longitude, in degrees."
+              },
+              "north": {
+                "type": "number",
+                "description": "The highest latitude, in degrees."
+              },
+              "east": {
+                "type": "number",
+                "description": "The highest longitude, in degrees."
+              }
+            },
+            "required": [
+              "south",
+              "west",
+              "north",
+              "east"
+            ],
+            "additionalProperties": true,
+            "description": "The box its points fit in, to 5 decimal places (about a meter)."
+          },
+          "startArea": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "latitude": {
+                "type": "number"
+              },
+              "longitude": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "latitude",
+              "longitude"
+            ],
+            "additionalProperties": true,
+            "description": "About where it starts: its first point, to 3 decimal places (about 100 m)."
+          },
+          "endArea": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "latitude": {
+                "type": "number"
+              },
+              "longitude": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "latitude",
+              "longitude"
+            ],
+            "additionalProperties": true,
+            "description": "About where it ends: its last point, to 3 decimal places (about 100 m)."
+          },
+          "simplified": {
+            "$ref": "#/components/schemas/HealthRouteShape"
+          }
+        },
+        "required": [
+          "id",
+          "workout",
+          "start",
+          "end",
+          "duration",
+          "pointCount",
+          "source",
+          "distance",
+          "elevationGain",
+          "elevationLoss",
+          "bounds",
+          "startArea",
+          "endArea",
+          "simplified"
+        ],
+        "additionalProperties": true
+      },
+      "HealthWorkoutRouteResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "route": {
+            "$ref": "#/components/schemas/HealthWorkoutRouteDetail"
+          }
+        },
+        "required": [
+          "timeZone",
+          "route"
+        ],
+        "additionalProperties": true
+      },
+      "HealthRoutePoint": {
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "latitude": {
+            "type": "number",
+            "description": "Degrees."
+          },
+          "longitude": {
+            "type": "number",
+            "description": "Degrees."
+          },
+          "altitude": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Meters above sea level. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know."
+          },
+          "horizontalAccuracy": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Meters: the radius the true position is within. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know."
+          },
+          "verticalAccuracy": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Meters: how far the true altitude may be. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know."
+          },
+          "speed": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Meters per second. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know."
+          },
+          "course": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Degrees from true north it was heading. Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know."
+          }
+        },
+        "required": [
+          "time",
+          "latitude",
+          "longitude",
+          "altitude",
+          "horizontalAccuracy",
+          "verticalAccuracy",
+          "speed",
+          "course"
+        ],
+        "additionalProperties": true
+      },
+      "HealthWorkoutRoutePointsResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "id": {
+            "type": "string",
+            "description": "The route's ID."
+          },
+          "pointCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "How many points the route has, all of them."
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthRoutePoint"
+            },
+            "description": "This page's points, in order."
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass it as `cursor` for the next page; null on the last page."
+          }
+        },
+        "required": [
+          "timeZone",
+          "id",
+          "pointCount",
+          "points",
+          "nextCursor"
         ],
         "additionalProperties": true
       },

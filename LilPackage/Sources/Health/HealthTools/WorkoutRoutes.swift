@@ -1,0 +1,434 @@
+import Foundation
+import HealthDatabase
+public import SQLiteData
+
+// The route tools (851-4164): `workout_routes` lists routes from their rows, and `workout_route`
+// and `workout_route_points` read one route's points from its blob, as the remote server does
+// (`Services/api/src/health/tools/WorkoutRoutes.ts`), rule for rule. Routes are precise
+// locations, so `workout_route` gives a summary and a simplified shape, and every point only
+// comes a page at a time from `workout_route_points`, as the privacy policy says (851-4157).
+
+extension HealthTools {
+  /// The most routes `workout_routes` lists.
+  public static let workoutRoutesLimit = 100
+  /// The most points `workout_route`'s simplified shape keeps.
+  public static let routeShapeLimit = 500
+  /// The shape's first tolerance, in meters, doubled until it keeps few enough points.
+  public static let routeShapeTolerance = 5.0
+  /// The most points `workout_route_points` returns, and how many it returns by default.
+  public static let routePointsLimit = 1000
+  public static let routePointsDefaultLimit = 500
+
+  // MARK: - workout_routes
+
+  /// The routes with points that start in the period, newest first, at most
+  /// `workoutRoutesLimit`, with how many there are.
+  public func workoutRoutes(
+    range: ToolRange, date: String? = nil, timeZone: String? = nil, _ db: Database
+  ) throws -> HealthWorkoutRoutesResult {
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
+    let period = try ToolPeriod(range, date: date, now: now, time: time)
+    let (lower, upper) = (period.start.unixMilliseconds, period.end.unixMilliseconds)
+    let inPeriod = HealthWorkoutRoute.where {
+      $0.locations.isNot(nil) && $0.startDate >= lower && $0.startDate < upper
+    }
+    let count = try inPeriod.select { $0.id.count() }.fetchOne(db) ?? 0
+    let routes =
+      try inPeriod
+      .order { ($0.startDate.desc(), $0.id.desc()) }
+      .limit(Self.workoutRoutesLimit)
+      .fetchAll(db)
+    return HealthWorkoutRoutesResult(
+      timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
+      end: time.localTime(period.end), count: count,
+      routes: routes.map { Self.routeItem($0, pointCount: $0.locationCount, time: time) })
+  }
+
+  // MARK: - workout_route
+
+  /// One route in summary, by its ID or its workout's: distance, elevation, bounds, where it
+  /// starts and ends, and its simplified shape.
+  public func workoutRoute(id: String, timeZone: String? = nil, _ db: Database) throws
+    -> HealthWorkoutRouteResult
+  {
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
+    let route = try Self.route(id: id, db)
+    let points = try routePoints(route)
+    let distance = zip(points, points.dropFirst()).reduce(0) {
+      $0 + HealthDatabase.distance($1.0, $1.1)
+    }
+    let (gain, loss) = Self.elevation(points)
+    func area(_ point: RouteLocation?) -> HealthRouteCoordinate? {
+      point.map {
+        HealthRouteCoordinate(
+          latitude: Self.rounded($0.latitude, 1000), longitude: Self.rounded($0.longitude, 1000))
+      }
+    }
+    let item = Self.routeItem(route, pointCount: points.count, time: time)
+    return HealthWorkoutRouteResult(
+      timeZone: time.name,
+      route: HealthWorkoutRouteDetail(
+        id: item.id, workout: item.workout, start: item.start, end: item.end,
+        duration: item.duration, pointCount: item.pointCount, source: item.source,
+        distance: distance, elevationGain: gain, elevationLoss: loss,
+        bounds: Self.bounds(points), startArea: area(points.first), endArea: area(points.last),
+        simplified: Self.shape(points, time: time)))
+  }
+
+  // MARK: - workout_route_points
+
+  /// A page of a route's points, in order. The cursor is the index of the page's first point.
+  public func workoutRoutePoints(
+    id: String, timeZone: String? = nil, cursor: String? = nil, limit: Int? = nil,
+    _ db: Database
+  ) throws -> HealthWorkoutRoutePointsResult {
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
+    let route = try Self.route(id: id, db)
+    let points = try routePoints(route)
+    let limit = limit ?? Self.routePointsDefaultLimit
+    guard (1...Self.routePointsLimit).contains(limit) else {
+      throw HealthToolError("The limit must be from 1 to \(Self.routePointsLimit).")
+    }
+    let start =
+      try cursor.map { cursor in
+        // 1 to 9 digits, as the remote server reads it.
+        guard (1...9).contains(cursor.utf8.count),
+          cursor.utf8.allSatisfy({ (48...57).contains($0) }),
+          let index = Int(cursor), index <= points.count
+        else {
+          throw HealthToolError("Invalid cursor: \(cursor). Pass the previous page's nextCursor.")
+        }
+        return index
+      } ?? 0
+    let end = min(start + limit, points.count)
+    return HealthWorkoutRoutePointsResult(
+      timeZone: time.name, id: route.id, pointCount: points.count,
+      points: points[start..<end].map { point in
+        HealthRoutePoint(
+          time: time.localTime(point.time), latitude: point.latitude,
+          longitude: point.longitude, altitude: Self.altitude(point),
+          horizontalAccuracy: Self.known(point.horizontalAccuracy),
+          verticalAccuracy: Self.known(point.verticalAccuracy), speed: Self.known(point.speed),
+          course: Self.known(point.course))
+      },
+      nextCursor: end < points.count ? String(end) : nil)
+  }
+
+  // MARK: - Reading routes
+
+  /// The route `id` names: the route with that ID, if it has points; else the route of the
+  /// workout with that ID, as its page finds it (`HealthDatabase.route(of:)`).
+  static func route(id: String, _ db: Database) throws -> HealthWorkoutRoute {
+    if let route = try HealthWorkoutRoute.where({ $0.id.eq(id) && $0.locations.isNot(nil) })
+      .fetchOne(db)
+    {
+      return route
+    }
+    guard let workout = try HealthWorkout.where({ $0.id.eq(id) }).fetchOne(db) else {
+      throw HealthToolError(
+        "No workout or route with ID \(id). workouts and workout_routes list them, with their IDs."
+      )
+    }
+    guard let route = try HealthDatabase.route(of: workout, db) else {
+      throw HealthToolError(
+        "The workout \(id) has no route: it was recorded without GPS (hasRoute is false).")
+    }
+    return route
+  }
+
+  /// A route's points, from its blob, leaving out any whose time, latitude or longitude isn't a
+  /// finite number.
+  func routePoints(_ route: HealthWorkoutRoute) throws -> [RouteLocation] {
+    guard let sha256 = route.locations else {
+      throw HealthToolError("The route \(route.id)'s points aren't on the server. Try again later.")
+    }
+    return HealthDatabase.routeLocations(try blob(sha256)).filter {
+      $0.time.timeIntervalSince1970.isFinite && $0.latitude.isFinite && $0.longitude.isFinite
+    }
+  }
+
+  /// What both lists say of a route.
+  private static func routeItem(_ route: HealthWorkoutRoute, pointCount: Int, time: ToolTime)
+    -> HealthWorkoutRouteItem
+  {
+    HealthWorkoutRouteItem(
+      id: route.id, workout: route.workout,
+      start: time.localTime(Date(unixMilliseconds: route.startDate)),
+      end: time.localTime(Date(unixMilliseconds: route.endDate)),
+      duration: Double(route.endDate - route.startDate) / 1000, pointCount: pointCount,
+      source: route.sourceName)
+  }
+
+  /// `value` to the places `factor` gives (100 for 2), halves away from zero, as the remote
+  /// server rounds them, and never `-0`.
+  static func rounded(_ value: Double, _ factor: Double) -> Double {
+    let rounded = (abs(value) * factor).rounded(.toNearestOrAwayFromZero) / factor
+    return (value < 0 ? -rounded : rounded) + 0
+  }
+
+  /// A 32-bit value a device may not have known (negative), to 2 places, or `nil`.
+  private static func known(_ value: Double) -> Double? {
+    value.isFinite && value >= 0 ? rounded(value, 100) : nil
+  }
+
+  /// A point's altitude, or `nil` when its vertical accuracy says it's unknown, as Core Location
+  /// does.
+  private static func altitude(_ point: RouteLocation) -> Double? {
+    point.verticalAccuracy >= 0 && point.altitude.isFinite ? rounded(point.altitude, 100) : nil
+  }
+
+  /// Meters climbed and descended between the points with a known altitude, or `nil`s without
+  /// two.
+  private static func elevation(_ points: [RouteLocation]) -> (gain: Double?, loss: Double?) {
+    let altitudes = points.filter { $0.verticalAccuracy >= 0 && $0.altitude.isFinite }
+      .map(\.altitude)
+    guard altitudes.count >= 2 else { return (nil, nil) }
+    var (gain, loss) = (0.0, 0.0)
+    for (previous, next) in zip(altitudes, altitudes.dropFirst()) {
+      let change = next - previous
+      if change > 0 { gain += change } else { loss -= change }
+    }
+    return (rounded(gain, 100), rounded(loss, 100))
+  }
+
+  /// The box the points fit in, to 5 places, or `nil` without any.
+  private static func bounds(_ points: [RouteLocation]) -> HealthRouteBounds? {
+    guard !points.isEmpty else { return nil }
+    var (south, west) = (Double.infinity, Double.infinity)
+    var (north, east) = (-Double.infinity, -Double.infinity)
+    for point in points {
+      south = min(south, point.latitude)
+      north = max(north, point.latitude)
+      west = min(west, point.longitude)
+      east = max(east, point.longitude)
+    }
+    return HealthRouteBounds(
+      south: rounded(south, 100_000), west: rounded(west, 100_000),
+      north: rounded(north, 100_000), east: rounded(east, 100_000))
+  }
+
+  /// The simplified shape: at `routeShapeTolerance`, doubled until it keeps `routeShapeLimit`
+  /// or fewer.
+  private static func shape(_ points: [RouteLocation], time: ToolTime) -> HealthRouteShape {
+    var tolerance = routeShapeTolerance
+    var indices = simplified(points, tolerance: tolerance)
+    while indices.count > routeShapeLimit {
+      tolerance *= 2
+      indices = simplified(points, tolerance: tolerance)
+    }
+    return HealthRouteShape(
+      tolerance: tolerance, pointCount: indices.count,
+      points: indices.map { index in
+        let point = points[index]
+        return HealthRouteShapePoint(
+          time: time.localTime(point.time), latitude: rounded(point.latitude, 100_000),
+          longitude: rounded(point.longitude, 100_000), altitude: altitude(point))
+      })
+  }
+
+  /// The indices of the points Ramer-Douglas-Peucker keeps at `tolerance` meters, in order: the
+  /// first and last, and every point further than `tolerance` from the line between the points
+  /// kept around it. Distances are on a flat projection around the first point (meters east and
+  /// north), each from the segment, not the infinite line; of points as far, the first is kept.
+  static func simplified(_ points: [RouteLocation], tolerance: Double) -> [Int] {
+    guard points.count > 2 else { return Array(points.indices) }
+    let origin = points[0]
+    let radius = 6_371_000.0
+    let east = Double.pi / 180 * radius * cos(origin.latitude * .pi / 180)
+    let north = Double.pi / 180 * radius
+    let x = points.map { ($0.longitude - origin.longitude) * east }
+    let y = points.map { ($0.latitude - origin.latitude) * north }
+    func fromSegment(_ index: Int, _ start: Int, _ end: Int) -> Double {
+      let (dx, dy) = (x[end] - x[start], y[end] - y[start])
+      let length = dx * dx + dy * dy
+      let along =
+        length == 0
+        ? 0 : min(1, max(0, ((x[index] - x[start]) * dx + (y[index] - y[start]) * dy) / length))
+      let (ex, ey) = (x[start] + along * dx - x[index], y[start] + along * dy - y[index])
+      return (ex * ex + ey * ey).squareRoot()
+    }
+    var kept = [Bool](repeating: false, count: points.count)
+    kept[0] = true
+    kept[points.count - 1] = true
+    var spans = [(0, points.count - 1)]
+    while let (start, end) = spans.popLast() {
+      var furthest: Int?
+      var furthestDistance = tolerance
+      for index in (start + 1)..<end {
+        let away = fromSegment(index, start, end)
+        if away > furthestDistance {
+          furthest = index
+          furthestDistance = away
+        }
+      }
+      if let furthest {
+        kept[furthest] = true
+        spans.append((start, furthest))
+        spans.append((furthest, end))
+      }
+    }
+    return kept.indices.filter { kept[$0] }
+  }
+}
+
+// MARK: - Outputs
+
+extension KeyedEncodingContainer {
+  /// Encodes `nil` as `null`, rather than leaving the key out.
+  fileprivate mutating func encode<Value: Encodable>(_ value: Value?, _ key: Key) throws {
+    try encode(value, forKey: key)
+  }
+}
+
+public struct HealthWorkoutRouteItem: Codable, Equatable, Sendable {
+  public var id: String
+  /// The workout HealthKit linked it to.
+  public var workout: String?
+  public var start: String
+  public var end: String
+  /// Seconds.
+  public var duration: Double
+  public var pointCount: Int
+  public var source: String
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(id, .id)
+    try container.encode(workout, .workout)
+    try container.encode(start, .start)
+    try container.encode(end, .end)
+    try container.encode(duration, .duration)
+    try container.encode(pointCount, .pointCount)
+    try container.encode(source, .source)
+  }
+}
+
+public struct HealthWorkoutRoutesResult: HealthToolOutput {
+  public var timeZone: String
+  public var range: String
+  public var start: String
+  public var end: String
+  public var count: Int
+  public var routes: [HealthWorkoutRouteItem]
+}
+
+public struct HealthRouteCoordinate: Codable, Equatable, Sendable {
+  public var latitude: Double
+  public var longitude: Double
+}
+
+public struct HealthRouteBounds: Codable, Equatable, Sendable {
+  public var south: Double
+  public var west: Double
+  public var north: Double
+  public var east: Double
+}
+
+public struct HealthRouteShapePoint: Codable, Equatable, Sendable {
+  public var time: String
+  public var latitude: Double
+  public var longitude: Double
+  /// Meters, if known.
+  public var altitude: Double?
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(time, .time)
+    try container.encode(latitude, .latitude)
+    try container.encode(longitude, .longitude)
+    try container.encode(altitude, .altitude)
+  }
+}
+
+public struct HealthRouteShape: Codable, Equatable, Sendable {
+  /// Meters.
+  public var tolerance: Double
+  public var pointCount: Int
+  public var points: [HealthRouteShapePoint]
+}
+
+public struct HealthWorkoutRouteDetail: Codable, Equatable, Sendable {
+  public var id: String
+  public var workout: String?
+  public var start: String
+  public var end: String
+  public var duration: Double
+  public var pointCount: Int
+  public var source: String
+  /// Meters.
+  public var distance: Double
+  /// Meters, without two points with a known altitude `nil`.
+  public var elevationGain: Double?
+  public var elevationLoss: Double?
+  public var bounds: HealthRouteBounds?
+  public var startArea: HealthRouteCoordinate?
+  public var endArea: HealthRouteCoordinate?
+  public var simplified: HealthRouteShape
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(id, .id)
+    try container.encode(workout, .workout)
+    try container.encode(start, .start)
+    try container.encode(end, .end)
+    try container.encode(duration, .duration)
+    try container.encode(pointCount, .pointCount)
+    try container.encode(source, .source)
+    try container.encode(distance, .distance)
+    try container.encode(elevationGain, .elevationGain)
+    try container.encode(elevationLoss, .elevationLoss)
+    try container.encode(bounds, .bounds)
+    try container.encode(startArea, .startArea)
+    try container.encode(endArea, .endArea)
+    try container.encode(simplified, .simplified)
+  }
+}
+
+public struct HealthWorkoutRouteResult: HealthToolOutput {
+  public var timeZone: String
+  public var route: HealthWorkoutRouteDetail
+}
+
+public struct HealthRoutePoint: Codable, Equatable, Sendable {
+  public var time: String
+  public var latitude: Double
+  public var longitude: Double
+  /// Meters, if known.
+  public var altitude: Double?
+  /// Meters, if known.
+  public var horizontalAccuracy: Double?
+  public var verticalAccuracy: Double?
+  /// Meters a second, if known.
+  public var speed: Double?
+  /// Degrees from true north, if known.
+  public var course: Double?
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(time, .time)
+    try container.encode(latitude, .latitude)
+    try container.encode(longitude, .longitude)
+    try container.encode(altitude, .altitude)
+    try container.encode(horizontalAccuracy, .horizontalAccuracy)
+    try container.encode(verticalAccuracy, .verticalAccuracy)
+    try container.encode(speed, .speed)
+    try container.encode(course, .course)
+  }
+}
+
+public struct HealthWorkoutRoutePointsResult: HealthToolOutput {
+  public var timeZone: String
+  public var id: String
+  public var pointCount: Int
+  public var points: [HealthRoutePoint]
+  public var nextCursor: String?
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(timeZone, .timeZone)
+    try container.encode(id, .id)
+    try container.encode(pointCount, .pointCount)
+    try container.encode(points, .points)
+    try container.encode(nextCursor, .nextCursor)
+  }
+}

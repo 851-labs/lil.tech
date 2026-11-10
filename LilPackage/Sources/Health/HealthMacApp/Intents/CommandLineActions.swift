@@ -23,6 +23,7 @@ extension HealthAppAction {
     case .updateCard(let id, let spec): self = .updateCard(id: id, spec: spec)
     case .deleteCard(let id): self = .deleteCard(id: id)
     case .reorderCards(let ids): self = .reorderCards(ids: ids)
+    case .downloadBlob(let sha256): self = .downloadBlob(sha256: sha256)
     }
   }
 }

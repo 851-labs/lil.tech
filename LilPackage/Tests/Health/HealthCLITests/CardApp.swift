@@ -90,7 +90,7 @@ final class CardApp: Sendable {
       case .reorderCards(let ids):
         for card in try Card.reordering(cards, to: ids, now: now) { try store(card) }
         return .done
-      case .open, .sync, .export:
+      case .open, .sync, .export, .downloadBlob:
         return .done
       }
     }

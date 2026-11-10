@@ -401,7 +401,8 @@ export const HealthWorkoutItem = Schema.Struct({
     description:
       "Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to " +
       "no workout that was recorded during it. Outdoor runs, walks and rides recorded on an " +
-      "iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't.",
+      "iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't. " +
+      "workout_route reads it, by the workout's ID.",
   }),
   source: Schema.String.annotate({ description: "The app or device that recorded it." }),
   activities: Schema.Array(HealthWorkoutActivityItem).annotate({
@@ -609,6 +610,212 @@ export const Workout = readOnly(
     failure: HealthToolError,
   }),
   "Health Workout",
+);
+
+// -------------------------------------------------------------------------------------------------
+// workout_routes, workout_route and workout_route_points
+// -------------------------------------------------------------------------------------------------
+
+/** The most routes `workout_routes` lists. */
+export const workoutRoutesLimit = 100;
+/** The most points `workout_route`'s simplified shape keeps. */
+export const routeShapeLimit = 500;
+/** The simplified shape's first tolerance, in meters, doubled until it keeps few enough points. */
+export const routeShapeTolerance = 5;
+/** The most points `workout_route_points` returns, and how many it returns by default. */
+export const routePointsLimit = 1000;
+export const routePointsDefaultLimit = 500;
+
+const routeOf =
+  "By a workout's ID (from workouts, when hasRoute is true) or a route's (from workout_routes). " +
+  "A workout's route is the one HealthKit linked to it or, failing that, one linked to no " +
+  "workout that was recorded during it.";
+
+const routeIdParameter = Schema.String.annotate({
+  description: "A workout's ID, from workouts, or a route's, from workout_routes.",
+});
+
+const routeFloat =
+  "Stored as a 32-bit float, so rounded to 2 decimal places, or null if the device didn't know.";
+
+export const HealthWorkoutRouteItem = Schema.Struct({
+  id: Schema.String.annotate({ description: "HealthKit's UUID for the route." }),
+  workout: Schema.NullOr(Schema.String).annotate({
+    description:
+      "The ID of the workout HealthKit linked it to, or null if it links none: then " +
+      "workout_route still finds it by the ID of a workout it was recorded during.",
+  }),
+  start: LocalTime,
+  end: LocalTime,
+  duration: Schema.Finite.annotate({ description: "Seconds, from start to end." }),
+  pointCount: Schema.Int.annotate({ description: "How many GPS points it has." }),
+  source: Schema.String.annotate({ description: "The app or device that recorded it." }),
+}).annotate({ identifier: "HealthWorkoutRouteItem" });
+
+export const HealthWorkoutRoutesResult = Schema.Struct({
+  ...periodFields,
+  count: Schema.Int.annotate({ description: "Routes that start in the period, all of them." }),
+  routes: Schema.Array(HealthWorkoutRouteItem).annotate({
+    description: `The routes, newest first, at most ${workoutRoutesLimit}.`,
+  }),
+});
+
+export const WorkoutRoutes = readOnly(
+  Tool.make("workout_routes", {
+    description:
+      "GPS routes that started in a period, newest first, each with the workout it belongs to: " +
+      "outdoor workouts' routes, and any recorded without one (by another app, or whose " +
+      "workout was deleted). workouts already says which workouts have one (hasRoute). For a " +
+      "route's distance, elevation and shape, call workout_route.",
+    parameters: Schema.Struct({ range, date, timeZone }),
+    success: HealthWorkoutRoutesResult,
+    failure: HealthToolError,
+  }),
+  "Health Workout Routes",
+);
+
+/** Inline, not named: the spec can't name a schema that's nullable (`OpenApiSpec.ts`). */
+const HealthRouteCoordinate = Schema.Struct({
+  latitude: Schema.Finite,
+  longitude: Schema.Finite,
+});
+
+const HealthRouteBounds = Schema.Struct({
+  south: Schema.Finite.annotate({ description: "The lowest latitude, in degrees." }),
+  west: Schema.Finite.annotate({ description: "The lowest longitude, in degrees." }),
+  north: Schema.Finite.annotate({ description: "The highest latitude, in degrees." }),
+  east: Schema.Finite.annotate({ description: "The highest longitude, in degrees." }),
+});
+
+export const HealthRouteShapePoint = Schema.Struct({
+  time: LocalTime,
+  latitude: Schema.Finite.annotate({ description: "Degrees, to 5 decimal places." }),
+  longitude: Schema.Finite.annotate({ description: "Degrees, to 5 decimal places." }),
+  altitude: Schema.NullOr(Schema.Finite).annotate({
+    description: `Meters above sea level. ${routeFloat}`,
+  }),
+}).annotate({ identifier: "HealthRouteShapePoint" });
+
+export const HealthRouteShape = Schema.Struct({
+  tolerance: Schema.Finite.annotate({
+    description:
+      "Meters: no point of the route is further than this from the line through points. " +
+      `${routeShapeTolerance} m, doubled until it keeps at most ${routeShapeLimit} points.`,
+  }),
+  pointCount: Schema.Int.annotate({ description: "How many points it kept." }),
+  points: Schema.Array(HealthRouteShapePoint).annotate({
+    description: "The points it kept, in order, the first and last included.",
+  }),
+}).annotate({ identifier: "HealthRouteShape" });
+
+export const HealthWorkoutRouteDetail = Schema.Struct({
+  ...HealthWorkoutRouteItem.fields,
+  distance: Schema.Finite.annotate({
+    description:
+      "Meters along its points, from each to the next on the Earth's surface. The workout's " +
+      "own distance, which the Watch also measures by motion, may differ a little.",
+  }),
+  elevationGain: Schema.NullOr(Schema.Finite).annotate({
+    description:
+      "Meters climbed: every rise from one point to the next, among the points with a known " +
+      "altitude, to 2 decimal places. From GPS, so noisier, and usually higher, than the " +
+      "workout's elevationAscended, which the barometer measures. Null without two such points.",
+  }),
+  elevationLoss: Schema.NullOr(Schema.Finite).annotate({
+    description: "Meters descended, as elevationGain counts climbs.",
+  }),
+  bounds: Schema.NullOr(HealthRouteBounds).annotate({
+    description: "The box its points fit in, to 5 decimal places (about a meter).",
+  }),
+  startArea: Schema.NullOr(HealthRouteCoordinate).annotate({
+    description: "About where it starts: its first point, to 3 decimal places (about 100 m).",
+  }),
+  endArea: Schema.NullOr(HealthRouteCoordinate).annotate({
+    description: "About where it ends: its last point, to 3 decimal places (about 100 m).",
+  }),
+  simplified: HealthRouteShape.annotate({
+    description:
+      "Its shape, simplified (Ramer-Douglas-Peucker): enough to draw it, or to tell where it " +
+      "went and when.",
+  }),
+}).annotate({ identifier: "HealthWorkoutRouteDetail" });
+
+export const HealthWorkoutRouteResult = Schema.Struct({
+  timeZone: usedTimeZone,
+  route: HealthWorkoutRouteDetail,
+});
+
+export const WorkoutRoute = readOnly(
+  Tool.make("workout_route", {
+    description:
+      "One GPS route in summary: its distance, elevation gain and loss, bounds, where it " +
+      `starts and ends, and its shape as a simplified line of at most ${routeShapeLimit} ` +
+      `points, with the tolerance used. ${routeOf} Its every point, with speed, course and ` +
+      "accuracy, comes from workout_route_points, a page at a time: ask for them only when " +
+      "the shape isn't enough. Routes are precise locations.",
+    parameters: Schema.Struct({ id: routeIdParameter, timeZone }),
+    success: HealthWorkoutRouteResult,
+    failure: HealthToolError,
+  }),
+  "Health Workout Route",
+);
+
+export const HealthRoutePoint = Schema.Struct({
+  time: LocalTime,
+  latitude: Schema.Finite.annotate({ description: "Degrees." }),
+  longitude: Schema.Finite.annotate({ description: "Degrees." }),
+  altitude: Schema.NullOr(Schema.Finite).annotate({
+    description: `Meters above sea level. ${routeFloat}`,
+  }),
+  horizontalAccuracy: Schema.NullOr(Schema.Finite).annotate({
+    description: `Meters: the radius the true position is within. ${routeFloat}`,
+  }),
+  verticalAccuracy: Schema.NullOr(Schema.Finite).annotate({
+    description: `Meters: how far the true altitude may be. ${routeFloat}`,
+  }),
+  speed: Schema.NullOr(Schema.Finite).annotate({
+    description: `Meters per second. ${routeFloat}`,
+  }),
+  course: Schema.NullOr(Schema.Finite).annotate({
+    description: `Degrees from true north it was heading. ${routeFloat}`,
+  }),
+}).annotate({ identifier: "HealthRoutePoint" });
+
+export const HealthWorkoutRoutePointsResult = Schema.Struct({
+  timeZone: usedTimeZone,
+  id: Schema.String.annotate({ description: "The route's ID." }),
+  pointCount: Schema.Int.annotate({ description: "How many points the route has, all of them." }),
+  points: Schema.Array(HealthRoutePoint).annotate({ description: "This page's points, in order." }),
+  nextCursor: Schema.NullOr(Schema.String).annotate({
+    description: "Pass it as `cursor` for the next page; null on the last page.",
+  }),
+});
+
+export const WorkoutRoutePoints = readOnly(
+  Tool.make("workout_route_points", {
+    description:
+      "A GPS route's points, in order, a page at a time: each one's time, latitude, longitude " +
+      `and altitude, speed, course and accuracy. ${routeOf} A route has about a point a ` +
+      "second, thousands an hour: call workout_route first, whose simplified shape is usually " +
+      "enough, and this only to look at particular stretches. Routes are precise locations.",
+    parameters: Schema.Struct({
+      id: routeIdParameter,
+      timeZone,
+      cursor: Schema.optionalKey(
+        Schema.String.annotate({ description: "The previous page's nextCursor." }),
+      ),
+      limit: Schema.optionalKey(
+        Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: routePointsLimit })).annotate({
+          description:
+            `Points per page, at most ${routePointsLimit}. Defaults to ` +
+            `${routePointsDefaultLimit}.`,
+        }),
+      ),
+    }),
+    success: HealthWorkoutRoutePointsResult,
+    failure: HealthToolError,
+  }),
+  "Health Workout Route Points",
 );
 
 // -------------------------------------------------------------------------------------------------
@@ -837,6 +1044,9 @@ export const HealthToolkit = Toolkit.make(
   Samples,
   Workouts,
   Workout,
+  WorkoutRoutes,
+  WorkoutRoute,
+  WorkoutRoutePoints,
   Sleep,
   Medications,
   HealthDetails,
@@ -856,6 +1066,9 @@ export const healthToolResultNames: Record<keyof typeof HealthToolkit.tools, str
   samples: "HealthSamplesResult",
   workouts: "HealthWorkoutsResult",
   workout: "HealthWorkoutResult",
+  workout_routes: "HealthWorkoutRoutesResult",
+  workout_route: "HealthWorkoutRouteResult",
+  workout_route_points: "HealthWorkoutRoutePointsResult",
   sleep: "HealthSleepResult",
   medications: "HealthMedicationsResult",
   health_details: "HealthDetailsResult",

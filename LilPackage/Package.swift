@@ -166,6 +166,8 @@ let package = Package(
         "HealthCatalog",
         "HealthDatabase",
         "HealthTools",
+        "LilAPI",
+        "LilSync",
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         .product(name: "GRDB", package: "GRDB.swift"),
         .product(name: "MCP", package: "swift-sdk"),

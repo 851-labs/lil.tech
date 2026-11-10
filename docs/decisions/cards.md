@@ -600,7 +600,7 @@ The others differ only in the table's columns: HeartRate `avg` `ranges`, ActiveE
 
 ## MCP tools (851-3215, 851-3216, 851-3217)
 
-Seven tools, defined once in `Services/api/src/health/cards/CardsToolkit.ts` with Effect's `Tool` and `Schema` like the Health toolkit (851-2841), listed by lil health's MCP servers after its ten (in `mcp-tools.json`, so the Mac's server registers them from the file too), and named `health.list_cards` and so on through the combined server and `lil mcp`. Outputs are OpenAPI components (`HealthCardResult`, `HealthCardDataResult`…) as the toolkit's are. Inputs that take a spec take any spec the canonicalizer accepts (defaults left out, types by name, activities by name). Outputs always give the canonical form.
+Seven tools, defined once in `Services/api/src/health/cards/CardsToolkit.ts` with Effect's `Tool` and `Schema` like the Health toolkit (851-2841), listed by lil health's MCP servers after its Health tools (in `mcp-tools.json`, so the Mac's server registers them from the file too), and named `health.list_cards` and so on through the combined server and `lil mcp`. Outputs are OpenAPI components (`HealthCardResult`, `HealthCardDataResult`…) as the toolkit's are. Inputs that take a spec take any spec the canonicalizer accepts (defaults left out, types by name, activities by name). Outputs always give the canonical form.
 
 | Tool | Input | Output | Needs | Annotations |
 |---|---|---|---|---|

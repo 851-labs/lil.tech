@@ -29,6 +29,7 @@ import { storeMcpSessions } from "../../store/McpSessions.ts";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import { HealthToolError, type HealthToolHandlers, HealthToolkit } from "./HealthToolkit.ts";
 import { type HealthToolImplementations, storeHealthTools } from "./StoreHealthTools.ts";
+import type { HealthBlobReader } from "./WorkoutRoutes.ts";
 import { isLocalDay } from "./ToolTime.ts";
 import { findHealthType } from "./ToolTypes.ts";
 
@@ -171,7 +172,10 @@ interface ToolLog {
 
 const healthToolLog: ToolLog = { askedFor };
 
-/** `workout` reads one workout, whose lists are its parts, not rows of their own. */
+/**
+ * `workout` reads one workout, and `workout_route` one route, whose lists are their parts, not
+ * rows of their own.
+ */
 const workoutToolLog: ToolLog = { askedFor, rows: () => 1 };
 
 /**
@@ -274,6 +278,8 @@ export const healthMcpApp = (options: {
   readonly sql: StoreSql;
   readonly record: (access: AgentAccess) => Effect.Effect<void, AccountDeleted>;
   readonly turns: Turns;
+  /** The user's blobs, which the route tools read (none in tests that don't). */
+  readonly blobs?: HealthBlobReader | undefined;
   /** The largest answer, as JSON (`healthMcpResultCeiling`, but tests make it smaller). */
   readonly resultCeiling?: number;
   /** Each tool's implementation (`storeHealthTools`, but tests replace some). */
@@ -287,7 +293,7 @@ export const healthMcpApp = (options: {
   readonly cardHandlers?: CardToolImplementations;
 }): StoreMcpApp => {
   const { sql, record, turns, resultCeiling = healthMcpResultCeiling } = options;
-  const handlers = options.handlers ?? storeHealthTools(sql);
+  const handlers = options.handlers ?? storeHealthTools(sql, options.blobs);
   const cards =
     options.cardHandlers ??
     storeCardTools(sql, options.write ?? (() => Effect.die("This server can't write cards")));
@@ -304,6 +310,9 @@ export const healthMcpApp = (options: {
     samples: wrap(tools.samples, handlers.samples),
     workouts: wrap(tools.workouts, handlers.workouts),
     workout: wrap(tools.workout, handlers.workout, workoutToolLog),
+    workout_routes: wrap(tools.workout_routes, handlers.workout_routes),
+    workout_route: wrap(tools.workout_route, handlers.workout_route, workoutToolLog),
+    workout_route_points: wrap(tools.workout_route_points, handlers.workout_route_points),
     sleep: wrap(tools.sleep, handlers.sleep),
     medications: wrap(tools.medications, handlers.medications),
     health_details: wrap(tools.health_details, handlers.health_details),

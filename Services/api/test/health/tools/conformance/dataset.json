@@ -5,7 +5,8 @@
     "Times in lines are Unix milliseconds. The conformance cases are in cases.json.",
     "A workout dated later today (16:30, after the cases' 15:00) hasn't happened, so it doesn't count yet.",
     "Workouts: the 13 October run at 18:00Z has no metadata and a route HealthKit didn't link (found by its times); 14 October's is a treadmill run, indoor, with an empty route linked; 18 October's is outdoor, with its route, elevation and weather; 20 October's is a third-party app's, named, its indoor flag a number; the ride only says it's indoors on its one activity. September has a pool swim and a multisport race with an open-water swim, a route, a blank name and its elevation in feet. The week of 14 September has workouts as iPhones upload them since 851-4030: each activity's configured location (locationType, swimmingLocationType) and the WorkoutKit plan in the metadata (LilWorkoutPlan): a ride only its configuration calls indoor, a custom plan's run named by the plan, a third-party run whose brand name and metadata win, a goal plan's pool swim, a swim-bike-run plan's race, a blank plan name, and an unreadable location type and plan. 1 to 6 September has workouts for the workout tool (851-4165), in a week no other case reads: an outdoor run with every statistic the Watch records, its splits as segments, an auto-pause and a pause, a marker, and its metadata's elevation, speeds, METs and weather in other units (°F, feet, mph, humidity 100 times too large); a 25-yard pool swim with laps out of order, their strokes and SWOLF, a segment and a pause it never resumed from; a ride whose statistics and events can't be read, with metadata in units the tools don't read; and a triathlon whose legs have their own statistics and metadata, one leg's unreadable and one's missing.",
-    "Heart rate on 20 October comes from the Watch and the iPhone, with gaps over an hour, so time-weighted averages depend on each source's next reading. Sleep has the Watch's stages and the iPhone's estimates; medications a schedule, as-needed doses and an archived one; Health Details one characteristic Not Set."
+    "Heart rate on 20 October comes from the Watch and the iPhone, with gaps over an hour, so time-weighted averages depend on each source's next reading. Sleep has the Watch's stages and the iPhone's estimates; medications a schedule, as-needed doses and an archived one; Health Details one characteristic Not Set.",
+    "Routes (851-4164): their points are blobs, in blobs.json by SHA-256. 16 October also has a cycling app's route with no workout (0c0f…175), which no workout's times overlap."
   ],
   "batches": [
     {
@@ -586,8 +587,8 @@
             "startDate": 1791914460000,
             "endDate": 1791916740000,
             "workout": null,
-            "locationCount": 2280,
-            "locations": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "locationCount": 8,
+            "locations": "8de678420ce568d35c4950f04af39622abb7fa00b96bb7276fe666591808623f",
             "sourceName": "Test Apple Watch",
             "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
           }
@@ -614,10 +615,24 @@
             "startDate": 1792306800000,
             "endDate": 1792308600000,
             "workout": "0c0f0000-0000-4000-8000-000000000013",
-            "locationCount": 1800,
-            "locations": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+            "locationCount": 31,
+            "locations": "f8c310f9e64dc4fcd41f743b8074fb558fd68f7ba8bef593e3f75699546771b0",
             "sourceName": "Test Apple Watch",
             "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_workout_route",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000175",
+          "row": {
+            "startDate": 1792137600000,
+            "endDate": 1792138800000,
+            "workout": null,
+            "locationCount": 5,
+            "locations": "46cbceaff78d6d5de1d0e0a8c9b7398a229a0c1508aa8a16bd733ba34f8c0e8c",
+            "sourceName": "Test Cycling App",
+            "sourceBundleId": "com.example.cycling"
           }
         },
         {
@@ -721,8 +736,8 @@
             "startDate": 1789196400000,
             "endDate": 1789203600000,
             "workout": "0c0f0000-0000-4000-8000-000000000016",
-            "locationCount": 7200,
-            "locations": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+            "locationCount": 600,
+            "locations": "2f6ab61f842e29bbd5ba90e90aa6d4d25bf24211346449c486dcba54f2489da1",
             "sourceName": "Test Apple Watch",
             "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
           }

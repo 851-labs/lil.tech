@@ -11,6 +11,13 @@ import { healthSleep } from "./Sleep.ts";
 import { healthSummary } from "./Summary.ts";
 import { healthSyncStatus } from "./SyncStatus.ts";
 import { healthWorkout } from "./Workout.ts";
+import {
+  type HealthBlobReader,
+  healthWorkoutRoute,
+  healthWorkoutRoutePoints,
+  healthWorkoutRoutes,
+  noHealthBlobs,
+} from "./WorkoutRoutes.ts";
 import { healthWorkouts } from "./Workouts.ts";
 
 type Tools = typeof HealthToolkit.tools;
@@ -25,15 +32,22 @@ export type HealthToolImplementations = {
 /**
  * The Health toolkit's tools on a user's store (851-2851, 851-2868), each following the Mac's
  * `HealthTools`: the remote MCP server serves them, and the conformance cases check them against
- * the Mac's answers.
+ * the Mac's answers. The route tools read the routes' locations from the user's blobs, with
+ * `blobs`.
  */
-export const storeHealthTools = (sql: StoreSql): HealthToolImplementations => ({
+export const storeHealthTools = (
+  sql: StoreSql,
+  blobs: HealthBlobReader = noHealthBlobs,
+): HealthToolImplementations => ({
   summary: (params) => healthSummary(sql, params),
   list_types: (params) => healthListTypes(sql, params),
   metric: (params) => healthMetric(sql, params),
   samples: (params) => healthSamples(sql, params),
   workouts: (params) => healthWorkouts(sql, params),
   workout: (params) => healthWorkout(sql, params),
+  workout_routes: (params) => healthWorkoutRoutes(sql, params),
+  workout_route: (params) => healthWorkoutRoute(sql, blobs, params),
+  workout_route_points: (params) => healthWorkoutRoutePoints(sql, blobs, params),
   sleep: (params) => healthSleep(sql, params),
   medications: (params) => healthMedications(sql, params),
   health_details: (params) => healthDetails(sql, params),

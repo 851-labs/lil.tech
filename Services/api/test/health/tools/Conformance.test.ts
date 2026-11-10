@@ -21,6 +21,7 @@ import {
   conformanceUserId,
   matches,
   millis,
+  readBlobs,
   readDataset,
   readJson,
   storeWithBatches,
@@ -51,6 +52,7 @@ const Case = Schema.Struct({
 type Case = typeof Case.Type;
 
 const batches = readDataset(new URL("conformance/dataset.json", import.meta.url));
+const blobs = readBlobs(new URL("conformance/blobs.json", import.meta.url));
 const { cases } = readJson(
   new URL("conformance/cases.json", import.meta.url),
   Schema.Struct({ cases: Schema.Array(Case) }),
@@ -103,7 +105,7 @@ const callTool = (
           ? Effect.succeed({ isFailure: true, output: error.reason.message })
           : Effect.die(error),
     ),
-    Effect.provide(HealthToolkit.toLayer(storeHealthTools(sql))),
+    Effect.provide(HealthToolkit.toLayer(storeHealthTools(sql, blobs))),
   );
 
 describe("Health toolkit conformance cases", () => {
@@ -151,7 +153,7 @@ describe("Health toolkit conformance cases", () => {
       url: "http://store/health",
       name: (tool: string) => tool,
       make: (sql: StoreSql, record: (access: AgentAccess) => Effect.Effect<void>) =>
-        makeHealthMcpServer({ sql, record }),
+        makeHealthMcpServer({ sql, record, blobs }),
     },
     {
       label: "the combined MCP server",
@@ -161,7 +163,7 @@ describe("Health toolkit conformance cases", () => {
         Effect.flatMap(makeTurns(), (turns) =>
           makeCombinedMcpServer({
             registry: agentResources,
-            apps: { health: healthMcpApp({ sql, record, turns }) },
+            apps: { health: healthMcpApp({ sql, record, turns, blobs }) },
             sessions: storeMcpSessions(sql),
           }),
         ),

@@ -33,6 +33,9 @@ public enum AgentAction: Equatable, Sendable {
   case deleteCard(id: String)
   /// Puts the cards in this order: every card's ID, once each.
   case reorderCards(ids: [String])
+  /// Downloads a health blob into the app's cache, by its SHA-256, for `lil-health`'s route tools
+  /// (851-4164), which read the cache: the app has the session to download it, as its pages do.
+  case downloadBlob(sha256: String)
 
   /// The action as the access log shows it, the same as the app's intents log it: `open Steps`,
   /// `sync`, `export ~/Downloads`.
@@ -47,6 +50,8 @@ public enum AgentAction: Equatable, Sendable {
     case .deleteCard(let id): Self.toolEntry("delete_card", ["id": .string(id)])
     case .reorderCards(let ids):
       Self.toolEntry("reorder_cards", ["count": .number(Double(ids.count))])
+    // Never logged: the tool call that needs it is.
+    case .downloadBlob(let sha256): "download \(sha256)"
     }
   }
 
@@ -77,12 +82,13 @@ public enum AgentAction: Equatable, Sendable {
 
 /// Stored as `{"action": "open", "page": "type:…"}`, `{"action": "sync"}`,
 /// `{"action": "export", "folder": "/Users/…"}`, `{"action": "createCard", "spec": {…}}`,
-/// `{"action": "updateCard", "id": "card_…", "spec": {…}}`, `{"action": "deleteCard", "id": …}` or
-/// `{"action": "reorderCards", "ids": […]}`. An app from before the card actions can't read them,
-/// and answers that it needs updating (`unsupported`).
+/// `{"action": "updateCard", "id": "card_…", "spec": {…}}`, `{"action": "deleteCard", "id": …}`,
+/// `{"action": "reorderCards", "ids": […]}` or `{"action": "downloadBlob", "sha256": "…"}`. An app
+/// from before the card actions, or the blob download, can't read them, and answers that it needs
+/// updating (`unsupported`).
 extension AgentAction: Codable {
   private enum CodingKeys: String, CodingKey {
-    case action, page, folder, spec, id, ids
+    case action, page, folder, spec, id, ids, sha256
   }
 
   public init(from decoder: any Decoder) throws {
@@ -99,6 +105,8 @@ extension AgentAction: Codable {
     case "deleteCard": self = .deleteCard(id: try container.decode(String.self, forKey: .id))
     case "reorderCards":
       self = .reorderCards(ids: try container.decode([String].self, forKey: .ids))
+    case "downloadBlob":
+      self = .downloadBlob(sha256: try container.decode(String.self, forKey: .sha256))
     case let action:
       throw DecodingError.dataCorruptedError(
         forKey: .action, in: container, debugDescription: "Unknown action \(action)")
@@ -129,6 +137,9 @@ extension AgentAction: Codable {
     case .reorderCards(let ids):
       try container.encode("reorderCards", forKey: .action)
       try container.encode(ids, forKey: .ids)
+    case .downloadBlob(let sha256):
+      try container.encode("downloadBlob", forKey: .action)
+      try container.encode(sha256, forKey: .sha256)
     }
   }
 }
