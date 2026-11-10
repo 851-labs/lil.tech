@@ -123,31 +123,12 @@ public struct HealthKitCardEngine: Sendable {
   public func data(_ run: CardRun) async throws -> CardData {
     var run = run
     if !run.windowFetches.isEmpty {
-      run = run.windowed(try await all(run.windowFetches) { try await window($0) })
+      run = run.windowed(try await concurrently(run.windowFetches) { try await window($0) })
     }
     let calendar = run.calendar
-    let results = try await all(run.fetches) { try await fetch($0, calendar: calendar) }
+    let results = try await concurrently(run.fetches) { try await fetch($0, calendar: calendar) }
     try Task.checkCancellation()
     return run.compute(results)
-  }
-
-  /// `body` of every fetch, `width` at a time (all at once by default), its results in the
-  /// fetches' order.
-  private func all<Fetch: Sendable, Result: Sendable>(
-    _ fetches: [Fetch], width: Int = .max,
-    _ body: @escaping @Sendable (Fetch) async throws -> Result
-  ) async throws -> [Result] {
-    try await withThrowingTaskGroup(of: (Int, Result).self) { group in
-      var results = [Result?](repeating: nil, count: fetches.count)
-      for (index, fetch) in fetches.enumerated() {
-        if index >= width, let done = try await group.next() {
-          results[done.0] = done.1
-        }
-        group.addTask { (index, try await body(fetch)) }
-      }
-      for try await (index, result) in group { results[index] = result }
-      return results.map { $0! }
-    }
   }
 
   /// What a card's Summary row shows (`CardHeadline`), from data started by `now`; `nil` for No
@@ -352,7 +333,7 @@ public struct HealthKitCardEngine: Sendable {
     // Series once for every stretch (851-4172), beside the stretches' single samples: only those
     // near one have their values read.
     async let series = series(query, for: ranges, needsSampleIDs: needsSampleIDs)
-    let singles = try await all(ranges, width: Self.stretchConcurrency) {
+    let singles = try await concurrently(ranges, width: Self.stretchConcurrency) {
       try await singleReadings(query, in: $0, needsSampleIDs: needsSampleIDs)
     }
     let allSeries = try await series
@@ -526,7 +507,7 @@ public struct HealthKitCardEngine: Sendable {
     // grows faster than their number: 10 took 90 ms, 183 took 125 s, and one takes 4 ms
     // (`HealthKitCardsBenchmark`, 851-4172).
     let ids = series.map { UUID(uuidString: $0.sample.sampleID) }
-    let values = try await all(ids, width: Self.seriesConcurrency) { id -> [CardReading] in
+    let values = try await concurrently(ids, width: Self.seriesConcurrency) { id -> [CardReading] in
       guard let id else { return [] }
       return try await run { finish in
         let collected = LockIsolated<[CardReading]>([])
@@ -563,8 +544,9 @@ public struct HealthKitCardEngine: Sendable {
     return series
   }
 
-  /// How many series' values are read at once, a query each.
-  static let seriesConcurrency = 8
+  /// How many series' values are read at once, a query each. The upload reads them so too
+  /// (`HealthReader.seriesValues`, 851-4182).
+  package static let seriesConcurrency = 8
 
   /// How many of a type's latest samples `filterChoices(of:)` reads device models from: a type can
   /// have millions, and the devices that matter are the ones recording it now.
@@ -764,4 +746,23 @@ extension Date {
 
   /// Unix milliseconds, as every engine reads times.
   fileprivate var milliseconds: Int { Int((timeIntervalSince1970 * 1000).rounded()) }
+}
+
+/// `body` of every item, `width` at a time (all at once by default), its results in the items'
+/// order. The first to throw cancels the rest.
+package func concurrently<Item: Sendable, Result: Sendable>(
+  _ items: [Item], width: Int = .max,
+  _ body: @escaping @Sendable (Item) async throws -> Result
+) async throws -> [Result] {
+  try await withThrowingTaskGroup(of: (Int, Result).self) { group in
+    var results = [Result?](repeating: nil, count: items.count)
+    for (index, item) in items.enumerated() {
+      if index >= width, let done = try await group.next() {
+        results[done.0] = done.1
+      }
+      group.addTask { (index, try await body(item)) }
+    }
+    for try await (index, result) in group { results[index] = result }
+    return results.map { $0! }
+  }
 }

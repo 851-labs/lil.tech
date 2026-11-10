@@ -120,6 +120,31 @@ struct HealthKitQuantitySeriesTests {
         .sorted())
   }
 
+  /// Each series' values are its own, every one of them, from both reads, with more series than
+  /// are read at once (851-4182). Each is 4 values 30 minutes apart: a values query with `count`
+  /// in its predicate left out such a series' first and last (iOS 27.2, 851-4172).
+  @Test
+  func everySeriesHasAllItsOwnValues() async throws {
+    var written: [String: [Double]] = [:]
+    let health = try await SyntheticHealthKit.empty()
+    for index in 0..<20 {
+      let values = (0..<4).map { Double(60 + index * 4 + $0) }
+      let series = try await heartRateSeries(
+        health, values: values, every: 1800, from: start.addingTimeInterval(Double(index) * 86_400))
+      written[series[0].uuid.uuidString.lowercased()] = values
+    }
+    let type = HealthBackfillType(id: HKQuantityTypeIdentifier.heartRate.rawValue)
+    for series in [false, true] {
+      let (mutations, _) = try await readAll(type, series: series)
+      let rows = mutations.filter { $0.entity == "health_quantity_series" }
+      #expect(Set(rows.map(\.id)) == Set(written.keys))
+      for row in rows {
+        #expect(row.row?["times"] == .array([0, 1800, 3600, 5400].map { .number($0) }))
+        #expect(numbers(row.row?["values"]).map { $0.rounded() } == written[row.id])
+      }
+    }
+  }
+
   /// A deleted series goes up as its sample's deletion, which deletes its values on the server.
   @Test
   func aDeletedSeriesIsItsSamplesDeletion() async throws {
@@ -170,15 +195,16 @@ struct HealthKitQuantitySeriesTests {
     return try await builder.finishSeries(metadata: nil, endDate: nil)
   }
 
-  private func numbers(_ value: JSONValue?) -> [Double] {
-    guard case .array(let values) = value else { return [] }
-    return values.compactMap { if case .number(let number) = $0 { number } else { nil } }
-  }
-
   /// `count` heart rates from 60 bpm up and down, each once.
   private func zigzag(_ count: Int) -> [Double] {
     (0..<count).map { Double(60 + ($0 * 37) % 120) }
   }
+}
+
+/// The numbers in a JSON array, as a series' row has them.
+func numbers(_ value: JSONValue?) -> [Double] {
+  guard case .array(let values) = value else { return [] }
+  return values.compactMap { if case .number(let number) = $0 { number } else { nil } }
 }
 
 extension Int {
