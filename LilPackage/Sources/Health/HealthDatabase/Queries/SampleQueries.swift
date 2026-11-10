@@ -157,6 +157,51 @@ extension HealthDatabase {
       .withProvenance(db)
   }
 
+  /// `samplePage` for a correlation type's correlations (blood pressure, food), with their
+  /// provenance's source revision and device filled in (851-4166).
+  public static func correlationPage(
+    of type: String, in range: Range<Date>, after cursor: SampleCursor?, limit: Int,
+    _ db: Database
+  ) throws -> [HealthCorrelation] {
+    let (lower, upper) = (range.lowerBound.unixMilliseconds, range.upperBound.unixMilliseconds)
+    var page = HealthCorrelation.where {
+      $0.type.eq(type) && $0.startDate >= lower && $0.startDate < upper
+    }
+    if let cursor {
+      page = page.where {
+        $0.startDate <= cursor.startDate
+          && ($0.startDate < cursor.startDate || $0.id < cursor.id)
+      }
+    }
+    let correlations =
+      try page
+      .order { ($0.startDate.desc(), $0.id.desc()) }
+      .limit(limit)
+      .fetchAll(db)
+    let provenances = try provenances(correlations.compactMap(\.provenance), db)
+    return correlations.map { correlation in
+      guard let provenance = correlation.provenance.flatMap({ provenances[$0] }) else {
+        return correlation
+      }
+      var correlation = correlation
+      correlation.sourceRevision = correlation.sourceRevision ?? provenance.sourceRevision
+      correlation.device = correlation.device ?? provenance.device
+      return correlation
+    }
+  }
+
+  /// The samples in each of `correlations`, by correlation, then type, then ID.
+  public static func correlatedSamples(
+    of correlations: [String], _ db: Database
+  ) throws -> [HealthSample] {
+    guard !correlations.isEmpty else { return [] }
+    return
+      try HealthSample
+      .where { $0.correlationID.in(correlations.map(Optional.some)) }
+      .order { ($0.correlationID, $0.type, $0.id) }
+      .fetchAll(db)
+  }
+
   /// The apps and devices a type's samples came from, most samples first. Read-only: which
   /// source wins is set in Health on the iPhone.
   public static func sampleSources(of type: String, _ db: Database) throws -> SampleSources {

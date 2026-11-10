@@ -73,9 +73,14 @@ extension HealthSamplesResult: TextOutput {
     var lines = ["\(name(of: type)), \(range): \(day(start)) to \(lastDay(end)) (\(timeZone))", ""]
     if samples.isEmpty { lines.append("No samples.") }
     for sample in samples {
+      // A correlation's samples, e.g. "Systolic Blood Pressure 118 mmHg, Diastolic … 76 mmHg".
+      let correlated = sample.details.values?.map { member in
+        "\(name(of: member.type)) \(member.value.map { quantity($0, member.unit) } ?? "–")"
+      }
       let value =
         sample.value.map { quantity($0, sample.unit) }
-        ?? sample.categoryValue.map { "value \($0)" } ?? ""
+        ?? sample.categoryValue.map { "value \($0)" }
+        ?? correlated?.joined(separator: ", ") ?? ""
       lines.append("  \(time(sample.start))   \(value)   \(sample.source)")
     }
     if let nextCursor {

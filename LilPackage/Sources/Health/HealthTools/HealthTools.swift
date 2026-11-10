@@ -174,18 +174,22 @@ public struct HealthTools: Sendable {
 
   // MARK: - samples
 
-  /// A quantity or category type's samples that start in the period, newest first, a page at a
-  /// time.
+  /// A quantity, category or correlation type's samples that start in the period, newest first,
+  /// a page at a time, each with its source, device and metadata (`SampleDetails`), and a
+  /// correlation with the samples it groups.
   public func samples(
     type: String, range: ToolRange, date: String? = nil, timeZone: String? = nil,
     cursor: String? = nil, limit: Int? = nil, _ db: Database
   ) throws -> HealthSamplesResult {
     let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
     let type = try Self.dataType(type)
-    guard type.kind == .quantity || type.kind == .category else {
+    guard type.kind == .quantity || type.kind == .category || type.kind == .correlation else {
       throw HealthToolError(
-        "\(type.name) (\(type.id)) isn't a quantity or category type, so it has no samples. Use "
-          + "the tool for its kind (workouts, medications, health_details).")
+        Self.samplesElsewhere(type.kind).map {
+          "samples doesn't list \(type.name) (\(type.id)): use \($0)."
+        }
+          ?? "samples doesn't list \(type.name) (\(type.id)), and no other tool reads that kind yet."
+      )
     }
     let limit = limit ?? Self.samplesDefaultLimit
     guard (1...Self.samplesLimit).contains(limit) else {
@@ -194,23 +198,98 @@ public struct HealthTools: Sendable {
     let period = try ToolPeriod(range, date: date, now: now, time: time)
     let after = try cursor.map(Self.sampleCursor)
     // One more than asked for, to know whether there's another page.
-    let page = try HealthDatabase.samplePage(
-      of: type.id, in: period.interval, after: after, limit: limit + 1, db)
+    let page: [ListedSample]
+    var values: [String: [HealthCorrelatedValue]] = [:]
+    if type.kind == .correlation {
+      let correlations = try HealthDatabase.correlationPage(
+        of: type.id, in: period.interval, after: after, limit: limit + 1, db)
+      page = correlations.map(ListedSample.init)
+      let members = try HealthDatabase.correlatedSamples(
+        of: correlations.prefix(limit).map(\.id), db)
+      for member in members {
+        guard let correlation = member.correlationID else { continue }
+        values[correlation, default: []].append(
+          HealthCorrelatedValue(type: member.type, value: member.value, unit: member.unit))
+      }
+    } else {
+      page = try HealthDatabase.samplePage(
+        of: type.id, in: period.interval, after: after, limit: limit + 1, db
+      ).map(ListedSample.init)
+    }
     let samples = page.prefix(limit)
     return HealthSamplesResult(
       timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
       end: time.localTime(period.end), type: type.id,
-      samples: samples.map {
-        HealthSampleItem(
-          id: $0.id, start: time.localTime($0.start), end: time.localTime($0.end),
-          value: $0.value, unit: $0.unit, categoryValue: $0.categoryValue, source: $0.sourceName)
+      samples: samples.map { sample in
+        var details = SampleDetails.details(sample.stored, time: time)
+        if type.kind == .correlation { details.values = values[sample.id] ?? [] }
+        return HealthSampleItem(
+          id: sample.id, start: time.localTime(sample.start), end: time.localTime(sample.end),
+          value: sample.value, unit: sample.unit, categoryValue: sample.categoryValue,
+          source: sample.sourceName, details: details)
       },
-      nextCursor: page.count > limit ? samples.last.map(Self.cursor(after:)) : nil)
+      nextCursor: page.count > limit
+        ? samples.last.map { "\($0.startDate)_\($0.id)" } : nil)
   }
 
-  /// A page's cursor: where its last sample starts, and its ID, which breaks ties.
-  private static func cursor(after sample: HealthSample) -> String {
-    "\(sample.startDate)_\(sample.id)"
+  /// The kinds `samples` doesn't list, and the tool that reads each instead, or nil for those
+  /// no tool reads yet (their tools come under 851-4156), as the server's `samplesElsewhere`.
+  static func samplesElsewhere(_ kind: HealthDataType.Kind) -> String? {
+    switch kind {
+    case .workout: "workouts"
+    case .medication, .medicationDoseEvent: "medications"
+    case .characteristic, .visionPrescription: "health_details"
+    case .quantity, .category, .correlation, .workoutRoute, .activitySummary, .heartbeatSeries,
+      .electrocardiogram, .audiogram, .stateOfMind, .scoredAssessment, .document:
+      nil
+    }
+  }
+
+  /// A sample or a correlation, as `samples` lists them.
+  private struct ListedSample {
+    var id: String
+    var startDate: Int
+    var endDate: Int
+    var value: Double?
+    var unit: String?
+    var categoryValue: Int?
+    var sourceName: String
+    var stored: SampleDetails.Stored
+
+    var start: Date { Date(unixMilliseconds: startDate) }
+    var end: Date { Date(unixMilliseconds: endDate) }
+
+    init(_ sample: HealthSample) {
+      self.init(
+        id: sample.id, startDate: sample.startDate, endDate: sample.endDate, value: sample.value,
+        unit: sample.unit, categoryValue: sample.categoryValue, sourceName: sample.sourceName,
+        stored: SampleDetails.Stored(
+          sourceBundleID: sample.sourceBundleID, sourceRevision: sample.sourceRevision,
+          device: sample.device, metadata: sample.metadata))
+    }
+
+    init(_ correlation: HealthCorrelation) {
+      self.init(
+        id: correlation.id, startDate: correlation.startDate, endDate: correlation.endDate,
+        value: nil, unit: nil, categoryValue: nil, sourceName: correlation.sourceName,
+        stored: SampleDetails.Stored(
+          sourceBundleID: correlation.sourceBundleID, sourceRevision: correlation.sourceRevision,
+          device: correlation.device, metadata: correlation.metadata))
+    }
+
+    private init(
+      id: String, startDate: Int, endDate: Int, value: Double?, unit: String?,
+      categoryValue: Int?, sourceName: String, stored: SampleDetails.Stored
+    ) {
+      self.id = id
+      self.startDate = startDate
+      self.endDate = endDate
+      self.value = value
+      self.unit = unit
+      self.categoryValue = categoryValue
+      self.sourceName = sourceName
+      self.stored = stored
+    }
   }
 
   private static func sampleCursor(_ text: String) throws -> SampleCursor {
