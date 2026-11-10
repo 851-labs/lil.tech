@@ -10,7 +10,8 @@ import Testing
 /// source's samples and workouts by an app of its own (`ConformanceSourceApps`), then each case's
 /// spec run by the HealthKit engine (`HealthKitCardEngine`), whose card data must match what the
 /// Mac and the server give, within the same 1e-9. Cases marked `"iphone": {"skip": …}` are those
-/// HealthKit can't match, and must still differ: one that matches has lost its reason.
+/// HealthKit can't match, and must still differ: one that matches has lost its reason. So must
+/// those `pending` on the iPhone (851-4155), until the ticket they name makes them pass.
 ///
 /// Run it with `scripts/test-iphone-healthkit`, which has the source apps write the dataset after
 /// the other suites, whose tests need HealthKit to hold only their own samples, and then runs this
@@ -43,7 +44,10 @@ struct HealthKitConformanceTests {
     return (health.store, ConformanceSourceApps.apps(for: dataset.sources))
   }
 
-  @Test(arguments: try CardConformanceCase.cases().filter { $0.iphone == nil })
+  @Test(
+    arguments: try CardConformanceCase.cases().filter {
+      $0.iphone == nil && $0.pending?.iphone == nil
+    })
   func conformanceCase(_ testCase: CardConformanceCase) async throws {
     let output = try await Self.run(testCase)
     #expect(output.matches(testCase.expected), "\(output)\nexpected:\n\(testCase.expected)")
@@ -55,6 +59,17 @@ struct HealthKitConformanceTests {
     #expect(
       !output.matches(testCase.expected),
       "HealthKit matches it: remove its skip (\(testCase.iphone?.skip ?? ""))")
+  }
+
+  @Test(
+    arguments: try CardConformanceCase.cases().filter {
+      $0.iphone == nil && $0.pending?.iphone != nil
+    })
+  func pendingCaseDiffers(_ testCase: CardConformanceCase) async throws {
+    let output = try await Self.run(testCase)
+    #expect(
+      !output.matches(testCase.expected),
+      "HealthKit matches it: remove its pending mark (\(testCase.pending?.iphone ?? ""))")
   }
 
   /// The case's card data from HealthKit, as the tools write it.

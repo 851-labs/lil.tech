@@ -5,7 +5,8 @@ public import HealthCards
 /// a card spec run over the period of `range` containing `date`, in a calendar, with the clock at
 /// `now`, and the card data every engine must give, as the tools write it. The Mac runs them after
 /// syncing the dataset (`CardConformanceTests`), and the iPhone after writing it into HealthKit
-/// (851-3201), but for those it `skips`.
+/// (851-3201), but for those it `skips`. A case `pending` for an engine (851-4155) is one it
+/// doesn't pass yet: that engine runs it and fails when it matches.
 public struct CardConformanceCase: Decodable, Sendable, CustomStringConvertible {
   public var name: String
   /// How the expected values come about.
@@ -22,10 +23,18 @@ public struct CardConformanceCase: Decodable, Sendable, CustomStringConvertible 
   public var now: String
   /// Why the iPhone's engine can't match it, if it can't.
   public var iphone: IPhone?
+  /// The tickets that make the engines that don't pass it yet pass it.
+  public var pending: Pending?
   public var expected: ConformanceJSON
 
   public struct IPhone: Decodable, Sendable {
     public var skip: String
+  }
+
+  public struct Pending: Decodable, Sendable {
+    public var server: String?
+    public var mac: String?
+    public var iphone: String?
   }
 
   public var description: String { name }

@@ -9,7 +9,8 @@ import Testing
 /// Conformance and tolerance): the cards' dataset (the Health tools', extended) synced into a
 /// fresh database with the app's sync engine, as `HealthToolkitConformanceTests` syncs the tools',
 /// then each case's spec run by the Mac's engine (`HealthDatabase.cardData`). Every case has to
-/// pass, as on the server (`Services/api/test/health/cards/CardConformance.test.ts`).
+/// pass, as on the server (`Services/api/test/health/cards/CardConformance.test.ts`), but for those
+/// `pending` on the Mac, which must still differ until the ticket they name makes them pass.
 @Suite
 struct CardConformanceTests {
   /// The dataset, synced once: the cases only read it.
@@ -34,6 +35,12 @@ struct CardConformanceTests {
         spec, range: range, date: date, now: now, calendar: calendar, db)
     }
     let output = testCase.json(data, calendar: calendar)
-    #expect(output.matches(testCase.expected), "\(output)\nexpected:\n\(testCase.expected)")
+    if let pending = testCase.pending?.mac {
+      #expect(
+        !output.matches(testCase.expected),
+        "The Mac matches it: remove its pending mark (\(pending)).")
+    } else {
+      #expect(output.matches(testCase.expected), "\(output)\nexpected:\n\(testCase.expected)")
+    }
   }
 }
