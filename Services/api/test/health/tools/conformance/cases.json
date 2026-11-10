@@ -1407,7 +1407,7 @@
             "value": 142,
             "unit": "mg/dL",
             "categoryValue": null,
-            "source": "Test Glucose",
+            "source": "Test Health App",
             "sourceIndex": 0,
             "userEntered": false,
             "mealTime": "postprandial",
@@ -1430,8 +1430,8 @@
         ],
         "sources": [
           {
-            "name": "Test Glucose",
-            "bundleId": "com.example.glucose",
+            "name": "Test Health App",
+            "bundleId": "com.example.health",
             "version": "2.4.1",
             "productType": "iPhone17,1",
             "operatingSystemVersion": "26.1.0",
@@ -1477,7 +1477,7 @@
             "value": 4.5,
             "unit": "IU",
             "categoryValue": null,
-            "source": "Test Pump",
+            "source": "Test Health App",
             "sourceIndex": 0,
             "insulinDeliveryReason": "bolus"
           },
@@ -1488,25 +1488,25 @@
             "value": 0.8,
             "unit": "IU",
             "categoryValue": null,
-            "source": "Test Pump",
+            "source": "Test Health App",
             "sourceIndex": 1,
             "insulinDeliveryReason": "basal"
           }
         ],
         "sources": [
           {
-            "name": "Test Pump",
-            "bundleId": "com.example.pump",
+            "name": "Test Health App",
+            "bundleId": "com.example.health",
             "version": "1.0",
             "operatingSystemVersion": "26.1.0",
             "device": {
-              "name": "Test Pump",
+              "name": "Test Health App",
               "manufacturer": "Example Medical"
             }
           },
           {
-            "name": "Test Pump",
-            "bundleId": "com.example.pump",
+            "name": "Test Health App",
+            "bundleId": "com.example.health",
             "version": "1.0",
             "operatingSystemVersion": "26.1.0"
           }
@@ -1661,7 +1661,7 @@
             "value": null,
             "unit": null,
             "categoryValue": null,
-            "source": "Test Cuff",
+            "source": "Test Health App",
             "sourceIndex": 0,
             "userEntered": false,
             "recordedTimeZone": "Europe/London",
@@ -1681,13 +1681,13 @@
         ],
         "sources": [
           {
-            "name": "Test Cuff",
-            "bundleId": "com.example.cuff",
+            "name": "Test Health App",
+            "bundleId": "com.example.health",
             "version": "5.2",
             "productType": "iPhone17,1",
             "operatingSystemVersion": "26.1.0",
             "device": {
-              "name": "Test Cuff",
+              "name": "Test Health App",
               "manufacturer": "Example Medical",
               "model": "BP-2"
             }

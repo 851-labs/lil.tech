@@ -7,7 +7,7 @@
     "Workouts: the 13 October run at 18:00Z has no metadata and a route HealthKit didn't link (found by its times); 14 October's is a treadmill run, indoor, with an empty route linked; 18 October's is outdoor, with its route, elevation and weather; 20 October's is a third-party app's, named, its indoor flag a number; the ride only says it's indoors on its one activity. September has a pool swim and a multisport race with an open-water swim, a route, a blank name and its elevation in feet. The week of 14 September has workouts as iPhones upload them since 851-4030: each activity's configured location (locationType, swimmingLocationType) and the WorkoutKit plan in the metadata (LilWorkoutPlan): a ride only its configuration calls indoor, a custom plan's run named by the plan, a third-party run whose brand name and metadata win, a goal plan's pool swim, a swim-bike-run plan's race, a blank plan name, and an unreadable location type and plan. 1 to 6 September has workouts for the workout tool (851-4165), in a week no other case reads: an outdoor run with every statistic the Watch records, its splits as segments, an auto-pause and a pause, a marker, and its metadata's elevation, speeds, METs and weather in other units (°F, feet, mph, humidity 100 times too large); a 25-yard pool swim with laps out of order, their strokes and SWOLF, a segment and a pause it never resumed from; a ride whose statistics and events can't be read, with metadata in units the tools don't read; and a triathlon whose legs have their own statistics and metadata, one leg's unreadable and one's missing.",
     "Heart rate on 20 October comes from the Watch and the iPhone, with gaps over an hour, so time-weighted averages depend on each source's next reading. Sleep has the Watch's stages and the iPhone's estimates; medications a schedule, as-needed doses and an archived one; Health Details one characteristic Not Set.",
     "Routes (851-4164): their points are blobs, in blobs.json by SHA-256. 16 October also has a cycling app's route with no workout (0c0f…175), which no workout's times overlap.",
-    "Samples' details (851-4166) are on 19 October, from ph2, which HealthKit syncs every app's samples to: blood glucose entered by hand in Health (before a meal, recorded in New York) and from a meter's app (after a meal, with a reference range, its device in a provenance record, and keys lil health doesn't keep, which ingestion drops); insulin from a pump's app (basal with an empty device, bolus with its device named only in its metadata and a motion context that isn't one); cardio fitness from an Apple Watch; a high heart rate notification with its threshold; a blood pressure reading, a correlation of a systolic and a diastolic sample; and the morning's heart rate says it was sedentary, on the wrist."
+    "Samples' details (851-4166) are on 19 October, from ph2, which HealthKit syncs every app's samples to: blood glucose entered by hand in Health (before a meal, recorded in New York) and from a third-party health app, which records the rest too (after a meal, with a reference range, its meter in a provenance record, and keys lil health doesn't keep, which ingestion drops); insulin (basal with an empty device, bolus with its pump named only in its metadata and a motion context that isn't one); cardio fitness from an Apple Watch; a high heart rate notification with its threshold; a blood pressure reading, a correlation of a systolic and a diastolic sample; and the morning's heart rate says it was sedentary, on the wrist."
   ],
   "batches": [
     {
@@ -2000,8 +2000,8 @@
             "endDate": 1792401300000,
             "value": 142,
             "unit": "mg/dL",
-            "sourceName": "Test Glucose",
-            "sourceBundleId": "com.example.glucose",
+            "sourceName": "Test Health App",
+            "sourceBundleId": "com.example.health",
             "metadata": {
               "HKBloodGlucoseMealTime": 2,
               "HKReferenceRangeLowerLimit": 70,
@@ -2024,8 +2024,8 @@
             "endDate": 1792371600000,
             "value": 0.8,
             "unit": "IU",
-            "sourceName": "Test Pump",
-            "sourceBundleId": "com.example.pump",
+            "sourceName": "Test Health App",
+            "sourceBundleId": "com.example.health",
             "sourceRevision": {
               "version": "1.0",
               "productType": null,
@@ -2047,8 +2047,8 @@
             "endDate": 1792395300000,
             "value": 4.5,
             "unit": "IU",
-            "sourceName": "Test Pump",
-            "sourceBundleId": "com.example.pump",
+            "sourceName": "Test Health App",
+            "sourceBundleId": "com.example.health",
             "sourceRevision": {
               "version": "1.0",
               "productType": null,
@@ -2056,7 +2056,7 @@
             },
             "metadata": {
               "HKInsulinDeliveryReason": 2,
-              "HKDeviceName": "Test Pump",
+              "HKDeviceName": "Test Health App",
               "HKDeviceManufacturerName": "Example Medical",
               "HKMetadataKeyUserMotionContext": 7
             }
@@ -2119,15 +2119,15 @@
             "type": "HKCorrelationTypeIdentifierBloodPressure",
             "startDate": 1792396800000,
             "endDate": 1792396860000,
-            "sourceName": "Test Cuff",
-            "sourceBundleId": "com.example.cuff",
+            "sourceName": "Test Health App",
+            "sourceBundleId": "com.example.health",
             "sourceRevision": {
               "version": "5.2",
               "productType": "iPhone17,1",
               "operatingSystemVersion": "26.1.0"
             },
             "device": {
-              "name": "Test Cuff",
+              "name": "Test Health App",
               "manufacturer": "Example Medical",
               "model": "BP-2"
             },
@@ -2147,8 +2147,8 @@
             "endDate": 1792396860000,
             "value": 118,
             "unit": "mmHg",
-            "sourceName": "Test Cuff",
-            "sourceBundleId": "com.example.cuff",
+            "sourceName": "Test Health App",
+            "sourceBundleId": "com.example.health",
             "correlationId": "0c0f0000-0000-4000-8000-000000000341"
           }
         },
@@ -2162,8 +2162,8 @@
             "endDate": 1792396860000,
             "value": 76,
             "unit": "mmHg",
-            "sourceName": "Test Cuff",
-            "sourceBundleId": "com.example.cuff",
+            "sourceName": "Test Health App",
+            "sourceBundleId": "com.example.health",
             "correlationId": "0c0f0000-0000-4000-8000-000000000341"
           }
         },

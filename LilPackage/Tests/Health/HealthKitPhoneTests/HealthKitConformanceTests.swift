@@ -34,7 +34,7 @@ struct HealthKitConformanceTests {
     }
     var expected: [String: Int] = [:]
     for (source, app) in ConformanceSourceApps.apps(for: dataset.sources) {
-      let part = dataset.of(source: source)
+      let part = dataset.of(source: source).only(types: TestHealthTypes.identifiers)
       expected[app] = part.samples.count + part.workouts.count
     }
     guard written == expected.filter({ $0.value > 0 }) else {
