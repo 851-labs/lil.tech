@@ -261,6 +261,37 @@ TEST_RUNNER_LIL_HEALTHKIT_BENCHMARK=1 scripts/test-iphone-healthkit HealthKitCar
 
     The last left out a 4-value series' first and last values (`docs/decisions/cards.md` › Details 851-4172 settled), so it isn't used.
 
+## The iPhone's upload
+
+How long the iPhone's upload takes to read a quantity type with a Watch's workout series (851-4182), from a simulator's HealthKit: a 60-minute workout every day for a year, its heart rate a series of a value every 5 s (365 series of 720 values, 262,800 values), beside heart rate every 5 minutes the rest of the day (100,740 samples). `HealthKitUploadBenchmark` (`LilPackage/Tests/Health/HealthKitPhoneTests`) writes the year, times HealthKit's values queries, then reads the type as the backfill does, a page of 10,000 at a time (`HealthReader.page`), and its series again (`HealthReader.series`, the one-time read of 851-4149), and checks that every series comes with all its values:
+
+```sh
+TEST_RUNNER_LIL_HEALTHKIT_BENCHMARK=1 scripts/test-iphone-healthkit HealthKitUploadBenchmark
+```
+
+**2026-11-10**, iPhone 18 Pro simulator (iOS 27.2) on an Apple M1 Pro, beside other agents' work, three runs in one simulator (so the later ones also page through the earlier ones' deletions). Seconds:
+
+| Values query | Time |
+| --- | ---: |
+| The year's series, 138 IDs a query (100,000 values), with each value's sample (the upload before 851-4182) | 0.98–1.49 |
+| The year's series, a query per ID, 8 at once (since 851-4182) | 0.33 |
+| 183 IDs, with each value's sample | 0.44–0.69 |
+| 183 IDs, without | 0.30–0.43 |
+| 183 IDs and the year's dates, or and `count > 1` | 0.32–0.33 |
+| 183 IDs, `HKQuantitySeriesSampleQuery` (the callback query) | 0.31 |
+| 10 IDs | 0.05–0.07 |
+| 1 ID | 0.004–0.007 |
+
+| Read | Before | After |
+| --- | ---: | ---: |
+| The type's pages (11 from a fresh simulator, with every series' values) | 3.1 | 3.2–3.8 |
+| Its series again | 1.1 (1 page) | 0.87–1.39 (11–31 pages, most of them deletions) |
+| Memory, at most, over the read's start: pages, series again | 37 MB, 4 MB | 28–31 MB, 0–1 MB |
+
+- **851-4172's 125 s for 183 IDs didn't happen again,** in a fresh simulator or one with 300,000 deleted samples, with or without each value's sample, with the callback query, or with dates or `count` in the predicate: here a query's cost grows with its values. A query each is still 3 times faster on the values, bounds each query to one series, and holds back only the series that can't be read.
+- **Every series came with all its values,** the first and last included, before and after: the upload never puts `count` in a values query's predicate, the one that left out a series' first and last values (851-4172); the read of series again puts it only in its anchored query of samples.
+- The values are a small part of a page: the anchored query, and encoding the samples, take the rest. Memory stays within a page's budget (`seriesValuesPerPage`), and the read of series again saves its anchor after each page, so it resumes from the page it got to.
+
 ## Snapshot tests: from an edit to an image
 
 How long an agent or a person waits between saving a one-line change to a view and seeing its snapshot compared with the reference (851-2962). Snapshot tests replace `RenderPreview` only if this loop is no slower than `RenderPreview`'s.

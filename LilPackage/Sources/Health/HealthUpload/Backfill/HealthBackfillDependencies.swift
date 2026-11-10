@@ -395,10 +395,9 @@ extension HealthReader: DependencyKey {
       mutations: mutations, blobs: blobs, anchor: Data(), hasMore: false, failed: failed)
   }
 
-  /// The most series, and the most of their values, read in one query: a page's thousands are
-  /// read a few at a time, so one query doesn't hold millions of values.
-  static let seriesPerQuery = 500
-  static let seriesValuesPerQuery = 100_000
+  /// How many series' values are read at once, a query each, as the cards' engine reads them
+  /// (`HealthKitCardEngine.seriesConcurrency`, 851-4172).
+  static let seriesConcurrency = 8
   /// The most series values a page holds (about 50 MB as they're encoded): a page whose samples'
   /// series have more is read again with fewer samples (`withinSeriesBudget`).
   static let seriesValuesPerPage = 500_000
@@ -419,11 +418,16 @@ extension HealthReader: DependencyKey {
   }
 
   /// The values of quantity series (samples with `count` over 1, all of one type), by sample, in
-  /// the type's catalog unit (851-4149), with a query per `seriesPerQuery` of them or
-  /// `seriesValuesPerQuery` of their values, whichever comes first. A series
-  /// with more than `HealthEncoder.maxSeriesValues` isn't read (it goes up without them). A query
-  /// that fails throws `SeriesUnavailable`, so the page is read again, unless
-  /// `skippingUnreadable`: then its series are returned as `unreadable`, to hold back.
+  /// the type's catalog unit (851-4149): each series' by its own ID, `seriesConcurrency` at once
+  /// (851-4182). A series with more than `HealthEncoder.maxSeriesValues` isn't read (it goes up
+  /// without them). One that can't be read throws `SeriesUnavailable`, so the page is read again,
+  /// unless `skippingUnreadable`: then it's returned as `unreadable`, to hold back.
+  ///
+  /// Not a query of many series by their IDs, which is what this did: HealthKit's cost for one
+  /// grows faster than their number (iOS 27.2: 1 took 4 ms, 10 took 70–90 ms, 183 took 125 s,
+  /// 851-4172), so a page of a year of workouts took minutes. Nor a query of values by dates,
+  /// which needs each value's sample (`includeSample`, 32 s for a year) to know whose it is, or
+  /// with `count` in its predicate leaves out a series' first and last values.
   static func seriesValues(
     of samples: [HKQuantitySample], skippingUnreadable: Bool, store: HKHealthStore
   ) async throws -> (values: [UUID: [QuantitySeriesRecord.Value]], unreadable: Set<UUID>) {
@@ -432,50 +436,55 @@ extension HealthReader: DependencyKey {
     let unit = try HealthEncoder.unit(for: type)
     var values: [UUID: [QuantitySeriesRecord.Value]] = [:]
     var unreadable: Set<UUID> = []
-    var chunks: [[HKQuantitySample]] = []
-    var chunkValues = 0
-    for sample in read {
-      if chunks.isEmpty || chunks[chunks.count - 1].count == seriesPerQuery
-        || chunkValues + sample.count > seriesValuesPerQuery
-      {
-        chunks.append([])
-        chunkValues = 0
-      }
-      chunks[chunks.count - 1].append(sample)
-      chunkValues += sample.count
-    }
-    for chunk in chunks {
-      let descriptor = HKQuantitySeriesSampleQueryDescriptor(
-        predicate: .quantitySample(
-          type: type, predicate: HKQuery.predicateForObjects(with: Set(chunk.map(\.uuid)))),
-        options: .includeSample)
-      do {
-        let results = try await readSeries(
-          expected: chunk.reduce(0) { $0 + $1.count }, descriptor.results(for: store)
-        ) { result in
-          (
-            id: result.sample?.uuid,
-            value: QuantitySeriesRecord.Value(
-              start: result.dateInterval.start, end: result.dateInterval.end,
-              value: result.quantity.doubleValue(for: unit))
-          )
-        }
-        for result in results {
-          guard let id = result.id else { continue }
-          values[id, default: []].append(result.value)
-        }
-        // One whose values didn't come (changed or deleted meanwhile) is read again, rather than
-        // going up as if it had too many.
-        if let missing = chunk.first(where: { values[$0.uuid] == nil }) {
-          throw SeriesUnavailable(expected: missing.count, read: 0)
-        }
-      } catch let error as SeriesUnavailable {
+    typealias Read = (id: UUID, result: Result<[QuantitySeriesRecord.Value], SeriesUnavailable>)
+    func collect(_ read: Read) throws {
+      switch read.result {
+      case .success(let series):
+        values[read.id] = series
+      case .failure(let error):
         guard skippingUnreadable else { throw error }
         reportIssue(error)
-        unreadable.formUnion(chunk.map(\.uuid))
+        unreadable.insert(read.id)
       }
     }
+    try await withThrowingTaskGroup(of: Read.self) { group in
+      for (index, sample) in read.enumerated() {
+        if index >= seriesConcurrency, let done = try await group.next() { try collect(done) }
+        let (id, expected) = (sample.uuid, sample.count)
+        group.addTask {
+          do {
+            return (
+              id,
+              .success(
+                try await seriesValues(
+                  of: id, type: type, expected: expected, unit: unit, store: store))
+            )
+          } catch let error as SeriesUnavailable {
+            return (id, .failure(error))
+          }
+        }
+      }
+      for try await done in group { try collect(done) }
+    }
     return (values, unreadable)
+  }
+
+  /// One series' values, by its ID, without its sample, which is known already. One whose values
+  /// didn't come (changed or deleted meanwhile) throws `SeriesUnavailable`, to be read again,
+  /// rather than going up as if it had too many.
+  private static func seriesValues(
+    of id: UUID, type: HKQuantityType, expected: Int, unit: HKUnit, store: HKHealthStore
+  ) async throws -> [QuantitySeriesRecord.Value] {
+    let descriptor = HKQuantitySeriesSampleQueryDescriptor(
+      predicate: .quantitySample(type: type, predicate: HKQuery.predicateForObject(with: id)),
+      options: [])
+    let values = try await readSeries(expected: expected, descriptor.results(for: store)) {
+      QuantitySeriesRecord.Value(
+        start: $0.dateInterval.start, end: $0.dateInterval.end,
+        value: $0.quantity.doubleValue(for: unit))
+    }
+    guard !values.isEmpty else { throw SeriesUnavailable(expected: expected, read: 0) }
+    return values
   }
 
   /// Only a type's quantity series (`count` over 1) after `anchor`, as their values' records alone,
