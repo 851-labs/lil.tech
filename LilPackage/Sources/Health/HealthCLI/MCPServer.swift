@@ -417,6 +417,22 @@ private struct ToolCall {
       query = { tools, db in
         try tools.activityRings(range: range, date: date, timeZone: timeZone, db)
       }
+    case "state_of_mind":
+      let range = arguments.required("range", arguments.range)
+      let date = arguments.string("date")
+      let timeZone = arguments.string("timeZone")
+      guard let range, arguments.isValid else { throw arguments.invalid }
+      query = { tools, db in
+        try tools.stateOfMind(range: range, date: date, timeZone: timeZone, db)
+      }
+    case "assessments":
+      let range = arguments.required("range", arguments.range)
+      let date = arguments.string("date")
+      let timeZone = arguments.string("timeZone")
+      guard let range, arguments.isValid else { throw arguments.invalid }
+      query = { tools, db in
+        try tools.assessments(range: range, date: date, timeZone: timeZone, db)
+      }
     case "medications":
       let timeZone = arguments.string("timeZone")
       try arguments.check()

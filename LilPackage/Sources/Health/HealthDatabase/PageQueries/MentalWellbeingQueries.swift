@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 public import SQLiteData
 
 extension HealthDatabase {
@@ -8,6 +8,35 @@ extension HealthDatabase {
       .order { ($0.startDate.desc(), $0.id.desc()) }
       .limit(limit)
       .fetchAll(db)
+  }
+
+  /// The State of Mind logs that start in `range`, newest first (then by ID), at most `limit`,
+  /// and how many there are in all: the `state_of_mind` tool's (851-4160).
+  public static func stateOfMindLogs(in range: Range<Date>, limit: Int, _ db: Database) throws
+    -> (count: Int, logs: [HealthStateOfMind])
+  {
+    let (lower, upper) = (range.lowerBound.unixMilliseconds, range.upperBound.unixMilliseconds)
+    let inRange = HealthStateOfMind.where { $0.startDate >= lower && $0.startDate < upper }
+    return (
+      try inRange.fetchCount(db),
+      try inRange.order { ($0.startDate.desc(), $0.id.desc()) }.limit(limit).fetchAll(db)
+    )
+  }
+
+  /// The assessments of `kinds` that start in `range`, newest first (then by ID), at most
+  /// `limit`, and how many there are in all: the `assessments` tool's (851-4160).
+  public static func scoredAssessments(
+    of kinds: [AssessmentKind], in range: Range<Date>, limit: Int, _ db: Database
+  ) throws -> (count: Int, assessments: [HealthScoredAssessment]) {
+    let (lower, upper) = (range.lowerBound.unixMilliseconds, range.upperBound.unixMilliseconds)
+    let types = kinds.map(\.rawValue)
+    let inRange = HealthScoredAssessment.where {
+      $0.type.in(types) && $0.startDate >= lower && $0.startDate < upper
+    }
+    return (
+      try inRange.fetchCount(db),
+      try inRange.order { ($0.startDate.desc(), $0.id.desc()) }.limit(limit).fetchAll(db)
+    )
   }
 
   /// A type's assessments (e.g. `HKScoredAssessmentTypeIdentifierGAD7`), newest first, at most
@@ -110,5 +139,16 @@ public enum AssessmentKind: String, CaseIterable, Sendable {
 
   public func riskName(_ risk: Int) -> String {
     risks.indices.contains(risk - 1) ? risks[risk - 1] : "Unknown"
+  }
+
+  /// Answer names by raw value (`HKGAD7Assessment.Answer`, `HKPHQ9Assessment.Answer`), from 0:
+  /// how often over the last two weeks. Only PHQ-9's 9th question can be skipped.
+  public var answers: [String] {
+    let frequencies = ["Not at all", "Several days", "More than half the days", "Nearly every day"]
+    return self == .phq9 ? frequencies + ["Prefer not to answer"] : frequencies
+  }
+
+  public func answerName(_ answer: Int) -> String {
+    answers.indices.contains(answer) ? answers[answer] : "Unknown"
   }
 }

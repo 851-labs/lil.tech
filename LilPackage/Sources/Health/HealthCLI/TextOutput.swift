@@ -271,6 +271,45 @@ extension HealthActivityRingsResult: TextOutput {
   }
 }
 
+extension HealthStateOfMindResult: TextOutput {
+  var text: String {
+    var lines = [
+      "State of Mind, \(range): \(day(start)) to \(lastDay(end)) (\(timeZone))",
+      "\(count) \(count == 1 ? "log" : "logs")",
+    ]
+    if !logs.isEmpty { lines.append("") }
+    for log in logs {
+      let parts =
+        ["\(log.classification) (\(numberText(log.valence)))", log.kind]
+        + (log.labels.isEmpty ? [] : [log.labels.joined(separator: ", ")])
+        + (log.associations.isEmpty ? [] : ["about " + log.associations.joined(separator: ", ")])
+      lines.append("  \(time(log.time))   " + parts.joined(separator: " · "))
+    }
+    if logs.count < count { lines += ["", "Showing the \(logs.count) most recent logs."] }
+    return lines.joined(separator: "\n") + "\n"
+  }
+}
+
+extension HealthAssessmentsResult: TextOutput {
+  var text: String {
+    var lines = [
+      "Assessments, \(range): \(day(start)) to \(lastDay(end)) (\(timeZone))",
+      "\(count) \(count == 1 ? "assessment" : "assessments")",
+    ]
+    if !assessments.isEmpty { lines.append("") }
+    for assessment in assessments {
+      lines.append(
+        "  \(time(assessment.time))   \(assessment.name)   \(assessment.risk), score "
+          + "\(assessment.score) of \(assessment.maximumScore)")
+      lines.append("      " + assessment.answers.joined(separator: " · "))
+    }
+    if assessments.count < count {
+      lines += ["", "Showing the \(assessments.count) most recent assessments."]
+    }
+    return lines.joined(separator: "\n") + "\n"
+  }
+}
+
 extension HealthMedicationsResult: TextOutput {
   var text: String {
     guard !medications.isEmpty else { return "No medications.\n" }

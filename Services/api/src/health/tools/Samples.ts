@@ -37,8 +37,8 @@ const samplesElsewhere: Readonly<
   heartbeatSeries: null,
   electrocardiogram: null,
   audiogram: null,
-  stateOfMind: null,
-  scoredAssessment: null,
+  stateOfMind: "state_of_mind",
+  scoredAssessment: "assessments",
   document: null,
 };
 

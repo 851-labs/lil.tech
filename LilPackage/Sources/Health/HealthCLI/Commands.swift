@@ -30,7 +30,8 @@ struct LilHealthCommand: ParsableCommand {
     subcommands: [
       SummaryCommand.self, TypesCommand.self, MetricCommand.self, SamplesCommand.self,
       WorkoutsCommand.self, WorkoutCommand.self, RoutesCommand.self, RouteCommand.self,
-      SleepCommand.self, ActivityCommand.self, MedicationsCommand.self,
+      SleepCommand.self, ActivityCommand.self, StateOfMindCommand.self,
+      AssessmentsCommand.self, MedicationsCommand.self,
       DetailsCommand.self,
       SearchCommand.self, SyncCommand.self, OpenCommand.self, ExportCommand.self,
       MCPCommand.self,
@@ -284,6 +285,36 @@ struct ActivityCommand: QueryCommand {
 
   func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
     Answer(try tools.activityRings(range: range.range, date: date, timeZone: timeZone, db))
+  }
+}
+
+struct StateOfMindCommand: QueryCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "state-of-mind",
+    abstract: "State of Mind logs in a range: how each felt, its feelings and what it was about.")
+
+  @Option(name: .shortAndLong, help: rangeHelp) var range = RangeArgument(.month)
+  @Option(help: dateHelp) var date: String?
+  @Option(help: timeZoneHelp) var timeZone: String?
+  @OptionGroup var output: OutputOptions
+
+  func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
+    Answer(try tools.stateOfMind(range: range.range, date: date, timeZone: timeZone, db))
+  }
+}
+
+struct AssessmentsCommand: QueryCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "assessments",
+    abstract: "GAD-7 and PHQ-9 assessments in a range: score, risk and each answer.")
+
+  @Option(name: .shortAndLong, help: rangeHelp) var range = RangeArgument(.year)
+  @Option(help: dateHelp) var date: String?
+  @Option(help: timeZoneHelp) var timeZone: String?
+  @OptionGroup var output: OutputOptions
+
+  func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
+    Answer(try tools.assessments(range: range.range, date: date, timeZone: timeZone, db))
   }
 }
 

@@ -11747,6 +11747,548 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthStateOfMindItem`.
+        public struct HealthStateOfMindItem: Codable, Hashable, Sendable {
+            /// When it was logged: a momentary emotion's moment, or for a daily mood, a time in the day it describes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthStateOfMindItem/time`.
+            public var time: Swift.String
+            /// Momentary Emotion (how they felt right then) or Daily Mood (how they felt over the day).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthStateOfMindItem/kind`.
+            public var kind: Swift.String
+            /// How pleasant it felt, from -1 (very unpleasant) to 1 (very pleasant).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthStateOfMindItem/valence`.
+            public var valence: Swift.Double
+            /// The valence as the person chose it: Very Unpleasant, Unpleasant, Slightly Unpleasant, Neutral, Slightly Pleasant, Pleasant or Very Pleasant (Unknown for one a later iOS adds).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthStateOfMindItem/classification`.
+            public var classification: Swift.String
+            /// The feelings that described it, e.g. Calm, Grateful or Stressed, in the order they were logged. Empty if none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthStateOfMindItem/labels`.
+            public var labels: [Swift.String]
+            /// What it was about, e.g. Work, Family or Health, in the order they were logged. Empty if none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthStateOfMindItem/associations`.
+            public var associations: [Swift.String]
+            /// The app or device it was logged in: Health, Mindfulness, or another app.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthStateOfMindItem/source`.
+            public var source: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthStateOfMindItem`.
+            ///
+            /// - Parameters:
+            ///   - time: When it was logged: a momentary emotion's moment, or for a daily mood, a time in the day it describes.
+            ///   - kind: Momentary Emotion (how they felt right then) or Daily Mood (how they felt over the day).
+            ///   - valence: How pleasant it felt, from -1 (very unpleasant) to 1 (very pleasant).
+            ///   - classification: The valence as the person chose it: Very Unpleasant, Unpleasant, Slightly Unpleasant, Neutral, Slightly Pleasant, Pleasant or Very Pleasant (Unknown for one a later iOS adds).
+            ///   - labels: The feelings that described it, e.g. Calm, Grateful or Stressed, in the order they were logged. Empty if none.
+            ///   - associations: What it was about, e.g. Work, Family or Health, in the order they were logged. Empty if none.
+            ///   - source: The app or device it was logged in: Health, Mindfulness, or another app.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                time: Swift.String,
+                kind: Swift.String,
+                valence: Swift.Double,
+                classification: Swift.String,
+                labels: [Swift.String],
+                associations: [Swift.String],
+                source: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.time = time
+                self.kind = kind
+                self.valence = valence
+                self.classification = classification
+                self.labels = labels
+                self.associations = associations
+                self.source = source
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case time
+                case kind
+                case valence
+                case classification
+                case labels
+                case associations
+                case source
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.time = try container.decode(
+                    Swift.String.self,
+                    forKey: .time
+                )
+                self.kind = try container.decode(
+                    Swift.String.self,
+                    forKey: .kind
+                )
+                self.valence = try container.decode(
+                    Swift.Double.self,
+                    forKey: .valence
+                )
+                self.classification = try container.decode(
+                    Swift.String.self,
+                    forKey: .classification
+                )
+                self.labels = try container.decode(
+                    [Swift.String].self,
+                    forKey: .labels
+                )
+                self.associations = try container.decode(
+                    [Swift.String].self,
+                    forKey: .associations
+                )
+                self.source = try container.decode(
+                    Swift.String.self,
+                    forKey: .source
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "time",
+                    "kind",
+                    "valence",
+                    "classification",
+                    "labels",
+                    "associations",
+                    "source"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.time,
+                    forKey: .time
+                )
+                try container.encode(
+                    self.kind,
+                    forKey: .kind
+                )
+                try container.encode(
+                    self.valence,
+                    forKey: .valence
+                )
+                try container.encode(
+                    self.classification,
+                    forKey: .classification
+                )
+                try container.encode(
+                    self.labels,
+                    forKey: .labels
+                )
+                try container.encode(
+                    self.associations,
+                    forKey: .associations
+                )
+                try container.encode(
+                    self.source,
+                    forKey: .source
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthStateOfMindResult`.
+        public struct HealthStateOfMindResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthStateOfMindResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The range asked for: D, W, M, 6M or Y.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthStateOfMindResult/range`.
+            public var range: Swift.String
+            /// When the period starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthStateOfMindResult/start`.
+            public var start: Swift.String
+            /// When the period ends (exclusive).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthStateOfMindResult/end`.
+            public var end: Swift.String
+            /// State of Mind logs in the period, all of them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthStateOfMindResult/count`.
+            public var count: Swift.Int
+            /// The logs, newest first, at most 500.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthStateOfMindResult/logs`.
+            public var logs: [Components.Schemas.HealthStateOfMindItem]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthStateOfMindResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - range: The range asked for: D, W, M, 6M or Y.
+            ///   - start: When the period starts.
+            ///   - end: When the period ends (exclusive).
+            ///   - count: State of Mind logs in the period, all of them.
+            ///   - logs: The logs, newest first, at most 500.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                range: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                count: Swift.Int,
+                logs: [Components.Schemas.HealthStateOfMindItem],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.range = range
+                self.start = start
+                self.end = end
+                self.count = count
+                self.logs = logs
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case range
+                case start
+                case end
+                case count
+                case logs
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.range = try container.decode(
+                    Swift.String.self,
+                    forKey: .range
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.logs = try container.decode(
+                    [Components.Schemas.HealthStateOfMindItem].self,
+                    forKey: .logs
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "range",
+                    "start",
+                    "end",
+                    "count",
+                    "logs"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.range,
+                    forKey: .range
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.count,
+                    forKey: .count
+                )
+                try container.encode(
+                    self.logs,
+                    forKey: .logs
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthAssessmentItem`.
+        public struct HealthAssessmentItem: Codable, Hashable, Sendable {
+            /// HKScoredAssessmentTypeIdentifierGAD7 (anxiety) or HKScoredAssessmentTypeIdentifierPHQ9 (depression).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAssessmentItem/type`.
+            public var _type: Swift.String
+            /// Its name in Health: Anxiety Risk (GAD-7) or Depression Risk (PHQ-9).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAssessmentItem/name`.
+            public var name: Swift.String
+            /// When it was taken.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAssessmentItem/time`.
+            public var time: Swift.String
+            /// The total of the answers' points, from 0 to maximumScore.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAssessmentItem/score`.
+            public var score: Swift.Int
+            /// The highest score: 21 for GAD-7, 27 for PHQ-9 (3 points a question).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAssessmentItem/maximumScore`.
+            public var maximumScore: Swift.Int
+            /// The risk Health gave the score. GAD-7: None to Minimal (0 to 4), Mild (5 to 9), Moderate (10 to 14) or Severe (15 to 21). PHQ-9: None to Minimal (0 to 4), Mild (5 to 9), Moderate (10 to 14), Moderately Severe (15 to 19) or Severe (20 to 27). Unknown for one a later iOS adds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAssessmentItem/risk`.
+            public var risk: Swift.String
+            /// Each question's answer, in the questionnaire's order (7 for GAD-7, 9 for PHQ-9), to how often over the last two weeks: Not at all (0 points), Several days (1), More than half the days (2) or Nearly every day (3). PHQ-9's 9th question, on thoughts of self-harm, can be Prefer not to answer. Unknown for an answer a later iOS adds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAssessmentItem/answers`.
+            public var answers: [Swift.String]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthAssessmentItem`.
+            ///
+            /// - Parameters:
+            ///   - _type: HKScoredAssessmentTypeIdentifierGAD7 (anxiety) or HKScoredAssessmentTypeIdentifierPHQ9 (depression).
+            ///   - name: Its name in Health: Anxiety Risk (GAD-7) or Depression Risk (PHQ-9).
+            ///   - time: When it was taken.
+            ///   - score: The total of the answers' points, from 0 to maximumScore.
+            ///   - maximumScore: The highest score: 21 for GAD-7, 27 for PHQ-9 (3 points a question).
+            ///   - risk: The risk Health gave the score. GAD-7: None to Minimal (0 to 4), Mild (5 to 9), Moderate (10 to 14) or Severe (15 to 21). PHQ-9: None to Minimal (0 to 4), Mild (5 to 9), Moderate (10 to 14), Moderately Severe (15 to 19) or Severe (20 to 27). Unknown for one a later iOS adds.
+            ///   - answers: Each question's answer, in the questionnaire's order (7 for GAD-7, 9 for PHQ-9), to how often over the last two weeks: Not at all (0 points), Several days (1), More than half the days (2) or Nearly every day (3). PHQ-9's 9th question, on thoughts of self-harm, can be Prefer not to answer. Unknown for an answer a later iOS adds.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                _type: Swift.String,
+                name: Swift.String,
+                time: Swift.String,
+                score: Swift.Int,
+                maximumScore: Swift.Int,
+                risk: Swift.String,
+                answers: [Swift.String],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self._type = _type
+                self.name = name
+                self.time = time
+                self.score = score
+                self.maximumScore = maximumScore
+                self.risk = risk
+                self.answers = answers
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _type = "type"
+                case name
+                case time
+                case score
+                case maximumScore
+                case risk
+                case answers
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self._type = try container.decode(
+                    Swift.String.self,
+                    forKey: ._type
+                )
+                self.name = try container.decode(
+                    Swift.String.self,
+                    forKey: .name
+                )
+                self.time = try container.decode(
+                    Swift.String.self,
+                    forKey: .time
+                )
+                self.score = try container.decode(
+                    Swift.Int.self,
+                    forKey: .score
+                )
+                self.maximumScore = try container.decode(
+                    Swift.Int.self,
+                    forKey: .maximumScore
+                )
+                self.risk = try container.decode(
+                    Swift.String.self,
+                    forKey: .risk
+                )
+                self.answers = try container.decode(
+                    [Swift.String].self,
+                    forKey: .answers
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "type",
+                    "name",
+                    "time",
+                    "score",
+                    "maximumScore",
+                    "risk",
+                    "answers"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self._type,
+                    forKey: ._type
+                )
+                try container.encode(
+                    self.name,
+                    forKey: .name
+                )
+                try container.encode(
+                    self.time,
+                    forKey: .time
+                )
+                try container.encode(
+                    self.score,
+                    forKey: .score
+                )
+                try container.encode(
+                    self.maximumScore,
+                    forKey: .maximumScore
+                )
+                try container.encode(
+                    self.risk,
+                    forKey: .risk
+                )
+                try container.encode(
+                    self.answers,
+                    forKey: .answers
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthAssessmentsResult`.
+        public struct HealthAssessmentsResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAssessmentsResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The range asked for: D, W, M, 6M or Y.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAssessmentsResult/range`.
+            public var range: Swift.String
+            /// When the period starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAssessmentsResult/start`.
+            public var start: Swift.String
+            /// When the period ends (exclusive).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAssessmentsResult/end`.
+            public var end: Swift.String
+            /// Assessments in the period, all of them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAssessmentsResult/count`.
+            public var count: Swift.Int
+            /// The assessments, newest first, at most 100.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAssessmentsResult/assessments`.
+            public var assessments: [Components.Schemas.HealthAssessmentItem]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthAssessmentsResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - range: The range asked for: D, W, M, 6M or Y.
+            ///   - start: When the period starts.
+            ///   - end: When the period ends (exclusive).
+            ///   - count: Assessments in the period, all of them.
+            ///   - assessments: The assessments, newest first, at most 100.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                range: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                count: Swift.Int,
+                assessments: [Components.Schemas.HealthAssessmentItem],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.range = range
+                self.start = start
+                self.end = end
+                self.count = count
+                self.assessments = assessments
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case range
+                case start
+                case end
+                case count
+                case assessments
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.range = try container.decode(
+                    Swift.String.self,
+                    forKey: .range
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.assessments = try container.decode(
+                    [Components.Schemas.HealthAssessmentItem].self,
+                    forKey: .assessments
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "range",
+                    "start",
+                    "end",
+                    "count",
+                    "assessments"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.range,
+                    forKey: .range
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.count,
+                    forKey: .count
+                )
+                try container.encode(
+                    self.assessments,
+                    forKey: .assessments
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthMedicationItem`.
         public struct HealthMedicationItem: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/id`.
