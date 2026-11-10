@@ -1,5 +1,5 @@
 import * as Http from "alchemy/Http";
-import { Clock, Effect, Layer, Option, Redacted, Schedule, Schema } from "effect";
+import { Clock, Effect, Layer, Logger, Option, Redacted, Schedule, Schema } from "effect";
 import { Headers, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { Api } from "./Api.ts";
@@ -68,6 +68,7 @@ import {
 } from "./health/HealthIngestion.ts";
 import { Users } from "./core/Users.ts";
 import { Deployment } from "./Deployment.ts";
+import { workersLoggers } from "./Logging.ts";
 import {
   checkAddressRateLimit,
   RateLimits,
@@ -987,8 +988,13 @@ export const ExportDownloadRoute = HttpRouter.use((router) =>
         const open =
           (opened: Effect.Effect<Option.Option<{ readonly body: ReadableStream<Uint8Array> }>>) =>
           () =>
+            // Outside the request's fiber, so with none of its services: the loggers are given
+            // here, so anything this logs is JSON and redacted too (851-4054).
             Effect.runPromise(
-              opened.pipe(Effect.map((file) => Option.getOrNull(file)?.body ?? null)),
+              opened.pipe(
+                Effect.map((file) => Option.getOrNull(file)?.body ?? null),
+                Effect.provideService(Logger.CurrentLoggers, workersLoggers),
+              ),
             );
         const readme = new TextEncoder().encode(exportReadme);
         const entries: Array<ArchiveEntry> = [
