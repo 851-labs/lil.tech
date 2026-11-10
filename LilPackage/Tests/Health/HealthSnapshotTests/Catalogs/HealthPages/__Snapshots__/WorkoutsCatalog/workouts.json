@@ -60,6 +60,13 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.strength-recorded-in-tokyo-dark.png",
+      "id" : "workouts.strength-recorded-in-tokyo",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.strength-recorded-in-tokyo-light.png",
+      "name" : "Strength, recorded in Tokyo",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.route-loading-dark.png",
       "id" : "workouts.route-loading",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.route-loading-light.png",

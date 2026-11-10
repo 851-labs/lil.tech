@@ -8,7 +8,7 @@ import MapKit
 import SQLiteData
 import SwiftUI
 
-/// A workout, as in Health: its summary figures, heart rate over the workout, the route colored
+/// A workout, as in Health: its summary figures and recorded time zone, heart rate over the workout, the route colored
 /// by pace with its splits (per kilometer or mile, by the locale), and its segments.
 struct WorkoutDetailView: View {
   let workout: HealthWorkout
@@ -81,6 +81,8 @@ struct WorkoutDetailContent: View {
   private let splitUnit: MetricFormat.DisplayUnit
   /// How far it went, and in what (`WorkoutFormat.distance`).
   private let distance: (meters: Double, unit: MetricFormat.DisplayUnit)?
+  /// The zone it was recorded in, if it has one (851-4179).
+  private let timeZone: RecordedTimeZone?
 
   init(workout: HealthWorkout, heartRates: [HealthSample], route: RouteState) {
     self.workout = workout
@@ -91,6 +93,10 @@ struct WorkoutDetailContent: View {
     statistics = workout.decodedStatistics
     splitUnit = WorkoutFormat.splitUnit(locale: locale)
     distance = WorkoutFormat.distance(of: workout, statistics, locale: locale)
+    @Dependency(\.calendar) var calendar
+    timeZone = RecordedTimeZone(
+      workout.decodedMetadata.timeZoneName, start: Date(unixMilliseconds: workout.startDate),
+      calendar: calendar)
     if case .loaded(let loaded) = route {
       splits = WorkoutFormat.splits(loaded.locations, pauses: workout.pauses, in: splitUnit)
     } else {
@@ -106,6 +112,7 @@ struct WorkoutDetailContent: View {
       Section {
         header
         summary
+        if let timeZone { RecordedTimeZoneRow(zone: timeZone) }
       }
       if !heartRates.isEmpty { heartRateSection }
       let map = RouteMapRow(route: route, height: 300)

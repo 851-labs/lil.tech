@@ -4,7 +4,7 @@ import HealthDatabase
 import HealthUI
 import SwiftUI
 
-/// One sample's details: its value and times, the app and device it came from, and its metadata.
+/// One sample's details: its value, times and recorded time zone, the app and device it came from, and its metadata.
 struct SampleDetailView: View {
   let type: HealthDataType
   let sample: HealthSample
@@ -27,6 +27,11 @@ struct SampleDetailView: View {
         LabeledContent(
           "Start", value: Date(unixMilliseconds: sample.startDate), format: dateStyle)
         LabeledContent("End", value: Date(unixMilliseconds: sample.endDate), format: dateStyle)
+        if let zone = RecordedTimeZone(
+          sample.timeZoneName, start: Date(unixMilliseconds: sample.startDate), calendar: calendar)
+        {
+          RecordedTimeZoneRow(zone: zone)
+        }
       }
       Section("Source") {
         LabeledContent("App", value: sample.sourceName)

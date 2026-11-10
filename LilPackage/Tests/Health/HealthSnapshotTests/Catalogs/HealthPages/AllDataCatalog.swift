@@ -63,6 +63,22 @@
               sourceBundleID: "com.example.pedometer"))
         }
       },
+      // Recorded in Tokyo (851-4179): a Time Zone row, with its start on Tokyo's clock. The times
+      // stay on the Mac's.
+      CatalogState("Sample recorded in Tokyo") {
+        NavigationStack {
+          SampleDetailView(
+            type: heartRate, sample: recorded(in: "Asia/Tokyo", samples(heartRate, limit: 1)[0]))
+        }
+      },
+      // In the Mac's own zone: the row, without a second clock.
+      CatalogState("Sample recorded in Los Angeles") {
+        NavigationStack {
+          SampleDetailView(
+            type: heartRate,
+            sample: recorded(in: "America/Los_Angeles", samples(heartRate, limit: 1)[0]))
+        }
+      },
       CatalogState("Sources", minHeight: 420) {
         sources(
           .loaded(
@@ -110,6 +126,13 @@
     try! catalogDatabase.read { db in
       try HealthDatabase.samplePage(of: type.id, after: nil, limit: limit, db)
     }
+  }
+
+  /// `sample`, recorded in the zone named `zone` (`HKTimeZone`), with its other metadata.
+  private func recorded(in zone: String, _ sample: HealthSample) -> HealthSample {
+    var sample = sample
+    sample.metadata = metadata(sample.metadata, recordedIn: zone)
+    return sample
   }
 
   /// The day before `previewNow`, a reading every 5 minutes from 11:55 PM back to midnight.

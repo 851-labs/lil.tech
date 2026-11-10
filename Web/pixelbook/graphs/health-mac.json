@@ -235,7 +235,12 @@
       "id": "sample",
       "screen": "HealthPages/AllDataCatalog.swift",
       "title": "Sample",
-      "states": ["Sample", "Sample without device"]
+      "states": [
+        "Sample",
+        "Sample without device",
+        "Sample recorded in Tokyo",
+        "Sample recorded in Los Angeles"
+      ]
     },
     {
       "id": "sources",
@@ -338,6 +343,7 @@
         "Run with route",
         "Run with route, US",
         "Strength, no route",
+        "Strength, recorded in Tokyo",
         "Route loading",
         "Route failed"
       ]

@@ -38,6 +38,10 @@
       CatalogState("Strength, no route", width: 760) {
         detail({ _ in .none }, kind: 50)
       },
+      // Recorded in Tokyo (851-4179): a Time Zone row, with its start on Tokyo's clock.
+      CatalogState("Strength, recorded in Tokyo", width: 760) {
+        detail({ _ in .none }, kind: 50, timeZone: "Asia/Tokyo")
+      },
       CatalogState("Route loading", width: 760) { detail { _ in .loading } },
       CatalogState("Route failed", width: 760) {
         detail { _ in .failed("The route couldn't be downloaded.") }
@@ -76,10 +80,16 @@
     }
   }
 
-  /// The catalog database's latest workout of `kind` (37, a run), with its heart rates.
+  /// The catalog database's latest workout of `kind` (37, a run), with its heart rates, and
+  /// recorded in the zone named `timeZone` (`HKTimeZone`) if given.
   @MainActor
-  private func detail(_ route: (HealthWorkout) -> RouteState, kind: Int = 37) -> some View {
-    let workout = workouts.first { $0.activityType == kind }!
+  private func detail(
+    _ route: (HealthWorkout) -> RouteState, kind: Int = 37, timeZone: String? = nil
+  ) -> some View {
+    var workout = workouts.first { $0.activityType == kind }!
+    if let timeZone {
+      workout.metadata = metadata(workout.metadata, recordedIn: timeZone)
+    }
     let heartRates = try! catalogDatabase.read { db in
       try HealthDatabase.samples(
         of: HealthDatabase.heartRateType,
