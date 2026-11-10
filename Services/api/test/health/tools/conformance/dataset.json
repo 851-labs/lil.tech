@@ -587,8 +587,8 @@
             "startDate": 1791914460000,
             "endDate": 1791916740000,
             "workout": null,
-            "locationCount": 8,
-            "locations": "8de678420ce568d35c4950f04af39622abb7fa00b96bb7276fe666591808623f",
+            "locationCount": 9,
+            "locations": "2a1a11221036df474fc61594316e3bbff98da36f6f1562def455a0666da755c5",
             "sourceName": "Test Apple Watch",
             "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
           }

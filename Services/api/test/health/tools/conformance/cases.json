@@ -3327,7 +3327,7 @@
             "start": "2026-10-13T19:01:00+01:00",
             "end": "2026-10-13T19:39:00+01:00",
             "duration": 2280,
-            "pointCount": 8,
+            "pointCount": 9,
             "source": "Test Apple Watch"
           }
         ]
@@ -3351,7 +3351,7 @@
       }
     },
     {
-      "name": "workout_route: a run's linked route by the workout's ID: distance, elevation gain and loss past an unknown altitude, and its four corners at 5 m",
+      "name": "workout_route: a run's linked route by the workout's ID: distance, elevation gain and loss past an unknown altitude, and its four corners at 5 m, without its point with invalid coordinates",
       "tool": "workout_route",
       "now": "2026-10-20T15:00:00Z",
       "arguments": {
@@ -3365,7 +3365,7 @@
           "start": "2026-10-18T07:00:00+00:00",
           "end": "2026-10-18T07:30:00+00:00",
           "duration": 1800,
-          "pointCount": 31,
+          "pointCount": 30,
           "source": "Test Apple Watch",
           "distance": 3362.6508116027053,
           "elevationGain": 16.2,
@@ -3418,7 +3418,7 @@
       }
     },
     {
-      "name": "workout_route: the route HealthKit didn't link, by the workout it was recorded during, with no known altitude",
+      "name": "workout_route: the route HealthKit didn't link, by the workout it was recorded during, with no known altitude, its point dated 1970 left out",
       "tool": "workout_route",
       "now": "2026-10-20T15:00:00Z",
       "arguments": {
@@ -3628,7 +3628,7 @@
       "expectedError": "Invalid parameters for tool 'workout_route': Missing key\n  at [\"id\"]"
     },
     {
-      "name": "workout_route_points: the first page of a run's route, by the workout's ID: a time with a fraction rounds down, and an unknown accuracy is null",
+      "name": "workout_route_points: the first page of a run's route, by the workout's ID: a time with a fraction rounds down, and a point with invalid coordinates is left out",
       "tool": "workout_route_points",
       "now": "2026-10-20T15:00:00Z",
       "arguments": {
@@ -3638,7 +3638,7 @@
       "expected": {
         "timeZone": "UTC",
         "id": "0c0f0000-0000-4000-8000-000000000173",
-        "pointCount": 31,
+        "pointCount": 30,
         "points": [
           {
             "time": "2026-10-18T07:00:00+00:00",
@@ -3671,11 +3671,11 @@
             "course": 0
           },
           {
-            "time": "2026-10-18T07:03:00+00:00",
-            "latitude": 51.5027,
+            "time": "2026-10-18T07:04:00+00:00",
+            "latitude": 51.5036,
             "longitude": -0.12,
-            "altitude": 13,
-            "horizontalAccuracy": null,
+            "altitude": 14,
+            "horizontalAccuracy": 4.2,
             "verticalAccuracy": 3.1,
             "speed": 1.67,
             "course": 0
@@ -3690,14 +3690,14 @@
       "now": "2026-10-20T15:00:00Z",
       "arguments": {
         "id": "0c0f0000-0000-4000-8000-000000000173",
-        "cursor": "7",
+        "cursor": "6",
         "limit": 9,
         "timeZone": "Asia/Kolkata"
       },
       "expected": {
         "timeZone": "Asia/Kolkata",
         "id": "0c0f0000-0000-4000-8000-000000000173",
-        "pointCount": 31,
+        "pointCount": 30,
         "points": [
           {
             "time": "2026-10-18T12:37:00+05:30",
@@ -3790,7 +3790,7 @@
             "course": 90
           }
         ],
-        "nextCursor": "16"
+        "nextCursor": "15"
       }
     },
     {
@@ -3799,12 +3799,12 @@
       "now": "2026-10-20T15:00:00Z",
       "arguments": {
         "id": "0c0f0000-0000-4000-8000-000000000173",
-        "cursor": "29"
+        "cursor": "28"
       },
       "expected": {
         "timeZone": "UTC",
         "id": "0c0f0000-0000-4000-8000-000000000173",
-        "pointCount": 31,
+        "pointCount": 30,
         "points": [
           {
             "time": "2026-10-18T07:29:00+00:00",
@@ -3836,9 +3836,9 @@
       "now": "2026-10-20T15:00:00Z",
       "arguments": {
         "id": "0c0f0000-0000-4000-8000-000000000173",
-        "cursor": "32"
+        "cursor": "31"
       },
-      "expectedError": "Invalid cursor: 32. Pass the previous page's nextCursor."
+      "expectedError": "Invalid cursor: 31. Pass the previous page's nextCursor."
     },
     {
       "name": "workout_route_points: a cursor that isn't one",

@@ -115,7 +115,7 @@ describe("workout routes", () => {
       );
       assert.strictEqual(
         error.message,
-        `The route ${routeId}'s points aren't on the server. Try again later.`,
+        "The route's points aren't on the server. Try again later.",
       );
     }),
   );

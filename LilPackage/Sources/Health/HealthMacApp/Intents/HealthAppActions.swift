@@ -99,6 +99,8 @@ public enum HealthAppActionError: Error, Equatable, LocalizedError,
   case cardNotSaved(String)
   /// A route's points couldn't be downloaded for `lil-health` (851-4164).
   case downloadFailed
+  /// A route's points aren't on the server: not uploaded yet, or gone.
+  case blobNotFound
 
   public var errorDescription: String? {
     switch self {
@@ -116,6 +118,8 @@ public enum HealthAppActionError: Error, Equatable, LocalizedError,
     case .cardNotSaved(let message): message
     case .downloadFailed:
       "lil health couldn't download the route's points. Check that this Mac is online, then try again."
+    // As the remote server says it.
+    case .blobNotFound: "The route's points aren't on the server. Try again later."
     }
   }
 

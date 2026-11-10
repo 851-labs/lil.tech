@@ -144,7 +144,9 @@ public enum HealthCLI {
     let database = try HealthDatabase.openForReading(
       at: context.directory.appending(path: "Health.sqlite"))
     let tools = context.tools()
-    let answer = try database.read { db in try command.answer(tools, db) }
+    let answer = try withBlobs(context: context) {
+      try database.read { db in try command.answer(tools, db) }
+    }
     guard command.output.json else { return answer.text }
     return try encode(answer.json)
   }

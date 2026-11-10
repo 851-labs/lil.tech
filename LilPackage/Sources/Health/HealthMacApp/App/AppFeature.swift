@@ -194,6 +194,8 @@ public struct AppFeature {
             do {
               _ = try await blobCache.data(for: sha256)
               request.finish(.success(.done))
+            } catch is BlobCache.NotFound {
+              request.finish(.failure(HealthAppActionError.blobNotFound))
             } catch {
               request.finish(.failure(HealthAppActionError.downloadFailed))
             }

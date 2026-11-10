@@ -92,7 +92,8 @@ struct RouteToolsTests {
     let connection = try await connect(app.connection)
     let first = try await connection.call("workout_route", ["id": .string(run)])
     #expect(first.isError == false, "\(first.text)")
-    #expect(first.text.contains(#""pointCount":31"#))
+    // The 31 it has, less one with invalid coordinates.
+    #expect(first.text.contains(#""pointCount":30"#))
     // Then from the cache, without asking again.
     let second = try await connection.call("workout_route_points", ["id": .string(run)])
     await connection.close()
@@ -161,7 +162,7 @@ struct RouteToolsTests {
 
           2026-10-18 07:00   30m   31 points   Test Apple Watch   workout 0c0f0000-0000-4000-8000-000000000013   0c0f0000-0000-4000-8000-000000000173
           2026-10-16 08:00   20m   5 points   Test Cycling App   no workout   0c0f0000-0000-4000-8000-000000000175
-          2026-10-13 18:01   38m   8 points   Test Apple Watch   no workout   0c0f0000-0000-4000-8000-000000000171
+          2026-10-13 18:01   38m   9 points   Test Apple Watch   no workout   0c0f0000-0000-4000-8000-000000000171
 
         """)
     #expect(
@@ -169,7 +170,7 @@ struct RouteToolsTests {
         Route 0c0f0000-0000-4000-8000-000000000173   2026-10-18 07:00   30m (UTC)
         Workout 0c0f0000-0000-4000-8000-000000000013, from Test Apple Watch
 
-        3.36 km   climbed 16.2 m   descended 16.2 m   31 points
+        3.36 km   climbed 16.2 m   descended 16.2 m   30 points
         Starts near 51.5, -0.12, ends near 51.5, -0.12
 
         Shape: 4 of its points, within 5 m
@@ -183,7 +184,7 @@ struct RouteToolsTests {
         """)
     #expect(
       try run("route", "0c0f0000-0000-4000-8000-000000000173", "--points", "--limit", "2") == """
-        Route 0c0f0000-0000-4000-8000-000000000173: 2 of its 31 points (UTC)
+        Route 0c0f0000-0000-4000-8000-000000000173: 2 of its 30 points (UTC)
 
           2026-10-18 07:00:00   51.5, -0.12   10 m   1.67 m/s   0°   ±4.2 m
           2026-10-18 07:01:00   51.5009, -0.12   11 m   1.67 m/s   0°   ±4.2 m

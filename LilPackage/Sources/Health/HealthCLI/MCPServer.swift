@@ -155,10 +155,12 @@ enum HealthMCPServer {
       // database once the app has migrated it.
       let database = try HealthDatabase.openForReading(
         at: context.directory.appending(path: "Health.sqlite"))
-      // A route's points may wait on the app to download them (`HealthCLI.blob`), seconds at
-      // most, on the database's reader queue, not Swift's own threads.
       let tools = context.tools()
-      return try result(try await database.read { db in try query(tools, db) })
+      // Asking the app for a route's points it hasn't downloaded, if a call needs them.
+      return try result(
+        try await HealthCLI.withBlobs(context: context) {
+          try await database.read { db in try query(tools, db) }
+        })
     } catch {
       return failure(error)
     }

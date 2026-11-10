@@ -54,9 +54,6 @@ extension HealthTools {
     let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
     let route = try Self.route(id: id, db)
     let points = try routePoints(route)
-    let distance = zip(points, points.dropFirst()).reduce(0) {
-      $0 + HealthDatabase.distance($1.0, $1.1)
-    }
     let (gain, loss) = Self.elevation(points)
     func area(_ point: RouteLocation?) -> HealthRouteCoordinate? {
       point.map {
@@ -70,7 +67,7 @@ extension HealthTools {
       route: HealthWorkoutRouteDetail(
         id: item.id, workout: item.workout, start: item.start, end: item.end,
         duration: item.duration, pointCount: item.pointCount, source: item.source,
-        distance: distance, elevationGain: gain, elevationLoss: loss,
+        distance: HealthDatabase.routeDistance(points), elevationGain: gain, elevationLoss: loss,
         bounds: Self.bounds(points), startArea: area(points.first), endArea: area(points.last),
         simplified: Self.shape(points, time: time)))
   }
@@ -83,23 +80,25 @@ extension HealthTools {
     _ db: Database
   ) throws -> HealthWorkoutRoutePointsResult {
     let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
-    let route = try Self.route(id: id, db)
-    let points = try routePoints(route)
+    // Checked before the points, which may have to be downloaded.
     let limit = limit ?? Self.routePointsDefaultLimit
     guard (1...Self.routePointsLimit).contains(limit) else {
       throw HealthToolError("The limit must be from 1 to \(Self.routePointsLimit).")
     }
-    let start =
-      try cursor.map { cursor in
-        // 1 to 9 digits, as the remote server reads it.
-        guard (1...9).contains(cursor.utf8.count),
-          cursor.utf8.allSatisfy({ (48...57).contains($0) }),
-          let index = Int(cursor), index <= points.count
-        else {
-          throw HealthToolError("Invalid cursor: \(cursor). Pass the previous page's nextCursor.")
-        }
-        return index
-      } ?? 0
+    let invalidCursor = { (cursor: String) in
+      HealthToolError("Invalid cursor: \(cursor). Pass the previous page's nextCursor.")
+    }
+    // 1 to 9 digits, as the remote server reads it.
+    let index = try cursor.map { cursor in
+      guard (1...9).contains(cursor.utf8.count), cursor.utf8.allSatisfy({ (48...57).contains($0) }),
+        let index = Int(cursor)
+      else { throw invalidCursor(cursor) }
+      return index
+    }
+    let route = try Self.route(id: id, db)
+    let points = try routePoints(route)
+    if let cursor, let index, index > points.count { throw invalidCursor(cursor) }
+    let start = index ?? 0
     let end = min(start + limit, points.count)
     return HealthWorkoutRoutePointsResult(
       timeZone: time.name, id: route.id, pointCount: points.count,
@@ -136,14 +135,19 @@ extension HealthTools {
     return route
   }
 
-  /// A route's points, from its blob, leaving out any whose time, latitude or longitude isn't a
-  /// finite number.
+  /// The times a point can have, in Unix seconds: from 2000 to 2999, the tools' years.
+  private static let pointTimes = 946_684_800.0..<32_503_680_000.0
+
+  /// A route's points, from its blob, leaving out any whose coordinates aren't valid (a negative
+  /// horizontal accuracy, as Core Location marks them, or not finite numbers) or whose time is
+  /// outside 2000 to 2999.
   func routePoints(_ route: HealthWorkoutRoute) throws -> [RouteLocation] {
     guard let sha256 = route.locations else {
-      throw HealthToolError("The route \(route.id)'s points aren't on the server. Try again later.")
+      throw HealthToolError("The route's points aren't on the server. Try again later.")
     }
     return HealthDatabase.routeLocations(try blob(sha256)).filter {
-      $0.time.timeIntervalSince1970.isFinite && $0.latitude.isFinite && $0.longitude.isFinite
+      $0.horizontalAccuracy >= 0 && $0.latitude.isFinite && $0.longitude.isFinite
+        && Self.pointTimes.contains($0.time.timeIntervalSince1970)
     }
   }
 
@@ -210,28 +214,29 @@ extension HealthTools {
   /// The simplified shape: at `routeShapeTolerance`, doubled until it keeps `routeShapeLimit`
   /// or fewer.
   private static func shape(_ points: [RouteLocation], time: ToolTime) -> HealthRouteShape {
+    let kept = keptBelow(points)
     var tolerance = routeShapeTolerance
-    var indices = simplified(points, tolerance: tolerance)
-    while indices.count > routeShapeLimit {
-      tolerance *= 2
-      indices = simplified(points, tolerance: tolerance)
-    }
+    while kept.count(where: { $0 > tolerance }) > routeShapeLimit { tolerance *= 2 }
+    let shown = points.indices.filter { kept[$0] > tolerance }.map { points[$0] }
     return HealthRouteShape(
-      tolerance: tolerance, pointCount: indices.count,
-      points: indices.map { index in
-        let point = points[index]
-        return HealthRouteShapePoint(
+      tolerance: tolerance, pointCount: shown.count,
+      points: shown.map { point in
+        HealthRouteShapePoint(
           time: time.localTime(point.time), latitude: rounded(point.latitude, 100_000),
           longitude: rounded(point.longitude, 100_000), altitude: altitude(point))
       })
   }
 
-  /// The indices of the points Ramer-Douglas-Peucker keeps at `tolerance` meters, in order: the
-  /// first and last, and every point further than `tolerance` from the line between the points
-  /// kept around it. Distances are on a flat projection around the first point (meters east and
-  /// north), each from the segment, not the infinite line; of points as far, the first is kept.
-  static func simplified(_ points: [RouteLocation], tolerance: Double) -> [Int] {
-    guard points.count > 2 else { return Array(points.indices) }
+  /// The tolerance below which Ramer-Douglas-Peucker keeps each point, in meters: at a tolerance,
+  /// it keeps the first and last points, and every point further than it from the segment
+  /// between the points kept around it. Which point splits a span (the furthest, the first of
+  /// points as far) doesn't depend on the tolerance, only whether it splits, so one pass finds
+  /// them all: a point is kept below its distance from its span's segment, and below its span's
+  /// own split point's. Distances are on a flat projection around the first point (meters east
+  /// and north).
+  static func keptBelow(_ points: [RouteLocation]) -> [Double] {
+    var kept = [Double](repeating: .infinity, count: points.count)
+    guard points.count > 2 else { return kept }
     let origin = points[0]
     let radius = 6_371_000.0
     let east = Double.pi / 180 * radius * cos(origin.latitude * .pi / 180)
@@ -247,13 +252,10 @@ extension HealthTools {
       let (ex, ey) = (x[start] + along * dx - x[index], y[start] + along * dy - y[index])
       return (ex * ex + ey * ey).squareRoot()
     }
-    var kept = [Bool](repeating: false, count: points.count)
-    kept[0] = true
-    kept[points.count - 1] = true
-    var spans = [(0, points.count - 1)]
-    while let (start, end) = spans.popLast() {
+    var spans = [(0, points.count - 1, Double.infinity)]
+    while let (start, end, below) = spans.popLast() {
       var furthest: Int?
-      var furthestDistance = tolerance
+      var furthestDistance = -1.0
       for index in (start + 1)..<end {
         let away = fromSegment(index, start, end)
         if away > furthestDistance {
@@ -261,24 +263,16 @@ extension HealthTools {
           furthestDistance = away
         }
       }
-      if let furthest {
-        kept[furthest] = true
-        spans.append((start, furthest))
-        spans.append((furthest, end))
-      }
+      guard let furthest else { continue }
+      kept[furthest] = min(furthestDistance, below)
+      spans.append((start, furthest, kept[furthest]))
+      spans.append((furthest, end, kept[furthest]))
     }
-    return kept.indices.filter { kept[$0] }
+    return kept
   }
 }
 
 // MARK: - Outputs
-
-extension KeyedEncodingContainer {
-  /// Encodes `nil` as `null`, rather than leaving the key out.
-  fileprivate mutating func encode<Value: Encodable>(_ value: Value?, _ key: Key) throws {
-    try encode(value, forKey: key)
-  }
-}
 
 public struct HealthWorkoutRouteItem: Codable, Equatable, Sendable {
   public var id: String

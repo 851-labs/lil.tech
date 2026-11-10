@@ -9,7 +9,7 @@ public protocol HealthToolOutput: Codable, Equatable, Sendable {}
 
 extension KeyedEncodingContainer {
   /// Encodes `nil` as `null`, rather than leaving the key out.
-  fileprivate mutating func encode<Value: Encodable>(_ value: Value?, _ key: Key) throws {
+  mutating func encode<Value: Encodable>(_ value: Value?, _ key: Key) throws {
     try encode(value, forKey: key)
   }
 }

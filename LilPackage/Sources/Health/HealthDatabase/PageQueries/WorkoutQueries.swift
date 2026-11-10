@@ -215,8 +215,9 @@ public struct RouteLocation: Equatable, Sendable {
   public var altitude: Double
   /// Meters a second, or negative if unknown.
   public var speed: Double
-  /// Meters, or negative if unknown: then `altitude` is unknown too.
+  /// Meters, or negative if the latitude and longitude aren't valid, as Core Location marks them.
   public var horizontalAccuracy: Double
+  /// Meters, or negative if the altitude isn't known.
   public var verticalAccuracy: Double
   /// Degrees from true north, or negative if unknown.
   public var course: Double
@@ -455,7 +456,7 @@ extension HealthDatabase {
   }
 
   /// Meters between two points, along the Earth's surface.
-  public static func distance(_ a: RouteLocation, _ b: RouteLocation) -> Double {
+  static func distance(_ a: RouteLocation, _ b: RouteLocation) -> Double {
     let radius = 6_371_000.0
     let (lat1, lat2) = (a.latitude * .pi / 180, b.latitude * .pi / 180)
     let dLat = lat2 - lat1

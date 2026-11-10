@@ -51,6 +51,24 @@ struct DownloadBlobActionTests {
     await #expect(throws: HealthAppActionError.downloadFailed) { try await answer() }
     await store.finish()
   }
+
+  /// Not uploaded yet, or gone: said as the remote server says it.
+  @Test(.timeLimit(.minutes(1)))
+  func saysWhenThePointsArentOnTheServer() async throws {
+    let store = TestStore(initialState: AppFeature.State(isSignedIn: true)) {
+      AppFeature()
+    } withDependencies: { [directory] in
+      $0.blobCache = BlobCache(
+        directory: directory, maxBytes: 1 << 20,
+        url: { URL(string: "https://blobs.lil.test/\($0)")! },
+        // Expired twice: the server has no such blob (`BlobCache.NotFound`).
+        download: SnapshotDownloader { _ in throw SnapshotDownloader.Expired() })
+    }
+    let (request, answer) = makeRequest(.downloadBlob(sha256: sha256))
+    await store.send(.appActionRequested(request))
+    await #expect(throws: HealthAppActionError.blobNotFound) { try await answer() }
+    await store.finish()
+  }
 }
 
 private func makeRequest(

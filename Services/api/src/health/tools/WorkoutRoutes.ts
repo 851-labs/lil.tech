@@ -114,11 +114,16 @@ export interface RoutePoint {
 /** Bytes per location in a route's blob (`HealthWorkoutRoute`). */
 const locationBytes = 44;
 
+/** The times a point can have, in Unix seconds: from 2000 to 2999, the tools' years (`toolDate`). */
+const firstTime = 946_684_800;
+const pastLastTime = 32_503_680_000;
+
 /**
  * A route blob's locations (`HealthWorkoutRoute`): 44 little-endian bytes each, the time, latitude
  * and longitude as 64-bit floats, then altitude, horizontal and vertical accuracy, speed and
  * course as 32-bit ones. A trailing partial record is left out, as on the Mac, and so is a point
- * whose time, latitude or longitude isn't a finite number.
+ * whose coordinates aren't valid (a negative horizontal accuracy, as Core Location marks them, or
+ * not finite numbers) or whose time is outside 2000 to 2999.
  */
 export const routePoints = (bytes: Uint8Array): ReadonlyArray<RoutePoint> => {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -134,7 +139,13 @@ export const routePoints = (bytes: Uint8Array): ReadonlyArray<RoutePoint> => {
       speed: view.getFloat32(offset + 36, true),
       course: view.getFloat32(offset + 40, true),
     };
-    if ([point.time, point.latitude, point.longitude].every(Number.isFinite)) points.push(point);
+    const isValid =
+      point.horizontalAccuracy >= 0 &&
+      Number.isFinite(point.latitude) &&
+      Number.isFinite(point.longitude) &&
+      point.time >= firstTime &&
+      point.time < pastLastTime;
+    if (isValid) points.push(point);
   }
   return points;
 };
@@ -195,13 +206,16 @@ const elevation = (points: ReadonlyArray<RoutePoint>) => {
 };
 
 /**
- * The indices of the points Ramer-Douglas-Peucker keeps at `tolerance` meters, in order: the
- * first and last, and every point further than `tolerance` from the line between the points kept
- * around it. Distances are on a flat projection around the first point (meters east and north),
- * each from the segment, not the infinite line; of points as far, the first is kept.
+ * The tolerance below which Ramer-Douglas-Peucker keeps each point, in meters: at a tolerance, it
+ * keeps the first and last points, and every point further than it from the segment between the
+ * points kept around it. Which point splits a span (the furthest, the first of points as far)
+ * doesn't depend on the tolerance, only whether it splits, so one pass finds them all: a point is
+ * kept below its distance from its span's segment, and below its span's own split point's.
+ * Distances are on a flat projection around the first point (meters east and north).
  */
-const simplify = (points: ReadonlyArray<RoutePoint>, tolerance: number): ReadonlyArray<number> => {
-  if (points.length <= 2) return points.map((_, index) => index);
+const keptBelow = (points: ReadonlyArray<RoutePoint>): Float64Array => {
+  const kept = new Float64Array(points.length).fill(Infinity);
+  if (points.length <= 2) return kept;
   const origin = points[0]!;
   const east = radians(1) * earthRadius * Math.cos(radians(origin.latitude));
   const north = radians(1) * earthRadius;
@@ -222,14 +236,11 @@ const simplify = (points: ReadonlyArray<RoutePoint>, tolerance: number): Readonl
     const ey = y[start]! + along * dy - y[index]!;
     return Math.sqrt(ex * ex + ey * ey);
   };
-  const kept = Array.from({ length: points.length }, () => false);
-  kept[0] = true;
-  kept[points.length - 1] = true;
-  const spans: Array<readonly [number, number]> = [[0, points.length - 1]];
+  const spans: Array<readonly [number, number, number]> = [[0, points.length - 1, Infinity]];
   while (spans.length > 0) {
-    const [start, end] = spans.pop()!;
+    const [start, end, below] = spans.pop()!;
     let furthest = -1;
-    let furthestDistance = tolerance;
+    let furthestDistance = -1;
     for (let index = start + 1; index < end; index++) {
       const away = fromSegment(index, start, end);
       if (away > furthestDistance) {
@@ -237,34 +248,33 @@ const simplify = (points: ReadonlyArray<RoutePoint>, tolerance: number): Readonl
         furthestDistance = away;
       }
     }
-    if (furthest !== -1) {
-      kept[furthest] = true;
-      spans.push([start, furthest], [furthest, end]);
-    }
+    if (furthest === -1) continue;
+    const keptBelowIt = Math.min(furthestDistance, below);
+    kept[furthest] = keptBelowIt;
+    spans.push([start, furthest, keptBelowIt], [furthest, end, keptBelowIt]);
   }
-  return kept.flatMap((isKept, index) => (isKept ? [index] : []));
+  return kept;
 };
 
-/** The simplified shape: at `routeShapeTolerance`, doubled until it keeps `routeShapeLimit` or fewer. */
+/**
+ * The simplified shape: at `routeShapeTolerance`, doubled until it keeps `routeShapeLimit` or
+ * fewer.
+ */
 const shape = (points: ReadonlyArray<RoutePoint>, zone: DateTime.TimeZone) => {
+  const kept = keptBelow(points);
+  const keptAt = (tolerance: number) => kept.filter((below) => below > tolerance).length;
   let tolerance = routeShapeTolerance;
-  let indices = simplify(points, tolerance);
-  while (indices.length > routeShapeLimit) {
-    tolerance *= 2;
-    indices = simplify(points, tolerance);
-  }
+  while (keptAt(tolerance) > routeShapeLimit) tolerance *= 2;
+  const shown = points.filter((_, index) => kept[index]! > tolerance);
   return {
     tolerance,
-    pointCount: indices.length,
-    points: indices.map((index) => {
-      const point = points[index]!;
-      return {
-        time: pointTime(point, zone),
-        latitude: roundTo(point.latitude, 5),
-        longitude: roundTo(point.longitude, 5),
-        altitude: altitude(point),
-      };
-    }),
+    pointCount: shown.length,
+    points: shown.map((point) => ({
+      time: pointTime(point, zone),
+      latitude: roundTo(point.latitude, 5),
+      longitude: roundTo(point.longitude, 5),
+      altitude: altitude(point),
+    })),
   };
 };
 
@@ -307,7 +317,7 @@ const readPoints = (route: RouteRow, blobs: HealthBlobReader) =>
     const bytes = route.locations === null ? null : yield* blobs(route.locations);
     if (bytes === null) {
       return yield* new HealthToolError({
-        message: `The route ${route.id}'s points aren't on the server. Try again later.`,
+        message: "The route's points aren't on the server. Try again later.",
       });
     }
     return routePoints(bytes);
