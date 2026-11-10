@@ -201,13 +201,4 @@ struct CardNightZonesTests {
         days: days, calendar: losAngeles
       ).isEmpty)
   }
-
-  /// Each record's day as `nights` names it: In Bed on the calendar's.
-  @Test
-  func daysOfRecords() {
-    let london = calendar("Europe/London")
-    #expect(
-      CardNights.days(of: tokyoNight(), calendar: london)
-        == [day(11, london), day(12, london), day(12, london), day(12, london)])
-  }
 }

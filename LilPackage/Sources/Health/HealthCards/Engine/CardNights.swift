@@ -175,24 +175,6 @@ public enum CardNights {
     .sorted { $0.day < $1.day }
   }
 
-  /// Each of `records`' days as `nights` names them, in their order: the day `startOffset`
-  /// after its start on its run's zone's clock (`runs`). Sleep's page opens on the latest
-  /// (`HealthDatabase.latestSleepNight`). In Bed records, and values it doesn't know, are in no
-  /// run, so on the calendar's.
-  public static func days(of records: [CardSleepRecord], calendar: Calendar) -> [Date] {
-    let inRuns = { (record: CardSleepRecord) in
-      record.isKnown && record.value != CardSleepRecord.inBed
-    }
-    var placed = place(records.filter(inRuns), calendar)[...]
-    var days = NightDays(calendar: calendar)
-    let offset = Int(startOffset * 1000)
-    return records.map { record in
-      inRuns(record)
-        ? placed.popFirst()!.day
-        : days.day(ofMilliseconds: record.start + offset, clock: 0)
-    }
-  }
-
   /// `records` (none In Bed) with their runs' zones (`runs`) and their days on those zones'
   /// clocks, as the calendar's days. Zones are looked up once a run, not once a record.
   private static func place(
@@ -312,10 +294,17 @@ public enum CardNights {
   public static func clock(
     day: Date, timeZone: TimeZone?, calendar: Calendar
   ) -> (calendar: Calendar, day: Date) {
-    guard let timeZone, timeZone != calendar.timeZone else { return (calendar, day) }
+    guard let zoned = zoned(calendar, timeZone) else { return (calendar, day) }
+    return (zoned, sameDate(day, from: calendar, in: zoned))
+  }
+
+  /// `calendar` in `timeZone`, or `nil` for none or the calendar's own: the one comparison that
+  /// decides whether a night is on another clock, for placing its records and reading its clock.
+  static func zoned(_ calendar: Calendar, _ timeZone: TimeZone?) -> Calendar? {
+    guard let timeZone, timeZone != calendar.timeZone else { return nil }
     var zoned = calendar
     zoned.timeZone = timeZone
-    return (zoned, sameDate(day, from: calendar, in: zoned))
+    return zoned
   }
 
   /// The start of the day in `target` with the date `day` has in `source`. Through noon, so a
@@ -364,10 +353,8 @@ private struct NightDays {
 
   /// Which clock places records in `timeZone`: 0, the calendar's, for none or the calendar's.
   mutating func clock(_ timeZone: TimeZone?) -> Int {
-    guard let timeZone, timeZone != calendar.timeZone else { return 0 }
+    guard let timeZone, let zoned = CardNights.zoned(calendar, timeZone) else { return 0 }
     if let index = indices[timeZone] { return index }
-    var zoned = calendar
-    zoned.timeZone = timeZone
     clocks.append((CardBucketer(CardGrain.day, calendar: zoned), [:]))
     indices[timeZone] = clocks.count - 1
     return clocks.count - 1

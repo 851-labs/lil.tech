@@ -121,15 +121,18 @@ extension HealthDatabase {
   /// milliseconds), by start: In Bed records can start well before a night. Each with the zone it
   /// was recorded in (`HKTimeZone`, 851-4174), which its night follows, when that's a name the
   /// tools take (`CardTimeZone.named`). Metadata that isn't JSON, or a zone that isn't a string,
-  /// loses only the zone.
-  static func sleepRecords(in range: Range<Int>, _ db: Database) throws -> [CardSleepRecord] {
+  /// loses only the zone. `startingFrom` leaves out records starting before it, which bounds the
+  /// index's range from below too: only In Bed records start long before a night.
+  static func sleepRecords(
+    in range: Range<Int>, startingFrom earliest: Int = .min, _ db: Database
+  ) throws -> [CardSleepRecord] {
     let (lower, upper) = (range.lowerBound, range.upperBound)
     var zones: [String: TimeZone?] = [:]
     return
       try HealthSample
       .where {
-        $0.type.eq(sleepType) && $0.startDate < upper && $0.endDate > lower
-          && $0.categoryValue.isNot(nil)
+        $0.type.eq(sleepType) && $0.startDate >= earliest && $0.startDate < upper
+          && $0.endDate > lower && $0.categoryValue.isNot(nil)
       }
       .order(by: \.startDate)
       .select {
