@@ -4640,7 +4640,7 @@
     {
       "now": "2025-07-01T12:00:00Z",
       "name": "heart rate asleep per night over a week in London: a night slept in Tokyo is that night, on Tokyo's clock",
-      "note": "The night's records were recorded in Tokyo, so it's Tokyo's night: 23:00 JST on 11 June to 06:30 JST on the 12th, named by the 12th, its bedtime before noon. On London's clock it would be 15:00 to 22:30 BST, cut at 18:00: a day's sleep on the 11th, and a night on the 12th with only 20:00Z's 48. Asleep from 14:00Z to 21:30Z: 15:00Z's 52 counts until 20:00Z's 48 (capped: 3600 s), and 48 until the stretch ends (capped: 3600 s).",
+      "note": "The night's records were recorded in Tokyo, so it's Tokyo's night: 23:00 JST on 11 June to 06:30 JST on the 12th, named by the 12th, its bedtime before noon. On London's clock it would be 15:00 to 22:30 BST, cut where a record starts at 18:00 or later (17:00Z): a day's sleep on the 11th, and a night on the 12th with only 20:00Z's 48. Asleep from 14:00Z to 21:30Z: 15:00Z's 52 counts until 20:00Z's 48 (capped: 3600 s), and 48 until the stretch ends (capped: 3600 s).",
       "timeZone": "Europe/London",
       "range": "W",
       "date": "2025-06-10",
@@ -4707,7 +4707,7 @@
     {
       "now": "2025-07-01T12:00:00Z",
       "name": "heart rate asleep per night, asked from Auckland: a night across a change of zone is the zone's it ended in",
-      "note": "Flying from New York to London: the night's first record was recorded in New York (21:00 EDT on 15 June), its last in London (09:00 BST on the 16th). A night takes the zone of its record that ends last, as Health draws it, so it's London's: 02:00 to 09:00 BST, the night of the 16th, before noon. On Auckland's clock it would start at 13:00 NZST, cut at 18:00: a day's sleep on the 16th, and a night on the 17th with only 07:00Z's 51. Asleep from 01:00Z to 08:00Z: 03:00Z's 55 and 07:00Z's 51 count an hour each.",
+      "note": "Flying from New York to London: the night's first record was recorded in New York (21:00 EDT on 15 June), its last in London (09:00 BST on the 16th). A night takes the zone of its record that ends last, as Health draws it, so it's London's: 02:00 to 09:00 BST, the night of the 16th, before noon. On Auckland's clock it would start at 13:00 NZST, cut where a record starts at 18:00 or later: a day's sleep on the 16th (13:00 to 18:30, its records starting at 13:00 and 17:00), and a night on the 17th from 18:30 with only 07:00Z's 51. Asleep from 01:00Z to 08:00Z: 03:00Z's 55 and 07:00Z's 51 count an hour each.",
       "timeZone": "Pacific/Auckland",
       "range": "W",
       "date": "2025-06-16",
