@@ -387,6 +387,17 @@ export const makeUserStore = (
       }),
     /** An uploaded health batch's status, or `null` if it was never received. */
     healthBatch,
+    /** The statuses of the batches among `ids` that were received, in the order of `ids`. */
+    healthBatches: (ids: ReadonlyArray<string>) =>
+      ensureNotDeleted.pipe(
+        Effect.andThen(Clock.currentTimeMillis),
+        Effect.map((now) =>
+          ids.flatMap((id) => {
+            const batch = readHealthBatch(sql, id, now);
+            return batch === null ? [] : [batch];
+          }),
+        ),
+      ),
     /**
      * Before a health batch is uploaded: its status if it's already known, otherwise `null`, or
      * `StorageFull` once the store has reached its quota.

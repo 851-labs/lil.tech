@@ -14,6 +14,7 @@ import {
   maxBatchLineLength,
   maxDecompressedBatchBytes,
 } from "../../src/health/HealthIngestion.ts";
+import { InvalidMutation } from "../../src/store/Changes.ts";
 import { healthBatchesAtOnce, storageHardLimitBytes } from "../../src/store/UserStore.ts";
 import { Users } from "../../src/core/Users.ts";
 import { UserStores, UserStoreUnavailable } from "../../src/store/UserStores.ts";
@@ -387,6 +388,18 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))("ingestHea
       );
       assert.include(batch?.rejectedLines?.[1]?.message, "Not a health entity");
       assert.include(batch?.rejectedLines?.[4]?.message, "Missing");
+      // Each names its record as uploaded, so the client can send it again (851-4151), except a
+      // line that isn't a mutation at all.
+      assert.deepStrictEqual(
+        batch?.rejectedLines?.map(({ entity, id }) => ({ entity, id })),
+        [
+          { entity: undefined, id: undefined },
+          { entity: "test_note", id: "x" },
+          { entity: "health_sample", id: uuid(21).toUpperCase() },
+          { entity: "health_sample", id: uuid(22) },
+          { entity: "health_sample", id: uuid(23) },
+        ],
+      );
       assert.lengthOf(yield* changesFor(uuid(20)), 1);
       assert.lengthOf(yield* changesFor(uuid(25)), 1);
     }),
@@ -460,10 +473,17 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))("ingestHea
       ]);
       assert.deepInclude(batch, { applied: 0, rejected: 2 });
       assert.deepStrictEqual(batch?.rejectedLines, [
-        { line: 1, message: "bucketStart must be a multiple of 30 minutes" },
+        {
+          line: 1,
+          message: "bucketStart must be a multiple of 30 minutes",
+          entity: "health_statistic",
+          id: "HKQuantityTypeIdentifierStepCount@1760400060000",
+        },
         {
           line: 2,
           message: `Invalid health_statistic ID ${deviceId}/HKQuantityTypeIdentifierStepCount@1760400000000`,
+          entity: "health_statistic",
+          id: `${deviceId}/HKQuantityTypeIdentifierStepCount@1760400000000`,
         },
       ]);
     }),
@@ -478,7 +498,12 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))("ingestHea
       );
       assert.deepInclude(batch, { applied: 1, rejected: 1 });
       assert.deepStrictEqual(batch?.rejectedLines, [
-        { line: 1, message: "health_statistic needs the uploading device" },
+        {
+          line: 1,
+          message: "health_statistic needs the uploading device",
+          entity: "health_statistic",
+          id: "HKQuantityTypeIdentifierStepCount@1760400000000",
+        },
       ]);
     }),
   );
@@ -514,7 +539,14 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))("ingestHea
         status: "applied",
         applied: 1,
         rejected: 1,
-        rejectedLines: [{ line: 1, message: "The device signed out" }],
+        rejectedLines: [
+          {
+            line: 1,
+            message: "The device signed out",
+            entity: "health_statistic",
+            id: "HKQuantityTypeIdentifierStepCount@1760412600000",
+          },
+        ],
       });
     }),
   );
@@ -1172,6 +1204,24 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))("ingestHea
       assert.deepInclude(batch, { status: "applied", applied: 1, rejected: statistics.length });
       // The chunk being applied and the one read meanwhile are refused a call each.
       assert.isAtMost(calls, 3);
+    }),
+  );
+
+  it.effect("names a line the store refuses, and applies the rest of its chunk", () =>
+    Effect.gen(function* () {
+      const { batch } = yield* withApplyMutations(
+        ingest([sample(98800), sample(98801), sample(98802)]),
+        (call, apply) =>
+          call === 1
+            ? Effect.fail(new InvalidMutation({ index: 1, message: "Refused by the store" }))
+            : apply,
+      );
+      assert.deepInclude(batch, { status: "applied", applied: 2, rejected: 1 });
+      assert.deepStrictEqual(batch?.rejectedLines, [
+        { line: 2, message: "Refused by the store", entity: "health_sample", id: uuid(98801) },
+      ]);
+      assert.lengthOf(yield* changesFor(uuid(98801)), 0);
+      assert.lengthOf(yield* changesFor(uuid(98802)), 1);
     }),
   );
 

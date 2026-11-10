@@ -8,6 +8,8 @@ import {
   HealthBatch,
   HealthBatchId,
   HealthBatchNotFound,
+  HealthBatchStatuses,
+  HealthBatchStatusRequest,
   HealthBatchTooLarge,
 } from "./HealthBatches.ts";
 import {
@@ -57,6 +59,16 @@ export class HealthApi extends HttpApiGroup.make("health")
       params: { id: HealthBatchId },
       success: HealthBatch,
       error: [HealthBatchNotFound, UserStoreUnavailable],
+    }),
+  )
+  .add(
+    // Up to 100 batches' statuses at once (851-4151), so the iPhone can check every batch it
+    // uploaded for rejected lines without a request each. Batches the server never received are
+    // left out.
+    HttpApiEndpoint.post("batchStatus", "/v1/health/batches/status", {
+      payload: HealthBatchStatusRequest,
+      success: HealthBatchStatuses,
+      error: UserStoreUnavailable,
     }),
   )
   .add(

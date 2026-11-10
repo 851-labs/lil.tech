@@ -997,15 +997,13 @@ struct HealthBackfillTests {
       HealthBackfill(types: [temperature])
     }
 
-    // Reported, and the rest of the page still goes up rather than being refused forever.
-    try await withKnownIssue {
-      try await backfill.run()
-    } matching: { issue in
-      issue.error as? HealthBlob.TooLarge == HealthBlob.TooLarge(bytes: HealthBlob.maxBytes + 1)
-    }
+    // Held back, and the rest of the page still goes up rather than being refused forever.
+    try await backfill.run()
     #expect(uploads.value == ["batch"])
     // The record that refers to it goes too, so none points at a blob that never arrives.
     #expect(uploadedIDs.value == ["route-1"])
+    #expect(await backfill.currentProgress().heldBack == [temperature.id: 1])
+    #expect(await backfill.currentProgress().uploadedRecords == 1)
   }
 
   @Test

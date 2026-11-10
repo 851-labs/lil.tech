@@ -102,6 +102,15 @@ public struct SyncStatusFeature {
       return .upToDate(lastUpload: progress.lastUploadAt)
     }
 
+    /// The types with records that didn't go up, by name.
+    public var heldBack: [HeldBackType] {
+      guard let progress else { return [] }
+      return progress.heldBack.filter { $0.value > 0 }.map { id, records in
+        HeldBackType(id: id, name: HealthCatalog.type(id: id)?.name ?? id, records: records)
+      }
+      .sorted { ($0.name, $0.id) < ($1.name, $1.id) }
+    }
+
     /// Browse's categories, with how much of each is uploaded.
     public var categories: [CategoryProgress] {
       guard let progress else { return [] }
@@ -117,6 +126,13 @@ public struct SyncStatusFeature {
           records: types.map(\.uploadedRecords).reduce(0, +))
       }
     }
+  }
+
+  /// A type with records that didn't go up (851-4151), which the backfill tries again.
+  public struct HeldBackType: Equatable, Identifiable, Sendable {
+    public var id: String
+    public var name: String
+    public var records: Int
   }
 
   public struct CategoryProgress: Equatable, Identifiable, Sendable {

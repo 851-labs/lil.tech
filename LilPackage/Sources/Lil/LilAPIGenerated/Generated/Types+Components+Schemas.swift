@@ -506,31 +506,21 @@ extension Components {
                 case size
             }
         }
-        /// - Remark: Generated from `#/components/schemas/HealthBatchNotFound`.
-        public struct HealthBatchNotFound: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/HealthBatchNotFound/_tag`.
-            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case healthBatchNotFound = "HealthBatchNotFound"
-            }
-            /// - Remark: Generated from `#/components/schemas/HealthBatchNotFound/_tag`.
-            public var _tag: Components.Schemas.HealthBatchNotFound._TagPayload
-            /// - Remark: Generated from `#/components/schemas/HealthBatchNotFound/id`.
-            public var id: Swift.String
-            /// Creates a new `HealthBatchNotFound`.
+        /// Uploaded health batches' statuses
+        ///
+        /// - Remark: Generated from `#/components/schemas/HealthBatchStatuses`.
+        public struct HealthBatchStatuses: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthBatchStatuses/batches`.
+            public var batches: [Components.Schemas.HealthBatch1]
+            /// Creates a new `HealthBatchStatuses`.
             ///
             /// - Parameters:
-            ///   - _tag:
-            ///   - id:
-            public init(
-                _tag: Components.Schemas.HealthBatchNotFound._TagPayload,
-                id: Swift.String
-            ) {
-                self._tag = _tag
-                self.id = id
+            ///   - batches:
+            public init(batches: [Components.Schemas.HealthBatch1]) {
+                self.batches = batches
             }
             public enum CodingKeys: String, CodingKey {
-                case _tag
-                case id
+                case batches
             }
         }
         /// An uploaded health batch
@@ -606,21 +596,75 @@ extension Components {
             public var line: Swift.Int
             /// - Remark: Generated from `#/components/schemas/RejectedLine/message`.
             public var message: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RejectedLine/entity`.
+            public var entity: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/RejectedLine/id`.
+            public var id: Swift.String?
             /// Creates a new `RejectedLine`.
             ///
             /// - Parameters:
             ///   - line:
             ///   - message:
+            ///   - entity:
+            ///   - id:
             public init(
                 line: Swift.Int,
-                message: Swift.String
+                message: Swift.String,
+                entity: Swift.String? = nil,
+                id: Swift.String? = nil
             ) {
                 self.line = line
                 self.message = message
+                self.entity = entity
+                self.id = id
             }
             public enum CodingKeys: String, CodingKey {
                 case line
                 case message
+                case entity
+                case id
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthBatchStatusRequest`.
+        public struct HealthBatchStatusRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthBatchStatusRequest/ids`.
+            public var ids: [Swift.String]
+            /// Creates a new `HealthBatchStatusRequest`.
+            ///
+            /// - Parameters:
+            ///   - ids:
+            public init(ids: [Swift.String]) {
+                self.ids = ids
+            }
+            public enum CodingKeys: String, CodingKey {
+                case ids
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthBatchNotFound`.
+        public struct HealthBatchNotFound: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthBatchNotFound/_tag`.
+            @frozen public enum _TagPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case healthBatchNotFound = "HealthBatchNotFound"
+            }
+            /// - Remark: Generated from `#/components/schemas/HealthBatchNotFound/_tag`.
+            public var _tag: Components.Schemas.HealthBatchNotFound._TagPayload
+            /// - Remark: Generated from `#/components/schemas/HealthBatchNotFound/id`.
+            public var id: Swift.String
+            /// Creates a new `HealthBatchNotFound`.
+            ///
+            /// - Parameters:
+            ///   - _tag:
+            ///   - id:
+            public init(
+                _tag: Components.Schemas.HealthBatchNotFound._TagPayload,
+                id: Swift.String
+            ) {
+                self._tag = _tag
+                self.id = id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _tag
+                case id
             }
         }
         /// - Remark: Generated from `#/components/schemas/HealthBatchTooLarge`.
