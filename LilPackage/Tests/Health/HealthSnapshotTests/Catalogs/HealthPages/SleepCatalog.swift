@@ -147,6 +147,27 @@
       CatalogState("More sleep this month", minHeight: 250) {
         highlightsOnly(SleepHighlights(months: months(this: 8.2 * 3600, last: 7.65 * 3600)))
       },
+      // A trip, viewed from Los Angeles (851-4178): each night on its own clock, as Health draws
+      // it (`sleepTripDatabase`). Slept 11 PM to 6:30 AM in Tokyo, which is 7 AM to 2:30 PM in
+      // Los Angeles, drawn at Tokyo's times.
+      CatalogState("Night in Tokyo") {
+        detail(.day, offset: -4, .loaded(nights(.day, offset: -4, in: sleepTripDatabase)))
+      },
+      // An overnight flight from New York to London: asleep at 9:45 PM in New York, on London's
+      // clock, where it ended, from 2:45 AM.
+      CatalogState("Night across a change of zone") {
+        detail(.day, offset: -2, .loaded(nights(.day, offset: -2, in: sleepTripDatabase)))
+      },
+      // Flying to Tokyo on Wednesday, Tokyo, New York, the flight, then London: each night at
+      // its own clock's times, so the week reads as the nights were slept.
+      CatalogState("Week on a trip") {
+        detail(.week, .loaded(nights(.week, in: sleepTripDatabase)))
+      },
+      // Last night in London: its bedtime, heart rate and stages at London's times, against two
+      // weeks' bedtimes each on its own clock.
+      CatalogState("Highlights on a trip", minHeight: 1100) {
+        highlightsOnly(tripHighlights)
+      },
     ],
     // What's below the content stays put while it loads, and from one range to another but D,
     // which lists the night's stages (851-3084).
@@ -154,13 +175,14 @@
       [
         "Loading", "Night", "The night before", "Night, loading the night before",
         "Night with a gap", "Night with highlights", "Highlights loading", "Highlights failed",
-        "Last night weeks ago, opening", "Last night weeks ago",
+        "Last night weeks ago, opening", "Last night weeks ago", "Night in Tokyo",
+        "Night across a change of zone",
       ],
       [
         "Week", "Week, loading the week before", "Month", "Month, loading the month before",
         "Month without sleep", "6 Months without sleep", "Never recorded", "6 Months",
         "6 Months, loading the 6 months before",
-        "Loading a month", "Failed",
+        "Loading a month", "Failed", "Week on a trip",
       ],
     ])
 
@@ -178,6 +200,13 @@
   /// Today's highlights, read as the page reads them.
   private var highlights: SleepHighlights {
     try! sleepCatalogDatabase.read { db in
+      try SleepHighlightsRequest(day: previewNow, calendar: previewCalendar).fetch(db)!
+    }
+  }
+
+  /// Today's highlights on `sleepTripDatabase`, read as the page reads them.
+  private var tripHighlights: SleepHighlights {
+    try! sleepTripDatabase.read { db in
       try SleepHighlightsRequest(day: previewNow, calendar: previewCalendar).fetch(db)!
     }
   }
@@ -373,6 +402,107 @@
       return database
     } catch {
       fatalError("Couldn't make the sleep catalog's database: \(error)")
+    }
+  }()
+
+  /// A Watch's nights on a trip, viewed from `previewCalendar`'s Los Angeles, each record with
+  /// the zone it was recorded in (`HKTimeZone`), as a Watch writes it (851-4178). Nights by the
+  /// day they end: home in Los Angeles until August 6, then a day flying to Tokyo without a
+  /// night, Tokyo on the 8th and 9th (11 PM to about 6:30 AM there), New York on the 10th, an
+  /// overnight flight to London on the 11th (asleep from 9:45 PM to 2:15 AM in New York, its
+  /// records from 11:30 PM there recorded in London), then London on the 12th and 13th, with
+  /// heart rate readings through the last. Flights leave each night hours apart from the next,
+  /// so each is its own run (`CardNights.runs`). The same every run.
+  let sleepTripDatabase: any DatabaseWriter = {
+    var random = SplitMix64(seed: "sleepTripDatabase")
+    var samples: [HealthSample] = []
+    let losAngeles = "America/Los_Angeles"
+    /// `hours` from the start of August `day` in `zone`.
+    func time(_ zone: String, _ day: Int, _ hours: Double) -> Date {
+      var calendar = previewCalendar
+      calendar.timeZone = TimeZone(identifier: zone)!
+      let midnight = calendar.date(from: DateComponents(year: 2024, month: 8, day: day))!
+      return midnight.addingTimeInterval(hours * 3600)
+    }
+    func record(_ stage: SleepStage, _ start: Date, _ end: Date, _ zone: String) {
+      samples.append(
+        HealthSample(
+          id: "trip-\(samples.count)", type: HealthDatabase.sleepType,
+          startDate: start.unixMilliseconds, endDate: end.unixMilliseconds,
+          categoryValue: stage.rawValue, sourceName: "Apple Watch",
+          sourceBundleID: "com.apple.health.watch", metadata: #"{"HKTimeZone":"\#(zone)"}"#))
+    }
+    /// Cycles of stages from `start` to `end`, cut off at `end`, recorded in `zone`, or in
+    /// `later.zone` from `later.from` on.
+    func night(
+      _ start: Date, _ end: Date, _ zone: String, later: (zone: String, from: Date)? = nil
+    ) {
+      var time = start
+      func add(_ stage: SleepStage, _ minutes: ClosedRange<Double>) {
+        let next = min(time.addingTimeInterval(random.next(in: minutes) * 60), end)
+        guard next > time else { return }
+        record(stage, time, next, later.map { time >= $0.from ? $0.zone : zone } ?? zone)
+        time = next
+      }
+      while time < end {
+        for (stage, minutes) in [
+          (SleepStage.core, 20...40.0), (.deep, 15...35), (.core, 10...25), (.rem, 15...30),
+        ] {
+          add(stage, minutes)
+        }
+        if random.next(in: 0...1) < 0.4 { add(.awake, 3...9) }
+      }
+      record(
+        .inBed, start.addingTimeInterval(-10 * 60), end.addingTimeInterval(6 * 60),
+        later?.zone ?? zone)
+    }
+    // Home, from July 24 to August 6: asleep around 11 PM for 7 to 8 hours.
+    for back in (0..<14).reversed() {
+      let day = previewCalendar.date(byAdding: .day, value: -back, to: time(losAngeles, 6, 0))!
+      let start = random.next(in: -1.25 ... -0.5)
+      let length = random.next(in: 7...8)
+      night(
+        day.addingTimeInterval(start * 3600), day.addingTimeInterval((start + length) * 3600),
+        losAngeles)
+    }
+    let tokyo = "Asia/Tokyo"
+    for day in 8...9 {
+      let start = random.next(in: -1.2 ... -0.8)
+      night(time(tokyo, day, start), time(tokyo, day, random.next(in: 6.2...6.8)), tokyo)
+    }
+    let newYork = "America/New_York"
+    night(time(newYork, 10, -1), time(newYork, 10, 7), newYork)
+    // The flight: from 9:45 PM to 2:15 AM in New York, 2:45 to 7:15 AM in London.
+    let london = "Europe/London"
+    night(
+      time(newYork, 11, -2.25), time(newYork, 11, 2.25), newYork,
+      later: (london, time(newYork, 11, -0.5)))
+    for day in 12...13 {
+      let start = time(london, day, random.next(in: -1 ... -0.6))
+      let end = time(london, day, random.next(in: 6.8...7.2))
+      night(start, end, london)
+      // The Watch's heart rate every 5 minutes through last night, for its highlight.
+      if day == 13 {
+        var time = start
+        while time < end {
+          let hours = time.timeIntervalSince(start) / 3600
+          samples.append(
+            HealthSample(
+              id: "trip-heart-\(samples.count)", type: HealthDatabase.heartRateType,
+              startDate: time.unixMilliseconds, endDate: time.unixMilliseconds,
+              value: (52 + 12 * exp(-hours / 1.5) + random.next(in: 0...5)).rounded(),
+              unit: "count/min", sourceName: "Apple Watch",
+              sourceBundleID: "com.apple.health.watch"))
+          time.addTimeInterval(5 * 60)
+        }
+      }
+    }
+    do {
+      let database = try HealthDatabase.make()
+      try database.write { db in try HealthSample.insert { samples }.execute(db) }
+      return database
+    } catch {
+      fatalError("Couldn't make the sleep trip catalog's database: \(error)")
     }
   }()
 

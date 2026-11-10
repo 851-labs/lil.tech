@@ -29,21 +29,24 @@ struct SleepHighlightsTests {
   /// A Watch's night ending on day `offset`: in bed 10 minutes before falling asleep at
   /// `bedtime` (hours from the day's midnight), then `stage` for `hours`.
   private func night(
-    _ offset: Int, bedtime: Double = -1, hours: Double = 7, stage: SleepStage = .core
+    _ offset: Int, bedtime: Double = -1, hours: Double = 7, stage: SleepStage = .core,
+    metadata: String? = nil
   ) -> [HealthSample] {
     let start = day(offset).addingTimeInterval(bedtime * 3600)
     return [
-      sample(.inBed, start.addingTimeInterval(-600), hours + 0.25),
-      sample(stage, start, hours),
+      sample(.inBed, start.addingTimeInterval(-600), hours + 0.25, metadata: metadata),
+      sample(stage, start, hours, metadata: metadata),
     ]
   }
 
-  private func sample(_ stage: SleepStage, _ start: Date, _ hours: Double) -> HealthSample {
+  private func sample(
+    _ stage: SleepStage, _ start: Date, _ hours: Double, metadata: String? = nil
+  ) -> HealthSample {
     HealthSample(
       id: UUID().uuidString, type: HealthDatabase.sleepType, startDate: start.unixMilliseconds,
       endDate: start.addingTimeInterval(hours * 3600).unixMilliseconds,
       categoryValue: stage.rawValue, sourceName: "Apple Watch",
-      sourceBundleID: "com.apple.health.watch")
+      sourceBundleID: "com.apple.health.watch", metadata: metadata)
   }
 
   private func heartRate(_ value: Double, at date: Date) -> HealthSample {
@@ -136,6 +139,33 @@ struct SleepHighlightsTests {
       nights: nights + [lastNight], today: date(10, 0), calendar: losAngeles)
     #expect(bedtime?.lastNight.bedtime == 2.5)
     #expect(bedtime?.nights.first?.bedtime == -1)
+  }
+
+  /// A night is on its own clock (851-4178), as Sleep's charts draw it: last night slept in Tokyo
+  /// at 11 PM there is an 11 PM bedtime, about as usual, not 2 PM the day before on the viewer's
+  /// (UTC) clock. Its heart rate and stages are on Tokyo's clock too.
+  @Test
+  func bedtimeIsOnEachNightsOwnClock() throws {
+    let tokyo = #"{"HKTimeZone":"Asia/Tokyo"}"#
+    // 11 PM in Tokyo the evening before today is 2 PM UTC, 10 hours before today's midnight.
+    let lastNight = day(0).addingTimeInterval(-10 * 3600)
+    try insert(
+      (-6 ... -1).flatMap { night($0) }
+        + [
+          sample(.core, lastNight, 3, metadata: tokyo),
+          sample(.rem, lastNight.addingTimeInterval(3 * 3600), 4, metadata: tokyo),
+        ]
+        + (0..<12).map { heartRate(55, at: lastNight.addingTimeInterval(Double($0) * 600)) })
+    let highlights = try highlights()
+    let bedtime = try #require(highlights.bedtime)
+    #expect(bedtime.lastNight == BedtimeConsistency.Night(day: today, bedtime: -1))
+    #expect(bedtime.minutesFromAverage == 0)
+    #expect(highlights.heartRate?.timeZone == TimeZone(identifier: "Asia/Tokyo"))
+    #expect(highlights.stages?.timeZone == TimeZone(identifier: "Asia/Tokyo"))
+    #expect(highlights.stages?.clockHours(lastNight, calendar: calendar) == -1)
+    #expect(
+      highlights.stages?.clock(calendar: calendar).day
+        == ISO8601DateFormatter().date(from: "2025-10-14T15:00:00Z"))
   }
 
   @Test

@@ -91,13 +91,31 @@ extension SleepNight {
     nights.last.flatMap { $0.day == today && $0.nightBedtime(calendar: calendar) != nil ? $0 : nil }
   }
 
-  /// Its bedtime by the clock, placed as Sleep's W and M charts place it (from its first segment,
-  /// 851-3098), if it's a night's sleep rather than a day's (`latestBedtime`). On the page's
-  /// calendar, as its charts are: 851-4178 moves both to the night's own clock
-  /// (`CardNights.clock(day:timeZone:calendar:)` with `timeZone`), as cards' nights are.
+  /// Its own clock (`CardNights.clock(day:timeZone:calendar:)`, 851-4178): `calendar` in its
+  /// zone, and the midnight there that starts its day's date. `calendar` and `day` for a night
+  /// in none, or in the calendar's. Sleep's charts and highlights read its times on it, as
+  /// Health draws a night slept in Tokyo at Tokyo's times.
+  public func clock(calendar: Calendar) -> (calendar: Calendar, day: Date) {
+    CardNights.clock(day: day, timeZone: timeZone, calendar: calendar)
+  }
+
+  /// Where `date` goes in the night, in hours from its day's midnight on its own clock
+  /// (`clock(calendar:)`), placed from its first segment (`HealthDatabase.clockHours`): 11 PM the
+  /// evening before is -1. `nil` for a night without segments. Sleep's W, M and 6M charts place
+  /// its stretches with it, and its highlights its bedtime.
+  public func clockHours(_ date: Date, calendar: Calendar) -> Double? {
+    guard let start = segments.map(\.start).min() else { return nil }
+    let own = clock(calendar: calendar)
+    return CardNights.clockHours(date, from: own.day, start: start, calendar: own.calendar)
+  }
+
+  /// Its bedtime on its own clock (`clock(calendar:)`), placed as Sleep's W and M charts place
+  /// it (from its first segment, 851-3098), if it's a night's sleep rather than a day's
+  /// (`latestBedtime`), as cards' nights are (`CardNight.nightBedtime`).
   func nightBedtime(calendar: Calendar) -> Double? {
     guard let bedtime, let start = segments.map(\.start).min() else { return nil }
+    let own = clock(calendar: calendar)
     return CardNights.nightBedtime(
-      fallingAsleep: bedtime, firstStart: start, day: day, calendar: calendar)
+      fallingAsleep: bedtime, firstStart: start, day: own.day, calendar: own.calendar)
   }
 }

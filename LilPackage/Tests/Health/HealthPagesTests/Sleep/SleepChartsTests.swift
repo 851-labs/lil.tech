@@ -153,4 +153,38 @@ struct SleepChartsTests {
         SleepWeek(start: date(8, 11, 0), bedtime: -0.25, wake: 6.5),
       ])
   }
+
+  /// Each night is on its own clock (851-4178), as Health draws it: a night slept in Tokyo from
+  /// 11 PM to 6:30 AM there is at those times, though it's 7 AM to 2:30 PM in Los Angeles, and a
+  /// night that changed zone, New York to London, is on London's clock, where it ended.
+  @Test
+  func nightsAreOnTheirOwnClocks() {
+    let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+    let london = TimeZone(identifier: "Europe/London")!
+    // Asleep at 11 PM in Tokyo on August 11, 7 AM in Los Angeles.
+    let tokyoNight = SleepNight(
+      day: date(8, 12, 0),
+      segments: [SleepSegment(stage: .core, start: date(8, 11, 7), end: date(8, 11, 14, 30))],
+      inBed: 0, timeZone: tokyo)
+    #expect(tokyoNight.clockHours(date(8, 11, 7), calendar: calendar) == -1)
+    #expect(tokyoNight.clockHours(date(8, 11, 14, 30), calendar: calendar) == 6.5)
+    // Asleep at 9:45 PM in New York, 2:45 AM in London, 6:45 PM in Los Angeles.
+    let flight = SleepNight(
+      day: date(8, 11, 0),
+      segments: [SleepSegment(stage: .core, start: date(8, 10, 18, 45), end: date(8, 10, 23, 15))],
+      inBed: 0, timeZone: london)
+    #expect(flight.clockHours(date(8, 10, 18, 45), calendar: calendar) == 2.75)
+    #expect(flight.clockHours(date(8, 10, 23, 15), calendar: calendar) == 7.25)
+    // Without a zone, the page's clock, as before.
+    let home = SleepNight(
+      day: date(8, 13, 0),
+      segments: [SleepSegment(stage: .core, start: date(8, 12, 23), end: date(8, 13, 7))],
+      inBed: 0)
+    #expect(home.clockHours(date(8, 12, 23), calendar: calendar) == -1)
+    // 6M averages them on their own clocks: all three are in the week of Sunday, August 11.
+    #expect(
+      SleepWeek.weeks([tokyoNight, flight, home], calendar: calendar) == [
+        SleepWeek(start: date(8, 11, 0), bedtime: (-1 + 2.75 - 1) / 3, wake: (6.5 + 7.25 + 7) / 3)
+      ])
+  }
 }

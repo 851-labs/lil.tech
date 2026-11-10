@@ -25,11 +25,15 @@ public struct SleepHeartRate: Equatable, Sendable {
   /// The lowest and highest readings.
   public let minimum: Double
   public let maximum: Double
+  /// The night's zone (`SleepNight.timeZone`), or `nil` for the calendar's: its chart's hours are
+  /// that zone's, as the night's are (851-4178).
+  public var timeZone: TimeZone?
 
-  public init(start: Date, end: Date, ranges: [Range]) {
+  public init(start: Date, end: Date, ranges: [Range], timeZone: TimeZone? = nil) {
     self.start = start
     self.end = end
     self.ranges = ranges
+    self.timeZone = timeZone
     minimum = ranges.map(\.minimum).min() ?? 0
     maximum = ranges.map(\.maximum).max() ?? 0
   }
@@ -78,6 +82,6 @@ extension HealthDatabase {
         ranges.append(.init(start: bin, minimum: reading.value, maximum: reading.value))
       }
     }
-    return SleepHeartRate(start: start, end: end, ranges: ranges)
+    return SleepHeartRate(start: start, end: end, ranges: ranges, timeZone: night.timeZone)
   }
 }

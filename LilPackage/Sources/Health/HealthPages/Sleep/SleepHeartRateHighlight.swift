@@ -52,9 +52,13 @@ struct SleepHeartRateHighlight: View {
     }
     .chartXScale(domain: heartRate.start...heartRate.end)
     .chartXAxis {
-      AxisMarks(values: .stride(by: .hour, count: 2)) { _ in
+      AxisMarks(
+        values: SleepClock.hourMarks(from: heartRate.start, to: heartRate.end, calendar: clock)
+      ) { value in
         AxisGridLine()
-        AxisValueLabel(format: .dateTime.hour())
+        AxisValueLabel {
+          if let date = value.as(Date.self) { Text(SleepClock.hourLabel(date, calendar: clock)) }
+        }
       }
     }
     // Room above and below for the labels: a label's height is about an eighth of the plot, so
@@ -64,9 +68,14 @@ struct SleepHeartRateHighlight: View {
       AxisMarks(position: .trailing, values: .automatic(desiredCount: 3))
     }
     .frame(height: SleepHighlightStyle.chartHeight + 20)
-    // Hours in the page's calendar and time zone, as the nights and ranges are.
-    .environment(\.calendar, calendar)
-    .environment(\.timeZone, calendar.timeZone)
+  }
+
+  /// The page's calendar in the night's zone: its hours are marked on the night's own clock, as
+  /// its stages' are (851-4178).
+  private var clock: Calendar {
+    var clock = calendar
+    if let timeZone = heartRate.timeZone { clock.timeZone = timeZone }
+    return clock
   }
 
   private var padding: Double { max(8, (heartRate.maximum - heartRate.minimum) / 6 + 4) }
