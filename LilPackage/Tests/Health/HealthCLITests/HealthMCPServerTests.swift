@@ -79,8 +79,8 @@ struct HealthMCPServerTests {
       return
     }
     #expect(roundTrip == fileJSON)
-    #expect(listed.map(\.name).count == 17)
-    #expect(fileTools.count == 17)
+    #expect(listed.map(\.name).count == 18)
+    #expect(fileTools.count == 18)
     await connection.close()
   }
 
@@ -239,6 +239,21 @@ struct HealthMCPServerTests {
       #expect(result.isError == false, "\(name): \(result.text)")
       #expect(result.structuredContent?.objectValue != nil, "\(name)")
     }
+    await connection.close()
+  }
+
+  /// `workout` reads one by its ID (the conformance cases read the dataset's); one that isn't
+  /// there is the tool's error, which the agent reads.
+  @Test
+  func workoutWithAnUnknownIDIsTheToolsError() async throws {
+    let folder = try AppFolder()
+    try folder.addSteps()
+    try folder.access.setEnabled(true)
+    let connection = try await MCPConnection(folder.directory)
+    let result = try await connection.call("workout", ["id": "not-a-workout"])
+    #expect(result.isError == true)
+    #expect(
+      result.text == "No workout with ID not-a-workout. workouts lists them, with their IDs.")
     await connection.close()
   }
 

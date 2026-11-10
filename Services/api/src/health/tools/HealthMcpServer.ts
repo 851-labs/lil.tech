@@ -300,6 +300,7 @@ export const healthMcpApp = (options: {
     metric: wrap(tools.metric, handlers.metric),
     samples: wrap(tools.samples, handlers.samples),
     workouts: wrap(tools.workouts, handlers.workouts),
+    workout: wrap(tools.workout, handlers.workout),
     sleep: wrap(tools.sleep, handlers.sleep),
     medications: wrap(tools.medications, handlers.medications),
     health_details: wrap(tools.health_details, handlers.health_details),

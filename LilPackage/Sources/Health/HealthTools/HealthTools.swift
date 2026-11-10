@@ -228,38 +228,132 @@ public struct HealthTools: Sendable {
     return HealthWorkoutsResult(
       timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
       end: time.localTime(period.end), count: totals.count, duration: totals.duration,
-      workouts: workouts.map { workout in
-        let statistics = workout.decodedStatistics
-        let metadata = workout.decodedMetadata
-        let activities = workout.decodedActivities
-        let location = HealthWorkout.location(metadata: metadata, activities: activities)
-        return HealthWorkoutItem(
-          id: workout.id, activityType: workout.activityType,
-          activity: HealthCatalog.workoutActivityName(workout.activityType),
-          name: metadata.name,
-          start: time.localTime(Date(unixMilliseconds: workout.startDate)),
-          end: time.localTime(Date(unixMilliseconds: workout.endDate)),
-          duration: workout.duration,
-          activeEnergy: statistics[HealthWorkout.activeEnergyType]?.sum,
-          distance: HealthWorkout.distance(in: statistics),
-          averageHeartRate: statistics[HealthWorkout.heartRateType]?.average,
-          elevationAscended: metadata.elevationAscended, indoor: location.indoor,
-          swimmingLocation: location.swimmingLocation,
-          hasRoute: withRoutes.contains(workout.id), source: workout.sourceName,
-          activities: activities.count < 2
-            ? []
-            : activities.map { activity in
-              HealthWorkoutActivityItem(
-                activityType: activity.activityType,
-                activity: HealthCatalog.workoutActivityName(activity.activityType),
-                start: time.localTime(Date(timeIntervalSince1970: activity.startDate / 1000)),
-                end: activity.endDate.map {
-                  time.localTime(Date(timeIntervalSince1970: $0 / 1000))
-                },
-                duration: activity.duration, indoor: activity.indoor,
-                swimmingLocation: activity.swimmingLocation)
-            })
-      })
+      workouts: workouts.map { Self.workoutItem($0, withRoutes: withRoutes, time: time) })
+  }
+
+  /// What `workouts` says of a workout.
+  private static func workoutItem(
+    _ workout: HealthWorkout, withRoutes: Set<String>, time: ToolTime
+  ) -> HealthWorkoutItem {
+    let statistics = workout.decodedStatistics
+    let metadata = workout.decodedMetadata
+    let activities = workout.decodedActivities
+    let location = HealthWorkout.location(metadata: metadata, activities: activities)
+    return HealthWorkoutItem(
+      id: workout.id, activityType: workout.activityType,
+      activity: HealthCatalog.workoutActivityName(workout.activityType),
+      name: metadata.name,
+      start: time.localTime(Date(unixMilliseconds: workout.startDate)),
+      end: time.localTime(Date(unixMilliseconds: workout.endDate)),
+      duration: workout.duration,
+      activeEnergy: statistics[HealthWorkout.activeEnergyType]?.sum,
+      distance: HealthWorkout.distance(in: statistics),
+      averageHeartRate: statistics[HealthWorkout.heartRateType]?.average,
+      elevationAscended: metadata.elevationAscended, indoor: location.indoor,
+      swimmingLocation: location.swimmingLocation,
+      hasRoute: withRoutes.contains(workout.id), source: workout.sourceName,
+      activities: activities.count < 2
+        ? []
+        : activities.map { activity in
+          HealthWorkoutActivityItem(
+            activityType: activity.activityType,
+            activity: HealthCatalog.workoutActivityName(activity.activityType),
+            start: time.localTime(Date(timeIntervalSince1970: activity.startDate / 1000)),
+            end: activity.endDate.map {
+              time.localTime(Date(timeIntervalSince1970: $0 / 1000))
+            },
+            duration: activity.duration, indoor: activity.indoor,
+            swimmingLocation: activity.swimmingLocation)
+        })
+  }
+
+  // MARK: - workout
+
+  /// The most pauses, laps or segments `workout` lists of each.
+  public static let workoutEventsLimit = 300
+
+  /// One workout, by its ID, with everything `workouts` says of it and the rest of what the
+  /// iPhone uploads (851-4165).
+  public func workout(id: String, timeZone: String? = nil, _ db: Database) throws
+    -> HealthWorkoutResult
+  {
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
+    guard let workout = try HealthWorkout.where({ $0.id.eq(id) }).fetchOne(db) else {
+      throw HealthToolError("No workout with ID \(id). workouts lists them, with their IDs.")
+    }
+    let item = Self.workoutItem(
+      workout, withRoutes: try HealthDatabase.workoutsWithRoutes([workout], db), time: time)
+    let metadata = workout.decodedMetadata
+    let activities = workout.decodedActivities
+    let events = workout.decodedEventRecords
+    let pauses = HealthWorkout.pauses(events.map(\.event), end: workout.endDate)
+    func local(_ milliseconds: Int) -> String {
+      time.localTime(Date(unixMilliseconds: milliseconds))
+    }
+    func intervals(_ type: Int) -> [HealthWorkoutInterval] {
+      events.enumerated()
+        .filter { $0.element.event.type == type }
+        .sorted {
+          ($0.element.event.startDate, $0.offset) < ($1.element.event.startDate, $1.offset)
+        }
+        .map { _, record in
+          HealthWorkoutInterval(
+            start: local(record.event.startDate), end: local(record.event.endDate),
+            duration: Double(record.event.endDate - record.event.startDate) / 1000,
+            strokeStyle: record.metadata.strokeStyle, swolf: record.metadata.swolf,
+            lapLength: record.metadata.lapLength, averageSpeed: record.metadata.averageSpeed,
+            maximumSpeed: record.metadata.maximumSpeed)
+        }
+    }
+    let laps = intervals(WorkoutEvent.lap)
+    let segments = intervals(WorkoutEvent.segment)
+    let limit = Self.workoutEventsLimit
+    return HealthWorkoutResult(
+      timeZone: time.name,
+      workout: HealthWorkoutDetail(
+        id: item.id, activityType: item.activityType, activity: item.activity, name: item.name,
+        start: item.start, end: item.end, duration: item.duration,
+        activeEnergy: item.activeEnergy, distance: item.distance,
+        averageHeartRate: item.averageHeartRate, elevationAscended: item.elevationAscended,
+        indoor: item.indoor, swimmingLocation: item.swimmingLocation, hasRoute: item.hasRoute,
+        source: item.source, elevationDescended: metadata.elevationDescended,
+        averageSpeed: metadata.averageSpeed, maximumSpeed: metadata.maximumSpeed,
+        averageMETs: metadata.averageMETs, lapLength: metadata.lapLength, swolf: metadata.swolf,
+        weatherCondition: metadata.weatherCondition,
+        weatherTemperature: metadata.weatherTemperature,
+        weatherHumidity: metadata.weatherHumidity,
+        statistics: Self.statisticsList(workout.decodedStatistics),
+        pauseCount: pauses.count,
+        pauses: pauses.prefix(limit).map {
+          HealthWorkoutPause(
+            start: local($0.start), end: local($0.end), duration: Double($0.end - $0.start) / 1000)
+        },
+        lapCount: laps.count, laps: Array(laps.prefix(limit)),
+        segmentCount: segments.count, segments: Array(segments.prefix(limit)),
+        activities: zip(item.activities, activities).map { leg, activity in
+          HealthWorkoutLeg(
+            activityType: leg.activityType, activity: leg.activity, start: leg.start,
+            end: leg.end, duration: leg.duration, indoor: leg.indoor,
+            swimmingLocation: leg.swimmingLocation,
+            elevationAscended: activity.metadata.elevationAscended,
+            elevationDescended: activity.metadata.elevationDescended,
+            averageSpeed: activity.metadata.averageSpeed,
+            maximumSpeed: activity.metadata.maximumSpeed,
+            averageMETs: activity.metadata.averageMETs, lapLength: activity.metadata.lapLength,
+            swolf: activity.metadata.swolf, statistics: Self.statisticsList(activity.statistics))
+        }))
+  }
+
+  /// Statistics as `workout` lists them: by type ID.
+  private static func statisticsList(_ statistics: [String: WorkoutStatistic])
+    -> [HealthWorkoutStatistic]
+  {
+    statistics.sorted { $0.key < $1.key }.map { type, statistic in
+      HealthWorkoutStatistic(
+        type: type, name: HealthCatalog.type(id: type)?.name, unit: statistic.unit,
+        sum: statistic.sum, average: statistic.average, minimum: statistic.minimum,
+        maximum: statistic.maximum, mostRecent: statistic.mostRecent)
+    }
   }
 
   // MARK: - sleep

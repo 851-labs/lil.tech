@@ -4882,6 +4882,530 @@
         ],
         "additionalProperties": true
       },
+      "HealthWorkoutStatistic": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "The quantity type, e.g. HKQuantityTypeIdentifierHeartRate."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The name Health shows for it, e.g. Heart Rate."
+          },
+          "unit": {
+            "type": "string",
+            "description": "The HealthKit unit of its values, e.g. count/min, W, m or kcal."
+          },
+          "sum": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "For types that add up (energy, distance, steps, strokes): the total."
+          },
+          "average": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "For other types (heart rate, power, cadence, speed): the average."
+          },
+          "minimum": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "The lowest reading."
+          },
+          "maximum": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "The highest reading."
+          },
+          "mostRecent": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "The last reading."
+          }
+        },
+        "required": [
+          "type",
+          "name",
+          "unit",
+          "sum",
+          "average",
+          "minimum",
+          "maximum",
+          "mostRecent"
+        ],
+        "additionalProperties": true
+      },
+      "HealthWorkoutLeg": {
+        "type": "object",
+        "properties": {
+          "activityType": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "HKWorkoutActivityType's raw value."
+          },
+          "activity": {
+            "type": "string",
+            "description": "The activity's name, e.g. Swimming."
+          },
+          "start": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "end": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "duration": {
+            "type": "number",
+            "description": "Seconds of activity, excluding pauses."
+          },
+          "indoor": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout) or, failing that, as it was set up (its workout configuration's location), or null if neither says."
+          },
+          "swimmingLocation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For swims: pool or openWater (HKMetadataKeySwimmingLocationType, else its workout configuration's), or null if neither says."
+          },
+          "elevationAscended": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). Read from text with 6 significant digits, so rounded to that."
+          },
+          "elevationDescended": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). Read from text with 6 significant digits, so rounded to that."
+          },
+          "averageSpeed": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that."
+          },
+          "maximumSpeed": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that."
+          },
+          "averageMETs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). Read from text with 6 significant digits, so rounded to that."
+          },
+          "lapLength": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that."
+          },
+          "swolf": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "For swims: the SWOLF score (strokes plus seconds per length; lower is more efficient), if the app that recorded it says (HKMetadataKeySWOLFScore)."
+          },
+          "statistics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthWorkoutStatistic"
+            },
+            "description": "The leg's own statistics."
+          }
+        },
+        "required": [
+          "activityType",
+          "activity",
+          "start",
+          "end",
+          "duration",
+          "indoor",
+          "swimmingLocation",
+          "elevationAscended",
+          "elevationDescended",
+          "averageSpeed",
+          "maximumSpeed",
+          "averageMETs",
+          "lapLength",
+          "swolf",
+          "statistics"
+        ],
+        "additionalProperties": true
+      },
+      "HealthWorkoutPause": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "end": {
+            "type": "string",
+            "description": "When it resumed, or the workout's end."
+          },
+          "duration": {
+            "type": "number",
+            "description": "Seconds."
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "duration"
+        ],
+        "additionalProperties": true
+      },
+      "HealthWorkoutInterval": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "end": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "duration": {
+            "type": "number",
+            "description": "Seconds, from start to end."
+          },
+          "strokeStyle": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For swims: the main stroke (HKMetadataKeySwimmingStrokeStyle): mixed, freestyle, backstroke, breaststroke, butterfly or kickboard, or null if it doesn't say."
+          },
+          "swolf": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "For swims: the SWOLF score (strokes plus seconds per length; lower is more efficient), if the app that recorded it says (HKMetadataKeySWOLFScore)."
+          },
+          "lapLength": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that."
+          },
+          "averageSpeed": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that."
+          },
+          "maximumSpeed": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that."
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "duration",
+          "strokeStyle",
+          "swolf",
+          "lapLength",
+          "averageSpeed",
+          "maximumSpeed"
+        ],
+        "additionalProperties": true
+      },
+      "HealthWorkoutDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "HealthKit's UUID for the workout."
+          },
+          "activityType": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "HKWorkoutActivityType's raw value, e.g. 37 for running."
+          },
+          "activity": {
+            "type": "string",
+            "description": "The activity's name, e.g. Running."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The workout's own name, from the app that recorded it (HKMetadataKeyWorkoutBrandName), else the name of the planned workout it followed (a custom or swim-bike-run workout made in an app with WorkoutKit). Usually null: the Workout app doesn't name its own."
+          },
+          "start": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "end": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "duration": {
+            "type": "number",
+            "description": "Seconds of activity, excluding pauses."
+          },
+          "activeEnergy": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Kilocalories."
+          },
+          "distance": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Meters."
+          },
+          "averageHeartRate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Beats per minute."
+          },
+          "elevationAscended": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). Read from text with 6 significant digits, so rounded to that."
+          },
+          "indoor": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or as its activities say (their metadata, else how each was set up: its workout configuration's location), if they agree. Null if none says: then hasRoute is the best hint."
+          },
+          "swimmingLocation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or its activities say (their metadata, else their workout configurations), if they agree, or null if none says."
+          },
+          "hasRoute": {
+            "type": "boolean",
+            "description": "Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't."
+          },
+          "source": {
+            "type": "string",
+            "description": "The app or device that recorded it."
+          },
+          "activities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthWorkoutLeg"
+            },
+            "description": "A multisport workout's legs (e.g. swim, transition, bike, run), in order, each with its own statistics. Empty for a workout of one activity, whose statistics are the workout's."
+          },
+          "elevationDescended": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). Read from text with 6 significant digits, so rounded to that."
+          },
+          "averageSpeed": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that."
+          },
+          "maximumSpeed": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that."
+          },
+          "averageMETs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). Read from text with 6 significant digits, so rounded to that."
+          },
+          "lapLength": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that."
+          },
+          "swolf": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "For swims: the SWOLF score (strokes plus seconds per length; lower is more efficient), if the app that recorded it says (HKMetadataKeySWOLFScore)."
+          },
+          "weatherCondition": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The weather (HKMetadataKeyWeatherCondition), as HKWeatherCondition names it, e.g. clear, partlyCloudy, showers or snow, or null if it doesn't say."
+          },
+          "weatherTemperature": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "The temperature, in °C, if the app that recorded it says (HKMetadataKeyWeatherTemperature). Read from text with 6 significant digits, so rounded to that."
+          },
+          "weatherHumidity": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Relative humidity, in percent from 0 to 100 (HKMetadataKeyWeatherHumidity). Apple's Workout app writes it 100 times too large (72% as 7200 %), so a value over 100 is divided by 100. Read from text with 6 significant digits."
+          },
+          "statistics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthWorkoutStatistic"
+            },
+            "description": "Every statistic HealthKit computed over it, one per quantity type, by type: energy, distance, heart rate (average, minimum, maximum), power, cadence, speed, stride length, ground contact time, vertical oscillation, swimming strokes, flights climbed… whatever was recorded. Null where HealthKit gives none."
+          },
+          "pauseCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "How many times it was paused."
+          },
+          "pauses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthWorkoutPause"
+            },
+            "description": "When it was paused, by the person or automatically (auto-pause), from each pause to the resume after it, in order, at most 300. duration leaves them out."
+          },
+          "lapCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "laps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthWorkoutInterval"
+            },
+            "description": "Its laps (HKWorkoutEventTypeLap), in order, at most 300: a pool swim's lengths, with each one's stroke and SWOLF, or laps marked in an app."
+          },
+          "segmentCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthWorkoutInterval"
+            },
+            "description": "Its segments (HKWorkoutEventTypeSegment), in order, at most 300: splits, intervals or sets, as the app that recorded it marked them."
+          }
+        },
+        "required": [
+          "id",
+          "activityType",
+          "activity",
+          "name",
+          "start",
+          "end",
+          "duration",
+          "activeEnergy",
+          "distance",
+          "averageHeartRate",
+          "elevationAscended",
+          "indoor",
+          "swimmingLocation",
+          "hasRoute",
+          "source",
+          "activities",
+          "elevationDescended",
+          "averageSpeed",
+          "maximumSpeed",
+          "averageMETs",
+          "lapLength",
+          "swolf",
+          "weatherCondition",
+          "weatherTemperature",
+          "weatherHumidity",
+          "statistics",
+          "pauseCount",
+          "pauses",
+          "lapCount",
+          "laps",
+          "segmentCount",
+          "segments"
+        ],
+        "additionalProperties": true
+      },
+      "HealthWorkoutResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "workout": {
+            "$ref": "#/components/schemas/HealthWorkoutDetail"
+          }
+        },
+        "required": [
+          "timeZone",
+          "workout"
+        ],
+        "additionalProperties": true
+      },
       "HealthSleepNight": {
         "type": "object",
         "properties": {

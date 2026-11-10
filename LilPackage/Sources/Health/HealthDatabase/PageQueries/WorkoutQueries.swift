@@ -8,16 +8,46 @@ public struct WorkoutStatistic: Codable, Equatable, Sendable {
   public var average: Double?
   public var minimum: Double?
   public var maximum: Double?
+  public var mostRecent: Double?
 
   public init(
     unit: String, sum: Double? = nil, average: Double? = nil, minimum: Double? = nil,
-    maximum: Double? = nil
+    maximum: Double? = nil, mostRecent: Double? = nil
   ) {
     self.unit = unit
     self.sum = sum
     self.average = average
     self.minimum = minimum
     self.maximum = maximum
+    self.mostRecent = mostRecent
+  }
+
+  /// Statistics by type ID from JSON as `JSONSerialization` reads it, as `decodedStatistics`
+  /// decodes them: each an object with a `unit`, its values numbers, null or missing. Nil if
+  /// one isn't.
+  static func statistics(_ value: Any?) -> [String: WorkoutStatistic]? {
+    guard let object = value as? [String: Any] else { return nil }
+    var statistics: [String: WorkoutStatistic] = [:]
+    for (type, value) in object {
+      guard let fields = value as? [String: Any], let unit = fields["unit"] as? String else {
+        return nil
+      }
+      // Missing or null, or a number: `.some(nil)` for none, `nil` for anything else.
+      func number(_ key: String) -> Double?? {
+        switch fields[key] {
+        case nil, is NSNull: .some(nil)
+        case let value: WorkoutMetadata.number(value).map(Optional.some)
+        }
+      }
+      guard let sum = number("sum"), let average = number("average"),
+        let minimum = number("minimum"), let maximum = number("maximum"),
+        let mostRecent = number("mostRecent")
+      else { return nil }
+      statistics[type] = WorkoutStatistic(
+        unit: unit, sum: sum, average: average, minimum: minimum, maximum: maximum,
+        mostRecent: mostRecent)
+    }
+    return statistics
   }
 }
 
@@ -58,28 +88,39 @@ extension HealthWorkout {
   /// When it was paused: from each pause (or motion pause) to the resume after it, or to the
   /// end.
   public var pauses: [DateInterval] {
-    var pauses: [DateInterval] = []
+    Self.pauses(decodedEvents, end: endDate).map {
+      DateInterval(start: Date(unixMilliseconds: $0.start), end: Date(unixMilliseconds: $0.end))
+    }
+  }
+
+  /// When a workout ending at `end` was paused, from its events, as `pauses` has it, in Unix
+  /// milliseconds. Events are taken by when they start, ties in the order given, as the
+  /// `workout` tools take them.
+  public static func pauses(_ events: [WorkoutEvent], end: Int) -> [(start: Int, end: Int)] {
+    var pauses: [(start: Int, end: Int)] = []
     var pausedAt: Int?
-    for event in decodedEvents.sorted(by: { $0.startDate < $1.startDate }) {
+    for event in stableSorted(events) {
       switch event.type {
       case WorkoutEvent.pause, WorkoutEvent.motionPaused:
         pausedAt = pausedAt ?? event.startDate
       case WorkoutEvent.resume, WorkoutEvent.motionResumed:
         if let from = pausedAt, event.startDate > from {
-          pauses.append(
-            DateInterval(
-              start: Date(unixMilliseconds: from), end: Date(unixMilliseconds: event.startDate)))
+          pauses.append((from, event.startDate))
         }
         pausedAt = nil
       default:
         break
       }
     }
-    if let from = pausedAt, endDate > from {
-      pauses.append(
-        DateInterval(start: Date(unixMilliseconds: from), end: Date(unixMilliseconds: endDate)))
-    }
+    if let from = pausedAt, end > from { pauses.append((from, end)) }
     return pauses
+  }
+
+  /// Events by when they start, ties in the order given.
+  public static func stableSorted(_ events: [WorkoutEvent]) -> [WorkoutEvent] {
+    events.enumerated()
+      .sorted { ($0.element.startDate, $0.offset) < ($1.element.startDate, $1.offset) }
+      .map(\.element)
   }
 
   /// From start to end, pauses included.

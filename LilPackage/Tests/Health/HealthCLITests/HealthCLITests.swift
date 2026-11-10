@@ -354,7 +354,7 @@ struct LilHealthExecutableTests {
     let listed = try request(2, "tools/list")
     let tools = (listed["result"] as? [String: Any])?["tools"] as? [[String: Any]] ?? []
     #expect(tools.compactMap { $0["name"] as? String }.first == "summary")
-    #expect(tools.count == 17)
+    #expect(tools.count == 18)
 
     // Access is off: the call fails with what to do, and isn't logged.
     let refused = try request(

@@ -494,6 +494,34 @@ export const workoutsStarting = (
       sourceName: row["source_name"] as string,
     }));
 
+/** A workout as `workout` reads it: its row, with its events. */
+export interface WorkoutDetailRow extends WorkoutRow {
+  /** As stored: JSON. */
+  readonly events: string;
+}
+
+/** The workout with HealthKit's UUID `id`, if there's one. */
+export const workoutWithId = (sql: StoreSql, id: string): WorkoutDetailRow | undefined =>
+  sql
+    .exec(
+      `SELECT id, activity_type, start_date, end_date, duration, statistics, activities, events,
+        metadata, source_name
+      FROM health_workout WHERE id = ?`,
+      id,
+    )
+    .map((row) => ({
+      id: row["id"] as string,
+      activityType: Number(row["activity_type"]),
+      startDate: Number(row["start_date"]),
+      endDate: Number(row["end_date"]),
+      duration: Number(row["duration"]),
+      statistics: row["statistics"] as string,
+      activities: row["activities"] as string,
+      events: row["events"] as string,
+      metadata: row["metadata"] as string | null,
+      sourceName: row["source_name"] as string,
+    }))[0];
+
 /**
  * The IDs of those of `workouts` that have a route with locations, as the Mac's workout page
  * finds a workout's route (`HealthDatabase.route(of:)`): one HealthKit linked to it, or else one

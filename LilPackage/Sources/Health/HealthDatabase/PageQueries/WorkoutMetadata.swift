@@ -20,15 +20,54 @@ public struct WorkoutMetadata: Equatable, Sendable {
   /// locationType }`. Custom and swim-bike-run workouts have one.
   public var planName: String?
 
+  // What the `workout` tool reads besides (851-4165), on workouts, activities and events, as the
+  // server reads them (`Services/api/src/health/tools/WorkoutValues.ts`). Quantities are the
+  // iPhone's descriptions of them, 6 significant digits, until 851-4150 keeps them whole.
+
+  /// `HKMetadataKeyElevationDescended`, in meters.
+  public var elevationDescended: Double?
+  /// `HKMetadataKeyAverageSpeed`, in meters per second.
+  public var averageSpeed: Double?
+  /// `HKMetadataKeyMaximumSpeed`, in meters per second.
+  public var maximumSpeed: Double?
+  /// `HKMetadataKeyAverageMETs`, in METs (kcal/hr·kg).
+  public var averageMETs: Double?
+  /// `HKMetadataKeyLapLength`, a pool's length, in meters.
+  public var lapLength: Double?
+  /// `HKMetadataKeySWOLFScore`.
+  public var swolf: Double?
+  /// `HKMetadataKeyWeatherCondition`, as `HKWeatherCondition` names it (`clear`, `showers`…).
+  public var weatherCondition: String?
+  /// `HKMetadataKeyWeatherTemperature`, in degrees Celsius.
+  public var weatherTemperature: Double?
+  /// `HKMetadataKeyWeatherHumidity`, a percent from 0 to 100 (see `humidity`).
+  public var weatherHumidity: Double?
+  /// `HKMetadataKeySwimmingStrokeStyle`, as `HKSwimmingStrokeStyle` names it (`freestyle`…), on
+  /// laps and segments.
+  public var strokeStyle: String?
+
   public init(
     indoor: Bool? = nil, swimmingLocation: String? = nil, brandName: String? = nil,
-    elevationAscended: Double? = nil, planName: String? = nil
+    elevationAscended: Double? = nil, planName: String? = nil, elevationDescended: Double? = nil,
+    averageSpeed: Double? = nil, maximumSpeed: Double? = nil, averageMETs: Double? = nil,
+    lapLength: Double? = nil, swolf: Double? = nil, weatherCondition: String? = nil,
+    weatherTemperature: Double? = nil, weatherHumidity: Double? = nil, strokeStyle: String? = nil
   ) {
     self.indoor = indoor
     self.swimmingLocation = swimmingLocation
     self.brandName = brandName
     self.elevationAscended = elevationAscended
     self.planName = planName
+    self.elevationDescended = elevationDescended
+    self.averageSpeed = averageSpeed
+    self.maximumSpeed = maximumSpeed
+    self.averageMETs = averageMETs
+    self.lapLength = lapLength
+    self.swolf = swolf
+    self.weatherCondition = weatherCondition
+    self.weatherTemperature = weatherTemperature
+    self.weatherHumidity = weatherHumidity
+    self.strokeStyle = strokeStyle
   }
 
   /// Its name: the app's (`brandName`), else its plan's.
@@ -45,8 +84,18 @@ public struct WorkoutMetadata: Equatable, Sendable {
       indoor: CardWorkout.indoor(metadataValue: metadata["HKIndoorWorkout"]),
       swimmingLocation: Self.swimmingLocation(Self.number(metadata["HKSwimmingLocationType"])),
       brandName: Self.unlessBlank(metadata["HKWorkoutBrandName"]),
-      elevationAscended: Self.meters(metadata["HKElevationAscended"] as? String),
-      planName: Self.unlessBlank((metadata["LilWorkoutPlan"] as? [String: Any])?["name"]))
+      elevationAscended: Self.quantity(metadata["HKElevationAscended"], Self.lengths),
+      planName: Self.unlessBlank((metadata["LilWorkoutPlan"] as? [String: Any])?["name"]),
+      elevationDescended: Self.quantity(metadata["HKElevationDescended"], Self.lengths),
+      averageSpeed: Self.quantity(metadata["HKAverageSpeed"], Self.speeds),
+      maximumSpeed: Self.quantity(metadata["HKMaximumSpeed"], Self.speeds),
+      averageMETs: Self.quantity(metadata["HKAverageMETs"], Self.mets),
+      lapLength: Self.quantity(metadata["HKLapLength"], Self.lengths),
+      swolf: Self.number(metadata["HKSWOLFScore"]),
+      weatherCondition: Self.named(Self.weatherConditions, metadata["HKWeatherCondition"]),
+      weatherTemperature: Self.quantity(metadata["HKWeatherTemperature"], Self.temperatures),
+      weatherHumidity: Self.quantity(metadata["HKWeatherHumidity"], Self.humidity),
+      strokeStyle: Self.named(Self.strokeStyles, metadata["HKSwimmingStrokeStyle"]))
   }
 
   /// A string unless it's blank: only spaces, tabs and line breaks, as on the server.
@@ -69,23 +118,69 @@ public struct WorkoutMetadata: Equatable, Sendable {
     type == 1 ? "pool" : type == 2 ? "openWater" : nil
   }
 
-  /// Meters in each length unit HealthKit writes a quantity in (`HKUnit`'s unit strings).
-  static let meters: [String: Double] = [
-    "mm": 0.001, "cm": 0.01, "m": 1, "km": 1000, "in": 0.0254, "ft": 0.3048, "yd": 0.9144,
-    "mi": 1609.344,
-  ]
-
-  /// A length the iPhone wrote as its quantity's description, a number and a unit ("4250 cm"),
-  /// in meters, or nil for anything else or another unit.
-  static func meters(_ description: String?) -> Double? {
-    guard let description,
+  /// A quantity the iPhone wrote as its description, a number and a unit ("4250 cm"), converted
+  /// by its unit's function in `units`, or nil for anything else or another unit.
+  static func quantity(_ value: Any?, _ units: [String: @Sendable (Double) -> Double]) -> Double? {
+    guard let description = value as? String,
       let match = description.wholeMatch(
         of: /([+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?) (\S+)/),
-      let number = Double(match.1), let factor = meters[String(match.2)]
+      let number = Double(match.1), let convert = units[String(match.2)]
     else { return nil }
-    let length = number * factor
-    return length.isFinite ? length : nil
+    let converted = convert(number)
+    return converted.isFinite ? converted : nil
   }
+
+  /// Each unit's function: multiplying by its factor.
+  private static func scaled(_ factors: [String: Double]) -> [String: @Sendable (Double) -> Double]
+  {
+    factors.mapValues { factor in { $0 * factor } }
+  }
+
+  /// Meters in each length unit HealthKit writes a quantity in (`HKUnit`'s unit strings).
+  static let lengths = scaled([
+    "mm": 0.001, "cm": 0.01, "m": 1, "km": 1000, "in": 0.0254, "ft": 0.3048, "yd": 0.9144,
+    "mi": 1609.344,
+  ])
+
+  /// Meters per second in each speed unit.
+  static let speeds = scaled([
+    "m/s": 1, "km/hr": 1000 / 3600, "mi/hr": 1609.344 / 3600, "ft/s": 0.3048,
+  ])
+
+  /// METs: `kcal/hr·kg`, as `HKQuantity.description` writes the unit (with a middle dot).
+  static let mets = scaled(["kcal/hr·kg": 1, "kcal/(kg·hr)": 1, "kcal/(hr·kg)": 1])
+
+  /// Degrees Celsius from each temperature unit.
+  static let temperatures: [String: @Sendable (Double) -> Double] = [
+    "degC": { $0 }, "degF": { ($0 - 32) * 5 / 9 }, "K": { $0 - 273.15 },
+  ]
+
+  /// A percent, from 0 to 100. Apple's Workout app writes humidity 100 times too large (a
+  /// quantity of 72 percent units for 72%, described as "7200 %"), so a value over 100 is
+  /// divided by 100.
+  static let humidity: [String: @Sendable (Double) -> Double] = [
+    "%": { $0 > 100 ? $0 / 100 : $0 }
+  ]
+
+  /// The name at an enum's raw value, if it's a whole number with one.
+  static func named(_ names: [String?], _ value: Any?) -> String? {
+    guard let raw = number(value), raw.rounded() == raw, raw >= 0, raw < Double(names.count)
+    else { return nil }
+    return names[Int(raw)]
+  }
+
+  /// `HKWeatherCondition`'s cases, by raw value, without their prefix; 0 (none) is nil.
+  static let weatherConditions: [String?] = [
+    nil, "clear", "fair", "partlyCloudy", "mostlyCloudy", "cloudy", "foggy", "haze", "windy",
+    "blustery", "smoky", "dust", "snow", "hail", "sleet", "freezingDrizzle", "freezingRain",
+    "mixedRainAndHail", "mixedRainAndSnow", "mixedRainAndSleet", "mixedSnowAndSleet", "drizzle",
+    "scatteredShowers", "showers", "thunderstorms", "tropicalStorm", "hurricane", "tornado",
+  ]
+
+  /// `HKSwimmingStrokeStyle`'s cases, by raw value; 0 (unknown) is nil.
+  static let strokeStyles: [String?] = [
+    nil, "mixed", "freestyle", "backstroke", "breaststroke", "butterfly", "kickboard",
+  ]
 
   static func isBoolean(_ value: Any?) -> Bool {
     guard let number = value as? NSNumber else { return false }
@@ -97,6 +192,26 @@ public struct WorkoutMetadata: Equatable, Sendable {
     guard let number = value as? NSNumber, !isBoolean(number), number.doubleValue.isFinite
     else { return nil }
     return number.doubleValue
+  }
+
+  /// A JSON number that's an integer, as the server's `Schema.Int` takes it (a safe one).
+  static func integer(_ value: Any?) -> Int? {
+    guard let number = number(value), number.rounded() == number,
+      number.magnitude <= 9_007_199_254_740_991
+    else { return nil }
+    return Int(number)
+  }
+}
+
+/// One of a workout's events (`HKWorkoutEvent`), with what its metadata says: a lap's stroke
+/// and SWOLF, for one.
+public struct WorkoutEventRecord: Equatable, Sendable {
+  public var event: WorkoutEvent
+  public var metadata: WorkoutMetadata
+
+  public init(event: WorkoutEvent, metadata: WorkoutMetadata) {
+    self.event = event
+    self.metadata = metadata
   }
 }
 
@@ -116,10 +231,14 @@ public struct WorkoutActivityRecord: Equatable, Sendable {
   /// water), from iPhones since 851-4030; nil before.
   public var swimmingLocationType: Double?
   public var metadata: WorkoutMetadata
+  /// Its own statistics, by type ID, read on their own (851-4165): ones that can't be read
+  /// leave it none, as on the server.
+  public var statistics: [String: WorkoutStatistic]
 
   public init(
     activityType: Int, startDate: Double, endDate: Double?, duration: Double,
-    locationType: Double? = nil, swimmingLocationType: Double? = nil, metadata: WorkoutMetadata
+    locationType: Double? = nil, swimmingLocationType: Double? = nil, metadata: WorkoutMetadata,
+    statistics: [String: WorkoutStatistic] = [:]
   ) {
     self.activityType = activityType
     self.startDate = startDate
@@ -128,6 +247,7 @@ public struct WorkoutActivityRecord: Equatable, Sendable {
     self.locationType = locationType
     self.swimmingLocationType = swimmingLocationType
     self.metadata = metadata
+    self.statistics = statistics
   }
 
   /// Whether it was indoors: as its metadata says, else as its configuration does.
@@ -169,9 +289,7 @@ extension HealthWorkout {
     var records: [WorkoutActivityRecord] = []
     for element in array {
       guard let object = element as? [String: Any],
-        let activityType = WorkoutMetadata.number(object["activityType"]),
-        // An integer, as the server's `Schema.Int` takes it (a safe one).
-        activityType.rounded() == activityType, activityType.magnitude <= 9_007_199_254_740_991,
+        let activityType = WorkoutMetadata.integer(object["activityType"]),
         let startDate = WorkoutMetadata.number(object["startDate"]),
         let duration = WorkoutMetadata.number(object["duration"])
       else { return [] }
@@ -196,10 +314,32 @@ extension HealthWorkout {
       if let metadata, !(metadata is NSNull), !(metadata is [String: Any]) { return [] }
       records.append(
         WorkoutActivityRecord(
-          activityType: Int(activityType), startDate: startDate, endDate: endDate,
+          activityType: activityType, startDate: startDate, endDate: endDate,
           duration: duration, locationType: locationType,
           swimmingLocationType: swimmingLocationType,
-          metadata: WorkoutMetadata(metadata)))
+          metadata: WorkoutMetadata(metadata),
+          statistics: WorkoutStatistic.statistics(object["statistics"]) ?? [:]))
+    }
+    return records
+  }
+
+  /// Its events, with what their metadata says (the `workout` tool's laps and segments): all
+  /// of them, in the order HealthKit gave them, or, if one can't be read, none. A `metadata`
+  /// that isn't an object is taken for none, as on the server.
+  public var decodedEventRecords: [WorkoutEventRecord] {
+    guard let array = (try? JSONSerialization.jsonObject(with: Data(events.utf8))) as? [Any]
+    else { return [] }
+    var records: [WorkoutEventRecord] = []
+    for element in array {
+      guard let object = element as? [String: Any],
+        let type = WorkoutMetadata.integer(object["type"]),
+        let startDate = WorkoutMetadata.integer(object["startDate"]),
+        let endDate = WorkoutMetadata.integer(object["endDate"])
+      else { return [] }
+      records.append(
+        WorkoutEventRecord(
+          event: WorkoutEvent(type: type, startDate: startDate, endDate: endDate),
+          metadata: WorkoutMetadata(object["metadata"])))
     }
     return records
   }

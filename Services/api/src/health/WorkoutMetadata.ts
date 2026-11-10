@@ -27,6 +27,11 @@ export const WorkoutActivities = Schema.fromJsonString(
       /** Its configuration's `HKWorkoutSwimmingLocationType`, from iPhones since 851-4030. */
       swimmingLocationType: Schema.optionalKey(Schema.NullOr(Schema.Finite)),
       metadata: Schema.optionalKey(Schema.NullOr(Metadata)),
+      /**
+       * Its statistics, as the workout's are, which the `workout` tool reads on their own: ones
+       * it can't read leave the activity without statistics (851-4165).
+       */
+      statistics: Schema.optionalKey(Schema.Unknown),
     }),
   ),
 );

@@ -4,7 +4,7 @@
     "Each batch is applied as the server ingests an iPhone's upload (device-scoped records are stamped with the batch's device, and reportedAt with receivedAt), and as the Mac then syncs it.",
     "Times in lines are Unix milliseconds. The conformance cases are in cases.json.",
     "A workout dated later today (16:30, after the cases' 15:00) hasn't happened, so it doesn't count yet.",
-    "Workouts: the 13 October run at 18:00Z has no metadata and a route HealthKit didn't link (found by its times); 14 October's is a treadmill run, indoor, with an empty route linked; 18 October's is outdoor, with its route, elevation and weather; 20 October's is a third-party app's, named, its indoor flag a number; the ride only says it's indoors on its one activity. September has a pool swim and a multisport race with an open-water swim, a route, a blank name and its elevation in feet. The week of 14 September has workouts as iPhones upload them since 851-4030: each activity's configured location (locationType, swimmingLocationType) and the WorkoutKit plan in the metadata (LilWorkoutPlan): a ride only its configuration calls indoor, a custom plan's run named by the plan, a third-party run whose brand name and metadata win, a goal plan's pool swim, a swim-bike-run plan's race, a blank plan name, and an unreadable location type and plan.",
+    "Workouts: the 13 October run at 18:00Z has no metadata and a route HealthKit didn't link (found by its times); 14 October's is a treadmill run, indoor, with an empty route linked; 18 October's is outdoor, with its route, elevation and weather; 20 October's is a third-party app's, named, its indoor flag a number; the ride only says it's indoors on its one activity. September has a pool swim and a multisport race with an open-water swim, a route, a blank name and its elevation in feet. The week of 14 September has workouts as iPhones upload them since 851-4030: each activity's configured location (locationType, swimmingLocationType) and the WorkoutKit plan in the metadata (LilWorkoutPlan): a ride only its configuration calls indoor, a custom plan's run named by the plan, a third-party run whose brand name and metadata win, a goal plan's pool swim, a swim-bike-run plan's race, a blank plan name, and an unreadable location type and plan. 1 to 6 September has workouts for the workout tool (851-4165), in a week no other case reads: an outdoor run with every statistic the Watch records, its splits as segments, an auto-pause and a pause, a marker, and its metadata's elevation, speeds, METs and weather in other units (°F, feet, mph, humidity 100 times too large); a 25-yard pool swim with laps out of order, their strokes and SWOLF, a segment and a pause it never resumed from; a ride whose statistics and events can't be read, with metadata in units the tools don't read; and a triathlon whose legs have their own statistics and metadata, one leg's unreadable and one's missing.",
     "Heart rate on 20 October comes from the Watch and the iPhone, with gaps over an hour, so time-weighted averages depend on each source's next reading. Sleep has the Watch's stages and the iPhone's estimates; medications a schedule, as-needed doses and an archived one; Health Details one characteristic Not Set."
   ],
   "batches": [
@@ -1367,6 +1367,536 @@
             "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
             "metadata": {
               "LilWorkoutPlan": "Test Walk"
+            }
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000041",
+          "row": {
+            "activityType": 37,
+            "startDate": 1788332400000,
+            "endDate": 1788335400000,
+            "duration": 2790,
+            "activities": [
+              {
+                "id": "0c0f0000-0000-4000-8000-000000000411",
+                "activityType": 37,
+                "startDate": 1788332400000,
+                "endDate": 1788335400000,
+                "duration": 2790.0,
+                "locationType": 3,
+                "swimmingLocationType": 0,
+                "metadata": null,
+                "statistics": {}
+              }
+            ],
+            "events": [
+              {
+                "type": 7,
+                "startDate": 1788332400000,
+                "endDate": 1788333480000,
+                "metadata": {
+                  "HKAverageSpeed": "2.77778 m/s",
+                  "HKMaximumSpeed": "3.4 m/s"
+                }
+              },
+              {
+                "type": 5,
+                "startDate": 1788333600000,
+                "endDate": 1788333600000,
+                "metadata": null
+              },
+              {
+                "type": 7,
+                "startDate": 1788333480000,
+                "endDate": 1788334500000,
+                "metadata": {
+                  "HKAverageSpeed": "10.8 km/hr"
+                }
+              },
+              {
+                "type": 6,
+                "startDate": 1788333750000,
+                "endDate": 1788333750000,
+                "metadata": null
+              },
+              {
+                "type": 4,
+                "startDate": 1788333900000,
+                "endDate": 1788333900000,
+                "metadata": {
+                  "HKSWOLFScore": 3
+                }
+              },
+              {
+                "type": 1,
+                "startDate": 1788334800000,
+                "endDate": 1788334800000,
+                "metadata": null
+              },
+              {
+                "type": 2,
+                "startDate": 1788334860000,
+                "endDate": 1788334860000,
+                "metadata": null
+              },
+              {
+                "type": 7,
+                "startDate": 1788334500000,
+                "endDate": 1788335400000,
+                "metadata": "not metadata"
+              }
+            ],
+            "statistics": {
+              "HKQuantityTypeIdentifierActiveEnergyBurned": {
+                "unit": "kcal",
+                "sum": 512.25,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              },
+              "HKQuantityTypeIdentifierBasalEnergyBurned": {
+                "unit": "kcal",
+                "sum": 70.5,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              },
+              "HKQuantityTypeIdentifierDistanceWalkingRunning": {
+                "unit": "m",
+                "sum": 8300,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              },
+              "HKQuantityTypeIdentifierHeartRate": {
+                "unit": "count/min",
+                "sum": null,
+                "average": 158,
+                "minimum": 96,
+                "maximum": 183,
+                "mostRecent": 171
+              },
+              "HKQuantityTypeIdentifierRunningPower": {
+                "unit": "W",
+                "sum": null,
+                "average": 265,
+                "minimum": 120,
+                "maximum": 410,
+                "mostRecent": 280
+              },
+              "HKQuantityTypeIdentifierRunningSpeed": {
+                "unit": "m/s",
+                "sum": null,
+                "average": 2.97,
+                "minimum": 1.2,
+                "maximum": 4.1,
+                "mostRecent": 3.1
+              },
+              "HKQuantityTypeIdentifierRunningStrideLength": {
+                "unit": "m",
+                "sum": null,
+                "average": 1.12,
+                "minimum": 0.85,
+                "maximum": 1.4,
+                "mostRecent": 1.1
+              },
+              "HKQuantityTypeIdentifierRunningGroundContactTime": {
+                "unit": "ms",
+                "sum": null,
+                "average": 242,
+                "minimum": 210,
+                "maximum": 290,
+                "mostRecent": 240
+              },
+              "HKQuantityTypeIdentifierRunningVerticalOscillation": {
+                "unit": "cm",
+                "sum": null,
+                "average": 8.9,
+                "minimum": 7.5,
+                "maximum": 10.2,
+                "mostRecent": 9
+              },
+              "HKQuantityTypeIdentifierStepCount": {
+                "unit": "count",
+                "sum": 7420,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              },
+              "HKQuantityTypeIdentifierFutureTestMetric": {
+                "unit": "count",
+                "sum": 1,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              }
+            },
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "HKIndoorWorkout": false,
+              "HKTimeZone": "Europe/London",
+              "HKElevationAscended": "8460 cm",
+              "HKElevationDescended": "277.559 ft",
+              "HKAverageSpeed": "2.97491 m/s",
+              "HKMaximumSpeed": "9.17 mi/hr",
+              "HKAverageMETs": "9.87654 kcal/hr·kg",
+              "HKWeatherCondition": 3,
+              "HKWeatherTemperature": "59 degF",
+              "HKWeatherHumidity": "6500 %"
+            }
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000042",
+          "row": {
+            "activityType": 46,
+            "startDate": 1788503400000,
+            "endDate": 1788505200000,
+            "duration": 1780,
+            "activities": [],
+            "events": [
+              {
+                "type": 3,
+                "startDate": 1788503400000,
+                "endDate": 1788503430000,
+                "metadata": {
+                  "HKSwimmingStrokeStyle": 2,
+                  "HKSWOLFScore": 41,
+                  "HKLapLength": "25 yd"
+                }
+              },
+              {
+                "type": 3,
+                "startDate": 1788503462000,
+                "endDate": 1788503498000,
+                "metadata": {
+                  "HKSwimmingStrokeStyle": 4,
+                  "HKSWOLFScore": 48.5
+                }
+              },
+              {
+                "type": 3,
+                "startDate": 1788503430000,
+                "endDate": 1788503462000,
+                "metadata": {
+                  "HKSwimmingStrokeStyle": 3,
+                  "HKSWOLFScore": 44
+                }
+              },
+              {
+                "type": 3,
+                "startDate": 1788503498000,
+                "endDate": 1788503540000,
+                "metadata": {
+                  "HKSwimmingStrokeStyle": 6
+                }
+              },
+              {
+                "type": 3,
+                "startDate": 1788503540000,
+                "endDate": 1788503570000,
+                "metadata": {
+                  "HKSwimmingStrokeStyle": 0,
+                  "HKSWOLFScore": true
+                }
+              },
+              {
+                "type": 7,
+                "startDate": 1788503400000,
+                "endDate": 1788503570000,
+                "metadata": {
+                  "HKSwimmingStrokeStyle": 1,
+                  "HKSWOLFScore": 44.25
+                }
+              },
+              {
+                "type": 1,
+                "startDate": 1788505180000,
+                "endDate": 1788505180000,
+                "metadata": null
+              }
+            ],
+            "statistics": {
+              "HKQuantityTypeIdentifierActiveEnergyBurned": {
+                "unit": "kcal",
+                "sum": 210,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              },
+              "HKQuantityTypeIdentifierDistanceSwimming": {
+                "unit": "m",
+                "sum": 114.3,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              },
+              "HKQuantityTypeIdentifierSwimmingStrokeCount": {
+                "unit": "count",
+                "sum": 96,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              },
+              "HKQuantityTypeIdentifierHeartRate": {
+                "unit": "count/min",
+                "sum": null,
+                "average": 131.5,
+                "minimum": 104,
+                "maximum": 152,
+                "mostRecent": 140
+              }
+            },
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "HKIndoorWorkout": true,
+              "HKSwimmingLocationType": 1,
+              "HKLapLength": "25 yd",
+              "HKSWOLFScore": 45,
+              "HKWeatherCondition": 99,
+              "HKWeatherHumidity": "45.5 %",
+              "HKWeatherTemperature": "300.15 K"
+            }
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000043",
+          "row": {
+            "activityType": 13,
+            "startDate": 1788631200000,
+            "endDate": 1788634800000,
+            "duration": 3600,
+            "activities": [],
+            "events": [
+              {
+                "type": 1,
+                "startDate": 1788631800000,
+                "endDate": 1788631800000,
+                "metadata": null
+              },
+              {
+                "type": "2",
+                "startDate": 1788631900000,
+                "endDate": 1788631900000,
+                "metadata": null
+              }
+            ],
+            "statistics": {
+              "HKQuantityTypeIdentifierActiveEnergyBurned": {
+                "unit": "kcal",
+                "sum": 600,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              },
+              "HKQuantityTypeIdentifierCyclingPower": {
+                "unit": "W",
+                "average": "200"
+              }
+            },
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "HKElevationAscended": "3 furlong",
+              "HKAverageSpeed": "30",
+              "HKAverageMETs": "6.25 kcal",
+              "HKWeatherCondition": 0,
+              "HKWeatherTemperature": "12 degC",
+              "HKSWOLFScore": "12"
+            }
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000044",
+          "row": {
+            "activityType": 82,
+            "startDate": 1788681600000,
+            "endDate": 1788687000000,
+            "duration": 5400,
+            "activities": [
+              {
+                "id": "0c0f0000-0000-4000-8000-000000000441",
+                "activityType": 46,
+                "startDate": 1788681600000,
+                "endDate": 1788682800000,
+                "duration": 1200.0,
+                "locationType": 3,
+                "swimmingLocationType": 2,
+                "metadata": {
+                  "HKSWOLFScore": 52,
+                  "HKAverageSpeed": "0.625 m/s"
+                },
+                "statistics": {
+                  "HKQuantityTypeIdentifierDistanceSwimming": {
+                    "unit": "m",
+                    "sum": 750,
+                    "average": null,
+                    "minimum": null,
+                    "maximum": null,
+                    "mostRecent": null
+                  },
+                  "HKQuantityTypeIdentifierSwimmingStrokeCount": {
+                    "unit": "count",
+                    "sum": 410,
+                    "average": null,
+                    "minimum": null,
+                    "maximum": null,
+                    "mostRecent": null
+                  },
+                  "HKQuantityTypeIdentifierHeartRate": {
+                    "unit": "count/min",
+                    "sum": null,
+                    "average": 150,
+                    "minimum": 120,
+                    "maximum": 166,
+                    "mostRecent": 160
+                  }
+                }
+              },
+              {
+                "id": "0c0f0000-0000-4000-8000-000000000442",
+                "activityType": 83,
+                "startDate": 1788682800000,
+                "endDate": 1788683100000,
+                "duration": 300.0,
+                "locationType": 1,
+                "swimmingLocationType": 0,
+                "metadata": null,
+                "statistics": {
+                  "HKQuantityTypeIdentifierHeartRate": {
+                    "average": 140
+                  }
+                }
+              },
+              {
+                "id": "0c0f0000-0000-4000-8000-000000000443",
+                "activityType": 13,
+                "startDate": 1788683100000,
+                "endDate": 1788685800000,
+                "duration": 2700.0,
+                "locationType": 3,
+                "swimmingLocationType": 0,
+                "metadata": {
+                  "HKElevationAscended": "210 m",
+                  "HKElevationDescended": "0.2 km",
+                  "HKAverageSpeed": "30.6 km/hr",
+                  "HKMaximumSpeed": "52 km/hr"
+                },
+                "statistics": {
+                  "HKQuantityTypeIdentifierDistanceCycling": {
+                    "unit": "m",
+                    "sum": 20000,
+                    "average": null,
+                    "minimum": null,
+                    "maximum": null,
+                    "mostRecent": null
+                  },
+                  "HKQuantityTypeIdentifierCyclingPower": {
+                    "unit": "W",
+                    "sum": null,
+                    "average": 190,
+                    "minimum": 0,
+                    "maximum": 520,
+                    "mostRecent": 180
+                  },
+                  "HKQuantityTypeIdentifierCyclingCadence": {
+                    "unit": "count/min",
+                    "sum": null,
+                    "average": 86,
+                    "minimum": 0,
+                    "maximum": 110,
+                    "mostRecent": 90
+                  }
+                }
+              },
+              {
+                "id": "0c0f0000-0000-4000-8000-000000000444",
+                "activityType": 37,
+                "startDate": 1788685800000,
+                "endDate": 1788687000000,
+                "duration": 1200.0,
+                "locationType": 3,
+                "swimmingLocationType": 0,
+                "metadata": {
+                  "HKAverageMETs": "10.5 kcal/(kg·hr)"
+                }
+              }
+            ],
+            "events": [],
+            "statistics": {
+              "HKQuantityTypeIdentifierActiveEnergyBurned": {
+                "unit": "kcal",
+                "sum": 1100,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              },
+              "HKQuantityTypeIdentifierDistanceSwimming": {
+                "unit": "m",
+                "sum": 750,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              },
+              "HKQuantityTypeIdentifierDistanceCycling": {
+                "unit": "m",
+                "sum": 20000,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              },
+              "HKQuantityTypeIdentifierDistanceWalkingRunning": {
+                "unit": "m",
+                "sum": 5000,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null
+              },
+              "HKQuantityTypeIdentifierHeartRate": {
+                "unit": "count/min",
+                "sum": null,
+                "average": 155,
+                "minimum": 110,
+                "maximum": 181,
+                "mostRecent": 176
+              }
+            },
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "LilWorkoutPlan": {
+                "kind": "swimBikeRun",
+                "name": "Test Lake Sprint",
+                "activityType": 82,
+                "locationType": null
+              },
+              "HKWeatherCondition": 1,
+              "HKWeatherTemperature": "18.5 degC",
+              "HKWeatherHumidity": "55 %"
             }
           }
         }

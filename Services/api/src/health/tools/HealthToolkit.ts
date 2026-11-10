@@ -426,12 +426,189 @@ export const Workouts = readOnly(
       "Workouts that started in a period, newest first, with their activity and name, " +
       "duration, energy, distance, average heart rate and elevation, whether they were " +
       "indoors and had a GPS route (to tell a treadmill run from an outdoor one), and the " +
-      "period's count and total time.",
+      "period's count and total time. For one workout's other statistics, laps, segments, " +
+      "pauses, weather and multisport legs, call workout with its id.",
     parameters: Schema.Struct({ range, date, timeZone }),
     success: HealthWorkoutsResult,
     failure: HealthToolError,
   }),
   "Health Workouts",
+);
+
+// -------------------------------------------------------------------------------------------------
+// workout
+// -------------------------------------------------------------------------------------------------
+
+/** The most pauses, laps or segments `workout` lists of each. */
+export const workoutEventsLimit = 300;
+
+/**
+ * Quantities read from metadata, which the iPhone stores as text with 6 significant digits
+ * ("4250 cm") until 851-4150: so they're rounded to that, and one in a unit the tools don't
+ * know is null.
+ */
+const fromMetadata = (key: string, what: string) =>
+  `${what}, if the app that recorded it says (${key}). Read from text with 6 significant ` +
+  "digits, so rounded to that.";
+
+/** What a workout's, or one of its activities', metadata says beyond where it was. */
+const workoutMetadataFields = {
+  elevationDescended: Schema.NullOr(Schema.Finite).annotate({
+    description: fromMetadata("HKMetadataKeyElevationDescended", "Meters descended"),
+  }),
+  averageSpeed: Schema.NullOr(Schema.Finite).annotate({
+    description: fromMetadata("HKMetadataKeyAverageSpeed", "Average speed, in meters per second"),
+  }),
+  maximumSpeed: Schema.NullOr(Schema.Finite).annotate({
+    description: fromMetadata("HKMetadataKeyMaximumSpeed", "Top speed, in meters per second"),
+  }),
+  averageMETs: Schema.NullOr(Schema.Finite).annotate({
+    description: fromMetadata(
+      "HKMetadataKeyAverageMETs",
+      "Average intensity over the whole workout, in METs (kcal/hr·kg)",
+    ),
+  }),
+  lapLength: Schema.NullOr(Schema.Finite).annotate({
+    description: fromMetadata(
+      "HKMetadataKeyLapLength",
+      "For pool swims: the pool's length, in meters (25 yd is 22.86)",
+    ),
+  }),
+  swolf: Schema.NullOr(Schema.Finite).annotate({
+    description:
+      "For swims: the SWOLF score (strokes plus seconds per length; lower is more efficient), " +
+      "if the app that recorded it says (HKMetadataKeySWOLFScore).",
+  }),
+};
+
+export const HealthWorkoutStatistic = Schema.Struct({
+  type: healthType.annotate({
+    description: "The quantity type, e.g. HKQuantityTypeIdentifierHeartRate.",
+  }),
+  name: Schema.NullOr(Schema.String).annotate({
+    description: "The name Health shows for it, e.g. Heart Rate.",
+  }),
+  unit: Schema.String.annotate({
+    description: "The HealthKit unit of its values, e.g. count/min, W, m or kcal.",
+  }),
+  sum: Schema.NullOr(Schema.Finite).annotate({
+    description: "For types that add up (energy, distance, steps, strokes): the total.",
+  }),
+  average: Schema.NullOr(Schema.Finite).annotate({
+    description: "For other types (heart rate, power, cadence, speed): the average.",
+  }),
+  minimum: Schema.NullOr(Schema.Finite).annotate({ description: "The lowest reading." }),
+  maximum: Schema.NullOr(Schema.Finite).annotate({ description: "The highest reading." }),
+  mostRecent: Schema.NullOr(Schema.Finite).annotate({ description: "The last reading." }),
+}).annotate({ identifier: "HealthWorkoutStatistic" });
+
+const workoutStatistics = Schema.Array(HealthWorkoutStatistic).annotate({
+  description:
+    "Every statistic HealthKit computed over it, one per quantity type, by type: energy, " +
+    "distance, heart rate (average, minimum, maximum), power, cadence, speed, stride length, " +
+    "ground contact time, vertical oscillation, swimming strokes, flights climbed… whatever " +
+    "was recorded. Null where HealthKit gives none.",
+});
+
+export const HealthWorkoutPause = Schema.Struct({
+  start: LocalTime,
+  end: LocalTime.annotate({ description: "When it resumed, or the workout's end." }),
+  duration: Schema.Finite.annotate({ description: "Seconds." }),
+}).annotate({ identifier: "HealthWorkoutPause" });
+
+export const HealthWorkoutInterval = Schema.Struct({
+  start: LocalTime,
+  end: LocalTime,
+  duration: Schema.Finite.annotate({ description: "Seconds, from start to end." }),
+  strokeStyle: Schema.NullOr(Schema.String).annotate({
+    description:
+      "For swims: the main stroke (HKMetadataKeySwimmingStrokeStyle): mixed, freestyle, " +
+      "backstroke, breaststroke, butterfly or kickboard, or null if it doesn't say.",
+  }),
+  swolf: workoutMetadataFields.swolf,
+  lapLength: workoutMetadataFields.lapLength,
+  averageSpeed: workoutMetadataFields.averageSpeed,
+  maximumSpeed: workoutMetadataFields.maximumSpeed,
+}).annotate({ identifier: "HealthWorkoutInterval" });
+
+export const HealthWorkoutLeg = Schema.Struct({
+  ...HealthWorkoutActivityItem.fields,
+  elevationAscended: Schema.NullOr(Schema.Finite).annotate({
+    description: fromMetadata("HKMetadataKeyElevationAscended", "Meters climbed"),
+  }),
+  ...workoutMetadataFields,
+  statistics: workoutStatistics.annotate({ description: "The leg's own statistics." }),
+}).annotate({ identifier: "HealthWorkoutLeg" });
+
+export const HealthWorkoutDetail = Schema.Struct({
+  ...HealthWorkoutItem.fields,
+  elevationAscended: HealthWorkoutItem.fields.elevationAscended.annotate({
+    description: fromMetadata("HKMetadataKeyElevationAscended", "Meters climbed"),
+  }),
+  ...workoutMetadataFields,
+  weatherCondition: Schema.NullOr(Schema.String).annotate({
+    description:
+      "The weather (HKMetadataKeyWeatherCondition), as HKWeatherCondition names it, e.g. " +
+      "clear, partlyCloudy, showers or snow, or null if it doesn't say.",
+  }),
+  weatherTemperature: Schema.NullOr(Schema.Finite).annotate({
+    description: fromMetadata("HKMetadataKeyWeatherTemperature", "The temperature, in °C"),
+  }),
+  weatherHumidity: Schema.NullOr(Schema.Finite).annotate({
+    description:
+      "Relative humidity, in percent from 0 to 100 (HKMetadataKeyWeatherHumidity). Apple's " +
+      "Workout app writes it 100 times too large (72% as 7200 %), so a value over 100 is " +
+      "divided by 100. Read from text with 6 significant digits.",
+  }),
+  statistics: workoutStatistics,
+  pauseCount: Schema.Int.annotate({ description: "How many times it was paused." }),
+  pauses: Schema.Array(HealthWorkoutPause).annotate({
+    description:
+      "When it was paused, by the person or automatically (auto-pause), from each pause to " +
+      `the resume after it, in order, at most ${workoutEventsLimit}. duration leaves them out.`,
+  }),
+  lapCount: Schema.Int,
+  laps: Schema.Array(HealthWorkoutInterval).annotate({
+    description:
+      `Its laps (HKWorkoutEventTypeLap), in order, at most ${workoutEventsLimit}: a pool ` +
+      "swim's lengths, with each one's stroke and SWOLF, or laps marked in an app.",
+  }),
+  segmentCount: Schema.Int,
+  segments: Schema.Array(HealthWorkoutInterval).annotate({
+    description:
+      `Its segments (HKWorkoutEventTypeSegment), in order, at most ${workoutEventsLimit}: ` +
+      "splits, intervals or sets, as the app that recorded it marked them.",
+  }),
+  activities: Schema.Array(HealthWorkoutLeg).annotate({
+    description:
+      "A multisport workout's legs (e.g. swim, transition, bike, run), in order, each with " +
+      "its own statistics. Empty for a workout of one activity, whose statistics are the " +
+      "workout's.",
+  }),
+}).annotate({ identifier: "HealthWorkoutDetail" });
+
+export const HealthWorkoutResult = Schema.Struct({
+  timeZone: usedTimeZone,
+  workout: HealthWorkoutDetail,
+});
+
+export const Workout = readOnly(
+  Tool.make("workout", {
+    description:
+      "One workout in full, by the ID workouts gives: everything workouts says, plus every " +
+      "statistic HealthKit computed (maximum and minimum heart rate, power, cadence, stride " +
+      "length, swimming strokes…), descent, speeds, METs, the weather, SWOLF and pool length, " +
+      "its pauses, laps (with each length's stroke and SWOLF) and segments, and a multisport " +
+      "workout's legs with their own statistics. Values from the workout's metadata are read " +
+      "from text and rounded to 6 significant digits.",
+    parameters: Schema.Struct({
+      id: Schema.String.annotate({ description: "The workout's ID, from workouts." }),
+      timeZone,
+    }),
+    success: HealthWorkoutResult,
+    failure: HealthToolError,
+  }),
+  "Health Workout",
 );
 
 // -------------------------------------------------------------------------------------------------
@@ -659,6 +836,7 @@ export const HealthToolkit = Toolkit.make(
   Metric,
   Samples,
   Workouts,
+  Workout,
   Sleep,
   Medications,
   HealthDetails,
@@ -677,6 +855,7 @@ export const healthToolResultNames: Record<keyof typeof HealthToolkit.tools, str
   metric: "HealthMetricResult",
   samples: "HealthSamplesResult",
   workouts: "HealthWorkoutsResult",
+  workout: "HealthWorkoutResult",
   sleep: "HealthSleepResult",
   medications: "HealthMedicationsResult",
   health_details: "HealthDetailsResult",

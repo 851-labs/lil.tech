@@ -370,6 +370,11 @@ private struct ToolCall {
       let timeZone = arguments.string("timeZone")
       guard let range, arguments.isValid else { throw arguments.invalid }
       query = { tools, db in try tools.workouts(range: range, date: date, timeZone: timeZone, db) }
+    case "workout":
+      let id = arguments.required("id", arguments.string)
+      let timeZone = arguments.string("timeZone")
+      guard let id, arguments.isValid else { throw arguments.invalid }
+      query = { tools, db in try tools.workout(id: id, timeZone: timeZone, db) }
     case "sleep":
       let range = arguments.required("range", arguments.range)
       let date = arguments.string("date")

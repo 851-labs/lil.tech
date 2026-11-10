@@ -10,6 +10,7 @@ import { healthSearch } from "./Search.ts";
 import { healthSleep } from "./Sleep.ts";
 import { healthSummary } from "./Summary.ts";
 import { healthSyncStatus } from "./SyncStatus.ts";
+import { healthWorkout } from "./Workout.ts";
 import { healthWorkouts } from "./Workouts.ts";
 
 type Tools = typeof HealthToolkit.tools;
@@ -32,6 +33,7 @@ export const storeHealthTools = (sql: StoreSql): HealthToolImplementations => ({
   metric: (params) => healthMetric(sql, params),
   samples: (params) => healthSamples(sql, params),
   workouts: (params) => healthWorkouts(sql, params),
+  workout: (params) => healthWorkout(sql, params),
   sleep: (params) => healthSleep(sql, params),
   medications: (params) => healthMedications(sql, params),
   health_details: (params) => healthDetails(sql, params),

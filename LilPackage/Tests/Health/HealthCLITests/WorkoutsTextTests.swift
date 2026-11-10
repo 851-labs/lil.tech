@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import HealthCLI
@@ -43,6 +44,60 @@ import Testing
           2026-10-18 07:00   Multisport   2h 00m
               Swimming   outdoor, open water   30m
               Transition   5m
+
+        """)
+  }
+
+  @Test
+  func aWorkoutListsItsStatisticsPausesLapsAndWeather() throws {
+    let json = """
+      {"timeZone": "UTC", "workout": {"id": "a", "activityType": 46, "activity": "Swimming",
+        "name": null, "start": "2026-09-04T06:30:00+00:00", "end": "2026-09-04T07:00:00+00:00",
+        "duration": 1780, "activeEnergy": 210, "distance": 114.3, "averageHeartRate": 131.5,
+        "elevationAscended": null, "indoor": true, "swimmingLocation": "pool", "hasRoute": false,
+        "source": "Synthetic Watch", "elevationDescended": null, "averageSpeed": null,
+        "maximumSpeed": null, "averageMETs": 7.5, "lapLength": 22.86, "swolf": 45,
+        "weatherCondition": "clear", "weatherTemperature": 27, "weatherHumidity": 45.5,
+        "statistics": [
+          {"type": "HKQuantityTypeIdentifierHeartRate", "name": "Heart Rate", "unit": "count/min",
+           "sum": null, "average": 131.5, "minimum": 104, "maximum": 152, "mostRecent": 140},
+          {"type": "HKQuantityTypeIdentifierSwimmingStrokeCount", "name": "Swimming Strokes",
+           "unit": "count", "sum": 96, "average": null, "minimum": null, "maximum": null,
+           "mostRecent": null}],
+        "pauseCount": 1,
+        "pauses": [{"start": "2026-09-04T06:59:40+00:00", "end": "2026-09-04T07:00:00+00:00",
+          "duration": 20}],
+        "lapCount": 3,
+        "laps": [
+          {"start": "2026-09-04T06:30:00+00:00", "end": "2026-09-04T06:30:30+00:00",
+           "duration": 30, "strokeStyle": "freestyle", "swolf": 41, "lapLength": 22.86,
+           "averageSpeed": null, "maximumSpeed": null},
+          {"start": "2026-09-04T06:30:30+00:00", "end": "2026-09-04T06:31:02+00:00",
+           "duration": 32, "strokeStyle": null, "swolf": null, "lapLength": null,
+           "averageSpeed": null, "maximumSpeed": null}],
+        "segmentCount": 0, "segments": [], "activities": []}}
+      """
+    let result = try JSONDecoder().decode(HealthWorkoutResult.self, from: Data(json.utf8))
+    #expect(
+      result.text == """
+        2026-09-04 06:30   Swimming   indoor, pool   29m (UTC)
+        From Synthetic Watch
+
+          Heart Rate         avg. 131.5 count/min · min. 104 count/min · max. 152 count/min
+          Swimming Strokes   96
+
+          Avg. METs   7.5
+          Pool        22.86 m
+          SWOLF       45
+          Weather     clear, 27 °C, 45.5% humidity
+
+        Pauses: 1
+          2026-09-04 06:59   20s
+
+        Laps: 3
+          2026-09-04 06:30   30s   freestyle   SWOLF 41
+          2026-09-04 06:30   32s
+          … and 1 more
 
         """)
   }

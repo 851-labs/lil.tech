@@ -1,4 +1,4 @@
-import { Clock, Effect, Option, Predicate, Schema } from "effect";
+import { Clock, type DateTime, Effect, Option, Predicate, Schema } from "effect";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import { workoutActivityName } from "../HealthCatalog.ts";
 import {
@@ -11,30 +11,36 @@ import {
   swimmingLocation,
   workoutIndoor,
 } from "../WorkoutMetadata.ts";
-import { workoutsStarting, workoutsWithRoutes, workoutTotals } from "./HealthQueries.ts";
+import {
+  type WorkoutRow,
+  workoutsStarting,
+  workoutsWithRoutes,
+  workoutTotals,
+} from "./HealthQueries.ts";
 import { type HealthToolkit, workoutsLimit } from "./HealthToolkit.ts";
 import { localTime, type ToolRange, toolPeriod, toolTimeZone } from "./ToolTime.ts";
+import { elevationAscended } from "./WorkoutValues.ts";
 
 type WorkoutsResult = (typeof HealthToolkit.tools.workouts.successSchema)["Type"];
+type WorkoutItem = WorkoutsResult["workouts"][number];
 
 /**
- * A workout's statistics by quantity type, in the catalog's units. Read as the Mac reads them
- * (`HealthWorkout.decodedStatistics`): all of them or, if one can't be read, none.
+ * A workout's or an activity's statistics by quantity type, in the catalog's units. Read as the
+ * Mac reads them (`HealthWorkout.decodedStatistics`): all of them or, if one can't be read, none.
  */
-const WorkoutStatistics = Schema.fromJsonString(
-  Schema.Record(
-    Schema.String,
-    Schema.Struct({
-      unit: Schema.String,
-      sum: Schema.optionalKey(Schema.NullOr(Schema.Finite)),
-      average: Schema.optionalKey(Schema.NullOr(Schema.Finite)),
-      minimum: Schema.optionalKey(Schema.NullOr(Schema.Finite)),
-      maximum: Schema.optionalKey(Schema.NullOr(Schema.Finite)),
-    }),
-  ),
+export const StatisticsByType = Schema.Record(
+  Schema.String,
+  Schema.Struct({
+    unit: Schema.String,
+    sum: Schema.optionalKey(Schema.NullOr(Schema.Finite)),
+    average: Schema.optionalKey(Schema.NullOr(Schema.Finite)),
+    minimum: Schema.optionalKey(Schema.NullOr(Schema.Finite)),
+    maximum: Schema.optionalKey(Schema.NullOr(Schema.Finite)),
+    mostRecent: Schema.optionalKey(Schema.NullOr(Schema.Finite)),
+  }),
 );
-const decodeStatistics = Schema.decodeUnknownOption(WorkoutStatistics);
-type WorkoutStatistics = (typeof WorkoutStatistics)["Type"];
+export type WorkoutStatistics = (typeof StatisticsByType)["Type"];
+const decodeStatistics = Schema.decodeUnknownOption(Schema.fromJsonString(StatisticsByType));
 
 /** A string unless it's blank: only spaces, tabs and line breaks, which the Mac counts the same. */
 const unlessBlank = (value: unknown): string | null =>
@@ -53,32 +59,6 @@ const workoutName = (metadata: Metadata | null): string | null => {
   );
 };
 
-/** Meters in each length unit HealthKit writes a quantity in (`HKUnit`'s unit strings). */
-const meters: Record<string, number> = {
-  mm: 0.001,
-  cm: 0.01,
-  m: 1,
-  km: 1000,
-  in: 0.0254,
-  ft: 0.3048,
-  yd: 0.9144,
-  mi: 1609.344,
-};
-
-/**
- * `HKMetadataKeyElevationAscended` in meters. The iPhone writes quantities as their description,
- * a number and a unit ("4250 cm"); anything else, or another unit, is null.
- */
-const elevationAscended = (metadata: Metadata | null): number | null => {
-  const value = metadata?.["HKElevationAscended"];
-  if (!Predicate.isString(value)) return null;
-  const match = /^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?) (\S+)$/.exec(value);
-  const factor = match === null ? undefined : meters[match[2]!];
-  if (match === null || factor === undefined) return null;
-  const elevation = Number(match[1]) * factor;
-  return Number.isFinite(elevation) ? elevation : null;
-};
-
 /** The kinds of distance a workout can record, the usual ones first. */
 const distanceTypes = [
   "HKQuantityTypeIdentifierDistanceWalkingRunning",
@@ -91,6 +71,54 @@ const distanceTypes = [
   "HKQuantityTypeIdentifierDistanceRowing",
   "HKQuantityTypeIdentifierDistanceSkatingSports",
 ];
+
+/**
+ * What `workouts` says of a workout, with the statistics, metadata and activities it read, which
+ * `workout` adds to.
+ */
+export const readWorkout = (
+  workout: WorkoutRow,
+  withRoutes: ReadonlySet<string>,
+  zone: DateTime.TimeZone,
+) => {
+  const statistics: WorkoutStatistics = Option.getOrElse(
+    decodeStatistics(workout.statistics),
+    () => ({}),
+  );
+  const sum = (type: string) => statistics[type]?.sum ?? null;
+  const metadata = Option.getOrNull(decodeMetadata(workout.metadata));
+  const activities = Option.getOrElse(decodeActivities(workout.activities), () => []);
+  const item: WorkoutItem = {
+    id: workout.id,
+    activityType: workout.activityType,
+    activity: workoutActivityName(workout.activityType),
+    name: workoutName(metadata),
+    start: localTime(workout.startDate, zone),
+    end: localTime(workout.endDate, zone),
+    duration: workout.duration,
+    activeEnergy: sum("HKQuantityTypeIdentifierActiveEnergyBurned"),
+    distance: distanceTypes.map(sum).find((distance) => distance !== null) ?? null,
+    averageHeartRate: statistics["HKQuantityTypeIdentifierHeartRate"]?.average ?? null,
+    elevationAscended: elevationAscended(metadata),
+    indoor: workoutIndoor(metadata, activities),
+    swimmingLocation: swimmingLocation(metadata) ?? agreed(activities, activitySwimmingLocation),
+    hasRoute: withRoutes.has(workout.id),
+    source: workout.sourceName,
+    activities:
+      activities.length < 2
+        ? []
+        : activities.map((activity) => ({
+            activityType: activity.activityType,
+            activity: workoutActivityName(activity.activityType),
+            start: localTime(activity.startDate, zone),
+            end: activity.endDate === null ? null : localTime(activity.endDate, zone),
+            duration: activity.duration,
+            indoor: activityIndoor(activity),
+            swimmingLocation: activitySwimmingLocation(activity),
+          })),
+  };
+  return { item, statistics, metadata, activities };
+};
 
 /**
  * The `workouts` tool from the user's store: the workouts that start in the period, newest first,
@@ -117,45 +145,7 @@ export const healthWorkouts = Effect.fn("healthWorkouts")(function* (
     end: localTime(period.end, zone),
     count: totals.count,
     duration: totals.duration,
-    workouts: workouts.map((workout) => {
-      const statistics: WorkoutStatistics = Option.getOrElse(
-        decodeStatistics(workout.statistics),
-        () => ({}),
-      );
-      const sum = (type: string) => statistics[type]?.sum ?? null;
-      const metadata = Option.getOrNull(decodeMetadata(workout.metadata));
-      const activities = Option.getOrElse(decodeActivities(workout.activities), () => []);
-      return {
-        id: workout.id,
-        activityType: workout.activityType,
-        activity: workoutActivityName(workout.activityType),
-        name: workoutName(metadata),
-        start: localTime(workout.startDate, zone),
-        end: localTime(workout.endDate, zone),
-        duration: workout.duration,
-        activeEnergy: sum("HKQuantityTypeIdentifierActiveEnergyBurned"),
-        distance: distanceTypes.map(sum).find((distance) => distance !== null) ?? null,
-        averageHeartRate: statistics["HKQuantityTypeIdentifierHeartRate"]?.average ?? null,
-        elevationAscended: elevationAscended(metadata),
-        indoor: workoutIndoor(metadata, activities),
-        swimmingLocation:
-          swimmingLocation(metadata) ?? agreed(activities, activitySwimmingLocation),
-        hasRoute: withRoutes.has(workout.id),
-        source: workout.sourceName,
-        activities:
-          activities.length < 2
-            ? []
-            : activities.map((activity) => ({
-                activityType: activity.activityType,
-                activity: workoutActivityName(activity.activityType),
-                start: localTime(activity.startDate, zone),
-                end: activity.endDate === null ? null : localTime(activity.endDate, zone),
-                duration: activity.duration,
-                indoor: activityIndoor(activity),
-                swimmingLocation: activitySwimmingLocation(activity),
-              })),
-      };
-    }),
+    workouts: workouts.map((workout) => readWorkout(workout, withRoutes, zone).item),
   };
   return result;
 });
