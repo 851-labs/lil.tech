@@ -724,7 +724,7 @@
             "kind": "category",
             "unit": null,
             "cumulative": false,
-            "first": "2026-10-17T23:00:00+00:00",
+            "first": "2026-08-10T14:00:00+00:00",
             "last": "2026-10-20T00:00:00+00:00"
           },
           {
@@ -957,7 +957,7 @@
             "kind": "category",
             "unit": null,
             "cumulative": false,
-            "first": "2026-10-17T16:00:00-07:00",
+            "first": "2026-08-10T07:00:00-07:00",
             "last": "2026-10-19T17:00:00-07:00"
           },
           {
@@ -2027,6 +2027,71 @@
       }
     },
     {
+      "name": "samples of a night across a change of zone: each sample with the zone it was recorded in and its times on that zone's clock, as well as in the call's",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKCategoryTypeIdentifierSleepAnalysis",
+        "range": "W",
+        "date": "2026-08-15",
+        "limit": 3
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "W",
+        "start": "2026-08-09T00:00:00+00:00",
+        "end": "2026-08-16T00:00:00+00:00",
+        "type": "HKCategoryTypeIdentifierSleepAnalysis",
+        "samples": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000705",
+            "start": "2026-08-15T01:30:00+00:00",
+            "end": "2026-08-15T05:00:00+00:00",
+            "recordedTimeZone": "Europe/London",
+            "recordedStart": "2026-08-15T02:30:00+01:00",
+            "recordedEnd": "2026-08-15T06:00:00+01:00",
+            "value": null,
+            "unit": null,
+            "categoryValue": 3,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000704",
+            "start": "2026-08-15T00:00:00+00:00",
+            "end": "2026-08-15T01:30:00+00:00",
+            "recordedTimeZone": "Europe/London",
+            "recordedStart": "2026-08-15T01:00:00+01:00",
+            "recordedEnd": "2026-08-15T02:30:00+01:00",
+            "value": null,
+            "unit": null,
+            "categoryValue": 4,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000703",
+            "start": "2026-08-14T21:00:00+00:00",
+            "end": "2026-08-15T00:00:00+00:00",
+            "recordedTimeZone": "America/New_York",
+            "recordedStart": "2026-08-14T17:00:00-04:00",
+            "recordedEnd": "2026-08-14T20:00:00-04:00",
+            "value": null,
+            "unit": null,
+            "categoryValue": 3,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch"
+          }
+        ],
+        "nextCursor": "1786741200000_0c0f0000-0000-4000-8000-000000000703"
+      }
+    },
+    {
       "name": "samples with a cursor that isn't one fails",
       "tool": "samples",
       "now": "2026-10-20T15:00:00Z",
@@ -2081,13 +2146,15 @@
             "id": "0c0f0000-0000-4000-8000-000000000301",
             "start": "2026-10-19T07:30:00+00:00",
             "end": "2026-10-19T07:30:00+00:00",
+            "recordedTimeZone": "America/New_York",
+            "recordedStart": "2026-10-19T03:30:00-04:00",
+            "recordedEnd": "2026-10-19T03:30:00-04:00",
             "value": 95,
             "unit": "mg/dL",
             "categoryValue": null,
             "source": "Health",
             "sourceIndex": 1,
             "userEntered": true,
-            "recordedTimeZone": "America/New_York",
             "mealTime": "preprandial"
           }
         ],
@@ -5105,13 +5172,15 @@
             "id": "0c0f0000-0000-4000-8000-000000000341",
             "start": "2026-10-19T08:00:00+00:00",
             "end": "2026-10-19T08:01:00+00:00",
+            "recordedTimeZone": "Europe/London",
+            "recordedStart": "2026-10-19T09:00:00+01:00",
+            "recordedEnd": "2026-10-19T09:01:00+01:00",
             "value": null,
             "unit": null,
             "categoryValue": null,
             "source": "Test Health App",
             "sourceIndex": 0,
             "userEntered": false,
-            "recordedTimeZone": "Europe/London",
             "values": [
               {
                 "type": "HKQuantityTypeIdentifierBloodPressureSystolic",
@@ -5244,6 +5313,9 @@
             "name": null,
             "start": "2026-10-18T07:00:00+00:00",
             "end": "2026-10-18T07:30:00+00:00",
+            "recordedTimeZone": "Europe/London",
+            "recordedStart": "2026-10-18T08:00:00+01:00",
+            "recordedEnd": "2026-10-18T08:30:00+01:00",
             "duration": 1800,
             "activeEnergy": 310.5,
             "distance": 5000,
@@ -5262,6 +5334,9 @@
             "name": null,
             "start": "2026-10-14T03:00:00+00:00",
             "end": "2026-10-14T03:45:00+00:00",
+            "recordedTimeZone": "Europe/London",
+            "recordedStart": "2026-10-14T04:00:00+01:00",
+            "recordedEnd": "2026-10-14T04:45:00+01:00",
             "duration": 2700,
             "activeEnergy": null,
             "distance": null,
@@ -5318,6 +5393,9 @@
             "name": null,
             "start": "2026-10-18T00:00:00-07:00",
             "end": "2026-10-18T00:30:00-07:00",
+            "recordedTimeZone": "Europe/London",
+            "recordedStart": "2026-10-18T08:00:00+01:00",
+            "recordedEnd": "2026-10-18T08:30:00+01:00",
             "duration": 1800,
             "activeEnergy": 310.5,
             "distance": 5000,
@@ -5336,6 +5414,9 @@
             "name": null,
             "start": "2026-10-13T20:00:00-07:00",
             "end": "2026-10-13T20:45:00-07:00",
+            "recordedTimeZone": "Europe/London",
+            "recordedStart": "2026-10-14T04:00:00+01:00",
+            "recordedEnd": "2026-10-14T04:45:00+01:00",
             "duration": 2700,
             "activeEnergy": null,
             "distance": null,
@@ -5628,6 +5709,9 @@
             "name": "Test Hill Repeats",
             "start": "2026-09-15T18:00:00+00:00",
             "end": "2026-09-15T18:40:00+00:00",
+            "recordedTimeZone": "Europe/London",
+            "recordedStart": "2026-09-15T19:00:00+01:00",
+            "recordedEnd": "2026-09-15T19:40:00+01:00",
             "duration": 2400,
             "activeEnergy": null,
             "distance": null,
@@ -5750,6 +5834,101 @@
             "core": 7200,
             "deep": 1200,
             "rem": 1200,
+            "unspecified": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "sleep of a week in UTC with nights in other zones: a night slept in Tokyo is dated by Tokyo's clock (the 11th, though it ended on the 10th in UTC), and a night that flew from New York to London by London's, each with its zone and its times on that zone's clock",
+      "tool": "sleep",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "date": "2026-08-15"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "W",
+        "start": "2026-08-09T00:00:00+00:00",
+        "end": "2026-08-16T00:00:00+00:00",
+        "nights": [
+          {
+            "date": "2026-08-11",
+            "start": "2026-08-10T14:00:00+00:00",
+            "end": "2026-08-10T21:30:00+00:00",
+            "recordedTimeZone": "Asia/Tokyo",
+            "recordedStart": "2026-08-10T23:00:00+09:00",
+            "recordedEnd": "2026-08-11T06:30:00+09:00",
+            "inBed": 27000,
+            "asleep": 27000,
+            "awake": 0,
+            "core": 14400,
+            "deep": 0,
+            "rem": 12600,
+            "unspecified": 0
+          },
+          {
+            "date": "2026-08-15",
+            "start": "2026-08-14T21:00:00+00:00",
+            "end": "2026-08-15T05:00:00+00:00",
+            "recordedTimeZone": "Europe/London",
+            "recordedStart": "2026-08-14T22:00:00+01:00",
+            "recordedEnd": "2026-08-15T06:00:00+01:00",
+            "inBed": 28800,
+            "asleep": 28800,
+            "awake": 0,
+            "core": 23400,
+            "deep": 5400,
+            "rem": 0,
+            "unspecified": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "sleep of a week in New York with nights in other zones: the night that left New York at 5 PM is London's night of the 15th, not New York's of the 14th, and Tokyo's night of the 11th ended on the 10th in New York",
+      "tool": "sleep",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "date": "2026-08-15",
+        "timeZone": "America/New_York"
+      },
+      "expected": {
+        "timeZone": "America/New_York",
+        "range": "W",
+        "start": "2026-08-09T00:00:00-04:00",
+        "end": "2026-08-16T00:00:00-04:00",
+        "nights": [
+          {
+            "date": "2026-08-11",
+            "start": "2026-08-10T10:00:00-04:00",
+            "end": "2026-08-10T17:30:00-04:00",
+            "recordedTimeZone": "Asia/Tokyo",
+            "recordedStart": "2026-08-10T23:00:00+09:00",
+            "recordedEnd": "2026-08-11T06:30:00+09:00",
+            "inBed": 27000,
+            "asleep": 27000,
+            "awake": 0,
+            "core": 14400,
+            "deep": 0,
+            "rem": 12600,
+            "unspecified": 0
+          },
+          {
+            "date": "2026-08-15",
+            "start": "2026-08-14T17:00:00-04:00",
+            "end": "2026-08-15T01:00:00-04:00",
+            "recordedTimeZone": "Europe/London",
+            "recordedStart": "2026-08-14T22:00:00+01:00",
+            "recordedEnd": "2026-08-15T06:00:00+01:00",
+            "inBed": 28800,
+            "asleep": 28800,
+            "awake": 0,
+            "core": 23400,
+            "deep": 5400,
+            "rem": 0,
             "unspecified": 0
           }
         ]
@@ -6378,6 +6557,9 @@
           "name": null,
           "start": "2026-09-02T07:00:00+00:00",
           "end": "2026-09-02T07:50:00+00:00",
+          "recordedTimeZone": "Europe/London",
+          "recordedStart": "2026-09-02T08:00:00+01:00",
+          "recordedEnd": "2026-09-02T08:50:00+01:00",
           "duration": 2790,
           "activeEnergy": 512.25,
           "distance": 8300,
@@ -7004,6 +7186,9 @@
           "name": null,
           "start": "2026-10-18T07:00:00+00:00",
           "end": "2026-10-18T07:30:00+00:00",
+          "recordedTimeZone": "Europe/London",
+          "recordedStart": "2026-10-18T08:00:00+01:00",
+          "recordedEnd": "2026-10-18T08:30:00+01:00",
           "duration": 1800,
           "activeEnergy": 310.5,
           "distance": 5000,
@@ -7770,6 +7955,8 @@
           },
           {
             "time": "2026-10-18T12:15:00+00:00",
+            "recordedTimeZone": "Asia/Tokyo",
+            "recordedTime": "2026-10-18T21:15:00+09:00",
             "kind": "Momentary Emotion",
             "valence": -1,
             "classification": "Very Unpleasant",
@@ -7977,6 +8164,8 @@
             "type": "HKScoredAssessmentTypeIdentifierPHQ9",
             "name": "Depression Risk (PHQ-9)",
             "time": "2026-10-19T09:00:00+00:00",
+            "recordedTimeZone": "America/New_York",
+            "recordedTime": "2026-10-19T05:00:00-04:00",
             "score": 21,
             "maximumScore": 27,
             "risk": "Severe",
@@ -8273,6 +8462,9 @@
             "workout": "0c0f0000-0000-4000-8000-000000000013",
             "start": "2026-10-18T08:00:00+01:00",
             "end": "2026-10-18T08:30:00+01:00",
+            "recordedTimeZone": "Europe/London",
+            "recordedStart": "2026-10-18T08:00:00+01:00",
+            "recordedEnd": "2026-10-18T08:30:00+01:00",
             "duration": 1800,
             "pointCount": 31,
             "source": "Test Apple Watch"
@@ -8329,6 +8521,9 @@
           "workout": "0c0f0000-0000-4000-8000-000000000013",
           "start": "2026-10-18T07:00:00+00:00",
           "end": "2026-10-18T07:30:00+00:00",
+          "recordedTimeZone": "Europe/London",
+          "recordedStart": "2026-10-18T08:00:00+01:00",
+          "recordedEnd": "2026-10-18T08:30:00+01:00",
           "duration": 1800,
           "pointCount": 30,
           "source": "Test Apple Watch",

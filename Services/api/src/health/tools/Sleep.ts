@@ -11,6 +11,7 @@ import {
 } from "../cards/CardNights.ts";
 import { cardSleepRecords } from "../cards/CardQueries.ts";
 import type { HealthToolkit } from "./HealthToolkit.ts";
+import { RecordedZones } from "./RecordedTimes.ts";
 import {
   localDate,
   localTime,
@@ -23,7 +24,9 @@ import {
 type SleepResult = (typeof HealthToolkit.tools.sleep.successSchema)["Type"];
 
 // Nights of sleep as the Mac's Sleep page has them (`HealthDatabase.sleepNights`, which groups
-// them with the cards' core, 851-3196), so both MCP servers give the same nights.
+// them with the cards' core, 851-3196), so both MCP servers give the same nights. A night recorded
+// in a zone is dated by that zone's clock (851-4175), and adds its zone and its start and end on
+// that clock (851-4177); its start and end stay in the call's zone.
 
 const duration = (record: CardSleepRecord) => record.end - record.start;
 
@@ -59,6 +62,7 @@ export const healthSleep = Effect.fn("healthSleep")(function* (
     );
   const asleep = (records: ReadonlyArray<CardSleepRecord>) =>
     records.reduce((total, record) => total + (isAsleep(record) ? duration(record) : 0), 0);
+  const zones = new RecordedZones();
   const result: SleepResult = {
     timeZone: name,
     range: input.range,
@@ -68,6 +72,7 @@ export const healthSleep = Effect.fn("healthSleep")(function* (
       date: localDate(night.day, zone),
       start: localTime(night.start, zone),
       end: localTime(night.end, zone),
+      ...zones.named(night.timeZone, night.start, night.end),
       inBed: seconds(night.inBed),
       asleep: seconds(asleep(night.records)),
       awake: stageTime(night.records, sleepStages.awake),

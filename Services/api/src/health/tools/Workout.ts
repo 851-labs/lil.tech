@@ -4,6 +4,7 @@ import { healthCatalogType } from "../HealthCatalog.ts";
 import { Metadata } from "../WorkoutMetadata.ts";
 import { workoutsWithRoutes, workoutWithId } from "./HealthQueries.ts";
 import { HealthToolError, type HealthToolkit, workoutEventsLimit } from "./HealthToolkit.ts";
+import { RecordedZones } from "./RecordedTimes.ts";
 import { localTime, toolTimeZone } from "./ToolTime.ts";
 import { intervalValues, workoutMetadataValues, workoutWeather } from "./WorkoutValues.ts";
 import { readWorkout, StatisticsByType, type WorkoutStatistics } from "./Workouts.ts";
@@ -103,6 +104,7 @@ export const healthWorkout = Effect.fn("healthWorkout")(function* (
     row,
     workoutsWithRoutes(sql, [row]),
     zone,
+    new RecordedZones(),
   );
   const events = Option.getOrElse(decodeEvents(row.events), () => []);
   const paused = pauses(events, row.endDate);

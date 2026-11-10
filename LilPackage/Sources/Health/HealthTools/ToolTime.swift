@@ -35,6 +35,12 @@ public struct ToolTime: Sendable {
       }
       throw HealthToolError("Unknown time zone: \(name). Use an IANA name, e.g. Europe/London.")
     }
+    self.init(zone: zone, name: name)
+  }
+
+  /// `zone`'s days and local times, named `name`: a call's, or a record's recorded zone
+  /// (`RecordedZones`).
+  init(zone: TimeZone, name: String) {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = zone
     calendar.locale = Locale(identifier: "en_US_POSIX")

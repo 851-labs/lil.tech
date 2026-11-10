@@ -44,7 +44,6 @@ const appleDeviceBundleId =
  */
 const metadataFields: ReadonlyArray<readonly [keyof SampleDetails, MetadataKey]> = [
   ["userEntered", "HKWasUserEntered"],
-  ["recordedTimeZone", "HKTimeZone"],
   ["food", "HKFoodType"],
   ["motionContext", "HKMetadataKeyHeartRateMotionContext"],
   ["userMotionContext", "HKMetadataKeyUserMotionContext"],

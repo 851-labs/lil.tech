@@ -42,14 +42,19 @@ public struct SleepNight: Equatable, Identifiable, Sendable {
   /// The zone it was recorded in (`CardNight.timeZone`, 851-4174), or `nil` for the calendar's:
   /// its date and clock are that zone's.
   public var timeZone: TimeZone?
+  /// Its zone's name, as its records gave it (`CardNight.timeZoneName`), `nil` without one.
+  public var timeZoneName: String?
 
+  /// `timeZoneName` defaults to `timeZone`'s identifier.
   public init(
-    day: Date, segments: [SleepSegment], inBed: TimeInterval, timeZone: TimeZone? = nil
+    day: Date, segments: [SleepSegment], inBed: TimeInterval, timeZone: TimeZone? = nil,
+    timeZoneName: String? = nil
   ) {
     self.day = day
     self.segments = segments
     self.inBed = inBed
     self.timeZone = timeZone
+    self.timeZoneName = timeZone.map { timeZoneName ?? $0.identifier }
   }
 
   public var asleep: TimeInterval {
@@ -113,7 +118,8 @@ extension HealthDatabase {
               end: Date(unixMilliseconds: record.end))
           }
         },
-        inBed: Double(night.inBed) / 1000, timeZone: night.timeZone)
+        inBed: Double(night.inBed) / 1000, timeZone: night.timeZone,
+        timeZoneName: night.timeZoneName)
     }
   }
 
@@ -157,7 +163,9 @@ extension HealthDatabase {
             }()
         }
         return value.map {
-          CardSleepRecord(start: start, end: end, value: $0, source: source, timeZone: timeZone)
+          CardSleepRecord(
+            start: start, end: end, value: $0, source: source, timeZone: timeZone,
+            timeZoneName: zone)
         }
       }
   }

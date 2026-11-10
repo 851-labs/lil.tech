@@ -485,7 +485,8 @@ struct HealthToolsTests {
   }
 
   /// A night slept in Tokyo (851-4174) is Tokyo's night, the 20th, though the call's UTC reads
-  /// 14:00 on the 19th. Its times stay in the call's zone.
+  /// 14:00 on the 19th. Its times stay in the call's zone, and it adds its zone and its times on
+  /// Tokyo's clock (851-4177).
   @Test
   func sleepNamesANightByItsRecordedZone() throws {
     let sleep = HealthDatabase.sleepType
@@ -506,9 +507,30 @@ struct HealthToolsTests {
       result.nights == [
         HealthSleepNight(
           date: "2026-10-20", start: "2026-10-19T14:00:00+00:00",
-          end: "2026-10-19T21:30:00+00:00", inBed: 7.5 * 3600, asleep: 7.5 * 3600, awake: 0,
-          core: 3.5 * 3600, deep: 0, rem: 4 * 3600, unspecified: 0)
+          end: "2026-10-19T21:30:00+00:00", recordedTimeZone: "Asia/Tokyo",
+          recordedStart: "2026-10-19T23:00:00+09:00", recordedEnd: "2026-10-20T06:30:00+09:00",
+          inBed: 7.5 * 3600, asleep: 7.5 * 3600, awake: 0, core: 3.5 * 3600, deep: 0,
+          rem: 4 * 3600, unspecified: 0)
       ])
+  }
+
+  /// A night's zone is named as its records name it (851-4177), as on the server: `UTC`, which
+  /// Foundation's `TimeZone` calls `GMT`, and an old alias, which it keeps.
+  @Test(arguments: [
+    ("UTC", "2026-10-19T14:00:00+00:00", "2026-10-19T21:30:00+00:00"),
+    ("Asia/Calcutta", "2026-10-19T19:30:00+05:30", "2026-10-20T03:00:00+05:30"),
+  ])
+  func sleepNamesANightsZoneAsItsRecordsDo(name: String, start: String, end: String) throws {
+    let sleep = HealthDatabase.sleepType
+    var night = sample(sleep, at: utc(14, day: 19), minutes: 450, category: 3)
+    night.metadata = #"{"HKTimeZone":"\#(name)"}"#
+    try database.write { db in try HealthSample.insert { night }.execute(db) }
+    let result = try database.read {
+      try tools.sleep(range: .week, timeZone: "Europe/London", $0)
+    }
+    #expect(result.nights.map(\.recordedTimeZone) == [name])
+    #expect(result.nights.map(\.recordedStart) == [start])
+    #expect(result.nights.map(\.recordedEnd) == [end])
   }
 
   // MARK: - medications, details

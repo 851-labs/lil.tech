@@ -19,6 +19,7 @@ import {
   workoutTotals,
 } from "./HealthQueries.ts";
 import { type HealthToolkit, workoutsLimit } from "./HealthToolkit.ts";
+import { RecordedZones } from "./RecordedTimes.ts";
 import { localTime, type ToolRange, toolPeriod, toolTimeZone } from "./ToolTime.ts";
 
 type WorkoutsResult = (typeof HealthToolkit.tools.workouts.successSchema)["Type"];
@@ -70,12 +71,13 @@ const distanceTypes = [
 
 /**
  * What `workouts` says of a workout, with the statistics, metadata and activities it read, which
- * `workout` adds to.
+ * `workout` adds to. `zones` looks up the zones workouts were recorded in.
  */
 export const readWorkout = (
   workout: WorkoutRow,
   withRoutes: ReadonlySet<string>,
   zone: DateTime.TimeZone,
+  zones: RecordedZones,
 ) => {
   const statistics: WorkoutStatistics = Option.getOrElse(
     decodeStatistics(workout.statistics),
@@ -91,6 +93,7 @@ export const readWorkout = (
     name: workoutName(metadata),
     start: localTime(workout.startDate, zone),
     end: localTime(workout.endDate, zone),
+    ...zones.times(metadata, workout.startDate, workout.endDate),
     duration: workout.duration,
     activeEnergy: sum("HKQuantityTypeIdentifierActiveEnergyBurned"),
     distance: distanceTypes.map(sum).find((distance) => distance !== null) ?? null,
@@ -134,6 +137,7 @@ export const healthWorkouts = Effect.fn("healthWorkouts")(function* (
   const totals = workoutTotals(sql, period.start, period.end);
   const workouts = workoutsStarting(sql, period.start, period.end, workoutsLimit);
   const withRoutes = workoutsWithRoutes(sql, workouts);
+  const zones = new RecordedZones();
   const result: WorkoutsResult = {
     timeZone: name,
     range: input.range,
@@ -141,7 +145,7 @@ export const healthWorkouts = Effect.fn("healthWorkouts")(function* (
     end: localTime(period.end, zone),
     count: totals.count,
     duration: totals.duration,
-    workouts: workouts.map((workout) => readWorkout(workout, withRoutes, zone).item),
+    workouts: workouts.map((workout) => readWorkout(workout, withRoutes, zone, zones).item),
   };
   return result;
 });

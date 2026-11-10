@@ -10,6 +10,7 @@ import {
   seriesValueInterval,
 } from "./HealthQueries.ts";
 import { HealthToolError, type HealthToolkit, samplesLimit } from "./HealthToolkit.ts";
+import { RecordedZones } from "./RecordedTimes.ts";
 import { jsonObject, SampleSources, sampleDetails } from "./SampleDetails.ts";
 import { localTime, type ToolRange, toolPeriod, toolTimeZone } from "./ToolTime.ts";
 import { resolveHealthType } from "./ToolTypes.ts";
@@ -204,6 +205,7 @@ export const healthSamples = Effect.fn("healthSamples")(function* (
     (row) => row.correlationId,
   );
   const sources = new SampleSources();
+  const zones = new RecordedZones();
   const result: SamplesResult = {
     timeZone: name,
     range: input.range,
@@ -216,6 +218,7 @@ export const healthSamples = Effect.fn("healthSamples")(function* (
         id: sample.id,
         start: localTime(start, zone),
         end: localTime(end, zone),
+        ...zones.times(metadata, start, end),
         value,
         unit: sample.unit,
         categoryValue: sample.categoryValue,

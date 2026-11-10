@@ -8,6 +8,7 @@ import {
   routeShapeTolerance,
   workoutRoutesLimit,
 } from "./HealthToolkit.ts";
+import { RecordedZones, recordedZoneSql } from "./RecordedTimes.ts";
 import { localTime, type ToolRange, toolPeriod, toolTimeZone } from "./ToolTime.ts";
 
 // The route tools (851-4164): `workout_routes` lists routes from their rows, and `workout_route`
@@ -40,9 +41,12 @@ export interface RouteRow {
   /** The locations blob's SHA-256, or null without locations. */
   readonly locations: string | null;
   readonly sourceName: string;
+  /** Its `HKTimeZone`, if it's a string (`recordedZoneSql`). */
+  readonly recordedTimeZone: unknown;
 }
 
-const routeColumns = "id, workout, start_date, end_date, location_count, locations, source_name";
+const routeColumns = `id, workout, start_date, end_date, location_count, locations, source_name,
+  ${recordedZoneSql} AS recorded_time_zone`;
 
 const routeRow = (row: Record<string, unknown>): RouteRow => ({
   id: row["id"] as string,
@@ -52,6 +56,7 @@ const routeRow = (row: Record<string, unknown>): RouteRow => ({
   locationCount: Number(row["location_count"]),
   locations: (row["locations"] as string | null) ?? null,
   sourceName: row["source_name"] as string,
+  recordedTimeZone: row["recorded_time_zone"],
 });
 
 /**
@@ -300,12 +305,18 @@ const bounds = (points: ReadonlyArray<RoutePoint>) => {
   };
 };
 
-/** What both lists say of a route. */
-const routeItem = (route: RouteRow, zone: DateTime.TimeZone, pointCount: number) => ({
+/** What both lists say of a route, `zones` looking up the zones routes were recorded in. */
+const routeItem = (
+  route: RouteRow,
+  zone: DateTime.TimeZone,
+  zones: RecordedZones,
+  pointCount: number,
+) => ({
   id: route.id,
   workout: route.workout,
   start: localTime(route.startDate, zone),
   end: localTime(route.endDate, zone),
+  ...zones.named(route.recordedTimeZone, route.startDate, route.endDate),
   duration: (route.endDate - route.startDate) / 1000,
   pointCount,
   source: route.sourceName,
@@ -355,13 +366,14 @@ export const healthWorkoutRoutes = Effect.fn("healthWorkoutRoutes")(function* (
       workoutRoutesLimit,
     )
     .map(routeRow);
+  const zones = new RecordedZones();
   const result: RoutesResult = {
     timeZone: name,
     range: input.range,
     start: localTime(period.start, zone),
     end: localTime(period.end, zone),
     count,
-    routes: routes.map((route) => routeItem(route, zone, route.locationCount)),
+    routes: routes.map((route) => routeItem(route, zone, zones, route.locationCount)),
   };
   return result;
 });
@@ -384,7 +396,7 @@ export const healthWorkoutRoute = Effect.fn("healthWorkoutRoute")(function* (
   const result: RouteResult = {
     timeZone: name,
     route: {
-      ...routeItem(route, zone, points.length),
+      ...routeItem(route, zone, new RecordedZones(), points.length),
       distance: points
         .slice(1)
         .reduce((total, point, index) => total + distance(points[index]!, point), 0),

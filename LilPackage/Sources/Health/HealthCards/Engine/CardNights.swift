@@ -19,13 +19,22 @@ public struct CardSleepRecord: Hashable, Sendable {
   /// The zone it was recorded in (`HKTimeZone`), when that's a name the tools' `timeZone` takes
   /// (`CardTimeZone.named(_:)`), else `nil`. Its night follows it (`CardNights.nights`).
   public var timeZone: TimeZone?
+  /// `timeZone`'s name as the record gave it, which `TimeZone` doesn't always keep (`UTC` is
+  /// `GMT` there): what ties between zones compare, as on the server, and what the `sleep` tools
+  /// say (851-4177). `nil` without a zone.
+  public var timeZoneName: String?
 
-  public init(start: Int, end: Int, value: Int, source: String, timeZone: TimeZone? = nil) {
+  /// `timeZoneName` defaults to `timeZone`'s identifier.
+  public init(
+    start: Int, end: Int, value: Int, source: String, timeZone: TimeZone? = nil,
+    timeZoneName: String? = nil
+  ) {
     self.start = start
     self.end = end
     self.value = value
     self.source = source
     self.timeZone = timeZone
+    self.timeZoneName = timeZone.map { timeZoneName ?? $0.identifier }
   }
 
   public static let inBed = 0
@@ -47,6 +56,8 @@ public struct CardNight: Hashable, Sendable {
   /// The zone it was recorded in (`CardNights.nights`), or `nil` for the calendar's. Its date,
   /// bedtime and clock are that zone's (`CardNights.clock(day:timeZone:calendar:)`).
   public var timeZone: TimeZone?
+  /// Its zone's name, as its records gave it (`CardSleepRecord.timeZoneName`), `nil` without one.
+  public var timeZoneName: String?
   /// The chosen source's records in its main session, by start: its stages, awake included, but
   /// not In Bed.
   public var records: [CardSleepRecord]
@@ -55,11 +66,16 @@ public struct CardNight: Hashable, Sendable {
   public var inBed: Int
 
   /// `records` are sorted by start (ties keep their order), as F, W and the stretches need.
-  public init(day: Date, records: [CardSleepRecord], inBed: Int, timeZone: TimeZone? = nil) {
+  /// `timeZoneName` defaults to `timeZone`'s identifier.
+  public init(
+    day: Date, records: [CardSleepRecord], inBed: Int, timeZone: TimeZone? = nil,
+    timeZoneName: String? = nil
+  ) {
     self.day = day
     self.records = records.sorted { $0.start < $1.start }
     self.inBed = inBed
     self.timeZone = timeZone
+    self.timeZoneName = timeZone.map { timeZoneName ?? $0.identifier }
   }
 
   /// `F`: when sleep started, the start of its first record asleep (not getting into bed, or lying
@@ -170,7 +186,7 @@ public enum CardNights {
       let inBed = union(inBedRecords.filter { $0.start < end && $0.end > start })
       return CardNight(
         day: day, records: records, inBed: inBed > 0 ? inBed : end - start,
-        timeZone: session[0].timeZone)
+        timeZone: session[0].timeZone, timeZoneName: session[0].timeZoneName)
     }
     .sorted { $0.day < $1.day }
   }
@@ -188,7 +204,7 @@ public enum CardNights {
       for index in run.indices {
         let record = records[index]
         placed[index] = (
-          Placed(record: record, timeZone: run.timeZone),
+          Placed(record: record, timeZone: run.timeZone, timeZoneName: run.timeZoneName),
           days.day(ofMilliseconds: record.start + offset, clock: clock)
         )
       }
@@ -200,6 +216,7 @@ public enum CardNights {
   private struct Placed {
     var record: CardSleepRecord
     var timeZone: TimeZone?
+    var timeZoneName: String?
   }
 
   /// `records`' runs, by their indices: each source's records split where sleep stops for
@@ -207,27 +224,29 @@ public enum CardNights {
   /// last-ending of its records that have one, ties to the name that sorts first, so the
   /// records' order never matters; `nil` for a run without any, the calendar's. When no record
   /// has a zone (as before 851-4174, or from apps that don't say), one run of them all.
-  static func runs(_ records: [CardSleepRecord]) -> [(indices: [Int], timeZone: TimeZone?)] {
+  static func runs(_ records: [CardSleepRecord]) -> [Run] {
     guard records.contains(where: { $0.timeZone != nil }) else {
-      return [(Array(records.indices), nil)]
+      return [Run(indices: Array(records.indices))]
     }
     let gap = Int(sessionGap * 1000)
-    var runs: [(indices: [Int], timeZone: TimeZone?)] = []
+    var runs: [Run] = []
     for indices in Dictionary(grouping: records.indices, by: { records[$0].source }).values {
       var run: [Int] = []
       func close() {
-        var zone: (end: Int, zone: TimeZone)?
+        // The record whose zone the run takes.
+        var zoned: CardSleepRecord?
         for index in run {
-          guard let own = records[index].timeZone else { continue }
-          let end = records[index].end
-          if let last = zone,
-            end < last.end || (end == last.end && own.identifier >= last.zone.identifier)
+          let record = records[index]
+          guard let name = record.timeZoneName else { continue }
+          if let last = zoned,
+            record.end < last.end || (record.end == last.end && name >= last.timeZoneName!)
           {
             continue
           }
-          zone = (end, own)
+          zoned = record
         }
-        runs.append((run, zone?.zone))
+        runs.append(
+          Run(indices: run, timeZone: zoned?.timeZone, timeZoneName: zoned?.timeZoneName))
         run = []
       }
       var lastEnd: Int?
@@ -240,6 +259,13 @@ public enum CardNights {
       close()
     }
     return runs
+  }
+
+  /// A run of a source's records (`runs`): their indices, and the zone they take, by its name.
+  struct Run {
+    var indices: [Int]
+    var timeZone: TimeZone?
+    var timeZoneName: String?
   }
 
   /// Each of `records`' runs' zones (`runs`), in their order.

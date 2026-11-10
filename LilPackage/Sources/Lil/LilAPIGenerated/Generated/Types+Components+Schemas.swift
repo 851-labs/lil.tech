@@ -6693,6 +6693,18 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSampleItem/end`.
             public var end: Swift.String
+            /// The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/recordedTimeZone`.
+            public var recordedTimeZone: Swift.String?
+            /// When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/recordedStart`.
+            public var recordedStart: Swift.String?
+            /// When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/recordedEnd`.
+            public var recordedEnd: Swift.String?
             /// A quantity's value, in `unit`: for a series, HealthKit's for all of it, its total or its time-weighted average. Null for category types and correlations.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSampleItem/value`.
@@ -6717,10 +6729,6 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSampleItem/userEntered`.
             public var userEntered: Swift.Bool?
-            /// The time zone where it was recorded (HKMetadataKeyTimeZone), e.g. America/New_York. Times here are still in the output's `timeZone`.
-            ///
-            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/recordedTimeZone`.
-            public var recordedTimeZone: Swift.String?
             /// For a correlation (blood pressure, food): the samples it groups, by type, e.g. systolic and diastolic, or each nutrient of a food.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSampleItem/values`.
@@ -6861,6 +6869,9 @@ extension Components {
             ///   - id: HealthKit's UUID for the sample.
             ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
             ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - recordedTimeZone: The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///   - recordedStart: When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///   - recordedEnd: When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
             ///   - value: A quantity's value, in `unit`: for a series, HealthKit's for all of it, its total or its time-weighted average. Null for category types and correlations.
             ///   - unit:
             ///   - categoryValue: A category sample's HealthKit value (HKCategoryValue…). Null for quantities and correlations.
@@ -6868,7 +6879,6 @@ extension Components {
             ///   - sourceIndex: Its entry in `sources`: the app, its version and the device, from 0.
             ///   - series:
             ///   - userEntered: True if someone entered it by hand, e.g. in the Health app (HKMetadataKeyWasUserEntered).
-            ///   - recordedTimeZone: The time zone where it was recorded (HKMetadataKeyTimeZone), e.g. America/New_York. Times here are still in the output's `timeZone`.
             ///   - values: For a correlation (blood pressure, food): the samples it groups, by type, e.g. systolic and diastolic, or each nutrient of a food.
             ///   - food: A food's name (HKMetadataKeyFoodType).
             ///   - motionContext: Heart rate: sedentary (still) or active (moving or working out) (HKMetadataKeyHeartRateMotionContext).
@@ -6907,6 +6917,9 @@ extension Components {
                 id: Swift.String,
                 start: Swift.String,
                 end: Swift.String,
+                recordedTimeZone: Swift.String? = nil,
+                recordedStart: Swift.String? = nil,
+                recordedEnd: Swift.String? = nil,
                 value: Swift.Double? = nil,
                 unit: Swift.String? = nil,
                 categoryValue: Swift.Int? = nil,
@@ -6914,7 +6927,6 @@ extension Components {
                 sourceIndex: Swift.Int,
                 series: Components.Schemas.HealthSampleSeries? = nil,
                 userEntered: Swift.Bool? = nil,
-                recordedTimeZone: Swift.String? = nil,
                 values: [Components.Schemas.HealthCorrelatedValue]? = nil,
                 food: Swift.String? = nil,
                 motionContext: Swift.String? = nil,
@@ -6953,6 +6965,9 @@ extension Components {
                 self.id = id
                 self.start = start
                 self.end = end
+                self.recordedTimeZone = recordedTimeZone
+                self.recordedStart = recordedStart
+                self.recordedEnd = recordedEnd
                 self.value = value
                 self.unit = unit
                 self.categoryValue = categoryValue
@@ -6960,7 +6975,6 @@ extension Components {
                 self.sourceIndex = sourceIndex
                 self.series = series
                 self.userEntered = userEntered
-                self.recordedTimeZone = recordedTimeZone
                 self.values = values
                 self.food = food
                 self.motionContext = motionContext
@@ -7000,6 +7014,9 @@ extension Components {
                 case id
                 case start
                 case end
+                case recordedTimeZone
+                case recordedStart
+                case recordedEnd
                 case value
                 case unit
                 case categoryValue
@@ -7007,7 +7024,6 @@ extension Components {
                 case sourceIndex
                 case series
                 case userEntered
-                case recordedTimeZone
                 case values
                 case food
                 case motionContext
@@ -7056,6 +7072,18 @@ extension Components {
                     Swift.String.self,
                     forKey: .end
                 )
+                self.recordedTimeZone = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTimeZone
+                )
+                self.recordedStart = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedStart
+                )
+                self.recordedEnd = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedEnd
+                )
                 self.value = try container.decodeIfPresent(
                     Swift.Double.self,
                     forKey: .value
@@ -7083,10 +7111,6 @@ extension Components {
                 self.userEntered = try container.decodeIfPresent(
                     Swift.Bool.self,
                     forKey: .userEntered
-                )
-                self.recordedTimeZone = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .recordedTimeZone
                 )
                 self.values = try container.decodeIfPresent(
                     [Components.Schemas.HealthCorrelatedValue].self,
@@ -7224,6 +7248,9 @@ extension Components {
                     "id",
                     "start",
                     "end",
+                    "recordedTimeZone",
+                    "recordedStart",
+                    "recordedEnd",
                     "value",
                     "unit",
                     "categoryValue",
@@ -7231,7 +7258,6 @@ extension Components {
                     "sourceIndex",
                     "series",
                     "userEntered",
-                    "recordedTimeZone",
                     "values",
                     "food",
                     "motionContext",
@@ -7282,6 +7308,18 @@ extension Components {
                     forKey: .end
                 )
                 try container.encodeIfPresent(
+                    self.recordedTimeZone,
+                    forKey: .recordedTimeZone
+                )
+                try container.encodeIfPresent(
+                    self.recordedStart,
+                    forKey: .recordedStart
+                )
+                try container.encodeIfPresent(
+                    self.recordedEnd,
+                    forKey: .recordedEnd
+                )
+                try container.encodeIfPresent(
                     self.value,
                     forKey: .value
                 )
@@ -7308,10 +7346,6 @@ extension Components {
                 try container.encodeIfPresent(
                     self.userEntered,
                     forKey: .userEntered
-                )
-                try container.encodeIfPresent(
-                    self.recordedTimeZone,
-                    forKey: .recordedTimeZone
                 )
                 try container.encodeIfPresent(
                     self.values,
@@ -8033,6 +8067,18 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/end`.
             public var end: Swift.String
+            /// The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/recordedTimeZone`.
+            public var recordedTimeZone: Swift.String?
+            /// When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/recordedStart`.
+            public var recordedStart: Swift.String?
+            /// When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/recordedEnd`.
+            public var recordedEnd: Swift.String?
             /// Seconds of activity, excluding pauses.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutItem/duration`.
@@ -8084,6 +8130,9 @@ extension Components {
             ///   - name: The workout's own name, from the app that recorded it (HKMetadataKeyWorkoutBrandName), else the name of the planned workout it followed (a custom or swim-bike-run workout made in an app with WorkoutKit). Usually null: the Workout app doesn't name its own.
             ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
             ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - recordedTimeZone: The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///   - recordedStart: When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///   - recordedEnd: When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
             ///   - duration: Seconds of activity, excluding pauses.
             ///   - activeEnergy: Kilocalories.
             ///   - distance: Meters.
@@ -8102,6 +8151,9 @@ extension Components {
                 name: Swift.String? = nil,
                 start: Swift.String,
                 end: Swift.String,
+                recordedTimeZone: Swift.String? = nil,
+                recordedStart: Swift.String? = nil,
+                recordedEnd: Swift.String? = nil,
                 duration: Swift.Double,
                 activeEnergy: Swift.Double? = nil,
                 distance: Swift.Double? = nil,
@@ -8120,6 +8172,9 @@ extension Components {
                 self.name = name
                 self.start = start
                 self.end = end
+                self.recordedTimeZone = recordedTimeZone
+                self.recordedStart = recordedStart
+                self.recordedEnd = recordedEnd
                 self.duration = duration
                 self.activeEnergy = activeEnergy
                 self.distance = distance
@@ -8139,6 +8194,9 @@ extension Components {
                 case name
                 case start
                 case end
+                case recordedTimeZone
+                case recordedStart
+                case recordedEnd
                 case duration
                 case activeEnergy
                 case distance
@@ -8175,6 +8233,18 @@ extension Components {
                 self.end = try container.decode(
                     Swift.String.self,
                     forKey: .end
+                )
+                self.recordedTimeZone = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTimeZone
+                )
+                self.recordedStart = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedStart
+                )
+                self.recordedEnd = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedEnd
                 )
                 self.duration = try container.decode(
                     Swift.Double.self,
@@ -8223,6 +8293,9 @@ extension Components {
                     "name",
                     "start",
                     "end",
+                    "recordedTimeZone",
+                    "recordedStart",
+                    "recordedEnd",
                     "duration",
                     "activeEnergy",
                     "distance",
@@ -8260,6 +8333,18 @@ extension Components {
                 try container.encode(
                     self.end,
                     forKey: .end
+                )
+                try container.encodeIfPresent(
+                    self.recordedTimeZone,
+                    forKey: .recordedTimeZone
+                )
+                try container.encodeIfPresent(
+                    self.recordedStart,
+                    forKey: .recordedStart
+                )
+                try container.encodeIfPresent(
+                    self.recordedEnd,
+                    forKey: .recordedEnd
                 )
                 try container.encode(
                     self.duration,
@@ -9152,6 +9237,18 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/end`.
             public var end: Swift.String
+            /// The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/recordedTimeZone`.
+            public var recordedTimeZone: Swift.String?
+            /// When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/recordedStart`.
+            public var recordedStart: Swift.String?
+            /// When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/recordedEnd`.
+            public var recordedEnd: Swift.String?
             /// Seconds of activity, excluding pauses.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/duration`.
@@ -9263,6 +9360,9 @@ extension Components {
             ///   - name: The workout's own name, from the app that recorded it (HKMetadataKeyWorkoutBrandName), else the name of the planned workout it followed (a custom or swim-bike-run workout made in an app with WorkoutKit). Usually null: the Workout app doesn't name its own.
             ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
             ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - recordedTimeZone: The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///   - recordedStart: When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///   - recordedEnd: When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
             ///   - duration: Seconds of activity, excluding pauses.
             ///   - activeEnergy: Kilocalories.
             ///   - distance: Meters.
@@ -9297,6 +9397,9 @@ extension Components {
                 name: Swift.String? = nil,
                 start: Swift.String,
                 end: Swift.String,
+                recordedTimeZone: Swift.String? = nil,
+                recordedStart: Swift.String? = nil,
+                recordedEnd: Swift.String? = nil,
                 duration: Swift.Double,
                 activeEnergy: Swift.Double? = nil,
                 distance: Swift.Double? = nil,
@@ -9331,6 +9434,9 @@ extension Components {
                 self.name = name
                 self.start = start
                 self.end = end
+                self.recordedTimeZone = recordedTimeZone
+                self.recordedStart = recordedStart
+                self.recordedEnd = recordedEnd
                 self.duration = duration
                 self.activeEnergy = activeEnergy
                 self.distance = distance
@@ -9366,6 +9472,9 @@ extension Components {
                 case name
                 case start
                 case end
+                case recordedTimeZone
+                case recordedStart
+                case recordedEnd
                 case duration
                 case activeEnergy
                 case distance
@@ -9418,6 +9527,18 @@ extension Components {
                 self.end = try container.decode(
                     Swift.String.self,
                     forKey: .end
+                )
+                self.recordedTimeZone = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTimeZone
+                )
+                self.recordedStart = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedStart
+                )
+                self.recordedEnd = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedEnd
                 )
                 self.duration = try container.decode(
                     Swift.Double.self,
@@ -9530,6 +9651,9 @@ extension Components {
                     "name",
                     "start",
                     "end",
+                    "recordedTimeZone",
+                    "recordedStart",
+                    "recordedEnd",
                     "duration",
                     "activeEnergy",
                     "distance",
@@ -9583,6 +9707,18 @@ extension Components {
                 try container.encode(
                     self.end,
                     forKey: .end
+                )
+                try container.encodeIfPresent(
+                    self.recordedTimeZone,
+                    forKey: .recordedTimeZone
+                )
+                try container.encodeIfPresent(
+                    self.recordedStart,
+                    forKey: .recordedStart
+                )
+                try container.encodeIfPresent(
+                    self.recordedEnd,
+                    forKey: .recordedEnd
                 )
                 try container.encode(
                     self.duration,
@@ -9766,6 +9902,18 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteItem/end`.
             public var end: Swift.String
+            /// The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteItem/recordedTimeZone`.
+            public var recordedTimeZone: Swift.String?
+            /// When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteItem/recordedStart`.
+            public var recordedStart: Swift.String?
+            /// When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteItem/recordedEnd`.
+            public var recordedEnd: Swift.String?
             /// Seconds, from start to end.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteItem/duration`.
@@ -9787,6 +9935,9 @@ extension Components {
             ///   - workout: The ID of the workout HealthKit linked it to, or null if it links none: then workout_route still finds it by the ID of a workout it was recorded during.
             ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
             ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - recordedTimeZone: The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///   - recordedStart: When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///   - recordedEnd: When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
             ///   - duration: Seconds, from start to end.
             ///   - pointCount: How many GPS points it has.
             ///   - source: The app or device that recorded it.
@@ -9796,6 +9947,9 @@ extension Components {
                 workout: Swift.String? = nil,
                 start: Swift.String,
                 end: Swift.String,
+                recordedTimeZone: Swift.String? = nil,
+                recordedStart: Swift.String? = nil,
+                recordedEnd: Swift.String? = nil,
                 duration: Swift.Double,
                 pointCount: Swift.Int,
                 source: Swift.String,
@@ -9805,6 +9959,9 @@ extension Components {
                 self.workout = workout
                 self.start = start
                 self.end = end
+                self.recordedTimeZone = recordedTimeZone
+                self.recordedStart = recordedStart
+                self.recordedEnd = recordedEnd
                 self.duration = duration
                 self.pointCount = pointCount
                 self.source = source
@@ -9815,6 +9972,9 @@ extension Components {
                 case workout
                 case start
                 case end
+                case recordedTimeZone
+                case recordedStart
+                case recordedEnd
                 case duration
                 case pointCount
                 case source
@@ -9837,6 +9997,18 @@ extension Components {
                     Swift.String.self,
                     forKey: .end
                 )
+                self.recordedTimeZone = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTimeZone
+                )
+                self.recordedStart = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedStart
+                )
+                self.recordedEnd = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedEnd
+                )
                 self.duration = try container.decode(
                     Swift.Double.self,
                     forKey: .duration
@@ -9854,6 +10026,9 @@ extension Components {
                     "workout",
                     "start",
                     "end",
+                    "recordedTimeZone",
+                    "recordedStart",
+                    "recordedEnd",
                     "duration",
                     "pointCount",
                     "source"
@@ -9876,6 +10051,18 @@ extension Components {
                 try container.encode(
                     self.end,
                     forKey: .end
+                )
+                try container.encodeIfPresent(
+                    self.recordedTimeZone,
+                    forKey: .recordedTimeZone
+                )
+                try container.encodeIfPresent(
+                    self.recordedStart,
+                    forKey: .recordedStart
+                )
+                try container.encodeIfPresent(
+                    self.recordedEnd,
+                    forKey: .recordedEnd
                 )
                 try container.encode(
                     self.duration,
@@ -10208,6 +10395,18 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/end`.
             public var end: Swift.String
+            /// The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/recordedTimeZone`.
+            public var recordedTimeZone: Swift.String?
+            /// When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/recordedStart`.
+            public var recordedStart: Swift.String?
+            /// When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/recordedEnd`.
+            public var recordedEnd: Swift.String?
             /// Seconds, from start to end.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutRouteDetail/duration`.
@@ -10464,6 +10663,9 @@ extension Components {
             ///   - workout: The ID of the workout HealthKit linked it to, or null if it links none: then workout_route still finds it by the ID of a workout it was recorded during.
             ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
             ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - recordedTimeZone: The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///   - recordedStart: When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///   - recordedEnd: When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
             ///   - duration: Seconds, from start to end.
             ///   - pointCount: How many GPS points it has.
             ///   - source: The app or device that recorded it.
@@ -10480,6 +10682,9 @@ extension Components {
                 workout: Swift.String? = nil,
                 start: Swift.String,
                 end: Swift.String,
+                recordedTimeZone: Swift.String? = nil,
+                recordedStart: Swift.String? = nil,
+                recordedEnd: Swift.String? = nil,
                 duration: Swift.Double,
                 pointCount: Swift.Int,
                 source: Swift.String,
@@ -10496,6 +10701,9 @@ extension Components {
                 self.workout = workout
                 self.start = start
                 self.end = end
+                self.recordedTimeZone = recordedTimeZone
+                self.recordedStart = recordedStart
+                self.recordedEnd = recordedEnd
                 self.duration = duration
                 self.pointCount = pointCount
                 self.source = source
@@ -10513,6 +10721,9 @@ extension Components {
                 case workout
                 case start
                 case end
+                case recordedTimeZone
+                case recordedStart
+                case recordedEnd
                 case duration
                 case pointCount
                 case source
@@ -10541,6 +10752,18 @@ extension Components {
                 self.end = try container.decode(
                     Swift.String.self,
                     forKey: .end
+                )
+                self.recordedTimeZone = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTimeZone
+                )
+                self.recordedStart = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedStart
+                )
+                self.recordedEnd = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedEnd
                 )
                 self.duration = try container.decode(
                     Swift.Double.self,
@@ -10587,6 +10810,9 @@ extension Components {
                     "workout",
                     "start",
                     "end",
+                    "recordedTimeZone",
+                    "recordedStart",
+                    "recordedEnd",
                     "duration",
                     "pointCount",
                     "source",
@@ -10616,6 +10842,18 @@ extension Components {
                 try container.encode(
                     self.end,
                     forKey: .end
+                )
+                try container.encodeIfPresent(
+                    self.recordedTimeZone,
+                    forKey: .recordedTimeZone
+                )
+                try container.encodeIfPresent(
+                    self.recordedStart,
+                    forKey: .recordedStart
+                )
+                try container.encodeIfPresent(
+                    self.recordedEnd,
+                    forKey: .recordedEnd
                 )
                 try container.encode(
                     self.duration,
@@ -10990,7 +11228,7 @@ extension Components {
         }
         /// - Remark: Generated from `#/components/schemas/HealthSleepNight`.
         public struct HealthSleepNight: Codable, Hashable, Sendable {
-            /// The day the night ends on.
+            /// The day the night ends on (sleep from 6 PM counts toward the next day), as YYYY-MM-DD, on the clock of the zone it was slept in when it has one (recordedTimeZone), as Apple Health dates it, else in the output's `timeZone`.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSleepNight/date`.
             public var date: Swift.String
@@ -11002,6 +11240,18 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSleepNight/end`.
             public var end: Swift.String
+            /// The time zone it was slept in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo: its last-ending sample's that has one, so a night across a change of zone (a flight) is the zone it ended in. Left out when none has one. start and end stay in the output's `timeZone`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepNight/recordedTimeZone`.
+            public var recordedTimeZone: Swift.String?
+            /// When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepNight/recordedStart`.
+            public var recordedStart: Swift.String?
+            /// When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSleepNight/recordedEnd`.
+            public var recordedEnd: Swift.String?
             /// Seconds in bed.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSleepNight/inBed`.
@@ -11035,9 +11285,12 @@ extension Components {
             /// Creates a new `HealthSleepNight`.
             ///
             /// - Parameters:
-            ///   - date: The day the night ends on.
+            ///   - date: The day the night ends on (sleep from 6 PM counts toward the next day), as YYYY-MM-DD, on the clock of the zone it was slept in when it has one (recordedTimeZone), as Apple Health dates it, else in the output's `timeZone`.
             ///   - start: When the night's first sleep sample starts.
             ///   - end: When its last sleep sample ends.
+            ///   - recordedTimeZone: The time zone it was slept in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo: its last-ending sample's that has one, so a night across a change of zone (a flight) is the zone it ended in. Left out when none has one. start and end stay in the output's `timeZone`.
+            ///   - recordedStart: When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///   - recordedEnd: When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
             ///   - inBed: Seconds in bed.
             ///   - asleep: Seconds asleep, in any stage.
             ///   - awake: Seconds awake during the night.
@@ -11050,6 +11303,9 @@ extension Components {
                 date: Swift.String,
                 start: Swift.String,
                 end: Swift.String,
+                recordedTimeZone: Swift.String? = nil,
+                recordedStart: Swift.String? = nil,
+                recordedEnd: Swift.String? = nil,
                 inBed: Swift.Double,
                 asleep: Swift.Double,
                 awake: Swift.Double,
@@ -11062,6 +11318,9 @@ extension Components {
                 self.date = date
                 self.start = start
                 self.end = end
+                self.recordedTimeZone = recordedTimeZone
+                self.recordedStart = recordedStart
+                self.recordedEnd = recordedEnd
                 self.inBed = inBed
                 self.asleep = asleep
                 self.awake = awake
@@ -11075,6 +11334,9 @@ extension Components {
                 case date
                 case start
                 case end
+                case recordedTimeZone
+                case recordedStart
+                case recordedEnd
                 case inBed
                 case asleep
                 case awake
@@ -11096,6 +11358,18 @@ extension Components {
                 self.end = try container.decode(
                     Swift.String.self,
                     forKey: .end
+                )
+                self.recordedTimeZone = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTimeZone
+                )
+                self.recordedStart = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedStart
+                )
+                self.recordedEnd = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedEnd
                 )
                 self.inBed = try container.decode(
                     Swift.Double.self,
@@ -11129,6 +11403,9 @@ extension Components {
                     "date",
                     "start",
                     "end",
+                    "recordedTimeZone",
+                    "recordedStart",
+                    "recordedEnd",
                     "inBed",
                     "asleep",
                     "awake",
@@ -11151,6 +11428,18 @@ extension Components {
                 try container.encode(
                     self.end,
                     forKey: .end
+                )
+                try container.encodeIfPresent(
+                    self.recordedTimeZone,
+                    forKey: .recordedTimeZone
+                )
+                try container.encodeIfPresent(
+                    self.recordedStart,
+                    forKey: .recordedStart
+                )
+                try container.encodeIfPresent(
+                    self.recordedEnd,
+                    forKey: .recordedEnd
                 )
                 try container.encode(
                     self.inBed,
@@ -11201,7 +11490,7 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSleepResult/end`.
             public var end: Swift.String
-            /// Each night that ends in the period, oldest first.
+            /// Each night whose date is in the period, oldest first. A night slept in another zone is dated by that zone's clock, so its start and end can fall outside the period.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSleepResult/nights`.
             public var nights: [Components.Schemas.HealthSleepNight]
@@ -11214,7 +11503,7 @@ extension Components {
             ///   - range: The range asked for: D, W, M, 6M or Y.
             ///   - start: When the period starts.
             ///   - end: When the period ends (exclusive).
-            ///   - nights: Each night that ends in the period, oldest first.
+            ///   - nights: Each night whose date is in the period, oldest first. A night slept in another zone is dated by that zone's clock, so its start and end can fall outside the period.
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 timeZone: Swift.String,
@@ -11753,6 +12042,14 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthStateOfMindItem/time`.
             public var time: Swift.String
+            /// The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthStateOfMindItem/recordedTimeZone`.
+            public var recordedTimeZone: Swift.String?
+            /// Its time, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthStateOfMindItem/recordedTime`.
+            public var recordedTime: Swift.String?
             /// Momentary Emotion (how they felt right then) or Daily Mood (how they felt over the day), or Unknown for one a later iOS adds.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthStateOfMindItem/kind`.
@@ -11783,6 +12080,8 @@ extension Components {
             ///
             /// - Parameters:
             ///   - time: When it was logged: a momentary emotion's moment, or for a daily mood, a time in the day it describes.
+            ///   - recordedTimeZone: The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///   - recordedTime: Its time, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
             ///   - kind: Momentary Emotion (how they felt right then) or Daily Mood (how they felt over the day), or Unknown for one a later iOS adds.
             ///   - valence: How pleasant it felt, from -1 (very unpleasant) to 1 (very pleasant).
             ///   - classification: The valence as the person chose it: Very Unpleasant, Unpleasant, Slightly Unpleasant, Neutral, Slightly Pleasant, Pleasant or Very Pleasant (Unknown for one a later iOS adds).
@@ -11792,6 +12091,8 @@ extension Components {
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 time: Swift.String,
+                recordedTimeZone: Swift.String? = nil,
+                recordedTime: Swift.String? = nil,
                 kind: Swift.String,
                 valence: Swift.Double,
                 classification: Swift.String,
@@ -11801,6 +12102,8 @@ extension Components {
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
                 self.time = time
+                self.recordedTimeZone = recordedTimeZone
+                self.recordedTime = recordedTime
                 self.kind = kind
                 self.valence = valence
                 self.classification = classification
@@ -11811,6 +12114,8 @@ extension Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case time
+                case recordedTimeZone
+                case recordedTime
                 case kind
                 case valence
                 case classification
@@ -11823,6 +12128,14 @@ extension Components {
                 self.time = try container.decode(
                     Swift.String.self,
                     forKey: .time
+                )
+                self.recordedTimeZone = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTimeZone
+                )
+                self.recordedTime = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTime
                 )
                 self.kind = try container.decode(
                     Swift.String.self,
@@ -11850,6 +12163,8 @@ extension Components {
                 )
                 additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
                     "time",
+                    "recordedTimeZone",
+                    "recordedTime",
                     "kind",
                     "valence",
                     "classification",
@@ -11863,6 +12178,14 @@ extension Components {
                 try container.encode(
                     self.time,
                     forKey: .time
+                )
+                try container.encodeIfPresent(
+                    self.recordedTimeZone,
+                    forKey: .recordedTimeZone
+                )
+                try container.encodeIfPresent(
+                    self.recordedTime,
+                    forKey: .recordedTime
                 )
                 try container.encode(
                     self.kind,
@@ -12032,6 +12355,14 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthAssessmentItem/time`.
             public var time: Swift.String
+            /// The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAssessmentItem/recordedTimeZone`.
+            public var recordedTimeZone: Swift.String?
+            /// Its time, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAssessmentItem/recordedTime`.
+            public var recordedTime: Swift.String?
             /// The total of the answers' points, from 0 to maximumScore.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthAssessmentItem/score`.
@@ -12056,6 +12387,8 @@ extension Components {
             ///   - _type: HKScoredAssessmentTypeIdentifierGAD7 (anxiety) or HKScoredAssessmentTypeIdentifierPHQ9 (depression).
             ///   - name: Its name in Health: Anxiety Risk (GAD-7) or Depression Risk (PHQ-9).
             ///   - time: When it was taken.
+            ///   - recordedTimeZone: The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///   - recordedTime: Its time, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
             ///   - score: The total of the answers' points, from 0 to maximumScore.
             ///   - maximumScore: The highest score: 21 for GAD-7, 27 for PHQ-9 (3 points a question).
             ///   - risk: The risk Health gave the score. GAD-7: None to Minimal (0 to 4), Mild (5 to 9), Moderate (10 to 14) or Severe (15 to 21). PHQ-9: None to Minimal (0 to 4), Mild (5 to 9), Moderate (10 to 14), Moderately Severe (15 to 19) or Severe (20 to 27). Unknown for one a later iOS adds.
@@ -12065,6 +12398,8 @@ extension Components {
                 _type: Swift.String,
                 name: Swift.String,
                 time: Swift.String,
+                recordedTimeZone: Swift.String? = nil,
+                recordedTime: Swift.String? = nil,
                 score: Swift.Int,
                 maximumScore: Swift.Int,
                 risk: Swift.String,
@@ -12074,6 +12409,8 @@ extension Components {
                 self._type = _type
                 self.name = name
                 self.time = time
+                self.recordedTimeZone = recordedTimeZone
+                self.recordedTime = recordedTime
                 self.score = score
                 self.maximumScore = maximumScore
                 self.risk = risk
@@ -12084,6 +12421,8 @@ extension Components {
                 case _type = "type"
                 case name
                 case time
+                case recordedTimeZone
+                case recordedTime
                 case score
                 case maximumScore
                 case risk
@@ -12102,6 +12441,14 @@ extension Components {
                 self.time = try container.decode(
                     Swift.String.self,
                     forKey: .time
+                )
+                self.recordedTimeZone = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTimeZone
+                )
+                self.recordedTime = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTime
                 )
                 self.score = try container.decode(
                     Swift.Int.self,
@@ -12123,6 +12470,8 @@ extension Components {
                     "type",
                     "name",
                     "time",
+                    "recordedTimeZone",
+                    "recordedTime",
                     "score",
                     "maximumScore",
                     "risk",
@@ -12142,6 +12491,14 @@ extension Components {
                 try container.encode(
                     self.time,
                     forKey: .time
+                )
+                try container.encodeIfPresent(
+                    self.recordedTimeZone,
+                    forKey: .recordedTimeZone
+                )
+                try container.encodeIfPresent(
+                    self.recordedTime,
+                    forKey: .recordedTime
                 )
                 try container.encode(
                     self.score,

@@ -72,7 +72,6 @@ enum SampleDetails {
   /// sample has.
   static let metadataFields: [Setter] = [
     set(\.userEntered, "HKWasUserEntered"),
-    set(\.recordedTimeZone, "HKTimeZone"),
     set(\.food, "HKFoodType"),
     set(\.motionContext, "HKMetadataKeyHeartRateMotionContext"),
     set(\.userMotionContext, "HKMetadataKeyUserMotionContext"),

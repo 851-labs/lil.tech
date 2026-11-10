@@ -276,10 +276,15 @@ public struct HealthTools: Sendable {
     }
     let items = listed.prefix(limit)
     var sources = SampleSources()
+    let zones = RecordedZones()
     let samples = items.map { item in
       let sample = item.sample
       let metadata = SampleDetails.object(sample.metadata)
       var details = SampleDetails.details(metadata, time: time)
+      let recorded = zones.times(metadata, start: item.start, end: item.end)
+      details.recordedTimeZone = recorded.timeZone
+      details.recordedStart = recorded.start
+      details.recordedEnd = recorded.end
       if type.kind == .correlation { details.values = values[sample.id] ?? [] }
       return HealthSampleItem(
         id: sample.id, start: time.localTime(Date(unixMilliseconds: item.start)),
@@ -376,16 +381,19 @@ public struct HealthTools: Sendable {
     let workouts = try HealthDatabase.workouts(
       in: period.interval, limit: Self.workoutsLimit, db)
     let withRoutes = try HealthDatabase.workoutsWithRoutes(workouts, db)
+    let zones = RecordedZones()
     return HealthWorkoutsResult(
       timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
       end: time.localTime(period.end), count: totals.count, duration: totals.duration,
-      workouts: workouts.map { Self.readWorkout($0, withRoutes: withRoutes, time: time).item })
+      workouts: workouts.map {
+        Self.readWorkout($0, withRoutes: withRoutes, time: time, zones: zones).item
+      })
   }
 
   /// What `workouts` says of a workout, with the statistics, metadata and activities it read,
-  /// which `workout` adds to.
+  /// which `workout` adds to. `zones` looks up the zones workouts were recorded in.
   private static func readWorkout(
-    _ workout: HealthWorkout, withRoutes: Set<String>, time: ToolTime
+    _ workout: HealthWorkout, withRoutes: Set<String>, time: ToolTime, zones: RecordedZones
   ) -> (
     item: HealthWorkoutItem, statistics: [String: WorkoutStatistic], metadata: WorkoutMetadata,
     activities: [WorkoutActivityRecord]
@@ -394,13 +402,16 @@ public struct HealthTools: Sendable {
     let metadata = workout.decodedMetadata
     let activities = workout.decodedActivities
     let location = HealthWorkout.location(metadata: metadata, activities: activities)
+    let recorded = zones.times(
+      json: workout.metadata, start: workout.startDate, end: workout.endDate)
     let item = HealthWorkoutItem(
       id: workout.id, activityType: workout.activityType,
       activity: HealthCatalog.workoutActivityName(workout.activityType),
       name: metadata.name,
       start: time.localTime(Date(unixMilliseconds: workout.startDate)),
       end: time.localTime(Date(unixMilliseconds: workout.endDate)),
-      duration: workout.duration,
+      recordedTimeZone: recorded.timeZone, recordedStart: recorded.start,
+      recordedEnd: recorded.end, duration: workout.duration,
       activeEnergy: statistics[HealthWorkout.activeEnergyType]?.sum,
       distance: HealthWorkout.distance(in: statistics),
       averageHeartRate: statistics[HealthWorkout.heartRateType]?.average,
@@ -438,7 +449,8 @@ public struct HealthTools: Sendable {
       throw HealthToolError("No workout with ID \(id). workouts lists them, with their IDs.")
     }
     let (item, statistics, metadata, activities) = Self.readWorkout(
-      workout, withRoutes: try HealthDatabase.workoutsWithRoutes([workout], db), time: time)
+      workout, withRoutes: try HealthDatabase.workoutsWithRoutes([workout], db), time: time,
+      zones: RecordedZones())
     let events = workout.decodedEventRecords
     let pauses = HealthWorkout.pauses(events.map(\.event), end: workout.endDate)
     func local(_ milliseconds: Int) -> String {
@@ -462,7 +474,8 @@ public struct HealthTools: Sendable {
       timeZone: time.name,
       workout: HealthWorkoutDetail(
         id: item.id, activityType: item.activityType, activity: item.activity, name: item.name,
-        start: item.start, end: item.end, duration: item.duration,
+        start: item.start, end: item.end, recordedTimeZone: item.recordedTimeZone,
+        recordedStart: item.recordedStart, recordedEnd: item.recordedEnd, duration: item.duration,
         activeEnergy: item.activeEnergy, distance: item.distance,
         averageHeartRate: item.averageHeartRate, elevationAscended: item.elevationAscended,
         indoor: item.indoor, swimmingLocation: item.swimmingLocation, hasRoute: item.hasRoute,
@@ -518,6 +531,7 @@ public struct HealthTools: Sendable {
     let days = (time.calendar.dateComponents([.day], from: period.start, to: lastDay).day ?? 0) + 1
     let nights = try HealthDatabase.sleepNights(
       endingOn: lastDay, count: days, calendar: time.calendar, db)
+    let zones = RecordedZones()
     return HealthSleepResult(
       timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
       end: time.localTime(period.end),
@@ -526,9 +540,13 @@ public struct HealthTools: Sendable {
           let end = night.segments.map(\.end).max()
         else { return nil }
         let durations = night.durations
+        // The night's zone, by the name its records gave it, which `TimeZone` may not keep.
+        let recorded = zones.named(night.timeZoneName, start: start, end: end)
         return HealthSleepNight(
           date: time.localDate(night.day), start: time.localTime(start),
-          end: time.localTime(end), inBed: night.inBed, asleep: night.asleep,
+          end: time.localTime(end), recordedTimeZone: recorded.timeZone,
+          recordedStart: recorded.start, recordedEnd: recorded.end, inBed: night.inBed,
+          asleep: night.asleep,
           awake: durations[.awake] ?? 0, core: durations[.core] ?? 0,
           deep: durations[.deep] ?? 0, rem: durations[.rem] ?? 0,
           unspecified: durations[.asleep] ?? 0)
@@ -571,12 +589,15 @@ public struct HealthTools: Sendable {
     let period = try ToolPeriod(range, date: date, now: now, time: time)
     let (count, logs) = try HealthDatabase.stateOfMindLogs(
       in: period.interval, limit: Self.stateOfMindLimit, db)
+    let zones = RecordedZones()
     return HealthStateOfMindResult(
       timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
       end: time.localTime(period.end), count: count,
       logs: logs.map { log in
-        HealthStateOfMindItem(
-          time: time.localTime(Date(unixMilliseconds: log.startDate)), kind: log.toolKindName,
+        let recorded = zones.time(json: log.metadata, at: log.startDate)
+        return HealthStateOfMindItem(
+          time: time.localTime(Date(unixMilliseconds: log.startDate)),
+          recordedTimeZone: recorded.timeZone, recordedTime: recorded.time, kind: log.toolKindName,
           valence: log.valence,
           classification: log.decodedValenceClassification?.name ?? "Unknown",
           labels: log.labelNames, associations: log.associationNames, source: log.sourceName)
@@ -595,16 +616,19 @@ public struct HealthTools: Sendable {
     let period = try ToolPeriod(range, date: date, now: now, time: time)
     let (count, assessments) = try HealthDatabase.scoredAssessments(
       of: AssessmentKind.allCases, in: period.interval, limit: Self.assessmentsLimit, db)
+    let zones = RecordedZones()
     return HealthAssessmentsResult(
       timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
       end: time.localTime(period.end), count: count,
       // Only those of `AssessmentKind` were read.
       assessments: assessments.compactMap { assessment in
         guard let kind = AssessmentKind(rawValue: assessment.type) else { return nil }
+        let recorded = zones.time(json: assessment.metadata, at: assessment.startDate)
         return HealthAssessmentItem(
           type: assessment.type,
           name: HealthCatalog.type(id: assessment.type)?.name ?? assessment.type,
           time: time.localTime(Date(unixMilliseconds: assessment.startDate)),
+          recordedTimeZone: recorded.timeZone, recordedTime: recorded.time,
           score: assessment.score, maximumScore: kind.maximumScore,
           risk: kind.riskName(assessment.risk),
           answers: kind.answerNames(assessment))
