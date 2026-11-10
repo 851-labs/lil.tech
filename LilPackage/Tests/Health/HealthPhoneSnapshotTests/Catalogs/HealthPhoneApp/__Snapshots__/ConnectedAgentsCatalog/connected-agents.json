@@ -18,6 +18,13 @@
       "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/ConnectedAgentsCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.no-agents-larger-text-dark.png",
+      "id" : "connected-agents.no-agents-larger-text",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.no-agents-larger-text-light.png",
+      "name" : "No agents, larger text",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/ConnectedAgentsCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.loading-dark.png",
       "id" : "connected-agents.loading",
       "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/ConnectedAgentsCatalog/connected-agents.loading-light.png",

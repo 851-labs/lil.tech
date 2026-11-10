@@ -10,8 +10,8 @@
   // Connected Agents (`ConnectedAgentsView`), from Settings: the agents allowed to read the
   // account's data, none, loading, failed, revoking one (a combined agent's revoke disconnects it
   // from every lil app, 851-2902), turning agent access off, and unverified, unnamed and long
-  // names. "Last used" is relative to `previewNow`. The MCP server URL is staging's. Synthetic data
-  // only: made-up agents.
+  // names, and a larger text size. "Last used" is relative to `previewNow`. The MCP server URL is
+  // staging's. Synthetic data only: made-up agents.
 
   extension PhoneSnapshotTests {
     @Test(arguments: connectedAgentsCatalog.selectedStates)
@@ -28,6 +28,12 @@
       },
       CatalogState("No agents") {
         agents(ConnectedAgentsFeature.State(agents: .loaded([])))
+      },
+      // An accessibility text size, with no agents, so the MCP server's URL is on screen: it
+      // wraps in full, with Copy underneath (851-4029).
+      CatalogState("No agents, larger text") {
+        agents(ConnectedAgentsFeature.State(agents: .loaded([])))
+          .dynamicTypeSize(.accessibility1)
       },
       CatalogState("Loading") {
         agents(ConnectedAgentsFeature.State(agents: .loading, isLoadingLog: true))
