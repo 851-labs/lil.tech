@@ -347,7 +347,9 @@ public struct HealthTools: Sendable {
     }
     var index: Int?
     if parts.count == 3 {
-      guard let value = Int(parts[2]), value > 0, String(value) == parts[2] else {
+      // At most 9 digits (a series has at most 20,000 values), as on the server.
+      guard parts[2].count <= 9, let value = Int(parts[2]), value > 0, String(value) == parts[2]
+      else {
         throw HealthToolError("Invalid cursor: \(text). Pass the previous page's nextCursor.")
       }
       index = value

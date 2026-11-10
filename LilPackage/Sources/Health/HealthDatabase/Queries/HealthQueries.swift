@@ -83,21 +83,44 @@ extension HealthDatabase {
       .fetchOne(db)
   }
 
-  /// `latestSample`, with a discrete series' most recent value in place of the series' own
-  /// (851-4171): its value, start and end. HealthKit's value for a whole heart rate series is its
-  /// average, which isn't a reading anyone took.
+  /// A type's latest reading started by `now` if given (851-4171): `latestSample`, with a
+  /// discrete series' most recent value in place of the series' own (its value, start and end),
+  /// since HealthKit's value for a whole heart rate series is its average, which isn't a reading
+  /// anyone took; or a series that started before it (up to `seriesLookback`) whose most recent
+  /// value is later (a workout's, past a strap's reading during it). Ties go to the higher ID. The
+  /// server's `latestReading`.
   public static func latestReading(
     of type: String, startedBy now: Date? = nil, _ db: Database
   ) throws -> HealthSample? {
-    guard var sample = try latestSample(of: type, startedBy: now, db) else { return nil }
-    if let series = try HealthQuantitySeries.find(sample.id).fetchOne(db),
-      let mostRecent = series.mostRecent
-    {
-      sample.value = mostRecent
-      sample.startDate = series.mostRecentStartDate ?? sample.startDate
-      sample.endDate = series.mostRecentEndDate ?? sample.endDate
+    guard let sample = try latestSample(of: type, startedBy: now, db) else { return nil }
+    func reading(_ sample: HealthSample, _ series: HealthQuantitySeries) -> HealthSample {
+      guard let mostRecent = series.mostRecent else { return sample }
+      var reading = sample
+      reading.value = mostRecent
+      reading.startDate = series.mostRecentStartDate ?? sample.startDate
+      reading.endDate = series.mostRecentEndDate ?? reading.startDate
+      return reading
     }
-    return sample
+    let latest =
+      try HealthQuantitySeries.find(sample.id).fetchOne(db).map { reading(sample, $0) }
+      ?? sample
+    let upper = now?.unixMilliseconds ?? .max
+    let lookback = sample.startDate - seriesLookbackMilliseconds
+    let laterID = try String.fetchOne(
+      db,
+      sql: """
+        SELECT "id" FROM "healthQuantitySeries"
+        WHERE "type" = ? AND "startDate" >= ? AND "startDate" <= ? AND "mostRecent" IS NOT NULL
+          AND "mostRecentStartDate" > ? AND "mostRecentStartDate" <= ?
+          AND EXISTS (SELECT 1 FROM "healthSamples" WHERE "healthSamples"."id" = "healthQuantitySeries"."id")
+        ORDER BY "mostRecentStartDate" DESC, "id" DESC LIMIT 1
+        """,
+      arguments: [type, lookback, sample.startDate, latest.startDate, upper])
+    let later = try laterID.flatMap { try HealthQuantitySeries.find($0).fetchOne(db) }
+    guard let later, let laterSample = try HealthSample.find(later.id).fetchOne(db) else {
+      return latest
+    }
+    return reading(laterSample, later)
   }
 
   /// A type's samples that start in `range`, oldest first.
@@ -183,7 +206,8 @@ extension HealthDatabase {
     // A series is a reading per value (851-4171).
     let readings = try quantityReadings(of: type, from: lower, to: reach, db)
     let rows = readings.readings
-    // Cards' weights (851-3195), so a card and its type's page agree.
+    // Cards' weights (851-3195), so a card and its type's page agree (once cards read series'
+    // values too, 851-4172).
     let weights = CardWeights.weights(of: rows, aggregation)
 
     var groups: [(start: Date, values: [Double], weights: [Double], range: ClosedRange<Double>)] =

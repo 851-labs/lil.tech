@@ -491,7 +491,7 @@ public enum HealthDatabase {
       )
       .execute(db)
     }
-    // Statistics read a type's series by start (851-4171), those that started up to a day
+    // Statistics read a type's series by start (851-4171), those that started up to a week
     // before a range included (`seriesLookback`).
     migrator.registerMigration("Index quantity series by type and start") { db in
       try #sql(

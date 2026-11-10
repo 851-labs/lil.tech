@@ -23,7 +23,8 @@ public struct QuantitySeriesValues: Equatable, Sendable {
   }
 
   /// `nil` when the iPhone didn't upload the values (more than `HealthEncoder.maxSeriesValues`),
-  /// or they don't decode as one entry each.
+  /// or they're empty, don't decode as one entry each, or have a time or duration that isn't from
+  /// 0 to 1e9 s (about 31 years), as on the server.
   public init?(times: String?, durations: String?, values: String?) {
     guard let times, let durations, let values else { return nil }
     let decoder = JSONDecoder()
@@ -31,10 +32,13 @@ public struct QuantitySeriesValues: Equatable, Sendable {
       let times = try? decoder.decode([Double].self, from: Data(times.utf8)),
       let durations = try? decoder.decode([Double].self, from: Data(durations.utf8)),
       let values = try? decoder.decode([Double].self, from: Data(values.utf8)),
-      durations.count == times.count, values.count == times.count
+      !times.isEmpty, durations.count == times.count, values.count == times.count,
+      times.allSatisfy(Self.isSeconds), durations.allSatisfy(Self.isSeconds)
     else { return nil }
     self.init(times: times, durations: durations, values: values)
   }
+
+  private static func isSeconds(_ seconds: Double) -> Bool { seconds >= 0 && seconds <= 1e9 }
 
   /// When value `index` starts and ends, in Unix milliseconds, for a sample starting at `start`:
   /// its seconds rounded to the millisecond, as the server rounds them.
@@ -140,8 +144,8 @@ extension HealthDatabase {
   /// own time (`QuantitySeriesSample.readings`), of the series that started up to
   /// `seriesLookback` before `from` too. A series without its values stays one reading, at its
   /// start, whose extremes are the series'.
-  /// Readings that start together keep single samples first, then series by start, ID and
-  /// value, as the server's `quantityReadings` orders them.
+  /// Readings that start together keep single samples first, by ID, then series by start, ID
+  /// and value, as the server's `quantityReadings` orders them.
   public static func quantityReadings(
     of type: String, from: Int, to: Int, _ db: Database
   ) throws -> QuantityReadings {
@@ -153,7 +157,7 @@ extension HealthDatabase {
       singles =
         try HealthSample
         .where { $0.type.eq(type) && $0.startDate >= from && $0.startDate < to }
-        .order(by: \.startDate)
+        .order { ($0.startDate, $0.id) }
         .select { ($0.startDate, $0.endDate, $0.value, $0.sourceBundleID) }
         .fetchAll(db)
         .compactMap { start, end, value, source in
@@ -163,7 +167,7 @@ extension HealthDatabase {
       singles =
         try HealthSample
         .where { $0.type.eq(type) && $0.startDate >= from && $0.startDate < to }
-        .order(by: \.startDate)
+        .order { ($0.startDate, $0.id) }
         .select { ($0.startDate, $0.endDate, $0.value, $0.sourceBundleID, $0.id) }
         .fetchAll(db)
         .compactMap { start, end, value, source, id in

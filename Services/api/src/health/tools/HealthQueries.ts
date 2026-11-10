@@ -95,25 +95,52 @@ export const latestSample = (sql: StoreSql, type: string, now: number): LatestSa
 };
 
 /**
- * `latestSample`, with a discrete series' most recent value in place of the series' own
- * (851-4171): its value, start and end. HealthKit's value for a whole heart rate series is its
- * average, which isn't a reading anyone took. The Mac's `HealthDatabase.latestReading`.
+ * A type's latest reading started by `now` (851-4171): `latestSample`, with a discrete series'
+ * most recent value in place of the series' own (its value, start and end), since HealthKit's
+ * value for a whole heart rate series is its average, which isn't a reading anyone took; or a
+ * series that started before it (up to `seriesLookbackMillis`) whose most recent value is later
+ * (a workout's, past a strap's reading during it). Ties go to the higher ID. The Mac's
+ * `HealthDatabase.latestReading`.
  */
 export const latestReading = (sql: StoreSql, type: string, now: number): LatestSample | null => {
   const sample = latestSample(sql, type, now);
   if (sample === null) return null;
-  const series = sql.exec(
+  const own = sql.exec(
     `SELECT most_recent, most_recent_start_date, most_recent_end_date
-    FROM health_quantity_series WHERE id = ?`,
+    FROM health_quantity_series WHERE id = ? AND most_recent IS NOT NULL`,
     sample.id,
   )[0];
-  const mostRecent = numberOrNull(series?.["most_recent"]);
-  if (series === undefined || mostRecent === null) return sample;
+  const ownStart = numberOrNull(own?.["most_recent_start_date"]) ?? sample.startDate;
+  const latest: LatestSample =
+    own === undefined
+      ? sample
+      : {
+          ...sample,
+          value: numberOrNull(own["most_recent"]),
+          startDate: ownStart,
+          endDate: numberOrNull(own["most_recent_end_date"]) ?? ownStart,
+        };
+  const later = sql.exec(
+    `SELECT s.id, s.unit, q.most_recent, q.most_recent_start_date, q.most_recent_end_date
+    FROM health_quantity_series q JOIN health_sample s ON s.id = q.id
+    WHERE q.type = ? AND q.start_date >= ? AND q.start_date <= ? AND q.most_recent IS NOT NULL
+      AND q.most_recent_start_date > ? AND q.most_recent_start_date <= ? AND ${liveSample}
+    ORDER BY q.most_recent_start_date DESC, s.id DESC LIMIT 1`,
+    type,
+    sample.startDate - seriesLookbackMillis,
+    sample.startDate,
+    latest.startDate,
+    now,
+  )[0];
+  if (later === undefined) return latest;
+  const startDate = Number(later["most_recent_start_date"]);
   return {
-    ...sample,
-    value: mostRecent,
-    startDate: numberOrNull(series["most_recent_start_date"]) ?? sample.startDate,
-    endDate: numberOrNull(series["most_recent_end_date"]) ?? sample.endDate,
+    id: later["id"] as string,
+    startDate,
+    endDate: numberOrNull(later["most_recent_end_date"]) ?? startDate,
+    value: numberOrNull(later["most_recent"]),
+    unit: stringOrNull(later["unit"]),
+    categoryValue: null,
   };
 };
 
@@ -461,9 +488,13 @@ const numberArray = (json: SqlValue | undefined): ReadonlyArray<number> | null =
   }
 };
 
+/** Seconds a series' time or duration can be: from 0 to about 31 years, as on the Mac. */
+const isSeriesSeconds = (seconds: number) => seconds >= 0 && seconds <= 1e9;
+
 /**
  * A series' values from its row's JSON arrays, or null when the iPhone didn't upload them (more
- * than `HealthEncoder.maxSeriesValues`) or they don't have one entry each.
+ * than `HealthEncoder.maxSeriesValues`), or they're empty, don't have one entry each, or have a
+ * time or duration that isn't from 0 to 1e9 s.
  */
 export const quantitySeriesValues = (
   times: SqlValue | undefined,
@@ -478,8 +509,11 @@ export const quantitySeriesValues = (
   return starts === null ||
     lengths === null ||
     numbers === null ||
+    starts.length === 0 ||
     lengths.length !== starts.length ||
-    numbers.length !== starts.length
+    numbers.length !== starts.length ||
+    !starts.every(isSeriesSeconds) ||
+    !lengths.every(isSeriesSeconds)
     ? null
     : { times: starts, durations: lengths, values: numbers };
 };
@@ -581,7 +615,7 @@ export interface QuantityReadings {
  * except that a series is one reading per value, at the value's own time (`seriesReadings`), of
  * the series that started up to `seriesLookbackMillis` before `from` too. A series without its
  * values stays one reading, at its start, whose extremes are the series'. Readings that start
- * together keep single samples first, then series by start, ID and value, as the Mac's
+ * together keep single samples first, by ID, then series by start, ID and value, as the Mac's
  * `HealthDatabase.quantityReadings` orders them.
  */
 export const quantityReadings = (
@@ -711,26 +745,33 @@ export interface QuantitySeriesRow {
   readonly mostRecentEndDate: number | null;
 }
 
-/** The quantity series of `samples` that are series, by ID. */
+/**
+ * The quantity series of `samples` that are series, by ID, with their values only `withValues`
+ * (a page of summaries needn't parse hundreds of arrays). The IDs go in as one JSON array, since
+ * a Durable Object's SQLite binds at most 100 parameters.
+ */
 export const quantitySeriesOf = (
   sql: StoreSql,
   samples: ReadonlyArray<string>,
+  withValues: boolean,
 ): ReadonlyMap<string, QuantitySeriesRow> =>
   samples.length === 0
     ? new Map()
     : new Map(
         sql
           .exec(
-            `SELECT id, count, times, durations, "values", minimum, maximum, most_recent,
-              most_recent_start_date, most_recent_end_date
-            FROM health_quantity_series WHERE id IN (${samples.map(() => "?").join(", ")})`,
-            ...samples,
+            `SELECT id, count, ${withValues ? `times, durations, "values",` : ""} minimum, maximum,
+              most_recent, most_recent_start_date, most_recent_end_date
+            FROM health_quantity_series WHERE id IN (SELECT value FROM json_each(?))`,
+            JSON.stringify(samples),
           )
           .map((row) => [
             row["id"] as string,
             {
               count: Number(row["count"]),
-              values: quantitySeriesValues(row["times"], row["durations"], row["values"]),
+              values: withValues
+                ? quantitySeriesValues(row["times"], row["durations"], row["values"])
+                : null,
               minimum: numberOrNull(row["minimum"]),
               maximum: numberOrNull(row["maximum"]),
               mostRecent: numberOrNull(row["most_recent"]),

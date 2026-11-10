@@ -51,7 +51,8 @@ const cursorAt = (sample: SampleCursor, index?: number) =>
 
 /**
  * A cursor's start and ID, both there (`123_` and `_abc` aren't cursors), and the index of a
- * series' value, a whole number from 1 without a sign or leading zeros, as on the Mac.
+ * series' value, a whole number from 1 without a sign or leading zeros, at most 9 digits (a
+ * series has at most 20,000 values), as on the Mac.
  */
 const parseCursor = (text: string) => {
   const match = /^([+-]?\d+)_([^_]+)(?:_([1-9]\d{0,8}))?$/.exec(text);
@@ -140,6 +141,7 @@ export const healthSamples = Effect.fn("healthSamples")(function* (
       ? quantitySeriesOf(
           sql,
           page.map((sample) => sample.id),
+          listsValues,
         )
       : new Map();
   const listed: Array<ListedItem> = [];

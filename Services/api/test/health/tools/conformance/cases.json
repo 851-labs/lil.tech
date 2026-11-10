@@ -429,6 +429,70 @@
       }
     },
     {
+      "name": "summary when a series that started earlier has a later value than the reading that started last: the workout's last value at 10:04:55, not the strap's reading at 10:02 during it",
+      "tool": "summary",
+      "now": "2026-04-14T10:06:00Z",
+      "arguments": {},
+      "expected": {
+        "timeZone": "UTC",
+        "date": "2026-04-14",
+        "pinned": false,
+        "metrics": [
+          {
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "unit": null,
+            "latest": null,
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "unit": "count/min",
+            "latest": {
+              "start": "2026-04-14T10:04:55+00:00",
+              "end": "2026-04-14T10:04:55+00:00",
+              "value": 101,
+              "categoryValue": null
+            },
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+            "unit": null,
+            "latest": null,
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierDistanceWalkingRunning",
+            "unit": null,
+            "latest": null,
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierRestingHeartRate",
+            "unit": null,
+            "latest": null,
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "unit": null,
+            "latest": null,
+            "today": null,
+            "last7Days": null
+          }
+        ],
+        "workouts": {
+          "count": 0,
+          "duration": 0
+        }
+      }
+    },
+    {
       "name": "summary with an unknown time zone fails",
       "tool": "summary",
       "now": "2026-10-20T15:00:00Z",
