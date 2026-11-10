@@ -8,7 +8,8 @@
     "Heart rate on 20 October comes from the Watch and the iPhone, with gaps over an hour, so time-weighted averages depend on each source's next reading. Sleep has the Watch's stages and the iPhone's estimates; medications a schedule, as-needed doses and an archived one; Health Details one characteristic Not Set.",
     "Routes (851-4164): their points are blobs, in blobs.json by SHA-256. 16 October also has a cycling app's route with no workout (0c0f…175), which no workout's times overlap.",
     "Samples' details (851-4166) are on 19 October, from ph2, which HealthKit syncs every app's samples to: blood glucose entered by hand in Health (before a meal, recorded in New York) and from a third-party health app, which records the rest too (after a meal, with a reference range, its meter in a provenance record, and keys lil health doesn't keep, which ingestion drops); insulin (basal with an empty device, bolus with its pump named only in its metadata and a motion context that isn't one); cardio fitness from an Apple Watch; a high heart rate notification with its threshold; a blood pressure reading, a correlation of a systolic and a diastolic sample; and the morning's heart rate says it was sedentary, on the wrist.",
-    "Quantity series (851-4171) are on 14 April 2026, a day no cards case reads, so the iPhone's HealthKit run (which writes each series as one sample) gives the same cards: heart rate from the Watch, a workout's 120 values every 5 s from 09:55 (the sample's own value, 130.5, is HealthKit's for the whole series), crossing 10:00, beside a chest strap's readings and a Watch reading after it; a series of 25,000 values from 14:00 whose values weren't uploaded, only its count and summary (55 to 190); and a series from 23:58 that crosses midnight, so 15 April's values come from a series that started the day before."
+    "Quantity series (851-4171) are on 14 April 2026, a day no cards case reads, so the iPhone's HealthKit run (which writes each series as one sample) gives the same cards: heart rate from the Watch, a workout's 120 values every 5 s from 09:55 (the sample's own value, 130.5, is HealthKit's for the whole series), crossing 10:00, beside a chest strap's readings and a Watch reading after it; a series of 25,000 values from 14:00 whose values weren't uploaded, only its count and summary (55 to 190); and a series from 23:58 that crosses midnight, so 15 April's values come from a series that started the day before.",
+    "Activity rings (851-4158) are on 20 September and 14 to 20 October, from ph1, keyed by the iPhone's day: 14 October has no move value, no exercise goal (0) and no stand value or pause flag; 15 October is in Move time, with active energy beside it the tools don't read; 16 October has no Exercise or Stand goal (no Watch that day); 17 October is paused; 18 October has none; 20 October is today, unfinished."
   ],
   "batches": [
     {
@@ -1105,6 +1106,75 @@
         {
           "entity": "health_activity_summary",
           "op": "upsert",
+          "id": "2026-09-20",
+          "row": {
+            "activeEnergyBurned": 380.25,
+            "activeEnergyBurnedGoal": 450,
+            "appleExerciseTime": 25,
+            "appleExerciseTimeGoal": 30,
+            "appleStandHours": 11,
+            "appleStandHoursGoal": 12,
+            "activityMoveMode": "activeEnergy",
+            "paused": false
+          }
+        },
+        {
+          "entity": "health_activity_summary",
+          "op": "upsert",
+          "id": "2026-10-14",
+          "row": {
+            "activeEnergyBurnedGoal": 500,
+            "appleExerciseTime": 0,
+            "appleExerciseTimeGoal": 0,
+            "appleStandHoursGoal": 12
+          }
+        },
+        {
+          "entity": "health_activity_summary",
+          "op": "upsert",
+          "id": "2026-10-15",
+          "row": {
+            "activeEnergyBurned": 250,
+            "activeEnergyBurnedGoal": 400,
+            "appleMoveTime": 42,
+            "appleMoveTimeGoal": 30,
+            "appleExerciseTime": 18,
+            "appleExerciseTimeGoal": 30,
+            "appleStandHours": 9,
+            "appleStandHoursGoal": 12,
+            "activityMoveMode": "appleMoveTime",
+            "paused": false
+          }
+        },
+        {
+          "entity": "health_activity_summary",
+          "op": "upsert",
+          "id": "2026-10-16",
+          "row": {
+            "activeEnergyBurned": 210.5,
+            "activeEnergyBurnedGoal": 400,
+            "activityMoveMode": "activeEnergy",
+            "paused": false
+          }
+        },
+        {
+          "entity": "health_activity_summary",
+          "op": "upsert",
+          "id": "2026-10-17",
+          "row": {
+            "activeEnergyBurned": 95,
+            "activeEnergyBurnedGoal": 500,
+            "appleExerciseTime": 0,
+            "appleExerciseTimeGoal": 30,
+            "appleStandHours": 4,
+            "appleStandHoursGoal": 12,
+            "activityMoveMode": "activeEnergy",
+            "paused": true
+          }
+        },
+        {
+          "entity": "health_activity_summary",
+          "op": "upsert",
           "id": "2026-10-19",
           "row": {
             "activeEnergyBurned": 420.75,
@@ -1112,6 +1182,21 @@
             "appleExerciseTime": 40,
             "appleExerciseTimeGoal": 30,
             "appleStandHours": 10,
+            "appleStandHoursGoal": 12,
+            "activityMoveMode": "activeEnergy",
+            "paused": false
+          }
+        },
+        {
+          "entity": "health_activity_summary",
+          "op": "upsert",
+          "id": "2026-10-20",
+          "row": {
+            "activeEnergyBurned": 120.5,
+            "activeEnergyBurnedGoal": 500,
+            "appleExerciseTime": 5,
+            "appleExerciseTimeGoal": 30,
+            "appleStandHours": 3,
             "appleStandHoursGoal": 12,
             "activityMoveMode": "activeEnergy",
             "paused": false

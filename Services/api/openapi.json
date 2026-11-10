@@ -6279,6 +6279,141 @@
         ],
         "additionalProperties": true
       },
+      "HealthActivityDay": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "The day, as the iPhone recorded it: a day in the iPhone's own time zone, whatever `timeZone` is."
+          },
+          "move": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "number",
+                "description": "How far it got, in `unit`."
+              },
+              "goal": {
+                "type": "number",
+                "description": "The day's goal, in `unit`."
+              },
+              "unit": {
+                "type": "string",
+                "description": "kcal, or min for Move time."
+              }
+            },
+            "required": [
+              "value",
+              "goal",
+              "unit"
+            ],
+            "additionalProperties": true,
+            "description": "The Move ring: active energy, or minutes of movement for those who move by time (children, or anyone who chose Move time)."
+          },
+          "exercise": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "value": {
+                "type": "number",
+                "description": "How far it got, in `unit`."
+              },
+              "goal": {
+                "type": "number",
+                "description": "The day's goal, in `unit`."
+              },
+              "unit": {
+                "type": "string",
+                "description": "Always min."
+              }
+            },
+            "required": [
+              "value",
+              "goal",
+              "unit"
+            ],
+            "additionalProperties": true,
+            "description": "The Exercise ring, in minutes of brisk activity, or null without an Exercise goal (no Apple Watch)."
+          },
+          "stand": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "value": {
+                "type": "number",
+                "description": "How far it got, in `unit`."
+              },
+              "goal": {
+                "type": "number",
+                "description": "The day's goal, in `unit`."
+              },
+              "unit": {
+                "type": "string",
+                "description": "Always hr."
+              }
+            },
+            "required": [
+              "value",
+              "goal",
+              "unit"
+            ],
+            "additionalProperties": true,
+            "description": "The Stand ring, in hours with at least a minute of standing, or null without a Stand goal (no Apple Watch)."
+          },
+          "paused": {
+            "type": "boolean",
+            "description": "Whether the person paused their rings that day, so its goals didn't count."
+          }
+        },
+        "required": [
+          "date",
+          "move",
+          "exercise",
+          "stand",
+          "paused"
+        ],
+        "additionalProperties": true
+      },
+      "HealthActivityRingsResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "range": {
+            "type": "string",
+            "description": "The range asked for: D, W, M, 6M or Y."
+          },
+          "start": {
+            "type": "string",
+            "description": "When the period starts."
+          },
+          "end": {
+            "type": "string",
+            "description": "When the period ends (exclusive)."
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthActivityDay"
+            },
+            "description": "Each day of the period with rings, oldest first. Days without are left out."
+          }
+        },
+        "required": [
+          "timeZone",
+          "range",
+          "start",
+          "end",
+          "days"
+        ],
+        "additionalProperties": true
+      },
       "HealthMedicationItem": {
         "type": "object",
         "properties": {

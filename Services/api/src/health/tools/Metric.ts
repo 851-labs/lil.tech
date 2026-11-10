@@ -210,7 +210,7 @@ export const healthMetric = Effect.fn("healthMetric")(function* (
     return yield* new HealthToolError({
       message:
         `${type.name} (${type.id}) isn't a quantity type, so it has no statistics. Use samples, ` +
-        "or the tool for its kind (sleep, workouts, medications).",
+        "or the tool for its kind (sleep, activity_rings, workouts, medications).",
     });
   }
   const now = yield* Clock.currentTimeMillis;

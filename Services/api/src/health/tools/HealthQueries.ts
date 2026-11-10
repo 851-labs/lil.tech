@@ -1016,3 +1016,50 @@ export const visionPrescriptions = (sql: StoreSql): ReadonlyArray<VisionPrescrip
       rightEye: stringOrNull(row["right_eye"]),
       leftEye: stringOrNull(row["left_eye"]),
     }));
+
+/** A day's Activity rings as stored (`health_activity_summary`), keyed by its day. */
+export interface ActivitySummaryRow {
+  readonly id: string;
+  readonly activeEnergyBurned: number | null;
+  readonly activeEnergyBurnedGoal: number | null;
+  readonly appleMoveTime: number | null;
+  readonly appleMoveTimeGoal: number | null;
+  readonly appleExerciseTime: number | null;
+  readonly appleExerciseTimeGoal: number | null;
+  readonly appleStandHours: number | null;
+  readonly appleStandHoursGoal: number | null;
+  readonly activityMoveMode: string | null;
+  readonly paused: boolean;
+}
+
+/**
+ * The Activity rings of the days from `first` to before `next` (both `YYYY-MM-DD`), oldest
+ * first, as the Mac's `HealthDatabase.activityDays` reads them: by their key, the iPhone's day.
+ */
+export const activitySummaries = (
+  sql: StoreSql,
+  first: string,
+  next: string,
+): ReadonlyArray<ActivitySummaryRow> =>
+  sql
+    .exec(
+      `SELECT id, active_energy_burned, active_energy_burned_goal, apple_move_time,
+        apple_move_time_goal, apple_exercise_time, apple_exercise_time_goal, apple_stand_hours,
+        apple_stand_hours_goal, activity_move_mode, paused
+      FROM health_activity_summary WHERE id >= ? AND id < ? ORDER BY id`,
+      first,
+      next,
+    )
+    .map((row) => ({
+      id: row["id"] as string,
+      activeEnergyBurned: numberOrNull(row["active_energy_burned"]),
+      activeEnergyBurnedGoal: numberOrNull(row["active_energy_burned_goal"]),
+      appleMoveTime: numberOrNull(row["apple_move_time"]),
+      appleMoveTimeGoal: numberOrNull(row["apple_move_time_goal"]),
+      appleExerciseTime: numberOrNull(row["apple_exercise_time"]),
+      appleExerciseTimeGoal: numberOrNull(row["apple_exercise_time_goal"]),
+      appleStandHours: numberOrNull(row["apple_stand_hours"]),
+      appleStandHoursGoal: numberOrNull(row["apple_stand_hours_goal"]),
+      activityMoveMode: stringOrNull(row["activity_move_mode"]),
+      paused: row["paused"] === 1,
+    }));

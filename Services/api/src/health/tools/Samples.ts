@@ -33,7 +33,7 @@ const samplesElsewhere: Readonly<
   medicationDoseEvent: "medications",
   characteristic: "health_details",
   visionPrescription: "health_details",
-  activitySummary: null,
+  activitySummary: "activity_rings",
   heartbeatSeries: null,
   electrocardiogram: null,
   audiogram: null,

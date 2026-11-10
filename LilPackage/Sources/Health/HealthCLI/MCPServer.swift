@@ -409,6 +409,14 @@ private struct ToolCall {
       let timeZone = arguments.string("timeZone")
       guard let range, arguments.isValid else { throw arguments.invalid }
       query = { tools, db in try tools.sleep(range: range, date: date, timeZone: timeZone, db) }
+    case "activity_rings":
+      let range = arguments.required("range", arguments.range)
+      let date = arguments.string("date")
+      let timeZone = arguments.string("timeZone")
+      guard let range, arguments.isValid else { throw arguments.invalid }
+      query = { tools, db in
+        try tools.activityRings(range: range, date: date, timeZone: timeZone, db)
+      }
     case "medications":
       let timeZone = arguments.string("timeZone")
       try arguments.check()
