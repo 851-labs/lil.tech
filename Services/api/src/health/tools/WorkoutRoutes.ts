@@ -23,10 +23,12 @@ type PointsResult = (typeof HealthToolkit.tools.workout_route_points.successSche
 
 /**
  * A health blob's bytes by its SHA-256, from the user's blobs in R2, or null if it isn't there.
- * The store reads them (`UserStore.ts`); a failed read is the tool's error.
+ * The store reads them (`UserStore.ts`); a failed read is the tool's error, which names `what` it
+ * was reading (e.g. "the route's points").
  */
 export type HealthBlobReader = (
   sha256: string,
+  what: string,
 ) => Effect.Effect<Uint8Array | null, HealthToolError>;
 
 /** No blobs: tools built without the store's bucket (tests that don't read routes). */
@@ -325,7 +327,8 @@ const routeItem = (
 /** A route's points, from its blob. */
 const readPoints = (route: RouteRow, blobs: HealthBlobReader) =>
   Effect.gen(function* () {
-    const bytes = route.locations === null ? null : yield* blobs(route.locations);
+    const bytes =
+      route.locations === null ? null : yield* blobs(route.locations, "the route's points");
     if (bytes === null) {
       return yield* new HealthToolError({
         message: "The route's points aren't on the server. Try again later.",
@@ -455,5 +458,5 @@ export const healthWorkoutRoutePoints = Effect.fn("healthWorkoutRoutePoints")(fu
 });
 
 /** A cursor's index: 1 to 9 digits, as the Mac reads it, or null. */
-const cursorIndex = (cursor: string): number | null =>
+export const cursorIndex = (cursor: string): number | null =>
   /^[0-9]{1,9}$/.test(cursor) ? Number(cursor) : null;

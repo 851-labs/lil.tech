@@ -94,11 +94,8 @@ extension HealthTools {
     let invalidCursor = { (cursor: String) in
       HealthToolError("Invalid cursor: \(cursor). Pass the previous page's nextCursor.")
     }
-    // 1 to 9 digits, as the remote server reads it.
     let index = try cursor.map { cursor in
-      guard (1...9).contains(cursor.utf8.count), cursor.utf8.allSatisfy({ (48...57).contains($0) }),
-        let index = Int(cursor)
-      else { throw invalidCursor(cursor) }
+      guard let index = Self.cursorIndex(cursor) else { throw invalidCursor(cursor) }
       return index
     }
     let route = try Self.route(id: id, db)
@@ -170,6 +167,13 @@ extension HealthTools {
       recordedEnd: recorded.end,
       duration: Double(route.endDate - route.startDate) / 1000, pointCount: pointCount,
       source: route.sourceName)
+  }
+
+  /// A cursor's index: 1 to 9 digits, as the remote server reads it (`cursorIndex`), or `nil`.
+  static func cursorIndex(_ cursor: String) -> Int? {
+    guard (1...9).contains(cursor.utf8.count), cursor.utf8.allSatisfy({ (48...57).contains($0) })
+    else { return nil }
+    return Int(cursor)
   }
 
   /// `value` to the places `factor` gives (100 for 2), halves away from zero, as the remote

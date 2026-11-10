@@ -189,7 +189,8 @@ public struct AppFeature {
           // Written as Summary's are, so they show at once and sync (851-4014).
           return .send(.cards(.agentRequested(request)))
         case .downloadBlob(let sha256):
-          // Into the cache `lil-health` reads, as a page downloads a route (851-4164).
+          // Into the cache `lil-health` reads, as a page downloads a route (851-4164) or an ECG's
+          // voltages (851-4159).
           return .run { [blobCache] _ in
             do {
               _ = try await blobCache.data(for: sha256)

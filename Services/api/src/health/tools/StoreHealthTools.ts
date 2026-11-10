@@ -1,6 +1,7 @@
 import type { StoreSql } from "../../store/StoreSql.ts";
 import { healthActivityRings } from "./ActivityRings.ts";
 import { healthDetails } from "./Details.ts";
+import { healthElectrocardiograms, healthElectrocardiogramVoltages } from "./Electrocardiograms.ts";
 import type { Effect } from "effect";
 import type { HealthToolError, HealthToolkit } from "./HealthToolkit.ts";
 import { healthListTypes } from "./ListTypes.ts";
@@ -34,8 +35,8 @@ export type HealthToolImplementations = {
 /**
  * The Health toolkit's tools on a user's store (851-2851, 851-2868), each following the Mac's
  * `HealthTools`: the remote MCP server serves them, and the conformance cases check them against
- * the Mac's answers. The route tools read the routes' locations from the user's blobs, with
- * `blobs`.
+ * the Mac's answers. The route tools read the routes' locations, and `electrocardiogram_voltages`
+ * an ECG's voltages, from the user's blobs, with `blobs`.
  */
 export const storeHealthTools = (
   sql: StoreSql,
@@ -54,6 +55,8 @@ export const storeHealthTools = (
   activity_rings: (params) => healthActivityRings(sql, params),
   state_of_mind: (params) => healthStateOfMind(sql, params),
   assessments: (params) => healthAssessments(sql, params),
+  electrocardiograms: (params) => healthElectrocardiograms(sql, params),
+  electrocardiogram_voltages: (params) => healthElectrocardiogramVoltages(sql, blobs, params),
   medications: (params) => healthMedications(sql, params),
   health_details: (params) => healthDetails(sql, params),
   search: (params) => healthSearch(sql, params),

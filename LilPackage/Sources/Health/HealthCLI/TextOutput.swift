@@ -312,6 +312,54 @@ extension HealthAssessmentsResult: TextOutput {
   }
 }
 
+// MARK: - ECGs (851-4159)
+
+extension HealthElectrocardiogramsResult: TextOutput {
+  var text: String {
+    var lines = [
+      "ECGs, \(range): \(day(start)) to \(lastDay(end)) (\(timeZone))",
+      "\(count) \(count == 1 ? "recording" : "recordings")",
+    ]
+    if !recordings.isEmpty { lines.append("") }
+    for recording in recordings {
+      let heartRate = recording.averageHeartRate.map { "\(Int($0.rounded())) BPM average" }
+      let parts = [recording.classification, heartRate, recording.symptoms, recording.source]
+      lines.append(
+        "  \(time(recording.start))   " + parts.compactMap(\.self).joined(separator: " · ")
+          + "   \(recording.id)")
+    }
+    if recordings.count < count {
+      lines += ["", "Showing the \(recordings.count) most recent recordings."]
+    }
+    return lines.joined(separator: "\n") + "\n"
+  }
+}
+
+extension HealthElectrocardiogramVoltagesResult: TextOutput {
+  var text: String {
+    var lines = [
+      "ECG \(id)   \(time(start)) (\(timeZone))",
+      "\(voltageCount) measurements at \(numberText(samplingFrequency)) Hz. This page: "
+        + "\(values.count) values at \(numberText(rate)) Hz from \(numberText(offset)) s"
+        + (measurementsPerValue > 1 ? ", each the average of \(measurementsPerValue)" : "")
+        + ", in µV:",
+    ]
+    // A line a second, each starting with its time into the recording; the whole page on one
+    // line if the rate isn't one a line can hold (a recording can say any sampling frequency).
+    let perLine =
+      rate.isFinite && rate < Double(max(values.count, 1))
+      ? max(1, Int(rate.rounded())) : max(values.count, 1)
+    for first in stride(from: 0, to: values.count, by: perLine) {
+      let seconds = offset + Double(first) / rate
+      let line = values[first..<min(first + perLine, values.count)]
+        .map { $0.map(numberText) ?? "–" }
+      lines.append("  \(numberText(seconds)) s   " + line.joined(separator: " "))
+    }
+    if let nextCursor { lines += ["", "More: --cursor \(nextCursor)"] }
+    return lines.joined(separator: "\n") + "\n"
+  }
+}
+
 extension HealthMedicationsResult: TextOutput {
   var text: String {
     guard !medications.isEmpty else { return "No medications.\n" }

@@ -14,14 +14,15 @@ public struct HealthTools: Sendable {
   /// The IANA name of the time zone for calls that don't give one, or `nil` for the Mac's (UTC
   /// where the conformance cases expect the remote server's default).
   public var defaultTimeZone: String?
-  /// A health blob's bytes, by its SHA-256: a route's points (851-4164), which the app downloads
-  /// when they're needed, as its pages do.
+  /// A health blob's bytes, by its SHA-256: a route's points (851-4164) or an ECG's voltages
+  /// (851-4159), which the app downloads when they're needed, as its pages do.
   public var blob: @Sendable (_ sha256: String) throws -> Data
 
   public init(
     now: Date = Date(), defaultTimeZone: String? = nil,
     blob: @escaping @Sendable (_ sha256: String) throws -> Data = { _ in
-      throw HealthToolError("lil health's data on this Mac has no route points.")
+      throw HealthToolError(
+        "lil health's data on this Mac has no route points or ECG voltages.")
     }
   ) {
     self.now = now
@@ -118,7 +119,7 @@ public struct HealthTools: Sendable {
       throw HealthToolError(
         "\(type.name) (\(type.id)) isn't a quantity type, so it has no statistics. Use samples, "
           + "or the tool for its kind (sleep, activity_rings, state_of_mind, assessments, "
-          + "workouts, medications).")
+          + "electrocardiograms, workouts, medications).")
     }
     let period = try ToolPeriod(range, date: date, now: now, time: time)
     let cumulative = aggregation.isCumulative
@@ -328,7 +329,8 @@ public struct HealthTools: Sendable {
     case .activitySummary: .elsewhere("activity_rings")
     case .stateOfMind: .elsewhere("state_of_mind")
     case .scoredAssessment: .elsewhere("assessments")
-    case .heartbeatSeries, .electrocardiogram, .audiogram, .document:
+    case .electrocardiogram: .elsewhere("electrocardiograms")
+    case .heartbeatSeries, .audiogram, .document:
       .unread
     }
   }

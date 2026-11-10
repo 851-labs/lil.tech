@@ -12,6 +12,19 @@ extension HealthDatabase {
       .fetchAll(db)
   }
 
+  /// The ECGs that start in `range`, newest first (then by ID), at most `limit`, and how many
+  /// there are in all: the `electrocardiograms` tool's (851-4159).
+  public static func electrocardiograms(in range: Range<Date>, limit: Int, _ db: Database) throws
+    -> (count: Int, recordings: [HealthElectrocardiogram])
+  {
+    let (lower, upper) = (range.lowerBound.unixMilliseconds, range.upperBound.unixMilliseconds)
+    let inRange = HealthElectrocardiogram.where { $0.startDate >= lower && $0.startDate < upper }
+    let recordings = try inRange.order { ($0.startDate.desc(), $0.id.desc()) }.limit(limit)
+      .fetchAll(db)
+    // Counted only when they don't all fit.
+    return (recordings.count < limit ? recordings.count : try inRange.fetchCount(db), recordings)
+  }
+
   /// An ECG's voltages blob as microvolts: one little-endian 32-bit float per measurement, NaN
   /// where a measurement has no value. Bytes past the last whole float are ignored.
   public static func electrocardiogramMicrovolts(_ blob: Data) -> [Float] {
@@ -131,6 +144,15 @@ extension HealthElectrocardiogram {
     case 1: false
     case 2: true
     default: nil
+    }
+  }
+
+  /// Whether symptoms were logged, as its page and the `electrocardiograms` tool say it.
+  public var symptomsName: String {
+    switch hadSymptoms {
+    case false: "No Symptoms"
+    case true: "Symptoms Logged"
+    case nil: "Not Logged"
     }
   }
 }
