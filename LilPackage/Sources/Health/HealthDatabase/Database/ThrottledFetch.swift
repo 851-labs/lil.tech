@@ -75,6 +75,8 @@ extension HealthDatabase {
     HealthHeartbeatSeries.tableName, HealthMedication.tableName, HealthMedicationDose.tableName,
     HealthScoredAssessment.tableName, HealthStateOfMind.tableName,
     HealthVisionPrescription.tableName, HealthQuantitySeries.tableName,
+    HealthWorkoutSamples.tableName, HealthWorkoutEffort.tableName,
+    HealthElectrocardiogramSymptoms.tableName,
   ].map { GRDB.Table<Row>($0) }
 }
 

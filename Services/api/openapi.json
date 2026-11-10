@@ -3944,6 +3944,66 @@
         ],
         "additionalProperties": true
       },
+      "HealthElectrocardiogramSymptoms": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "samples": {}
+        },
+        "required": [
+          "id",
+          "count"
+        ],
+        "additionalProperties": true
+      },
+      "HealthWorkoutSamples": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "samples": {}
+        },
+        "required": [
+          "id",
+          "count"
+        ],
+        "additionalProperties": true
+      },
+      "HealthWorkoutEffort": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "samples": {},
+          "mostRelevant": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legs": {}
+        },
+        "required": [
+          "id",
+          "samples",
+          "legs"
+        ],
+        "additionalProperties": true
+      },
       "HealthHeartbeatSeries": {
         "type": "object",
         "properties": {

@@ -64,6 +64,18 @@ extension HealthBackfillType {
     !isCorrelation && HealthCatalog.type(id: id)?.kind == .quantity
   }
 
+  /// The encoding of what goes up beside its records under their IDs, which records uploaded
+  /// before it are read again once for (`HealthBackfill.readSeriesAgain`): quantity samples'
+  /// series (851-4149), workouts' samples and ECGs' symptoms (851-4153). `nil` for types
+  /// without any.
+  public var dependentsEncoding: Int? {
+    if isQuantity { return HealthEncoder.quantitySeriesEncoding }
+    switch HealthCatalog.type(id: id)?.kind {
+    case .workout, .electrocardiogram: return HealthEncoder.linksEncoding
+    default: return nil
+    }
+  }
+
   /// Objects per page, if not the backfill's default: types with blobs read fewer, since a
   /// page's blobs are held in memory until they're saved, and so do types with a series query
   /// per object.
@@ -71,6 +83,9 @@ extension HealthBackfillType {
     switch HealthCatalog.type(id: id)?.kind {
     case .electrocardiogram: 50
     case .heartbeatSeries: 200
+    // Each has a query for its samples (851-4153), whose IDs may be thousands (an hour's run on
+    // a Watch, its energy and distance every few seconds), all held until the page goes up.
+    case .workout: 100
     // An hour's route is ~160 KB.
     case .workoutRoute: 10
     default: nil
@@ -161,7 +176,8 @@ public struct HealthReader: Sendable {
   public var records:
     @Sendable (_ type: HealthBackfillType, _ ids: [String]) async throws -> HealthPage
   /// Up to `limit` of a quantity type's series (samples with `count` over 1) after `anchor`, as
-  /// their values' records only, without deletions (`HealthBackfill.readSeriesAgain`, 851-4149).
+  /// their values' records only, without deletions (`HealthBackfill.readSeriesAgain`, 851-4149);
+  /// for workouts and ECGs, their links' records only (851-4153).
   public var series:
     @Sendable (_ type: HealthBackfillType, _ anchor: Data?, _ limit: Int) async throws -> HealthPage
 
@@ -321,7 +337,9 @@ extension HealthReader: DependencyKey {
         return try await encode(samples, of: type, store: store)
       },
       series: { type, anchor, limit in
-        try await seriesPage(type, after: anchor, limit: limit, store: store)
+        type.isQuantity
+          ? try await seriesPage(type, after: anchor, limit: limit, store: store)
+          : try await linksPage(type, after: anchor, limit: limit, store: store)
       })
   }
 
@@ -335,8 +353,12 @@ extension HealthReader: DependencyKey {
     var failed: [String] = []
     // The values of the page's quantity series (851-4149), read together.
     let series = samples.compactMap { $0 as? HKQuantitySample }.filter(HealthEncoder.isSeries)
-    let (values, unreadable) = try await Self.seriesValues(
+    let (values, unreadableSeries) = try await Self.seriesValues(
       of: series, skippingUnreadable: type.skipsUnreadableSeries, store: store)
+    // Workouts' samples and ECGs' symptoms (851-4153), read together too.
+    let (links, unreadableLinks) = try await Self.pageLinks(
+      of: samples, skippingUnreadable: type.skipsUnreadableSeries, store: store)
+    let unreadable = unreadableSeries.union(unreadableLinks)
     for sample in samples {
       if unreadable.contains(sample.uuid) {
         failed.append(HealthEncoder.id(sample.uuid))
@@ -346,7 +368,11 @@ extension HealthReader: DependencyKey {
         if let correlation = sample as? HKCorrelation {
           mutations += try HealthEncoder.correlation(correlation)
         } else if let workout = sample as? HKWorkout {
+          // Both or neither: the workout's line, then its samples'.
           mutations.append(HealthEncoder.workout(try await WorkoutRecord(workout)))
+          if let linked = links[workout.uuid] {
+            mutations.append(HealthEncoder.workoutSamples(linked))
+          }
         } else if let log = sample as? HKStateOfMind {
           mutations.append(HealthEncoder.stateOfMind(log))
         } else if let assessment = sample as? HKScoredAssessment {
@@ -367,6 +393,9 @@ extension HealthReader: DependencyKey {
           let (mutation, blob) = HealthEncoder.electrocardiogram(
             try await ElectrocardiogramRecord(ecg, store: store))
           mutations.append(mutation)
+          if let linked = links[ecg.uuid] {
+            mutations.append(HealthEncoder.electrocardiogramSymptoms(linked))
+          }
           if let blob { blobs.append(blob) }
         } else if let quantity = sample as? HKQuantitySample, HealthEncoder.isSeries(quantity) {
           // Both or neither: the sample's line, then its values'.

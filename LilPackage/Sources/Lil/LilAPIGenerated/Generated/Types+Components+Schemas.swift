@@ -4198,6 +4198,231 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramSymptoms`.
+        public struct HealthElectrocardiogramSymptoms: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramSymptoms/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramSymptoms/count`.
+            public var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramSymptoms/samples`.
+            public var samples: OpenAPIRuntime.OpenAPIValueContainer?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthElectrocardiogramSymptoms`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - count:
+            ///   - samples:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                count: Swift.Int,
+                samples: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.count = count
+                self.samples = samples
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case count
+                case samples
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.samples = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .samples
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "count",
+                    "samples"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.count,
+                    forKey: .count
+                )
+                try container.encodeIfPresent(
+                    self.samples,
+                    forKey: .samples
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutSamples`.
+        public struct HealthWorkoutSamples: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutSamples/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutSamples/count`.
+            public var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutSamples/samples`.
+            public var samples: OpenAPIRuntime.OpenAPIValueContainer?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutSamples`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - count:
+            ///   - samples:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                count: Swift.Int,
+                samples: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.count = count
+                self.samples = samples
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case count
+                case samples
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.samples = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .samples
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "count",
+                    "samples"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.count,
+                    forKey: .count
+                )
+                try container.encodeIfPresent(
+                    self.samples,
+                    forKey: .samples
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutEffort`.
+        public struct HealthWorkoutEffort: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutEffort/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutEffort/samples`.
+            public var samples: OpenAPIRuntime.OpenAPIValueContainer
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutEffort/mostRelevant`.
+            public var mostRelevant: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutEffort/legs`.
+            public var legs: OpenAPIRuntime.OpenAPIValueContainer
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutEffort`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - samples:
+            ///   - mostRelevant:
+            ///   - legs:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                samples: OpenAPIRuntime.OpenAPIValueContainer,
+                mostRelevant: Swift.String? = nil,
+                legs: OpenAPIRuntime.OpenAPIValueContainer,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.samples = samples
+                self.mostRelevant = mostRelevant
+                self.legs = legs
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case samples
+                case mostRelevant
+                case legs
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.samples = try container.decode(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .samples
+                )
+                self.mostRelevant = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .mostRelevant
+                )
+                self.legs = try container.decode(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .legs
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "samples",
+                    "mostRelevant",
+                    "legs"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.samples,
+                    forKey: .samples
+                )
+                try container.encodeIfPresent(
+                    self.mostRelevant,
+                    forKey: .mostRelevant
+                )
+                try container.encode(
+                    self.legs,
+                    forKey: .legs
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeries`.
         public struct HealthHeartbeatSeries: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeries/id`.

@@ -14,6 +14,8 @@ private let temperature = HealthBackfillType(id: "HKQuantityTypeIdentifierBodyTe
 private let sleep = HealthBackfillType(id: "HKCategoryTypeIdentifierSleepAnalysis")
 private let heartRate = HealthBackfillType(id: "HKQuantityTypeIdentifierHeartRate")
 private let workouts = HealthBackfillType(id: "HKWorkoutTypeIdentifier")
+private let ecgs = HealthBackfillType(id: "HKDataTypeIdentifierElectrocardiogram")
+private let effortScores = HealthBackfillType(id: "HKQuantityTypeIdentifierWorkoutEffortScore")
 
 /// A fake HealthKit: each type's history is `pages` pages of `perPage` records. Anchors are the
 /// number of pages read so far.
@@ -42,10 +44,15 @@ private final class FakeHealth: Sendable {
       let name = type.id.components(separatedBy: "Identifier").last ?? type.id
       reads.withValue { $0.append("series of \(name)@\(read)") }
       let total = seriesPageCounts.value[type.id] ?? 0
+      // A quantity type's series, or a workout's or ECG's links (851-4153).
+      let entity =
+        switch type.entity {
+        case HealthEncoder.workoutEntity: HealthEncoder.workoutSamplesEntity
+        case HealthEncoder.electrocardiogramEntity: HealthEncoder.electrocardiogramSymptomsEntity
+        default: HealthEncoder.quantitySeriesEntity
+        }
       let mutations = (0..<(read < total ? perPage : 0)).map { n in
-        HealthMutation.upsert(
-          HealthEncoder.quantitySeriesEntity, id: "\(type.id)-series-\(read)-\(n)",
-          row: ["count": 2])
+        HealthMutation.upsert(entity, id: "\(type.id)-series-\(read)-\(n)", row: ["count": 2])
       }
       return HealthPage(
         mutations: mutations, anchor: Data(String(min(read + 1, total)).utf8),
@@ -132,6 +139,8 @@ private final class FakeMedications: Sendable {
 private final class FakeServer: Sendable {
   let accepted = LockIsolated<[String]>([])
   let records = LockIsolated<Set<String>>([])
+  /// Every line accepted, in order.
+  let lines = LockIsolated<[String]>([])
   /// Upload attempts (1-based) that fail.
   let failing = LockIsolated<Set<Int>>([])
   let attempts = LockIsolated(0)
@@ -147,6 +156,7 @@ private final class FakeServer: Sendable {
       if failing.value.contains(attempt) { throw Offline() }
       accepted.withValue { $0.append(id) }
       let lines = String(decoding: try Gzip.decompress(file), as: UTF8.self).split(separator: "\n")
+      self.lines.withValue { $0 += lines.map(String.init) }
       for line in lines {
         let object = try JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any]
         let id = object?["id"] as? String ?? ""
@@ -264,18 +274,23 @@ struct HealthBackfillTests {
     // A new backfill reads every series with its values, so none again.
     try await backfill.run()
     #expect(health.reads.value == ["HeartRate@0", "HeartRate@1", "@0"])
-    #expect(
-      try storage.loadState()?.quantitySeriesEncodings
-        == [heartRate.id: HealthEncoder.quantitySeriesEncoding])
+    // Workouts read from the start went up with their links too (851-4153).
+    let encodings = [
+      heartRate.id: HealthEncoder.quantitySeriesEncoding,
+      workouts.id: HealthEncoder.linksEncoding,
+    ]
+    #expect(try storage.loadState()?.dependentsEncodings == encodings)
 
     // Heart rate an earlier release read: a run of its changes leaves its series be.
     var state = try #require(try storage.loadState())
-    state.quantitySeriesEncodings = [:]
+    state.dependentsEncodings[heartRate.id] = nil
     try storage.saveState(state)
     health.reads.setValue([])
     try await backfill.syncChanges(of: [heartRate.id])
     #expect(health.reads.value == ["HeartRate@2"])
-    #expect(try storage.loadState()?.quantitySeriesEncodings == [:])
+    #expect(
+      try storage.loadState()?.dependentsEncodings
+        == [workouts.id: HealthEncoder.linksEncoding])
 
     // A run of everything catches it up, then reads its series again.
     health.reads.setValue([])
@@ -286,8 +301,8 @@ struct HealthBackfillTests {
       ])
     #expect(server.records.value.filter { $0.contains("-series-") }.count == 6)
     let after = try #require(try storage.loadState())
-    #expect(after.quantitySeriesEncodings == [heartRate.id: HealthEncoder.quantitySeriesEncoding])
-    #expect(after.seriesAgainAnchors == [:])
+    #expect(after.dependentsEncodings == encodings)
+    #expect(after.dependentsAgainAnchors == [:])
     #expect(after.anchors[heartRate.id] == Data("2".utf8))
     #expect(after.uploadedByType[heartRate.id] == 6)
     #expect(after.heldBack == [:])
@@ -296,6 +311,140 @@ struct HealthBackfillTests {
     health.reads.setValue([])
     try await backfill.run()
     #expect(health.reads.value == ["HeartRate@2", "@1"])
+  }
+
+  /// Workouts and ECGs an earlier release uploaded without their links (851-4153) have them read
+  /// again once, as series are: only the links' records, which don't count as records uploaded,
+  /// so neither the workouts nor the ECGs' voltages go up again.
+  @Test
+  func workoutsAndECGsUploadedWithoutLinksHaveThemReadOnce() async throws {
+    let health = FakeHealth(
+      pages: [workouts.id: 1, ecgs.id: 1], seriesPages: [workouts.id: 2, ecgs.id: 1])
+    let server = FakeServer()
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = makeBackfill([workouts, ecgs], health: health, server: server, storage: storage)
+    try await backfill.run()
+    #expect(health.reads.value == ["@0", "Electrocardiogram@0"])
+
+    // As an earlier release left them.
+    var state = try #require(try storage.loadState())
+    state.dependentsEncodings = [:]
+    try storage.saveState(state)
+    health.reads.setValue([])
+    try await backfill.run()
+    #expect(
+      health.reads.value == [
+        "@1", "series of @0", "series of @1", "Electrocardiogram@1",
+        "series of Electrocardiogram@0",
+      ])
+    let links = server.records.value.filter { $0.contains("-series-") }
+    #expect(links.count == 9)
+    let after = try #require(try storage.loadState())
+    #expect(
+      after.dependentsEncodings == [
+        workouts.id: HealthEncoder.linksEncoding, ecgs.id: HealthEncoder.linksEncoding,
+      ])
+    #expect(after.uploadedByType == [workouts.id: 3, ecgs.id: 3])
+    #expect(after.uploadedRecords == 6)
+
+    // Once.
+    health.reads.setValue([])
+    try await backfill.run()
+    #expect(health.reads.value == ["@1", "Electrocardiogram@1"])
+  }
+
+  /// What earlier releases saved as quantity types' series encodings is every type's dependent
+  /// records' since 851-4153, under the same names.
+  @Test
+  func dependentsEncodingsKeepTheirSavedNames() throws {
+    let saved = Data(
+      #"{"quantitySeriesEncodings": {"HKQuantityTypeIdentifierHeartRate": 1}, "seriesAgainAnchors": {"HKQuantityTypeIdentifierHeartRate": "MQ=="}}"#
+        .utf8)
+    let state = try JSONDecoder().decode(HealthBackfillState.self, from: saved)
+    #expect(state.dependentsEncodings == [heartRate.id: 1])
+    #expect(state.dependentsAgainAnchors == [heartRate.id: Data("1".utf8)])
+    let encoded = try #require(
+      try JSONSerialization.jsonObject(with: JSONEncoder().encode(state)) as? [String: Any])
+    #expect(encoded["quantitySeriesEncodings"] != nil)
+    #expect(encoded["seriesAgainAnchors"] != nil)
+    #expect(encoded["dependentsEncodings"] == nil)
+  }
+
+  /// Workouts' effort scores (851-4153) are read whole, in runs of everything and for changes to
+  /// workouts or scores, and only those that changed go up; a workout left without any has its
+  /// record deleted.
+  @Test
+  func effortScoresGoUpWhenTheyChange() async throws {
+    let health = FakeHealth(pages: [temperature.id: 1, effortScores.id: 1])
+    let server = FakeServer()
+    let storage = HealthBackfillStorage.inMemory()
+    @Sendable func effort(_ workout: Int, _ samples: Int...) -> HealthMutation {
+      HealthEncoder.workoutEffort(
+        WorkoutEffortRecord(
+          workout: UUID(uuidString: "00000000-0000-4000-8000-\(String(format: "%012d", workout))")!,
+          samples: samples.map {
+            UUID(uuidString: "00000000-0000-4000-9000-\(String(format: "%012d", $0))")!
+          },
+          mostRelevant: nil, activities: []))
+    }
+    let efforts = LockIsolated([effort(1, 10), effort(2, 20)])
+    /// Each read's `since`: `nil` for every workout's.
+    let reads = LockIsolated<[Date?]>([])
+    let now = LockIsolated(Date(timeIntervalSince1970: 1_760_400_000))
+    let backfill = withDependencies {
+      $0.healthWorkoutEffortsReader = HealthWorkoutEffortsReader { since in
+        reads.withValue { $0.append(since) }
+        return efforts.value
+      }
+      // A clock of its own, unlike `makeBackfill`'s.
+      $0.date = DateGenerator { now.value }
+      $0.healthReader = health.reader
+      $0.healthBatchUploader = server.uploader
+      $0.healthBackfillStorage = storage
+      $0.healthCharacteristicsReader = HealthCharacteristicsReader { [] }
+      $0.healthActivitySummaryReader = HealthActivitySummaryReader { _ in [] }
+      $0.uuid = .incrementing
+    } operation: {
+      HealthBackfill(types: [temperature, effortScores])
+    }
+    func uploaded() -> [String] {
+      server.lines.value.filter { $0.contains(HealthEncoder.workoutEffortEntity) }
+    }
+    try await backfill.run()
+    #expect(reads.value == [nil])
+    #expect(uploaded().count == 2)
+
+    // Unchanged: read, but nothing goes up. Changes to other types don't read them.
+    try await backfill.run()
+    try await backfill.syncChanges(of: [temperature.id])
+    #expect(reads.value == [nil, nil])
+    #expect(uploaded().count == 2)
+
+    // A score added to one workout, and the other's unrelated: a run for the scores' changes
+    // reads the last week's workouts, and sends the changed one, but leaves deleting for a run of
+    // everything, which reads them all.
+    efforts.setValue([effort(1, 10, 11)])
+    try await backfill.syncChanges(of: [effortScores.id])
+    #expect(reads.value.last == now.value.addingTimeInterval(-7 * 86_400))
+    var lines = uploaded()
+    #expect(lines.count == 3)
+    #expect(lines[2].contains(#""op":"upsert""#) && lines[2].contains("000000000011"))
+    try await backfill.run()
+    lines = uploaded()
+    #expect(lines.count == 4)
+    #expect(lines[3].contains(#""op":"delete""#) && lines[3].contains("000000000002"))
+
+    // A week after they all went up, a run of everything sends them all again, should a batch
+    // have failed.
+    now.withValue { $0.addTimeInterval(7 * 86_400) }
+    try await backfill.run()
+    #expect(uploaded().count == 5)
+    try await backfill.run()
+    #expect(uploaded().count == 5)
+
+    // Signing out forgets them: the next account's go up whole.
+    await backfill.reset()
+    #expect(try storage.loadFile(HealthBackfill.workoutEffortsFile) == nil)
   }
 
   /// One interrupted carries on from the page it got to.
@@ -307,20 +456,20 @@ struct HealthBackfillTests {
     let backfill = makeBackfill([heartRate], health: health, server: server, storage: storage)
     try await backfill.run()
     var state = try #require(try storage.loadState())
-    state.quantitySeriesEncodings = [:]
+    state.dependentsEncodings = [:]
     try storage.saveState(state)
     // The second page of series fails to go up (the first is attempt 2, after heart rate's).
     server.failing.setValue([3, 4, 5, 6, 7, 8])
     health.reads.setValue([])
     await #expect(throws: (any Error).self) { try await backfill.run() }
-    #expect(try storage.loadState()?.seriesAgainAnchors[heartRate.id] == Data("1".utf8))
+    #expect(try storage.loadState()?.dependentsAgainAnchors[heartRate.id] == Data("1".utf8))
 
     server.failing.setValue([])
     health.reads.setValue([])
     try await backfill.run()
     #expect(
       health.reads.value == ["HeartRate@1", "series of HeartRate@1", "series of HeartRate@2"])
-    #expect(try storage.loadState()?.quantitySeriesEncodings[heartRate.id] == 1)
+    #expect(try storage.loadState()?.dependentsEncodings[heartRate.id] == 1)
   }
 
   @Test
@@ -563,7 +712,7 @@ struct HealthBackfillTests {
     try storage.saveFile("batch-1", file)
     state.pending = .init(
       type: temperature.id, anchor: Data("1".utf8), isLast: true, batches: ["batch-1"], records: 1)
-    state.quantitySeriesEncodings[temperature.id] = HealthEncoder.quantitySeriesEncoding
+    state.dependentsEncodings[temperature.id] = HealthEncoder.quantitySeriesEncoding
     try storage.saveState(state)
     let server = FakeServer()
     let backfill = makeBackfill([temperature], health: health, server: server, storage: storage)

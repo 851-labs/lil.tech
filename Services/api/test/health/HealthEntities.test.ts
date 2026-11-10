@@ -42,6 +42,31 @@ const heartRateSeries = {
   mostRecentEndDate: 1760400016500,
 };
 
+/** A workout's samples (851-4153): two heart rates and an energy sample. */
+const workoutSamples = {
+  count: 3,
+  samples: {
+    HKQuantityTypeIdentifierHeartRate: [
+      "6f1c2a40-0000-4000-8000-000000000021",
+      "6f1c2a40-0000-4000-8000-000000000022",
+    ],
+    HKQuantityTypeIdentifierActiveEnergyBurned: ["6f1c2a40-0000-4000-8000-000000000023"],
+  },
+};
+
+/** A swim-bike-run's effort scores (851-4153): the whole race's, and its swim's. */
+const workoutEffort = {
+  samples: ["6f1c2a40-0000-4000-8000-000000000031", "6f1c2a40-0000-4000-8000-000000000032"],
+  mostRelevant: "6f1c2a40-0000-4000-8000-000000000032",
+  legs: [
+    {
+      activity: "6f1c2a40-0000-4000-8000-000000000033",
+      samples: ["6f1c2a40-0000-4000-8000-000000000034"],
+      mostRelevant: "6f1c2a40-0000-4000-8000-000000000034",
+    },
+  ],
+};
+
 const records: ReadonlyArray<{
   readonly entity: string;
   readonly id: string;
@@ -94,6 +119,29 @@ const records: ReadonlyArray<{
     id: "6f1c2a40-0000-4000-8000-00000000000b",
     row: heartRateSeries,
     update: { values: [61, 140.5, 89] },
+  },
+  {
+    entity: "health_workout_samples",
+    id: "6f1c2a40-0000-4000-8000-000000000010",
+    row: workoutSamples,
+    update: { count: 0, samples: {} },
+  },
+  {
+    entity: "health_workout_effort",
+    id: "6f1c2a40-0000-4000-8000-000000000011",
+    row: workoutEffort,
+    update: { mostRelevant: null },
+  },
+  {
+    entity: "health_electrocardiogram_symptoms",
+    id: "6f1c2a40-0000-4000-8000-000000000012",
+    row: {
+      count: 1,
+      samples: {
+        HKCategoryTypeIdentifierChestTightnessOrPain: ["6f1c2a40-0000-4000-8000-000000000041"],
+      },
+    },
+    update: { count: 0, samples: {} },
   },
   {
     entity: "health_correlation",
@@ -207,6 +255,9 @@ describe("health entities", () => {
       );
       for (const table of [
         "health_quantity_series",
+        "health_workout_samples",
+        "health_workout_effort",
+        "health_electrocardiogram_symptoms",
         "health_correlation",
         "health_characteristic",
         "health_activity_summary",
@@ -326,6 +377,123 @@ describe("health entities", () => {
       assert.deepStrictEqual(sql.exec("SELECT count(*) AS n FROM health_quantity_series"), [
         { n: 0 },
       ]);
+    }),
+  );
+
+  it.effect("deleting a workout or an ECG deletes its links", () =>
+    Effect.gen(function* () {
+      const sql = makeTestStoreSql();
+      const store = makeUserStore(sql);
+      const workout = "6f1c2a40-0000-4000-8000-000000000050";
+      const ecg = "6f1c2a40-0000-4000-8000-000000000051";
+      const source = { sourceName: "Test Watch", sourceBundleId: "com.apple.health.00000000" };
+      yield* store.applyMutations([
+        {
+          entity: "health_workout",
+          op: "upsert",
+          id: workout,
+          row: {
+            activityType: 37,
+            startDate: 1760400000000,
+            endDate: 1760401800000,
+            duration: 1740,
+            activities: [],
+            events: [],
+            statistics: {},
+            ...source,
+          },
+        },
+        { entity: "health_workout_samples", op: "upsert", id: workout, row: workoutSamples },
+        { entity: "health_workout_effort", op: "upsert", id: workout, row: workoutEffort },
+        {
+          entity: "health_electrocardiogram",
+          op: "upsert",
+          id: ecg,
+          row: {
+            startDate: 1760400000000,
+            endDate: 1760400030000,
+            classification: 1,
+            symptomsStatus: 1,
+            averageHeartRate: 62,
+            samplingFrequency: null,
+            voltageCount: 0,
+            voltages: null,
+            ...source,
+          },
+        },
+        {
+          entity: "health_electrocardiogram_symptoms",
+          op: "upsert",
+          id: ecg,
+          row: { count: 0, samples: {} },
+        },
+      ] as ReadonlyArray<Mutation>);
+      yield* store.applyMutations([
+        { entity: "health_workout", op: "delete", id: workout },
+        { entity: "health_electrocardiogram", op: "delete", id: ecg },
+      ]);
+      const page = readChanges(sql, entitiesByName, 5, 100);
+      const changes = "changes" in page ? page.changes : assert.fail("compacted");
+      // Each link's delete is logged too, so the Macs delete it.
+      assert.deepStrictEqual(
+        changes.map((change) => [change.entity, change.id, change.op]),
+        [
+          ["health_workout", workout, "delete"],
+          ["health_workout_samples", workout, "delete"],
+          ["health_workout_effort", workout, "delete"],
+          ["health_electrocardiogram", ecg, "delete"],
+          ["health_electrocardiogram_symptoms", ecg, "delete"],
+        ],
+      );
+      for (const table of [
+        "health_workout_samples",
+        "health_workout_effort",
+        "health_electrocardiogram_symptoms",
+      ]) {
+        assert.deepStrictEqual(sql.exec(`SELECT count(*) AS n FROM ${table}`), [{ n: 0 }]);
+      }
+    }),
+  );
+
+  it.effect("keeps links only in their documented shape", () =>
+    Effect.gen(function* () {
+      const store = makeUserStore(makeTestStoreSql());
+      const upsert = (entity: string, row: Record<string, unknown>): Mutation => ({
+        entity,
+        op: "upsert",
+        id: "6f1c2a40-0000-4000-8000-000000000060",
+        row: row as Mutation extends { row: infer R } ? R : never,
+      });
+      // Too many to upload: the count alone.
+      yield* store.applyMutations([
+        upsert("health_workout_samples", { count: 25_000, samples: null }),
+      ]);
+      const heartRates = workoutSamples.samples.HKQuantityTypeIdentifierHeartRate;
+      const invalid: ReadonlyArray<readonly [string, Record<string, unknown>, string]> = [
+        ["health_workout_samples", { ...workoutSamples, count: -1 }, "non-negative"],
+        ["health_workout_samples", { count: 3, samples: null }, "more than 20000"],
+        ["health_workout_samples", { ...workoutSamples, count: 2 }, "number of samples"],
+        ["health_workout_samples", { ...workoutSamples, samples: heartRates }, "an object"],
+        [
+          "health_electrocardiogram_symptoms",
+          {
+            count: 1,
+            samples: { HKCategoryTypeIdentifierFatigue: ["6F1C2A40-0000-4000-8000-000000000061"] },
+          },
+          "lowercase UUIDs",
+        ],
+        ["health_workout_effort", { ...workoutEffort, samples: "x" }, "samples"],
+        ["health_workout_effort", { ...workoutEffort, mostRelevant: 7 }, "mostRelevant"],
+        [
+          "health_workout_effort",
+          { ...workoutEffort, legs: [{ activity: "swim", samples: [] }] },
+          "each leg",
+        ],
+      ];
+      for (const [entity, row, message] of invalid) {
+        const error = yield* Effect.flip(store.applyMutations([upsert(entity, row)]));
+        assert.include(error.message, message, entity);
+      }
     }),
   );
 

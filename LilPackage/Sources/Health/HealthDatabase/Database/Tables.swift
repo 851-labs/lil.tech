@@ -93,6 +93,55 @@ public struct HealthQuantitySeries: Equatable, Identifiable, Sendable {
   }
 }
 
+/// The samples added to a workout (`health_workout_samples`, 851-4153), under its ID. `samples` is
+/// a JSON object of type identifiers to their samples' IDs, in order of start, as the server
+/// documents it; `nil` when the iPhone didn't upload them (too many), with only their `count`.
+@Table("healthWorkoutSamples")
+public struct HealthWorkoutSamples: Equatable, Identifiable, Sendable {
+  public let id: String
+  public var count: Int
+  public var samples: String?
+
+  public init(id: String, count: Int, samples: String?) {
+    self.id = id
+    self.count = count
+    self.samples = samples
+  }
+}
+
+/// The effort scores related to a workout (`health_workout_effort`, 851-4153), under its ID:
+/// `samples`, a JSON array of their IDs, the most relevant one's, and `legs`, a JSON array of a
+/// multisport workout's legs with scores of their own (`activity`, `samples`, `mostRelevant`).
+@Table("healthWorkoutEfforts")
+public struct HealthWorkoutEffort: Equatable, Identifiable, Sendable {
+  public let id: String
+  public var samples: String
+  public var mostRelevant: String?
+  public var legs: String
+
+  public init(id: String, samples: String, mostRelevant: String?, legs: String) {
+    self.id = id
+    self.samples = samples
+    self.mostRelevant = mostRelevant
+    self.legs = legs
+  }
+}
+
+/// The symptoms logged with an ECG (`health_electrocardiogram_symptoms`, 851-4153), under its ID,
+/// as ``HealthWorkoutSamples`` keeps a workout's.
+@Table("healthElectrocardiogramSymptoms")
+public struct HealthElectrocardiogramSymptoms: Equatable, Identifiable, Sendable {
+  public let id: String
+  public var count: Int
+  public var samples: String?
+
+  public init(id: String, count: Int, samples: String?) {
+    self.id = id
+    self.count = count
+    self.samples = samples
+  }
+}
+
 /// A blood pressure or food correlation. Its samples point at it with `correlationID`.
 @Table
 public struct HealthCorrelation: Equatable, Identifiable, Sendable {

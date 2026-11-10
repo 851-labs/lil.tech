@@ -1369,7 +1369,7 @@ struct HealthSyncTests {
         HTTPBody(
           try JSONEncoder().encode(
             Components.Schemas.ChangesPage(
-              epoch: 1, changes: changes, next: 23, head: 23, hasMore: false)))
+              epoch: 1, changes: changes, next: 26, head: 26, hasMore: false)))
       )
     }
     let engine = withDependencies {
@@ -1431,6 +1431,23 @@ struct HealthSyncTests {
     #expect(quantitySeries.map(\.times) == ["[0,5,10.5]"])
     #expect(quantitySeries.map(\.values) == ["[61,140.5,88]"])
     #expect(quantitySeries.map(\.mostRecentStartDate) == [1_760_400_010_500])
+    let workoutSamples = try await database.read { db in try HealthWorkoutSamples.fetchAll(db) }
+    #expect(
+      workoutSamples == [
+        HealthWorkoutSamples(
+          id: "6f1c2a40-0000-4000-8000-000000000003", count: 1,
+          samples:
+            #"{"HKQuantityTypeIdentifierHeartRate":["6f1c2a40-0000-4000-8000-000000000021"]}"#)
+      ])
+    let efforts = try await database.read { db in try HealthWorkoutEffort.fetchAll(db) }
+    #expect(efforts.map(\.samples) == [#"["6f1c2a40-0000-4000-8000-000000000031"]"#])
+    #expect(efforts.map(\.mostRelevant) == ["6f1c2a40-0000-4000-8000-000000000031"])
+    #expect(efforts.map(\.legs) == ["[]"])
+    let symptoms = try await database.read { db in
+      try HealthElectrocardiogramSymptoms.fetchAll(db)
+    }
+    #expect(symptoms.map(\.count) == [0])
+    #expect(symptoms.map(\.samples) == ["{}"])
     let prescriptions = try await database.read { db in
       try HealthVisionPrescription.fetchAll(db)
     }
@@ -1492,7 +1509,8 @@ struct HealthSyncTests {
       writable(HealthStatisticsDevice.self), writable(HealthVisionPrescription.self),
       writable(HealthMedication.self), writable(HealthMedicationDose.self),
       writable(HealthDocument.self), writable(HealthCard.self),
-      writable(HealthQuantitySeries.self),
+      writable(HealthQuantitySeries.self), writable(HealthWorkoutSamples.self),
+      writable(HealthWorkoutEffort.self), writable(HealthElectrocardiogramSymptoms.self),
     ]
     #expect(Set(tables.map(\.0)).count == HealthDatabase.syncEntities.count)
     for (table, written) in tables {
@@ -1911,6 +1929,23 @@ struct HealthSyncTests {
         "times": [0, 5, 10.5], "durations": [0, 0, 0], "values": [61, 140.5, 88],
         "minimum": 61, "maximum": 140.5, "mostRecent": 88,
         "mostRecentStartDate": 1760400010500, "mostRecentEndDate": 1760400010500
+        """),
+      upsert(
+        24, "health_workout_samples", "6f1c2a40-0000-4000-8000-000000000003",
+        """
+        "count": 1,
+        "samples": {"HKQuantityTypeIdentifierHeartRate": ["6f1c2a40-0000-4000-8000-000000000021"]}
+        """),
+      upsert(
+        25, "health_workout_effort", "6f1c2a40-0000-4000-8000-000000000003",
+        """
+        "samples": ["6f1c2a40-0000-4000-8000-000000000031"],
+        "mostRelevant": "6f1c2a40-0000-4000-8000-000000000031", "legs": []
+        """),
+      upsert(
+        26, "health_electrocardiogram_symptoms", "6f1c2a40-0000-4000-8000-00000000000f",
+        """
+        "count": 0, "samples": {}
         """),
     ]
   }

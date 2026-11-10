@@ -314,3 +314,53 @@ extension HealthActivitySummaryReader: DependencyKey {
     }
   }
 }
+
+extension DependencyValues {
+  public var healthWorkoutEffortsReader: HealthWorkoutEffortsReader {
+    get { self[HealthWorkoutEffortsReader.self] }
+    set { self[HealthWorkoutEffortsReader.self] = newValue }
+  }
+}
+
+/// Reads every workout's effort scores (`HKWorkoutEffortRelationship`, 851-4153), a record per
+/// workout that has any. Relating a score to a workout doesn't change the workout's anchor, and the
+/// relationships' own anchor reports scores related since, but not one unrelated or deleted
+/// (measured in the iOS 27.2 simulator), so they're read whole (`HealthBackfill.uploadEfforts`):
+/// every workout's in a run of everything (100 workouts' in 0.18 s), the last week's whenever
+/// workouts or effort scores change.
+public struct HealthWorkoutEffortsReader: Sendable {
+  /// The records of the workouts that started since `since` (every workout if `nil`).
+  public var read: @Sendable (_ since: Date?) async throws -> [HealthMutation]
+
+  public init(read: @escaping @Sendable (_ since: Date?) async throws -> [HealthMutation]) {
+    self.read = read
+  }
+}
+
+extension HealthWorkoutEffortsReader: DependencyKey {
+  public static var liveValue: Self {
+    let store = HKHealthStore()
+    return Self { since in
+      // On the workouts: those that started since, not those that overlap it.
+      let predicate = since.map {
+        HKQuery.predicateForSamples(withStart: $0, end: nil, options: .strictStartDate)
+      }
+      do {
+        let all = try await HKWorkoutEffortRelationshipQueryDescriptor(
+          predicate: predicate, anchor: nil, option: .default
+        ).result(for: store)
+        let relevant = try await HKWorkoutEffortRelationshipQueryDescriptor(
+          predicate: predicate, anchor: nil, option: .mostRelevant
+        ).result(for: store)
+        return WorkoutEffortRecord.records(
+          all.relationships, mostRelevant: relevant.relationships
+        ).map(HealthEncoder.workoutEffort)
+      } catch {
+        throw HealthReader.Locked.mapped(error)
+      }
+    }
+  }
+
+  /// None, unless a test says otherwise: most tests aren't about them.
+  public static var testValue: Self { Self { _ in [] } }
+}

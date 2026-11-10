@@ -507,6 +507,122 @@ export const HealthElectrocardiogram = defineEntity("health_electrocardiogram", 
   },
 });
 
+// What HealthKit links to a workout or an ECG (851-4153), which it only gives through queries of
+// their own: a record of each, under the workout's or ECG's ID, deleted with it (`deletedWith`),
+// so the iPhone sends only the workout's or ECG's delete. Records of their own rather than fields
+// of `health_workout` and `health_electrocardiogram`, which a Mac only gets for records it already
+// has by bootstrapping again; a new entity is caught up by itself (851-3222).
+
+/** The most linked samples the iPhone uploads by ID (`HealthEncoder.maxLinkedSamples`). */
+const maxLinkedSamples = 20_000;
+
+/** Lowercased `HKObject.uuid`s, in order. */
+const isUUIDs = (value: unknown): value is ReadonlyArray<string> =>
+  Array.isArray(value) && value.every((id) => typeof id === "string" && healthKitUUID.test(id));
+
+/** Checks linked samples have the shape `linkedSamples` documents. */
+const checkLinkedSamples = (row: Record<string, unknown>): string | undefined => {
+  const { count, samples } = row;
+  if (!Number.isInteger(count) || (count as number) < 0) {
+    return "count must be a non-negative integer";
+  }
+  // Only too many to list (`HealthEncoder.maxLinkedSamples`), not unread.
+  if (samples === null) {
+    return (count as number) > maxLinkedSamples
+      ? undefined
+      : `samples can only be null for more than ${maxLinkedSamples}`;
+  }
+  if (typeof samples !== "object" || Array.isArray(samples)) {
+    return "samples must be an object of types' sample IDs, or null";
+  }
+  let total = 0;
+  for (const ids of Object.values(samples as Record<string, unknown>)) {
+    if (!isUUIDs(ids)) return "samples' values must be arrays of lowercase UUIDs";
+    total += ids.length;
+  }
+  return total === count ? undefined : "count must be the number of samples";
+};
+
+/** Samples linked to a workout or an ECG, by type. */
+const linkedSamples = {
+  /** How many samples are linked. */
+  count: Column.integer,
+  /**
+   * The linked samples' IDs by their type's identifier (e.g. `HKQuantityTypeIdentifierHeartRate`),
+   * each type's in order of start, then ID: `health_sample` records, which may not have arrived
+   * yet, or may be gone. `null` when there are more than the iPhone uploads (20,000,
+   * `HealthEncoder.maxLinkedSamples`): only `count` is known.
+   */
+  samples: Column.nullable(Column.json),
+};
+
+/**
+ * The samples added to a workout (`HKQuery.predicateForObjects(from:)`): those its app recorded
+ * during it, such as the Watch's heart rate, energy and distance, of the types its statistics are
+ * of, and heart rate. Every workout the iPhone reads has one, empty if none were added.
+ */
+export const HealthWorkoutSamples = defineEntity("health_workout_samples", {
+  clientWritable: false,
+  id: healthKitUUID,
+  deletedWith: "health_workout",
+  fields: linkedSamples,
+  checkRow: (_, row) => checkLinkedSamples(row),
+});
+
+/**
+ * The symptoms logged with an ECG (`HKQuery.predicateForObjectsAssociated(electrocardiogram:)`):
+ * symptom category samples, such as `HKCategoryTypeIdentifierRapidPoundingOrFlutteringHeartbeat`.
+ * Every ECG the iPhone reads has one, empty unless its `symptomsStatus` says symptoms were logged.
+ */
+export const HealthElectrocardiogramSymptoms = defineEntity("health_electrocardiogram_symptoms", {
+  clientWritable: false,
+  id: healthKitUUID,
+  deletedWith: "health_electrocardiogram",
+  fields: linkedSamples,
+  checkRow: (_, row) => checkLinkedSamples(row),
+});
+
+/**
+ * The effort scores related to a workout (`HKWorkoutEffortRelationship`):
+ * `HKQuantityTypeIdentifierWorkoutEffortScore` (rated by the person) or
+ * `…EstimatedWorkoutEffortScore` (Apple Watch's estimate) samples, which needn't fall within the
+ * workout's times. Only workouts with any have one; the iPhone deletes it when they're all gone.
+ */
+export const HealthWorkoutEffort = defineEntity("health_workout_effort", {
+  clientWritable: false,
+  id: healthKitUUID,
+  deletedWith: "health_workout",
+  fields: {
+    /** The scores related to the whole workout, in order of start, then ID. */
+    samples: Column.json,
+    /** The one HealthKit finds most relevant (`HKWorkoutEffortRelationshipQueryOptions`). */
+    mostRelevant: Column.nullable(Column.text),
+    /**
+     * A multisport workout's legs with scores of their own, in order of start: `{ activity,
+     * samples, mostRelevant }`, `activity` being the leg's ID in the workout's `activities`.
+     * Not named `activities`, which the metadata cleanup scrubs wherever it's found.
+     */
+    legs: Column.json,
+  },
+  checkRow: (_, row) => {
+    const isRelevant = (value: unknown) =>
+      value === null || (typeof value === "string" && healthKitUUID.test(value));
+    if (!isUUIDs(row.samples)) return "samples must be an array of lowercase UUIDs";
+    if (!isRelevant(row.mostRelevant)) return "mostRelevant must be a lowercase UUID or null";
+    if (!Array.isArray(row.legs)) return "legs must be an array";
+    for (const leg of row.legs as ReadonlyArray<unknown>) {
+      const { activity, samples, mostRelevant } = (leg ?? {}) as Record<string, unknown>;
+      if (typeof activity !== "string" || !healthKitUUID.test(activity) || !isUUIDs(samples)) {
+        return "each leg must have its activity's lowercase UUID and its samples'";
+      }
+      if (!isRelevant(mostRelevant ?? null)) {
+        return "a leg's mostRelevant must be a lowercase UUID or null";
+      }
+    }
+    return undefined;
+  },
+});
+
 /**
  * Workout routes (`HKWorkoutRoute`): the locations recorded during a workout. The locations are a blob
  * (`src/health/HealthBlobs.ts`), 44 bytes each, little-endian: the time (Unix seconds), latitude
@@ -725,6 +841,9 @@ export const healthEntities = [
   HealthScoredAssessment,
   HealthAudiogram,
   HealthElectrocardiogram,
+  HealthElectrocardiogramSymptoms,
+  HealthWorkoutSamples,
+  HealthWorkoutEffort,
   HealthHeartbeatSeries,
   HealthWorkoutRoute,
   HealthVisionPrescription,

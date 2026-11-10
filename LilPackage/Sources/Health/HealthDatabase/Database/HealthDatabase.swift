@@ -502,6 +502,42 @@ public enum HealthDatabase {
       )
       .execute(db)
     }
+    // What HealthKit links to a workout or an ECG (851-4153): `health_workout_samples`,
+    // `health_workout_effort` and `health_electrocardiogram_symptoms`, synced by themselves into
+    // a database from before, as quantity series were: no bootstrap.
+    migrator.registerMigration("Create workout and ECG links") { db in
+      try #sql(
+        """
+        CREATE TABLE "healthWorkoutSamples" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "count" INTEGER NOT NULL,
+          "samples" TEXT
+        ) STRICT
+        """
+      )
+      .execute(db)
+      try #sql(
+        """
+        CREATE TABLE "healthWorkoutEfforts" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "samples" TEXT NOT NULL,
+          "mostRelevant" TEXT,
+          "legs" TEXT NOT NULL
+        ) STRICT
+        """
+      )
+      .execute(db)
+      try #sql(
+        """
+        CREATE TABLE "healthElectrocardiogramSymptoms" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "count" INTEGER NOT NULL,
+          "samples" TEXT
+        ) STRICT
+        """
+      )
+      .execute(db)
+    }
   }
 
   private static func registerHealthTables(in migrator: inout DatabaseMigrator) {
@@ -634,6 +670,19 @@ public enum HealthDatabase {
         values: try json(row.values), minimum: row.minimum, maximum: row.maximum,
         mostRecent: row.mostRecent, mostRecentStartDate: row.mostRecentStartDate,
         mostRecentEndDate: row.mostRecentEndDate)
+    },
+    entity("health_workout_samples", Components.Schemas.HealthWorkoutSamples.self) { row in
+      HealthWorkoutSamples(id: row.id, count: row.count, samples: try json(row.samples))
+    },
+    entity("health_workout_effort", Components.Schemas.HealthWorkoutEffort.self) { row in
+      HealthWorkoutEffort(
+        id: row.id, samples: try json(row.samples) ?? "[]", mostRelevant: row.mostRelevant,
+        legs: try json(row.legs) ?? "[]")
+    },
+    entity(
+      "health_electrocardiogram_symptoms", Components.Schemas.HealthElectrocardiogramSymptoms.self
+    ) { row in
+      HealthElectrocardiogramSymptoms(id: row.id, count: row.count, samples: try json(row.samples))
     },
     entity("health_correlation", Components.Schemas.HealthCorrelation.self) { row in
       HealthCorrelation(
