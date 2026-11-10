@@ -88,12 +88,12 @@ export const HealthSample = defineEntity("health_sample", {
  * rate during a workout or an app's steps written with `HKQuantitySeriesSampleBuilder`, keeps its
  * values here, under the sample's ID. The sample's `value` is HealthKit's `quantity` for the whole
  * series: the sum of a cumulative one, the average of a discrete one. Samples of a single value
- * have no record. Keyed by ID alone, so deleting a sample's series, which the iPhone does for
- * every quantity sample deleted (most have none), costs nothing when there isn't one.
+ * have no record. Deleting a sample deletes its series (`deletedWith`), so it's keyed by ID alone.
  */
 export const HealthQuantitySeries = defineEntity("health_quantity_series", {
   clientWritable: false,
   id: healthKitUUID,
+  deletedWith: "health_sample",
   fields: {
     /** The sample's type and start: the values' times are seconds since it. */
     type: Column.text,

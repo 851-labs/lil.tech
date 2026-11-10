@@ -43,12 +43,12 @@ struct HealthKitQuantitySeriesTests {
       HKQuantityTypeIdentifier.heartRate.rawValue, 70, at: start.addingTimeInterval(-60))
     try await health.save([single])
 
-    let page = try await HealthReader.liveValue.page(
-      HealthBackfillType(id: HKQuantityTypeIdentifier.heartRate.rawValue), nil, 1_000)
+    let (mutations, _) = try await readAll(
+      HealthBackfillType(id: HKQuantityTypeIdentifier.heartRate.rawValue))
     let id = heart[0].uuid.uuidString.lowercased()
     // The single reading alone; the series' sample, then its values, in the order HealthKit
-    // saved them. (From no anchor, the page has earlier tests' deletions too.)
-    let upserts = page.mutations.filter { $0.op == .upsert }
+    // saved them.
+    let upserts = mutations.filter { $0.op == .upsert }
     #expect(
       upserts.map { "\($0.entity) \($0.id)" } == [
         "health_sample \(id)", "health_quantity_series \(id)",
@@ -83,9 +83,9 @@ struct HealthKitQuantitySeriesTests {
     #expect(samples.map(\.count) == [60])
     #expect(samples.first is HKCumulativeQuantitySample)
 
-    let page = try await HealthReader.liveValue.page(
-      HealthBackfillType(id: HKQuantityTypeIdentifier.stepCount.rawValue), nil, 1_000)
-    let upserts = page.mutations.filter { $0.op == .upsert }
+    let (mutations, _) = try await readAll(
+      HealthBackfillType(id: HKQuantityTypeIdentifier.stepCount.rawValue))
+    let upserts = mutations.filter { $0.op == .upsert }
     #expect(upserts.map(\.entity) == ["health_sample", "health_quantity_series"])
     // The sample's value is the sum.
     #expect(upserts.first?.row?["value"] == 2370)
@@ -111,38 +111,45 @@ struct HealthKitQuantitySeriesTests {
     ])
     let type = HealthBackfillType(id: HKQuantityTypeIdentifier.heartRate.rawValue)
 
-    // A page at a time, as the backfill reads them. (Earlier tests' deletions count against a
-    // page's limit, but aren't sent.)
-    var mutations: [HealthMutation] = []
-    var anchor: Data?
-    var pages = 0
-    repeat {
-      let page = try await HealthReader.liveValue.series(type, anchor, 1)
-      mutations += page.mutations
-      anchor = page.anchor
-      pages += 1
-      if !page.hasMore { break }
-    } while pages < 1_000
+    // A page of one at a time. (Earlier tests' deletions count against a page's limit, but
+    // aren't sent.)
+    let (mutations, _) = try await readAll(type, limit: 1, series: true)
     #expect(
       mutations.map { "\($0.entity) \($0.id)" }.sorted()
         == (first + second).map { "health_quantity_series \($0.uuid.uuidString.lowercased())" }
         .sorted())
   }
 
-  /// Deleting a quantity sample deletes its series too: the iPhone can't tell which had one.
+  /// A deleted series goes up as its sample's deletion, which deletes its values on the server.
   @Test
-  func aDeletedSampleDeletesItsSeries() async throws {
+  func aDeletedSeriesIsItsSamplesDeletion() async throws {
     let health = try await SyntheticHealthKit.empty()
     let series = try await heartRateSeries(health, values: zigzag(12), every: 5)
     let type = HealthBackfillType(id: HKQuantityTypeIdentifier.heartRate.rawValue)
-    let read = try await HealthReader.liveValue.page(type, nil, 10_000)
+    let (_, anchor) = try await readAll(type)
     try await health.store.delete(series)
-    let page = try await HealthReader.liveValue.page(type, read.anchor, 100)
-    let id = series[0].uuid.uuidString.lowercased()
-    #expect(
-      page.mutations == [
-        .delete("health_sample", id: id), .delete("health_quantity_series", id: id),
-      ])
+    let (mutations, _) = try await readAll(type, after: anchor)
+    #expect(mutations == [.delete("health_sample", id: series[0].uuid.uuidString.lowercased())])
+  }
+
+  /// Every page of a type after `anchor`, as the backfill reads them, and the anchor after them.
+  /// A read from no anchor has earlier tests' deletions too, so it can take more than one page.
+  private func readAll(
+    _ type: HealthBackfillType, after anchor: Data? = nil, limit: Int = 10_000,
+    series: Bool = false
+  ) async throws -> ([HealthMutation], Data?) {
+    var mutations: [HealthMutation] = []
+    var anchor = anchor
+    for _ in 0..<10_000 {
+      let page =
+        series
+        ? try await HealthReader.liveValue.series(type, anchor, limit)
+        : try await HealthReader.liveValue.page(type, anchor, limit)
+      mutations += page.mutations
+      anchor = page.anchor
+      if !page.hasMore { break }
+    }
+    return (mutations, anchor)
   }
 
   /// A heart rate series of `values`, `every` seconds apart from `from` (the test's start), each an

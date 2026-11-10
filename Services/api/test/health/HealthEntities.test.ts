@@ -291,6 +291,44 @@ describe("health entities", () => {
     }),
   );
 
+  it.effect("deleting a sample deletes its series", () =>
+    Effect.gen(function* () {
+      const sql = makeTestStoreSql();
+      const store = makeUserStore(sql);
+      const id = "6f1c2a40-0000-4000-8000-00000000000d";
+      const single = "6f1c2a40-0000-4000-8000-00000000000e";
+      yield* store.applyMutations([
+        {
+          entity: "health_sample",
+          op: "upsert",
+          id,
+          row: { ...steps, type: heartRateSeries.type, value: 118.4, unit: "count/min" },
+        },
+        { entity: "health_quantity_series", op: "upsert", id, row: heartRateSeries },
+        { entity: "health_sample", op: "upsert", id: single, row: steps },
+      ]);
+      yield* store.applyMutations([
+        { entity: "health_sample", op: "delete", id },
+        { entity: "health_sample", op: "delete", id: single },
+      ]);
+      const page = readChanges(sql, entitiesByName, 3, 100);
+      const changes = "changes" in page ? page.changes : assert.fail("compacted");
+      // The series' delete is logged too, so the Macs delete it; a sample without one logs only
+      // its own.
+      assert.deepStrictEqual(
+        changes.map((change) => [change.entity, change.id, change.op]),
+        [
+          ["health_sample", id, "delete"],
+          ["health_quantity_series", id, "delete"],
+          ["health_sample", single, "delete"],
+        ],
+      );
+      assert.deepStrictEqual(sql.exec("SELECT count(*) AS n FROM health_quantity_series"), [
+        { n: 0 },
+      ]);
+    }),
+  );
+
   it.effect("keeps a series' values only in their documented shape", () =>
     Effect.gen(function* () {
       const store = makeUserStore(makeTestStoreSql());

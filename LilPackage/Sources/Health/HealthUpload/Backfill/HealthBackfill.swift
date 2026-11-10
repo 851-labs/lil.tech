@@ -826,6 +826,17 @@ public actor HealthBackfill {
     state.heldBack[type]?.unnamedBuild = build
   }
 
+  /// Holds back records whose samples went up but whose series didn't (851-4149). Each is
+  /// uncounted once, as it's first held, since sending it again counts its sample again.
+  private func holdSeries(
+    _ ids: [String], of type: String, _ reason: HealthBackfillState.HoldReason,
+    _ state: inout HealthBackfillState
+  ) {
+    let newlyHeld = ids.filter { state.heldBack[type]?.records[$0] == nil }
+    hold(ids, of: type, reason, &state)
+    uncount(newlyHeld.count, of: type, &state)
+  }
+
   /// Stops holding back records: they went up, or Health no longer has them.
   private func release(
     _ ids: [String], of type: String, because reason: String, _ state: inout HealthBackfillState
@@ -873,7 +884,7 @@ public actor HealthBackfill {
     // Gone from Health, so gone from the server too: deleting one it doesn't have does nothing,
     // and a deletion it refused goes up this way.
     let gone = due.filter { !found.contains($0) }
-    page.mutations += gone.flatMap(type.deletions)
+    page.mutations += gone.map { .delete(type.entity, id: $0) }
     release(gone, of: type.id, because: "aren't in Health", &state)
     page.anchor = anchor
     page.hasMore = !state.finished.contains(type.id)
@@ -944,14 +955,16 @@ public actor HealthBackfill {
           rewind(page, to: from, &state)
           rewound.insert(page.type)
           if from.isEmpty { restarted.insert(page.type) }
+        } else if let retried = page.retried {
+          // A page of series read again (851-4149) counted none, but its samples are counted:
+          // held back, they're uncounted once, since sending them again counts them again.
+          let newlyHeld = retried.filter { state.heldBack[page.type]?.records[$0] == nil }
+          uncount(max(page.records, newlyHeld.count), of: page.type, &state)
+          hold(retried, of: page.type, .failed, &state)
         } else {
+          // Saved before pages were checked: not known by ID or anchor.
           uncount(page.records, of: page.type, &state)
-          if let retried = page.retried {
-            hold(retried, of: page.type, .failed, &state)
-          } else {
-            // Saved before pages were checked: not known by ID or anchor.
-            holdUnnamed(page.records, of: page.type, &state)
-          }
+          holdUnnamed(page.records, of: page.type, &state)
         }
         continue
       }
@@ -973,7 +986,7 @@ public actor HealthBackfill {
       "batch \(status.id) of \(BackfillLog.name(page.type)): \(status.rejected) lines refused")
     let type = types.first { $0.id == page.type }
     var named: [String] = []
-    /// Series whose values were refused (851-4149): their samples went up, and still count.
+    /// Series whose values were refused (851-4149), though their samples went up.
     var seriesRefused: [String] = []
     var unnamed = max(0, status.rejected - status.rejectedLines.count)
     for line in status.rejectedLines {
@@ -993,7 +1006,7 @@ public actor HealthBackfill {
       }
     }
     hold(named, of: page.type, .refused, &state)
-    hold(seriesRefused.filter { !named.contains($0) }, of: page.type, .refused, &state)
+    holdSeries(seriesRefused.filter { !named.contains($0) }, of: page.type, .refused, &state)
     if unnamed > 0 { holdUnnamed(unnamed, of: page.type, &state) }
     uncount(named.count + unnamed, of: page.type, &state)
   }
@@ -1316,7 +1329,13 @@ public actor HealthBackfill {
         state.seriesFailures[type.id] = nil
         let read = page.anchor
         isLast = !page.hasMore
-        if !page.mutations.isEmpty || !page.failed.isEmpty {
+        // Those held back go up whole when they're tried again; their series alone would let
+        // them go (`release`) though their samples haven't.
+        let held = state.heldBack[type.id]?.records ?? [:]
+        page.mutations.removeAll { held[$0.id] != nil }
+        holdSeries(page.failed, of: type.id, .unreadable, &state)
+        page.failed = []
+        if !page.mutations.isEmpty {
           page.anchor = anchor
           page.hasMore = !state.finished.contains(type.id)
           _ = try await uploadPage(

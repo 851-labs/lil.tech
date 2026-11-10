@@ -886,6 +886,12 @@ struct HealthEncoderTests {
     #expect(HealthEncoder.significant(123_456_789_012_345) == 123_456_789_012_000)
     #expect(HealthEncoder.significant(0) == 0)
     #expect(HealthEncoder.significant(-0.5) == -0.5)
+    // The summary too, so it agrees with the values.
+    var noisy = series
+    noisy.summary?.mostRecent = 88.000000000000014
+    #expect(
+      try row(HealthEncoder.quantitySeries(noisy), as: Components.Schemas.HealthQuantitySeries.self)
+        .mostRecent == 88)
 
     // Too many values to read: the count and summary alone.
     var unread = series

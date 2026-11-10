@@ -119,9 +119,10 @@ extension HealthEncoder {
       row["values"] = .array(values.map { .number(significant($0.value)) })
     }
     if let summary = series.summary {
-      row["minimum"] = .number(summary.minimum)
-      row["maximum"] = .number(summary.maximum)
-      row["mostRecent"] = .number(summary.mostRecent)
+      // Rounded as the values are, so they agree.
+      row["minimum"] = .number(significant(summary.minimum))
+      row["maximum"] = .number(significant(summary.maximum))
+      row["mostRecent"] = .number(significant(summary.mostRecent))
       row["mostRecentStartDate"] = .number(milliseconds(summary.mostRecentStart))
       row["mostRecentEndDate"] = .number(milliseconds(summary.mostRecentEnd))
     }

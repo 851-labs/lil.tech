@@ -64,13 +64,6 @@ extension HealthBackfillType {
     !isCorrelation && HealthCatalog.type(id: id)?.kind == .quantity
   }
 
-  /// What deleting one of its records sends: a quantity sample's series goes with it (851-4149).
-  /// Most samples have none, and deleting a series the server doesn't have changes nothing.
-  public func deletions(of id: String) -> [HealthMutation] {
-    [.delete(entity, id: id)]
-      + (isQuantity ? [.delete(HealthEncoder.quantitySeriesEntity, id: id)] : [])
-  }
-
   /// Objects per page, if not the backfill's default: types with blobs read fewer, since a
   /// page's blobs are held in memory until they're saved, and so do types with a series query
   /// per object.
@@ -289,11 +282,19 @@ extension HealthReader: DependencyKey {
     return Self(
       page: { type, anchorData, limit in
         guard let sampleType = type.sampleType else { throw UnknownType(id: type.id) }
-        let result = try await anchoredPage(
-          sampleType, after: try unarchiveAnchor(anchorData), limit: limit, in: store)
+        let anchor = try unarchiveAnchor(anchorData)
+        var limit = limit
+        var result = try await anchoredPage(sampleType, after: anchor, limit: limit, in: store)
+        // Fewer samples, if their series' values would be too many for one page.
+        if let fewer = withinSeriesBudget(result.addedSamples) {
+          limit = fewer
+          result = try await anchoredPage(sampleType, after: anchor, limit: limit, in: store)
+        }
         var page = try await encode(result.addedSamples, of: type, store: store)
-        page.mutations += result.deletedObjects.flatMap {
-          type.deletions(of: HealthEncoder.id($0.uuid))
+        // A sample's series goes with it, on the server (851-4149).
+        let entity = type.entity
+        page.mutations += result.deletedObjects.map {
+          .delete(entity, id: HealthEncoder.id($0.uuid))
         }
         page.anchor = try NSKeyedArchiver.archivedData(
           withRootObject: result.newAnchor, requiringSecureCoding: true)
@@ -398,6 +399,24 @@ extension HealthReader: DependencyKey {
   /// read a few at a time, so one query doesn't hold millions of values.
   static let seriesPerQuery = 500
   static let seriesValuesPerQuery = 100_000
+  /// The most series values a page holds (about 50 MB as they're encoded): a page whose samples'
+  /// series have more is read again with fewer samples (`withinSeriesBudget`).
+  static let seriesValuesPerPage = 500_000
+
+  /// How many of a page's objects to read instead, if its samples' series (those read with their
+  /// values) have more than `seriesValuesPerPage` values: those before the one that passes it,
+  /// at least one. `nil` if they fit.
+  static func withinSeriesBudget(_ samples: [HKSample]) -> Int? {
+    var values = 0
+    for (index, sample) in samples.enumerated() {
+      guard let quantity = sample as? HKQuantitySample, HealthEncoder.isSeries(quantity),
+        quantity.count <= HealthEncoder.maxSeriesValues
+      else { continue }
+      values += quantity.count
+      if values > seriesValuesPerPage { return max(1, index) }
+    }
+    return nil
+  }
 
   /// The values of quantity series (samples with `count` over 1, all of one type), by sample, in
   /// the type's catalog unit (851-4149), with a query per `seriesPerQuery` of them or
@@ -445,6 +464,11 @@ extension HealthReader: DependencyKey {
           guard let id = result.id else { continue }
           values[id, default: []].append(result.value)
         }
+        // One whose values didn't come (changed or deleted meanwhile) is read again, rather than
+        // going up as if it had too many.
+        if let missing = chunk.first(where: { values[$0.uuid] == nil }) {
+          throw SeriesUnavailable(expected: missing.count, read: 0)
+        }
       } catch let error as SeriesUnavailable {
         guard skippingUnreadable else { throw error }
         reportIssue(error)
@@ -463,24 +487,51 @@ extension HealthReader: DependencyKey {
     guard let sampleType = type.sampleType as? HKQuantityType else {
       throw UnknownType(id: type.id)
     }
-    let result: HKAnchoredObjectQueryDescriptor<HKQuantitySample>.Result
-    do {
-      result = try await HKAnchoredObjectQueryDescriptor(
-        predicates: [
-          .quantitySample(
-            type: sampleType, predicate: NSPredicate(format: "%K > 1", HKPredicateKeyPathCount))
-        ],
-        anchor: try unarchiveAnchor(anchorData), limit: limit
-      ).result(for: store)
-    } catch {
-      throw Locked.mapped(error)
+    let anchor = try unarchiveAnchor(anchorData)
+    func read(_ limit: Int) async throws -> HKAnchoredObjectQueryDescriptor<HKQuantitySample>.Result
+    {
+      do {
+        return try await HKAnchoredObjectQueryDescriptor(
+          predicates: [
+            .quantitySample(
+              type: sampleType, predicate: NSPredicate(format: "%K > 1", HKPredicateKeyPathCount))
+          ],
+          anchor: anchor, limit: limit
+        ).result(for: store)
+      } catch {
+        throw Locked.mapped(error)
+      }
     }
-    var page = try await encode(result.addedSamples, of: type, store: store)
-    page.mutations.removeAll { $0.entity != HealthEncoder.quantitySeriesEntity }
-    page.anchor = try NSKeyedArchiver.archivedData(
-      withRootObject: result.newAnchor, requiringSecureCoding: true)
-    page.hasMore = result.addedSamples.count + result.deletedObjects.count >= limit
-    return page
+    var limit = limit
+    var result = try await read(limit)
+    if let fewer = withinSeriesBudget(result.addedSamples) {
+      limit = fewer
+      result = try await read(limit)
+    }
+    let series = result.addedSamples.filter(HealthEncoder.isSeries)
+    let (values, unreadable) = try await seriesValues(
+      of: series, skippingUnreadable: type.skipsUnreadableSeries, store: store)
+    var mutations: [HealthMutation] = []
+    var failed: [String] = []
+    for sample in series {
+      if unreadable.contains(sample.uuid) {
+        failed.append(HealthEncoder.id(sample.uuid))
+        continue
+      }
+      do {
+        mutations.append(
+          HealthEncoder.quantitySeries(
+            try QuantitySeriesRecord(sample, values: values[sample.uuid])))
+      } catch {
+        reportIssue(error)
+        failed.append(HealthEncoder.id(sample.uuid))
+      }
+    }
+    return HealthPage(
+      mutations: mutations,
+      anchor: try NSKeyedArchiver.archivedData(
+        withRootObject: result.newAnchor, requiringSecureCoding: true),
+      hasMore: result.addedSamples.count + result.deletedObjects.count >= limit, failed: failed)
   }
 
   public static var testValue: Self {
