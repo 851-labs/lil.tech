@@ -307,7 +307,8 @@ struct HealthEncoderTests {
     #expect(metadata[HKMetadataKeyAlpineSlopeGrade] == quantity(0.4567, "%"))
     #expect(metadata[HKMetadataKeyWeatherHumidity] == quantity(72, "%"))
     #expect(metadata[HKMetadataKeyAverageMETs] == quantity(9.876543, "kcal/hr·kg"))
-    #expect(metadata[HKMetadataKeyLapLength] == quantity(22.86, "m"))
+    // A pool keeps the unit it was set up in, yards or meters.
+    #expect(metadata[HKMetadataKeyLapLength] == quantity(25, "yd"))
     #expect(metadata[HKMetadataKeyHeartRateEventThreshold] == quantity(120, "count/min"))
     #expect(metadata[HKMetadataKeyVO2MaxValue] == quantity(45.6789, "mL/min·kg"))
     #expect(metadata[HKMetadataKeyAverageSpeed] == .string("30 m"))
@@ -318,6 +319,56 @@ struct HealthEncoderTests {
     // Before 1970, the fraction still counts up from the second before.
     #expect(
       HealthEncoder.isoDate(Date(timeIntervalSince1970: -0.25)) == "1969-12-31T23:59:59.750Z")
+    #expect(
+      HealthEncoder.isoDate(Date(timeIntervalSince1970: -62_135_596_800))
+        == "0001-01-01T00:00:00.000Z")
+    #expect(
+      HealthEncoder.isoDate(Date(timeIntervalSince1970: 253_402_300_799.999))
+        == "9999-12-31T23:59:59.999Z")
+    // Outside the years 1 to 9999, which four-digit years don't hold, a date stays milliseconds.
+    #expect(
+      HealthEncoder.json(Date(timeIntervalSince1970: 253_402_300_800))
+        == .number(253_402_300_800_000))
+    #expect(HealthEncoder.json(Date(timeIntervalSince1970: -1e12)) == .number(-1e15))
+    #expect(HealthEncoder.isoDate(Date(timeIntervalSince1970: .nan)) == nil)
+    #expect(HealthEncoder.isoDate(Date(timeIntervalSince1970: .infinity)) == nil)
+  }
+
+  /// A date written in ISO 8601 reads back as the milliseconds it was, across the years 1 to
+  /// 9999: before 1970, on leap days, and before the Gregorian calendar began.
+  @Test
+  func isoDatesReadBackAsTheyWere() throws {
+    var milliseconds: [Double] = [
+      -62_135_596_800_000, 253_402_300_799_999, -1, 0, 1, 951_782_400_000, 1_709_164_799_999,
+      -12_219_292_800_000,
+    ]
+    // Every 9,876,543,210,987 ms (about 313 years, and odd times of day) from year 1.
+    var next = -62_135_596_800_000.0
+    while next <= 253_402_300_799_999 {
+      milliseconds.append(next)
+      next += 9_876_543_210_987
+    }
+    for value in milliseconds {
+      let text = try #require(HealthEncoder.isoDate(Date(timeIntervalSince1970: value / 1000)))
+      #expect(HealthMetadataValues.date(["date": text]) == value, "\(text)")
+    }
+  }
+
+  /// A lap length keeps its pool's unit when it's yards or meters, and is in meters otherwise.
+  @Test
+  func lapLengthKeepsItsPoolsUnit() {
+    func lapLength(_ quantity: HKQuantity) -> JSONValue? {
+      HealthEncoder.metadata([HKMetadataKeyLapLength: quantity])?[HKMetadataKeyLapLength]
+    }
+    #expect(
+      lapLength(HKQuantity(unit: .yard(), doubleValue: 33.3333333333333))
+        == .object(["value": .number(33.3333333333), "unit": .string("yd")]))
+    #expect(
+      lapLength(HKQuantity(unit: .meter(), doubleValue: 50))
+        == .object(["value": .number(50), "unit": .string("m")]))
+    #expect(
+      lapLength(HKQuantity(unit: .foot(), doubleValue: 75))
+        == .object(["value": .number(22.86), "unit": .string("m")]))
   }
 
   /// A session estimate is in its sample's unit, the catalog's for its type.
@@ -957,12 +1008,15 @@ struct HealthEncoderTests {
     #expect(encoded["values"] as? [Double] == [61, 140.5, 88])
 
     // Values keep 12 significant digits, without a conversion's noise.
-    #expect(HealthEncoder.significant(125.00000000000001) == 125)
-    #expect(HealthEncoder.significant(0.30480000000000002) == 0.3048)
-    #expect(HealthEncoder.significant(72.123456789012345) == 72.1234567890)
-    #expect(HealthEncoder.significant(123_456_789_012_345) == 123_456_789_012_000)
-    #expect(HealthEncoder.significant(0) == 0)
-    #expect(HealthEncoder.significant(-0.5) == -0.5)
+    #expect(HealthCatalog.significant(125.00000000000001) == 125)
+    #expect(HealthCatalog.significant(0.30480000000000002) == 0.3048)
+    #expect(HealthCatalog.significant(72.123456789012345) == 72.1234567890)
+    #expect(HealthCatalog.significant(123_456_789_012_345) == 123_456_789_012_000)
+    #expect(HealthCatalog.significant(0) == 0)
+    #expect(HealthCatalog.significant(-0.5) == -0.5)
+    // Halves round away from zero, as the server's does (`significant` in `MetadataValues.ts`).
+    #expect(HealthCatalog.significant(1_234_567_890_125) == 1_234_567_890_130)
+    #expect(HealthCatalog.significant(-1_234_567_890_125) == -1_234_567_890_130)
     // The summary too, so it agrees with the values.
     var noisy = series
     noisy.summary?.mostRecent = 88.000000000000014

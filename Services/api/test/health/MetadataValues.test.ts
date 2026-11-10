@@ -8,6 +8,7 @@ import {
   quantities,
   quantity,
   readMetadataValue,
+  significant,
 } from "../../src/health/MetadataValues.ts";
 
 // How the Health tools read a metadata value at its edges (851-4170): blank text, Booleans
@@ -157,7 +158,22 @@ describe("MetadataValues", () => {
     assert.strictEqual(read(date, { date: "2026-10-12T00:00:00.123Z" }), 1791763200123);
     assert.strictEqual(read(date, { date: "2026-10-12T00:00:00Z" }), 1791763200000);
     assert.strictEqual(read(date, { date: "2026-10-12T01:00:00.5+01:00" }), 1791763200500);
+    assert.strictEqual(read(date, { date: "2026-10-11T19:30:00.12-04:30" }), 1791763200120);
+    assert.strictEqual(read(date, { date: "2024-02-29T00:00:00Z" }), 1709164800000);
+    assert.strictEqual(read(date, { date: "0001-01-01T00:00:00.000Z" }), -62135596800000);
+    assert.strictEqual(read(date, { date: "9999-12-31T23:59:59.999Z" }), 253402300799999);
     for (const other of [
+      // Fields out of their range, which a date parser might roll over.
+      { date: "2026-10-12T00:00:60Z" },
+      { date: "2026-02-29T00:00:00Z" },
+      { date: "2026-04-31T00:00:00Z" },
+      { date: "2026-13-01T00:00:00Z" },
+      { date: "2026-00-10T00:00:00Z" },
+      { date: "2026-10-00T00:00:00Z" },
+      { date: "2026-10-12T24:00:00Z" },
+      { date: "2026-10-12T00:60:00Z" },
+      { date: "2026-10-12T00:00:00+24:00" },
+      { date: "2026-10-12T00:00:00+01:60" },
       { date: "2026-10-12" },
       { date: "2026-10-12T00:00:00" },
       { date: "2026-10-12 00:00:00Z" },
@@ -170,6 +186,18 @@ describe("MetadataValues", () => {
     ]) {
       assert.isNull(read(date, other), JSON.stringify(other));
     }
+  });
+
+  it("rounds to 12 significant digits as the Mac does", () => {
+    assert.strictEqual(significant(125.00000000000001), 125);
+    assert.strictEqual(significant(0.30480000000000002), 0.3048);
+    assert.strictEqual(significant(72.12345678901234), 72.123456789);
+    assert.strictEqual(significant(123456789012345), 123456789012000);
+    assert.strictEqual(significant(0), 0);
+    assert.strictEqual(significant(-0.5), -0.5);
+    // Halves round away from zero, as Swift's `rounded()` does, negative ones too.
+    assert.strictEqual(significant(1234567890125), 1234567890130);
+    assert.strictEqual(significant(-1234567890125), -1234567890130);
   });
 
   it("reads a key from metadata, or null when it's missing", () => {

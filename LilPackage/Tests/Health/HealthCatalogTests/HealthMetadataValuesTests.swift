@@ -27,6 +27,21 @@ import Testing
     }
   }
 
+  /// Every quantity the tools read is uploaded whole, in a unit they read it from.
+  @Test func readsEveryQuantityInAUnitItsUploadedIn() {
+    for (key, kind) in HealthMetadataValues.kinds {
+      guard case .quantity(let quantity) = kind else { continue }
+      switch HealthCatalog.metadataQuantityUnits[key] {
+      case .unit(let unit):
+        #expect(quantity.conversions[unit] != nil, "\(key)")
+      case .recorded(let units):
+        for unit in units { #expect(quantity.conversions[unit] != nil, "\(key): \(unit)") }
+      case .sample, nil:
+        Issue.record("\(key) has no unit it's uploaded in")
+      }
+    }
+  }
+
   @Test func readsTextUnlessItsBlank() {
     #expect(read(.text, #""Oatmeal""#) == .text("Oatmeal"))
     #expect(read(.text, #"" a ""#) == .text(" a "))
@@ -154,7 +169,18 @@ import Testing
     #expect(read(date, #"{"date": "2026-10-12T00:00:00Z"}"#) == .number(1_791_763_200_000))
     #expect(
       read(date, #"{"date": "2026-10-12T01:00:00.5+01:00"}"#) == .number(1_791_763_200_500))
+    #expect(
+      read(date, #"{"date": "2026-10-11T19:30:00.12-04:30"}"#) == .number(1_791_763_200_120))
+    #expect(read(date, #"{"date": "2024-02-29T00:00:00Z"}"#) == .number(1_709_164_800_000))
+    #expect(read(date, #"{"date": "0001-01-01T00:00:00.000Z"}"#) == .number(-62_135_596_800_000))
+    #expect(read(date, #"{"date": "9999-12-31T23:59:59.999Z"}"#) == .number(253_402_300_799_999))
     for other in [
+      // Fields out of their range, which a date parser might roll over.
+      #"{"date": "2026-10-12T00:00:60Z"}"#, #"{"date": "2026-02-29T00:00:00Z"}"#,
+      #"{"date": "2026-04-31T00:00:00Z"}"#, #"{"date": "2026-13-01T00:00:00Z"}"#,
+      #"{"date": "2026-00-10T00:00:00Z"}"#, #"{"date": "2026-10-00T00:00:00Z"}"#,
+      #"{"date": "2026-10-12T24:00:00Z"}"#, #"{"date": "2026-10-12T00:60:00Z"}"#,
+      #"{"date": "2026-10-12T00:00:00+24:00"}"#, #"{"date": "2026-10-12T00:00:00+01:60"}"#,
       #"{"date": "2026-10-12"}"#, #"{"date": "2026-10-12T00:00:00"}"#,
       #"{"date": "2026-10-12 00:00:00Z"}"#, #"{"date": "2026-10-12T00:00:00.1234Z"}"#,
       #"{"date": 1791763200000}"#, #""2026-10-12T00:00:00Z""#, "{}", "true", "null",

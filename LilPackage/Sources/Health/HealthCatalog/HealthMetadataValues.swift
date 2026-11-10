@@ -285,10 +285,9 @@ public enum HealthMetadataValues {
     guard let object = value as? [String: Any], let number = number(object["value"]),
       let unit = object["unit"] as? String
     else { return nil }
-    guard unit == "%" else { return (number, unit) }
     // To 12 significant digits, as the iPhone writes values, without the multiplication's noise
-    // (0.555 is 55.5, not 55.50000000000001), as the server does (`toPrecision(12)`).
-    return (Double(String(format: "%.12g", number * 100)) ?? number * 100, unit)
+    // (0.555 is 55.5, not 55.50000000000001), as the server does.
+    return (unit == "%" ? HealthCatalog.significant(number * 100) : number, unit)
   }
 
   /// A quantity in `quantity`'s unit, or nil in a unit it isn't read in.
@@ -302,17 +301,64 @@ public enum HealthMetadataValues {
   /// An ISO 8601 date and time with its zone, to the second or the millisecond, as the iPhone
   /// writes a date: "2026-10-12T00:00:00.000Z".
   nonisolated(unsafe) static let isoDateText =
-    /[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,3})?(?:Z|[+-][0-9]{2}:[0-9]{2})/
+    /([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,3}))?(?:Z|([+-])([0-9]{2}):([0-9]{2}))/
 
   /// A date as Unix milliseconds, in either form: `{ "date": "2026-10-12T00:00:00.000Z" }`, as the
   /// iPhone writes one since 851-4150, or Unix milliseconds, as before.
   public static func date(_ value: Any?) -> Double? {
     if let milliseconds = number(value) { return milliseconds }
-    guard let object = value as? [String: Any], let text = object["date"] as? String,
-      text.wholeMatch(of: isoDateText) != nil,
-      let date = (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(text))
-        ?? (try? Date.ISO8601FormatStyle().parse(text))
+    guard let object = value as? [String: Any], let text = object["date"] as? String else {
+      return nil
+    }
+    return isoMilliseconds(text)
+  }
+
+  /// An ISO 8601 date's Unix milliseconds, worked out from its fields rather than by a date
+  /// parser, so the server's reads every text alike (`isoMilliseconds` in
+  /// `src/health/MetadataValues.ts`): a field out of its range (a 60th second, 31 February, an
+  /// offset of 24 hours) is nil, where Foundation's parser would roll it over and JavaScript's
+  /// refuse it.
+  static func isoMilliseconds(_ text: String) -> Double? {
+    guard let match = text.wholeMatch(of: isoDateText) else { return nil }
+    func int(_ part: Substring?) -> Int { part.flatMap { Int($0) } ?? 0 }
+    let (year, month, day) = (int(match.1), int(match.2), int(match.3))
+    let (hour, minute, second) = (int(match.4), int(match.5), int(match.6))
+    // ".5" is 500 ms, ".12" 120.
+    let fraction =
+      match.7.map { Int($0.padding(toLength: 3, withPad: "0", startingAt: 0)) ?? 0 } ?? 0
+    let (offsetHours, offsetMinutes) = (int(match.9), int(match.10))
+    let isLeap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+    let monthDays = [31, isLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    guard (1...12).contains(month), (1...monthDays[month - 1]).contains(day), hour < 24,
+      minute < 60, second < 60, offsetHours < 24, offsetMinutes < 60
     else { return nil }
-    return (date.timeIntervalSince1970 * 1000).rounded()
+    // Days since 1970-01-01, by Howard Hinnant's `days_from_civil`.
+    let y = month <= 2 ? year - 1 : year
+    let era = (y >= 0 ? y : y - 399) / 400
+    let yearOfEra = y - era * 400
+    let dayOfYear = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1
+    let dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear
+    let days = era * 146_097 + dayOfEra - 719_468
+    let offset = (match.8 == "-" ? -1 : 1) * (offsetHours * 60 + offsetMinutes)
+    let minutes = (days * 24 + hour) * 60 + minute - offset
+    return Double((minutes * 60 + second) * 1000 + fraction)
+  }
+}
+
+extension HealthCatalog {
+  /// A value to 12 significant digits, far finer than any sensor measures: a value read back in
+  /// another unit than it was saved in comes with conversion noise (`125.00000000000001` count/min
+  /// for 125), which would make each of a series' values 18 characters of JSON (851-4149), and a
+  /// metadata quantity's (851-4150). Dividing a whole number by an exact power of ten gives the
+  /// double nearest the decimal, which JSON writes shortest (`0.3048`). Values too small or large
+  /// for that, and 0, stay as they are. The server rounds alike (`significant` in
+  /// `src/health/MetadataValues.ts`).
+  public static func significant(_ value: Double) -> Double {
+    guard value.isFinite, value != 0 else { return value }
+    let exponent = 11 - Int(log10(abs(value)).rounded(.down))
+    guard (-22...22).contains(exponent) else { return value }
+    let scale = pow(10, Double(abs(exponent)))
+    return exponent >= 0
+      ? (value * scale).rounded() / scale : (value / scale).rounded() * scale
   }
 }

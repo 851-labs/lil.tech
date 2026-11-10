@@ -1773,7 +1773,7 @@
             "metadata": {
               "HKIndoorWorkout": true,
               "HKSwimmingLocationType": 1,
-              "HKLapLength": { "value": 22.86, "unit": "m" },
+              "HKLapLength": { "value": 25, "unit": "yd" },
               "HKSWOLFScore": 45,
               "HKWeatherCondition": 99,
               "HKWeatherHumidity": "45.5 %",

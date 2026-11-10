@@ -159,18 +159,15 @@ extension HealthWorkout {
     return nil
   }
 
-  /// The unit a swim's pool is measured in, from its lap length (`HKLapLength`), or nil without
-  /// one. Before 851-4150 the iPhone wrote it as the quantity's description, in the unit the pool
-  /// was set up in ("25 yd", "50 m"); since, in meters (`{ "value": 22.86, "unit": "m" }`), so a
-  /// length that's a whole number of yards and not of meters is a pool measured in yards.
+  /// The unit a swim's pool is measured in, from its lap length (`HKLapLength`, in the unit the
+  /// pool was set up in: `{ "value": 25, "unit": "yd" }`, or before 851-4150 its description,
+  /// "25 yd", "50 m"), or nil without one.
   public var lapLengthUnit: String? {
     guard let metadata,
       let object = try? JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [String: Any],
-      let (length, unit) = HealthDatabase.quantity(object["HKLapLength"]), !unit.isEmpty
+      let (_, unit) = HealthDatabase.quantity(object["HKLapLength"]), !unit.isEmpty
     else { return nil }
-    guard unit == "m", length > 0 else { return unit }
-    func isWhole(_ value: Double) -> Bool { Swift.abs(value - value.rounded()) < 1e-6 }
-    return !isWhole(length) && isWhole(length / 0.9144) ? "yd" : unit
+    return unit
   }
 }
 

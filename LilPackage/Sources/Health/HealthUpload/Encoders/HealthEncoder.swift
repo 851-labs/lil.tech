@@ -206,37 +206,57 @@ public enum HealthEncoder {
             "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"),
         ]),
       "device": device ?? .null,
-      "metadata": metadata(
-        sample.metadata,
-        sampleUnit: (sample as? HKQuantitySample).flatMap { try? unit(for: $0.quantityType) }
-      ).map(JSONValue.object) ?? .null,
+      "metadata": metadata(sample.metadata) {
+        (sample as? HKQuantitySample).flatMap { try? unit(for: $0.quantityType) }
+      }.map(JSONValue.object) ?? .null,
     ]
   }
 
   /// An object's metadata as it goes up: only the keys lil health keeps
   /// (`HealthCatalog.keptMetadata`, 851-4152), as JSON, or nil if it has none of them.
-  /// `sampleUnit` is the unit of the quantity sample it's on, if it's on one.
+  /// `sampleUnit` gives the unit of the quantity sample it's on, if it's on one, asked only for a
+  /// key in its sample's unit (`HKMetadataKeySessionEstimate`).
   static func metadata(
-    _ metadata: [String: Any]?, sampleUnit: HKUnit? = nil
+    _ metadata: [String: Any]?, sampleUnit: () -> HKUnit? = { nil }
   ) -> [String: JSONValue]? {
-    metadata.flatMap(HealthCatalog.keptMetadata)
-      .map { kept in
-        Dictionary(
-          uniqueKeysWithValues: kept.map { key, value in
-            (key, json(value, unit: quantityUnit(of: key, sampleUnit: sampleUnit)))
-          })
+    guard let kept = metadata.flatMap(HealthCatalog.keptMetadata) else { return nil }
+    var json: [String: JSONValue] = [:]
+    for (key, value) in kept {
+      json[key] = self.json(value) { quantity in
+        quantityUnit(of: quantity, at: key, sampleUnit: sampleUnit)
       }
+    }
+    return json
   }
 
-  /// The unit a key's quantity goes up in (`HealthCatalog.metadataQuantityUnits`), or nil for a
+  /// The unit a quantity at `key` goes up in (`HealthCatalog.metadataQuantityUnits`), or nil for a
   /// key that has none.
-  static func quantityUnit(of key: String, sampleUnit: HKUnit?) -> HKUnit? {
+  static func quantityUnit(
+    of quantity: HKQuantity, at key: String, sampleUnit: () -> HKUnit?
+  ) -> HKUnit? {
     switch HealthCatalog.metadataQuantityUnits[key] {
-    case .unit(let unit): HKUnit(from: unit)
-    case .sample: sampleUnit
-    case nil: nil
+    case .unit(let unit): return metadataUnits[unit]
+    case .recorded(let units):
+      // The description's unit, if it's one of these: `HKQuantity` says its unit nowhere else.
+      // Only a unit of the list is parsed, since `HKUnit(from:)` raises on one it can't read.
+      let recorded = quantity.description.split(separator: " ").last.map(String.init)
+      return metadataUnits[recorded.flatMap { units.contains($0) ? $0 : nil } ?? units[0]]
+    case .sample: return sampleUnit()
+    case nil: return nil
     }
   }
+
+  /// Each unit `HealthCatalog.metadataQuantityUnits` names, parsed once.
+  static let metadataUnits: [String: HKUnit] = Dictionary(
+    HealthCatalog.metadataQuantityUnits.values.flatMap { unit -> [String] in
+      switch unit {
+      case .unit(let unit): [unit]
+      case .recorded(let units): units
+      case .sample: []
+      }
+    }
+    .map { ($0, HKUnit(from: $0)) },
+    uniquingKeysWith: { first, _ in first })
 
   /// Unix milliseconds, rounded to the nearest. Never change how: the server finds a sample by
   /// its type, start date and UUID (`docs/sync/protocol.md`), so a sample uploaded again with its
@@ -245,22 +265,27 @@ public enum HealthEncoder {
     (date.timeIntervalSince1970 * 1000).rounded()
   }
 
-  /// A metadata value as JSON (851-4150). A quantity is `{ "value": 84.6, "unit": "m" }` in
-  /// `unit`, its key's unit (`HealthCatalog.metadataQuantityUnits`), to 12 significant digits
-  /// (`significant`), so it's whole and a conversion's noise is gone, as HealthKit holds it: a
+  /// A metadata value as JSON (851-4150). A quantity is `{ "value": 84.6, "unit": "m" }` in the
+  /// unit `unit` gives, its key's (`HealthCatalog.metadataQuantityUnits`), to 12 significant
+  /// digits (`HealthCatalog.significant`), so it's whole without a conversion's noise, as
+  /// HealthKit holds it: a
   /// percent (`%`) is a fraction, 0.72 for 72%. A quantity under a key without a unit, or in a unit
   /// it can't be converted to, is its description (`"120 count/min"`, 6 significant digits), as
   /// every quantity was before: HealthKit doesn't say an arbitrary quantity's unit. A date is
   /// `{ "date": "2026-10-12T00:00:00.000Z" }`, ISO 8601 in UTC to the millisecond, rather than
-  /// Unix milliseconds that look like any other number. Numbers that aren't finite become null.
-  static func json(_ value: Any, unit: HKUnit? = nil) -> JSONValue {
+  /// Unix milliseconds that look like any other number, unless it's outside the years 1 to 9999,
+  /// which ISO 8601's four-digit years don't hold: that stays milliseconds, as before. Numbers
+  /// that aren't finite become null.
+  static func json(_ value: Any, unit: (HKQuantity) -> HKUnit? = { _ in nil }) -> JSONValue {
     switch value {
     case let string as String: .string(string)
-    case let date as Date: .object(["date": .string(isoDate(date))])
+    case let date as Date:
+      isoDate(date).map { .object(["date": .string($0)]) } ?? .number(milliseconds(date))
     case let quantity as HKQuantity:
-      if let unit, quantity.is(compatibleWith: unit) {
+      if let unit = unit(quantity), quantity.is(compatibleWith: unit) {
         .object([
-          "value": json(NSNumber(value: significant(quantity.doubleValue(for: unit)))),
+          "value": json(
+            NSNumber(value: HealthCatalog.significant(quantity.doubleValue(for: unit)))),
           "unit": .string(unit.unitString),
         ])
       } else {
@@ -276,15 +301,34 @@ public enum HealthEncoder {
     }
   }
 
-  /// A date in ISO 8601, in UTC, to the millisecond it goes up as (`milliseconds`). The
-  /// milliseconds are written from that whole number: the format style's fractional seconds cut
-  /// them off rather than round them (`.123` came out `.122`).
-  static func isoDate(_ date: Date) -> String {
-    let milliseconds = Int64(milliseconds(date))
-    // Whole seconds rounded down, so a date before 1970 has a fraction from 0 to 999 too.
-    let seconds = milliseconds >= 0 ? milliseconds / 1000 : (milliseconds - 999) / 1000
-    let fraction = milliseconds - seconds * 1000
-    let text = Date(timeIntervalSince1970: Double(seconds)).formatted(.iso8601)
-    return "\(text.dropLast()).\(String(format: "%03lld", fraction))Z"
+  /// A date in ISO 8601, in UTC, to the millisecond it goes up as (`milliseconds`), or nil
+  /// outside the years 1 to 9999. Written from that whole number by the proleptic Gregorian
+  /// calendar, the arithmetic the readers use (`HealthMetadataValues.isoMilliseconds`, and the
+  /// server's), not by Foundation, whose ISO 8601 format turns Julian before 1582 (year 1's
+  /// first day came out `0001-01-03`) and cuts fractional seconds off rather than round them.
+  static func isoDate(_ date: Date) -> String? {
+    let rounded = milliseconds(date)
+    // 0001-01-01T00:00:00.000Z to 9999-12-31T23:59:59.999Z; not finite is outside too.
+    guard (-62_135_596_800_000...253_402_300_799_999).contains(rounded) else { return nil }
+    let milliseconds = Int(rounded)
+    // Whole days rounded down, so a time before 1970 counts up from its day's start too.
+    let days =
+      milliseconds >= 0 ? milliseconds / 86_400_000 : (milliseconds - 86_399_999) / 86_400_000
+    let time = milliseconds - days * 86_400_000
+    // Howard Hinnant's `civil_from_days`.
+    let z = days + 719_468
+    let era = (z >= 0 ? z : z - 146_096) / 146_097
+    let dayOfEra = z - era * 146_097
+    let yearOfEra =
+      (dayOfEra - dayOfEra / 1460 + dayOfEra / 36524 - dayOfEra / 146_096) / 365
+    let dayOfYear = dayOfEra - (365 * yearOfEra + yearOfEra / 4 - yearOfEra / 100)
+    let shiftedMonth = (5 * dayOfYear + 2) / 153
+    let day = dayOfYear - (153 * shiftedMonth + 2) / 5 + 1
+    let month = shiftedMonth < 10 ? shiftedMonth + 3 : shiftedMonth - 9
+    let year = yearOfEra + era * 400 + (month <= 2 ? 1 : 0)
+    return String(
+      format: "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ", year, month, day, time / 3_600_000,
+      time / 60000 % 60, time / 1000 % 60, time % 1000)
   }
+
 }

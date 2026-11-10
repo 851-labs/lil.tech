@@ -1165,15 +1165,14 @@ struct WorkoutQueriesTests {
       sourceName: "Test", sourceBundleID: "com.example")
   }
 
-  /// A swim's pool unit, from its lap length as the iPhone wrote it: a description in the pool's
-  /// unit, or since 851-4150 in meters, a whole number of yards for a pool measured in yards.
+  /// A swim's pool unit, from its lap length as the iPhone wrote it, in the pool's unit: a
+  /// description, or since 851-4150 `{ value, unit }`.
   @Test
   func lapLengthUnit() {
     var swim = workout("swim", at: Date(timeIntervalSince1970: 0))
     for (lapLength, unit) in [
-      (#""25 yd""#, "yd"), (#""50 m""#, "m"), (#"{"value":22.86,"unit":"m"}"#, "yd"),
-      (#"{"value":45.72,"unit":"m"}"#, "yd"), (#"{"value":25,"unit":"m"}"#, "m"),
-      (#"{"value":33.3333333333,"unit":"m"}"#, "m"), (#"{"value":25,"unit":"yd"}"#, "yd"),
+      (#""25 yd""#, "yd"), (#""50 m""#, "m"), (#"{"value":25,"unit":"yd"}"#, "yd"),
+      (#"{"value":33.3333333333,"unit":"yd"}"#, "yd"), (#"{"value":25,"unit":"m"}"#, "m"),
     ] {
       swim.metadata = #"{"HKLapLength":\#(lapLength)}"#
       #expect(swim.lapLengthUnit == unit, "\(lapLength)")

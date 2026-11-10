@@ -1,4 +1,5 @@
 public import Foundation
+import HealthCatalog
 import HealthKit
 
 /// A quantity series' contents (851-4149): a quantity sample whose `count` is over 1, such as a
@@ -116,30 +117,16 @@ extension HealthEncoder {
         values.map { .number(max(0, milliseconds($0.start) - start) / 1000) })
       row["durations"] = .array(
         values.map { .number(max(0, milliseconds($0.end) - milliseconds($0.start)) / 1000) })
-      row["values"] = .array(values.map { .number(significant($0.value)) })
+      row["values"] = .array(values.map { .number(HealthCatalog.significant($0.value)) })
     }
     if let summary = series.summary {
       // Rounded as the values are, so they agree.
-      row["minimum"] = .number(significant(summary.minimum))
-      row["maximum"] = .number(significant(summary.maximum))
-      row["mostRecent"] = .number(significant(summary.mostRecent))
+      row["minimum"] = .number(HealthCatalog.significant(summary.minimum))
+      row["maximum"] = .number(HealthCatalog.significant(summary.maximum))
+      row["mostRecent"] = .number(HealthCatalog.significant(summary.mostRecent))
       row["mostRecentStartDate"] = .number(milliseconds(summary.mostRecentStart))
       row["mostRecentEndDate"] = .number(milliseconds(summary.mostRecentEnd))
     }
     return .upsert(quantitySeriesEntity, id: id(series.id), row: row)
-  }
-
-  /// A value to 12 significant digits, far finer than any sensor measures: a value read back in
-  /// another unit than it was saved in comes with conversion noise (`125.00000000000001` count/min
-  /// for 125), which would make each of a series' values 18 characters of JSON. Dividing a whole
-  /// number by an exact power of ten gives the double nearest the decimal, which JSON writes
-  /// shortest (`0.3048`). Values too small or large for that, and 0, stay as they are.
-  static func significant(_ value: Double) -> Double {
-    guard value.isFinite, value != 0 else { return value }
-    let exponent = 11 - Int(log10(abs(value)).rounded(.down))
-    guard (-22...22).contains(exponent) else { return value }
-    let scale = pow(10, Double(abs(exponent)))
-    return exponent >= 0
-      ? (value * scale).rounded() / scale : (value / scale).rounded() * scale
   }
 }

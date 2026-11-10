@@ -14,6 +14,10 @@ public struct HealthMetadataKey: Sendable, Equatable {
   public enum QuantityUnit: Sendable, Equatable {
     /// One unit for the key, as `HKUnit`'s `unitString` writes it (`"m"`, `"kcal/hr·kg"`).
     case unit(String)
+    /// The unit it was recorded in if it's one of these, else the first, for a key whose unit
+    /// says something: a pool measured in yards or meters (`HKMetadataKeyLapLength`), which the
+    /// Mac's swim page shows its swims in.
+    case recorded([String])
     /// The unit of the sample it's on (the catalog's unit for the sample's type), for a key
     /// whose quantity is the sample's own kind (`HKMetadataKeySessionEstimate`).
     case sample
@@ -105,7 +109,7 @@ extension HealthCatalog {
     kept("HKMetadataKeyAverageSpeed", "HKAverageSpeed", .unit("m/s")),
     kept("HKMetadataKeyMaximumSpeed", "HKMaximumSpeed", .unit("m/s")),
     kept("HKMetadataKeyAverageMETs", "HKAverageMETs", .unit("kcal/hr·kg")),
-    kept("HKMetadataKeyLapLength", "HKLapLength", .unit("m")),
+    kept("HKMetadataKeyLapLength", "HKLapLength", .recorded(["m", "yd"])),
     kept("HKMetadataKeySwimmingStrokeStyle", "HKSwimmingStrokeStyle"),
     kept("HKMetadataKeySWOLFScore", "HKSWOLFScore"),
     kept("HKMetadataKeyAlpineSlopeGrade", "HKAlpineSlopeGrade", .unit("%")),
