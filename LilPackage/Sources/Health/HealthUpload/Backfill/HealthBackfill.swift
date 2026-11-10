@@ -55,6 +55,12 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
   /// The ``HealthEncoder/workoutEncoding`` the workouts uploaded so far were read with; 0 before
   /// it was kept. Older ones are read again (`HealthBackfill.readAgainIfOlder`).
   public var workoutEncoding = 0
+  /// The ``HealthEncoder/quantitySeriesEncoding`` each quantity type's samples were read with;
+  /// missing for types read before it was kept. A type read with an older one has its series read
+  /// again, once (`HealthBackfill.readSeriesAgain`, 851-4149).
+  public var quantitySeriesEncodings: [String: Int] = [:]
+  /// How far each type's series have been read again: the anchor of a query of its series alone.
+  public var seriesAgainAnchors: [String: Data] = [:]
   /// Each type's records that didn't go up (851-4151): Sync Status counts them, and runs of
   /// everything try them again.
   public var heldBack: [String: HeldBack] = [:]
@@ -94,6 +100,10 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
     seriesFailures =
       try container.decodeIfPresent([String: Int].self, forKey: .seriesFailures) ?? [:]
     workoutEncoding = try container.decodeIfPresent(Int.self, forKey: .workoutEncoding) ?? 0
+    quantitySeriesEncodings =
+      try container.decodeIfPresent([String: Int].self, forKey: .quantitySeriesEncodings) ?? [:]
+    seriesAgainAnchors =
+      try container.decodeIfPresent([String: Data].self, forKey: .seriesAgainAnchors) ?? [:]
     heldBack = try container.decodeIfPresent([String: HeldBack].self, forKey: .heldBack) ?? [:]
     uploaded = try container.decodeIfPresent([UploadedPage].self, forKey: .uploaded) ?? []
   }
@@ -563,9 +573,13 @@ public actor HealthBackfill {
               // Before the type's changes, so what this run holds back waits for the next.
               if heldBackDue { try await retryHeldBack(type, &state) }
               let wasRead = state.anchors[type.id] != nil
+              noteSeriesEncoding(of: type, &state)
               try await sync(type, &state)
               try await readAgainIfOlder(type, wasRead: wasRead, &state)
-              if heldBackDue { try await readAgainIfUnnamed(type, &state) }
+              if heldBackDue {
+                try await readAgainIfUnnamed(type, &state)
+                try await readSeriesAgain(type, &state)
+              }
               unreached.remove(type.id)
             } catch {
               // Ending the run, it's still unreached.
@@ -859,7 +873,7 @@ public actor HealthBackfill {
     // Gone from Health, so gone from the server too: deleting one it doesn't have does nothing,
     // and a deletion it refused goes up this way.
     let gone = due.filter { !found.contains($0) }
-    page.mutations += gone.map { .delete(type.entity, id: $0) }
+    page.mutations += gone.flatMap(type.deletions)
     release(gone, of: type.id, because: "aren't in Health", &state)
     page.anchor = anchor
     page.hasMore = !state.finished.contains(type.id)
@@ -959,11 +973,15 @@ public actor HealthBackfill {
       "batch \(status.id) of \(BackfillLog.name(page.type)): \(status.rejected) lines refused")
     let type = types.first { $0.id == page.type }
     var named: [String] = []
+    /// Series whose values were refused (851-4149): their samples went up, and still count.
+    var seriesRefused: [String] = []
     var unnamed = max(0, status.rejected - status.rejectedLines.count)
     for line in status.rejectedLines {
       if let entity = line.entity, let id = line.id {
         if entity == type?.entity {
           named.append(id)
+        } else if entity == HealthEncoder.quantitySeriesEntity {
+          seriesRefused.append(id)
         } else if type?.isCorrelation == true, entity == HealthEncoder.sampleEntity {
           // A correlation's sample is read with it, so it can't be looked up by its own ID:
           // the type (a small one) is read again instead.
@@ -975,6 +993,7 @@ public actor HealthBackfill {
       }
     }
     hold(named, of: page.type, .refused, &state)
+    hold(seriesRefused.filter { !named.contains($0) }, of: page.type, .refused, &state)
     if unnamed > 0 { holdUnnamed(unnamed, of: page.type, &state) }
     uncount(named.count + unnamed, of: page.type, &state)
   }
@@ -1038,7 +1057,9 @@ public actor HealthBackfill {
     guard !type.isCorrelation, HealthCatalog.type(id: type.id)?.aggregation?.isCumulative == true
     else { return }
     var earliest = state.statisticsFrom[type.id]
-    for mutation in mutations {
+    // Not a series' values (851-4149): their sample says the same, and a page of series read
+    // again (`readSeriesAgain`) changes no sums.
+    for mutation in mutations where mutation.entity == type.entity {
       let from: Date
       if mutation.op == .delete {
         // Covers deletions caught up after the app was away, too.
@@ -1227,6 +1248,8 @@ public actor HealthBackfill {
     // pages read before mustn't move its anchor back.
     state.heldBack[type.id] = nil
     state.uploaded.removeAll { $0.type == type.id }
+    // Read from the start, every series goes up with its values (851-4149).
+    noteSeriesEncoding(of: type, &state)
     BackfillLog.write("reading \(BackfillLog.name(type.id)) again: \(reason)")
   }
 
@@ -1251,6 +1274,61 @@ public actor HealthBackfill {
     // Counted again, as for a new backfill, unless the run's count is still going.
     startCounting()
     try await sync(type, &state)
+  }
+
+  /// A quantity type read from the start (its first read, or read again) reads every series with
+  /// their values (851-4149), so its series needn't be read again.
+  private func noteSeriesEncoding(
+    of type: HealthBackfillType, _ state: inout HealthBackfillState
+  ) {
+    guard type.isQuantity, state.anchors[type.id] == nil,
+      state.quantitySeriesEncodings[type.id] != HealthEncoder.quantitySeriesEncoding
+    else { return }
+    state.quantitySeriesEncodings[type.id] = HealthEncoder.quantitySeriesEncoding
+    state.seriesAgainAnchors[type.id] = nil
+  }
+
+  /// Reads a quantity type's series again (samples with `count` over 1), if its samples were read
+  /// with an older encoding (`HealthBackfillState.quantitySeriesEncodings`), so the series
+  /// uploaded before their values were go up with them (851-4149). Only the series, through an
+  /// anchored query of their count, and only their values' records: their samples haven't
+  /// changed. In runs of everything, once the type has caught up from its anchor, a page at a
+  /// time, resuming where it stopped. Each page goes up as held-back records sent again do, at the
+  /// type's anchor, so a batch that fails holds its series back to try again by ID.
+  private func readSeriesAgain(
+    _ type: HealthBackfillType, _ state: inout HealthBackfillState
+  ) async throws {
+    guard type.isQuantity,
+      state.quantitySeriesEncodings[type.id, default: 0] < HealthEncoder.quantitySeriesEncoding
+    else { return }
+    if let anchor = state.anchors[type.id] {
+      if state.seriesAgainAnchors[type.id] == nil {
+        BackfillLog.write("reading \(BackfillLog.name(type.id))'s series again")
+      }
+      var isLast = false
+      while !isLast {
+        try Task.checkCancellation()
+        var reading = type
+        reading.skipsUnreadableSeries =
+          state.seriesFailures[type.id, default: 0] >= Self.seriesAttempts
+        var page = try await reader.series(
+          reading, state.seriesAgainAnchors[type.id], Self.pageSize)
+        state.seriesFailures[type.id] = nil
+        let read = page.anchor
+        isLast = !page.hasMore
+        if !page.mutations.isEmpty || !page.failed.isEmpty {
+          page.anchor = anchor
+          page.hasMore = !state.finished.contains(type.id)
+          _ = try await uploadPage(
+            page, of: type, from: nil, retried: page.mutations.map(\.id), &state)
+        }
+        state.seriesAgainAnchors[type.id] = read
+        try storage.saveState(state)
+      }
+    }
+    state.seriesAgainAnchors[type.id] = nil
+    state.quantitySeriesEncodings[type.id] = HealthEncoder.quantitySeriesEncoding
+    try storage.saveState(state)
   }
 
   /// Undoes `readDosesAgain` since `before`, if the medications didn't go up after it.
@@ -1491,7 +1569,8 @@ public actor HealthBackfill {
       }
       do {
         if let file = try writer.append(mutation) { files.append(file) }
-        records += 1
+        // A series' values are part of its sample's record (851-4149).
+        if mutation.entity != HealthEncoder.quantitySeriesEntity { records += 1 }
       } catch is HealthBatchWriter.LineTooLong {
         BackfillLog.write("a record of \(BackfillLog.name(type.id)) is over the server's 1 MB")
         tooLarge.append(mutation.id)

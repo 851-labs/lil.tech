@@ -161,6 +161,7 @@ struct HealthStatisticsTests {
     var state = HealthBackfillState()
     state.anchors[steps.id] = Data("0".utf8)
     state.statisticsUploadedAt[steps.id] = now.addingTimeInterval(-21 * 86_400)
+    state.quantitySeriesEncodings[steps.id] = HealthEncoder.quantitySeriesEncoding
     try storage.saveState(state)
     let backfill = makeBackfill(
       pages: LockIsolated([page(deletions: 1)]), buckets: [], uploads: uploads,

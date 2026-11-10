@@ -843,6 +843,69 @@ struct HealthEncoderTests {
   }
 
   @Test
+  func quantitySeriesWithItsValuesAndSummary() throws {
+    // Synthetic values (AGENTS.md): two instants and a reading 6.4 s long, the last the most
+    // recent, from a start with a fraction of a millisecond.
+    let from = start.addingTimeInterval(0.0004)
+    let series = QuantitySeriesRecord(
+      id: UUID(uuidString: "6F1C2A40-0000-4000-8000-0000000000F2")!,
+      type: "HKQuantityTypeIdentifierHeartRate", start: from, count: 3,
+      values: [
+        .init(start: from, end: from, value: 61),
+        .init(
+          start: from.addingTimeInterval(5.0006), end: from.addingTimeInterval(5.0006), value: 140.5
+        ),
+        .init(start: from.addingTimeInterval(10), end: from.addingTimeInterval(16.4), value: 88),
+      ],
+      summary: .init(
+        minimum: 61, maximum: 140.5, mostRecent: 88, mostRecentStart: from.addingTimeInterval(10),
+        mostRecentEnd: from.addingTimeInterval(16.4)))
+
+    let mutation = HealthEncoder.quantitySeries(series)
+    #expect(mutation.entity == "health_quantity_series")
+    #expect(mutation.id == "6f1c2a40-0000-4000-8000-0000000000f2")
+    let decoded = try row(mutation, as: Components.Schemas.HealthQuantitySeries.self)
+    #expect(decoded._type == "HKQuantityTypeIdentifierHeartRate")
+    #expect(decoded.startDate == 1_760_400_000_000)
+    #expect(decoded.count == 3)
+    #expect(decoded.minimum == 61)
+    #expect(decoded.maximum == 140.5)
+    #expect(decoded.mostRecent == 88)
+    #expect(decoded.mostRecentStartDate == 1_760_400_010_000)
+    #expect(decoded.mostRecentEndDate == 1_760_400_016_400)
+    // Times and durations to the millisecond, as the server keeps times.
+    let encoded = try #require(try line(mutation)["row"] as? [String: Any])
+    #expect(encoded["times"] as? [Double] == [0, 5.001, 10])
+    #expect(encoded["durations"] as? [Double] == [0, 0, 6.4])
+    #expect(encoded["values"] as? [Double] == [61, 140.5, 88])
+
+    // Values keep 12 significant digits, without a conversion's noise.
+    #expect(HealthEncoder.significant(125.00000000000001) == 125)
+    #expect(HealthEncoder.significant(0.30480000000000002) == 0.3048)
+    #expect(HealthEncoder.significant(72.123456789012345) == 72.1234567890)
+    #expect(HealthEncoder.significant(123_456_789_012_345) == 123_456_789_012_000)
+    #expect(HealthEncoder.significant(0) == 0)
+    #expect(HealthEncoder.significant(-0.5) == -0.5)
+
+    // Too many values to read: the count and summary alone.
+    var unread = series
+    unread.values = nil
+    let summaryOnly = try #require(
+      try line(HealthEncoder.quantitySeries(unread))["row"] as? [String: Any])
+    #expect(summaryOnly["times"] is NSNull)
+    #expect(summaryOnly["values"] is NSNull)
+    #expect(summaryOnly["count"] as? Int == 3)
+
+    // A cumulative series has no summary.
+    var cumulative = series
+    cumulative.summary = nil
+    let sum = try row(
+      HealthEncoder.quantitySeries(cumulative), as: Components.Schemas.HealthQuantitySeries.self)
+    #expect(sum.minimum == nil)
+    #expect(sum.mostRecentStartDate == nil)
+  }
+
+  @Test
   func heartbeatSeriesWithItsBeatsAndGaps() throws {
     // Synthetic beats (AGENTS.md): one gap, before the fourth.
     let series = HeartbeatSeriesRecord(

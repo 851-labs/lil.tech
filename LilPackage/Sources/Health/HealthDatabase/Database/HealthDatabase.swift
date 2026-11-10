@@ -468,6 +468,29 @@ public enum HealthDatabase {
     // (`HealthCardStore`). A database from before has no record of the entity, so sync catches
     // it up by itself (851-3222): the seed and any cards since arrive without a bootstrap.
     HealthCardStore.registerMigrations(in: &migrator)
+    // Quantity series' values (851-4149), `health_quantity_series`, synced by themselves into a
+    // database from before, as cards were (851-3222): no bootstrap.
+    migrator.registerMigration("Create quantity series") { db in
+      try #sql(
+        """
+        CREATE TABLE "healthQuantitySeries" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "type" TEXT NOT NULL,
+          "startDate" INTEGER NOT NULL,
+          "count" INTEGER NOT NULL,
+          "times" TEXT,
+          "durations" TEXT,
+          "values" TEXT,
+          "minimum" REAL,
+          "maximum" REAL,
+          "mostRecent" REAL,
+          "mostRecentStartDate" INTEGER,
+          "mostRecentEndDate" INTEGER
+        ) STRICT
+        """
+      )
+      .execute(db)
+    }
   }
 
   private static func registerHealthTables(in migrator: inout DatabaseMigrator) {
@@ -592,6 +615,14 @@ public enum HealthDatabase {
         correlationID: row.correlationId, sourceName: row.sourceName,
         sourceBundleID: row.sourceBundleId, sourceRevision: try json(row.sourceRevision),
         device: try json(row.device), metadata: try json(row.metadata), provenance: row.provenance)
+    },
+    entity("health_quantity_series", Components.Schemas.HealthQuantitySeries.self) { row in
+      HealthQuantitySeries(
+        id: row.id, type: row._type, startDate: row.startDate, count: row.count,
+        times: try json(row.times), durations: try json(row.durations),
+        values: try json(row.values), minimum: row.minimum, maximum: row.maximum,
+        mostRecent: row.mostRecent, mostRecentStartDate: row.mostRecentStartDate,
+        mostRecentEndDate: row.mostRecentEndDate)
     },
     entity("health_correlation", Components.Schemas.HealthCorrelation.self) { row in
       HealthCorrelation(
