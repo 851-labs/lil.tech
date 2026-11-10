@@ -23,13 +23,38 @@ private final class FakeHealth: Sendable {
   let perPage: Int
   let reads = LockIsolated<[String]>([])
 
-  init(pages: [String: Int], perPage: Int = 3) {
+  /// Each type's pages of series (851-4149), which `series` reads.
+  let seriesPageCounts: LockIsolated<[String: Int]>
+
+  init(pages: [String: Int], perPage: Int = 3, seriesPages: [String: Int] = [:]) {
     self.pageCounts = LockIsolated(pages)
     self.perPage = perPage
+    self.seriesPageCounts = LockIsolated(seriesPages)
   }
 
   var reader: HealthReader {
-    HealthReader { [self] type, anchor, _ in
+    HealthReader(page: page, series: series)
+  }
+
+  private var series: @Sendable (HealthBackfillType, Data?, Int) async throws -> HealthPage {
+    { [self] type, anchor, _ in
+      let read = anchor.map { Int(String(decoding: $0, as: UTF8.self))! } ?? 0
+      let name = type.id.components(separatedBy: "Identifier").last ?? type.id
+      reads.withValue { $0.append("series of \(name)@\(read)") }
+      let total = seriesPageCounts.value[type.id] ?? 0
+      let mutations = (0..<(read < total ? perPage : 0)).map { n in
+        HealthMutation.upsert(
+          HealthEncoder.quantitySeriesEntity, id: "\(type.id)-series-\(read)-\(n)",
+          row: ["count": 2])
+      }
+      return HealthPage(
+        mutations: mutations, anchor: Data(String(min(read + 1, total)).utf8),
+        hasMore: read + 1 < total)
+    }
+  }
+
+  private var page: @Sendable (HealthBackfillType, Data?, Int) async throws -> HealthPage {
+    { [self] type, anchor, _ in
       let read = anchor.map { Int(String(decoding: $0, as: UTF8.self))! } ?? 0
       let name = type.id.components(separatedBy: "Identifier").last ?? type.id
       reads.withValue { $0.append("\(name)@\(read)") }
@@ -223,6 +248,79 @@ struct HealthBackfillTests {
     health.reads.setValue([])
     try await backfill.run()
     #expect(health.reads.value == ["@2", "BodyTemperature@1"])
+  }
+
+  /// Series an earlier release uploaded without their values (851-4149) are read again once, in
+  /// a run of everything, after the type catches up from its anchor: only the series, as their
+  /// values' records, which don't count as records uploaded.
+  @Test
+  func seriesReadWithoutTheirValuesAreReadAgainOnce() async throws {
+    let health = FakeHealth(
+      pages: [heartRate.id: 2, workouts.id: 1], seriesPages: [heartRate.id: 2])
+    let server = FakeServer()
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = makeBackfill(
+      [heartRate, workouts], health: health, server: server, storage: storage)
+    // A new backfill reads every series with its values, so none again.
+    try await backfill.run()
+    #expect(health.reads.value == ["HeartRate@0", "HeartRate@1", "@0"])
+    #expect(
+      try storage.loadState()?.quantitySeriesEncodings
+        == [heartRate.id: HealthEncoder.quantitySeriesEncoding])
+
+    // Heart rate an earlier release read: a run of its changes leaves its series be.
+    var state = try #require(try storage.loadState())
+    state.quantitySeriesEncodings = [:]
+    try storage.saveState(state)
+    health.reads.setValue([])
+    try await backfill.syncChanges(of: [heartRate.id])
+    #expect(health.reads.value == ["HeartRate@2"])
+    #expect(try storage.loadState()?.quantitySeriesEncodings == [:])
+
+    // A run of everything catches it up, then reads its series again.
+    health.reads.setValue([])
+    try await backfill.run()
+    #expect(
+      health.reads.value == [
+        "HeartRate@2", "series of HeartRate@0", "series of HeartRate@1", "@1",
+      ])
+    #expect(server.records.value.filter { $0.contains("-series-") }.count == 6)
+    let after = try #require(try storage.loadState())
+    #expect(after.quantitySeriesEncodings == [heartRate.id: HealthEncoder.quantitySeriesEncoding])
+    #expect(after.seriesAgainAnchors == [:])
+    #expect(after.anchors[heartRate.id] == Data("2".utf8))
+    #expect(after.uploadedByType[heartRate.id] == 6)
+    #expect(after.heldBack == [:])
+
+    // Once.
+    health.reads.setValue([])
+    try await backfill.run()
+    #expect(health.reads.value == ["HeartRate@2", "@1"])
+  }
+
+  /// One interrupted carries on from the page it got to.
+  @Test
+  func readingSeriesAgainResumes() async throws {
+    let health = FakeHealth(pages: [heartRate.id: 1], seriesPages: [heartRate.id: 3])
+    let server = FakeServer()
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = makeBackfill([heartRate], health: health, server: server, storage: storage)
+    try await backfill.run()
+    var state = try #require(try storage.loadState())
+    state.quantitySeriesEncodings = [:]
+    try storage.saveState(state)
+    // The second page of series fails to go up (the first is attempt 2, after heart rate's).
+    server.failing.setValue([3, 4, 5, 6, 7, 8])
+    health.reads.setValue([])
+    await #expect(throws: (any Error).self) { try await backfill.run() }
+    #expect(try storage.loadState()?.seriesAgainAnchors[heartRate.id] == Data("1".utf8))
+
+    server.failing.setValue([])
+    health.reads.setValue([])
+    try await backfill.run()
+    #expect(
+      health.reads.value == ["HeartRate@1", "series of HeartRate@1", "series of HeartRate@2"])
+    #expect(try storage.loadState()?.quantitySeriesEncodings[heartRate.id] == 1)
   }
 
   @Test
@@ -465,6 +563,7 @@ struct HealthBackfillTests {
     try storage.saveFile("batch-1", file)
     state.pending = .init(
       type: temperature.id, anchor: Data("1".utf8), isLast: true, batches: ["batch-1"], records: 1)
+    state.quantitySeriesEncodings[temperature.id] = HealthEncoder.quantitySeriesEncoding
     try storage.saveState(state)
     let server = FakeServer()
     let backfill = makeBackfill([temperature], health: health, server: server, storage: storage)

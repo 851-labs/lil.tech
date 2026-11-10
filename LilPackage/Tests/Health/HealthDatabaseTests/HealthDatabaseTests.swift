@@ -1232,7 +1232,7 @@ struct HealthSyncTests {
         HTTPBody(
           try JSONEncoder().encode(
             Components.Schemas.ChangesPage(
-              epoch: 1, changes: changes, next: 22, head: 22, hasMore: false)))
+              epoch: 1, changes: changes, next: 23, head: 23, hasMore: false)))
       )
     }
     let engine = withDependencies {
@@ -1289,6 +1289,11 @@ struct HealthSyncTests {
     let series = try await database.read { db in try HealthHeartbeatSeries.fetchAll(db) }
     #expect(series.map(\.beats) == ["[0,0.82,1.65]"])
     #expect(series.map(\.gaps) == ["[2]"])
+    let quantitySeries = try await database.read { db in try HealthQuantitySeries.fetchAll(db) }
+    #expect(quantitySeries.map(\.count) == [3])
+    #expect(quantitySeries.map(\.times) == ["[0,5,10.5]"])
+    #expect(quantitySeries.map(\.values) == ["[61,140.5,88]"])
+    #expect(quantitySeries.map(\.mostRecentStartDate) == [1_760_400_010_500])
     let prescriptions = try await database.read { db in
       try HealthVisionPrescription.fetchAll(db)
     }
@@ -1350,6 +1355,7 @@ struct HealthSyncTests {
       writable(HealthStatisticsDevice.self), writable(HealthVisionPrescription.self),
       writable(HealthMedication.self), writable(HealthMedicationDose.self),
       writable(HealthDocument.self), writable(HealthCard.self),
+      writable(HealthQuantitySeries.self),
     ]
     #expect(Set(tables.map(\.0)).count == HealthDatabase.syncEntities.count)
     for (table, written) in tables {
@@ -1760,6 +1766,14 @@ struct HealthSyncTests {
         """
         "spec": \(HealthCards.welcomeSeed[0].spec.jsonText), "position": "a0",
         "createdAt": 1760400000000, "updatedAt": 1760400000000, "seed": "steps"
+        """),
+      upsert(
+        23, "health_quantity_series", "6f1c2a40-0000-4000-8000-00000000000e",
+        """
+        "type": "HKQuantityTypeIdentifierHeartRate", "startDate": 1760400000000, "count": 3,
+        "times": [0, 5, 10.5], "durations": [0, 0, 0], "values": [61, 140.5, 88],
+        "minimum": 61, "maximum": 140.5, "mostRecent": 88,
+        "mostRecentStartDate": 1760400010500, "mostRecentEndDate": 1760400010500
         """),
     ]
   }

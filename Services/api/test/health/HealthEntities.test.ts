@@ -27,6 +27,21 @@ const steps = {
   ...provenance,
 };
 
+/** A heart rate series' values (851-4149): two instants and a reading 6 s long. */
+const heartRateSeries = {
+  type: "HKQuantityTypeIdentifierHeartRate",
+  startDate: 1760400000000,
+  count: 3,
+  times: [0, 5, 10.5],
+  durations: [0, 0, 6],
+  values: [61, 140.5, 88],
+  minimum: 61,
+  maximum: 140.5,
+  mostRecent: 88,
+  mostRecentStartDate: 1760400010500,
+  mostRecentEndDate: 1760400016500,
+};
+
 const records: ReadonlyArray<{
   readonly entity: string;
   readonly id: string;
@@ -73,6 +88,12 @@ const records: ReadonlyArray<{
       provenance: "0123456789abcdef0123456789abcdef",
     },
     update: { type: steps.type, startDate: steps.startDate, value: 416 },
+  },
+  {
+    entity: "health_quantity_series",
+    id: "6f1c2a40-0000-4000-8000-00000000000b",
+    row: heartRateSeries,
+    update: { values: [61, 140.5, 89] },
   },
   {
     entity: "health_correlation",
@@ -185,6 +206,7 @@ describe("health entities", () => {
         records.filter((record) => record.entity === "health_sample").map((record) => record.id),
       );
       for (const table of [
+        "health_quantity_series",
         "health_correlation",
         "health_characteristic",
         "health_activity_summary",
@@ -266,6 +288,73 @@ describe("health entities", () => {
         ]),
       );
       assert.include(error.message, "sourceName");
+    }),
+  );
+
+  it.effect("deleting a sample deletes its series", () =>
+    Effect.gen(function* () {
+      const sql = makeTestStoreSql();
+      const store = makeUserStore(sql);
+      const id = "6f1c2a40-0000-4000-8000-00000000000d";
+      const single = "6f1c2a40-0000-4000-8000-00000000000e";
+      yield* store.applyMutations([
+        {
+          entity: "health_sample",
+          op: "upsert",
+          id,
+          row: { ...steps, type: heartRateSeries.type, value: 118.4, unit: "count/min" },
+        },
+        { entity: "health_quantity_series", op: "upsert", id, row: heartRateSeries },
+        { entity: "health_sample", op: "upsert", id: single, row: steps },
+      ]);
+      yield* store.applyMutations([
+        { entity: "health_sample", op: "delete", id },
+        { entity: "health_sample", op: "delete", id: single },
+      ]);
+      const page = readChanges(sql, entitiesByName, 3, 100);
+      const changes = "changes" in page ? page.changes : assert.fail("compacted");
+      // The series' delete is logged too, so the Macs delete it; a sample without one logs only
+      // its own.
+      assert.deepStrictEqual(
+        changes.map((change) => [change.entity, change.id, change.op]),
+        [
+          ["health_sample", id, "delete"],
+          ["health_quantity_series", id, "delete"],
+          ["health_sample", single, "delete"],
+        ],
+      );
+      assert.deepStrictEqual(sql.exec("SELECT count(*) AS n FROM health_quantity_series"), [
+        { n: 0 },
+      ]);
+    }),
+  );
+
+  it.effect("keeps a series' values only in their documented shape", () =>
+    Effect.gen(function* () {
+      const store = makeUserStore(makeTestStoreSql());
+      const upsert = (row: Record<string, unknown>): Mutation => ({
+        entity: "health_quantity_series",
+        op: "upsert",
+        id: "6f1c2a40-0000-4000-8000-00000000000c",
+        row: row as Mutation extends { row: infer R } ? R : never,
+      });
+      // Too many to upload: the count and summary alone.
+      yield* store.applyMutations([
+        upsert({ ...heartRateSeries, times: null, durations: null, values: null }),
+      ]);
+      const invalid: ReadonlyArray<readonly [Record<string, unknown>, string]> = [
+        [{ ...heartRateSeries, count: 1 }, "count"],
+        [{ ...heartRateSeries, values: null }, "all null"],
+        [{ ...heartRateSeries, values: [61, 140.5] }, "one entry per value"],
+        [{ ...heartRateSeries, times: [0, 10.5, 5] }, "in order"],
+        [{ ...heartRateSeries, times: [-1, 5, 10.5] }, "non-negative"],
+        [{ ...heartRateSeries, durations: [0, -1, 6] }, "durations"],
+        [{ ...heartRateSeries, values: [61, "140.5", 88] }, "numbers"],
+      ];
+      for (const [row, message] of invalid) {
+        const error = yield* Effect.flip(store.applyMutations([upsert(row)]));
+        assert.include(error.message, message);
+      }
     }),
   );
 

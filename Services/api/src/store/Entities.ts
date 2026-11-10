@@ -96,6 +96,11 @@ export interface Entity {
   /** The columns that hold a health blob's SHA-256, which keep it from being swept. */
   readonly blobColumns: ReadonlyArray<string>;
   /**
+   * The entity whose deletes delete this one's record with the same ID too (`applyMutations`),
+   * e.g. a sample's series (851-4149). Only for entities keyed by `id` alone.
+   */
+  readonly deletedWith?: string;
+  /**
    * Checks a whole record beyond its fields' types, returning why it's invalid. The store runs it
    * on every upsert, with the merged row.
    */
@@ -160,6 +165,8 @@ export const defineEntity = (
     readonly blobs?: ReadonlyArray<string>;
     /** Non-nullable text or integer fields that lead the primary key (`Entity.key`). */
     readonly key?: ReadonlyArray<string>;
+    /** The entity whose deletes delete this one's record too (`Entity.deletedWith`). */
+    readonly deletedWith?: string;
   },
 ): Entity => {
   const key = options.key ?? [];
@@ -175,6 +182,10 @@ export const defineEntity = (
   }
   if (key.length > 0 && options.deviceScoped !== undefined) {
     throw new Error(`Device-scoped entity ${name} can't have key fields`);
+  }
+  if (key.length > 0 && options.deletedWith !== undefined) {
+    // Its record couldn't be deleted by ID alone.
+    throw new Error(`Entity ${name} can't have both key fields and deletedWith`);
   }
   for (const field of options.blobs ?? []) {
     if (options.fields[field]?.type !== "text") {
@@ -236,6 +247,7 @@ export const defineEntity = (
     ...(options.deviceScoped === undefined ? {} : { deviceScoped: options.deviceScoped }),
     blobColumns: (options.blobs ?? []).map(columnName),
     ...(options.checkRow === undefined ? {} : { checkRow: options.checkRow }),
+    ...(options.deletedWith === undefined ? {} : { deletedWith: options.deletedWith }),
     decodeFields: Schema.decodeUnknownResult(fieldsSchema) as Entity["decodeFields"],
     statements: {
       select: `SELECT ${["id", ...columns].join(", ")} FROM "${name}"

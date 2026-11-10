@@ -24,6 +24,8 @@ private final class FakeRecords: Sendable {
   /// Records the encoder can't encode, and those whose line is over 1 MB.
   let unreadable = LockIsolated<Set<String>>([])
   let tooLong = LockIsolated<Set<String>>([])
+  /// Records that are quantity series (851-4149): they go up with their values' records.
+  let series = LockIsolated<Set<String>>([])
   let perPage: Int
   /// The anchor each page read started from, and the IDs each lookup asked for.
   let reads = LockIsolated<[Int?]>([])
@@ -51,8 +53,13 @@ private final class FakeRecords: Sendable {
             "type": .string(temperature.id),
             "note": .string(String(repeating: "x", count: padding)),
           ]))
+      if series.value.contains(id) { page.mutations.append(seriesRecord(id)) }
     }
     return page
+  }
+
+  func seriesRecord(_ id: String) -> HealthMutation {
+    .upsert(HealthEncoder.quantitySeriesEntity, id: id, row: ["count": 2])
   }
 
   var reader: HealthReader {
@@ -89,6 +96,14 @@ private final class FakeRecords: Sendable {
         let present = Set(
           log.value.compactMap { if case .added(let id) = $0 { id } else { nil } })
         return encode(ids.filter { present.contains($0) && !deleted.contains($0) })
+      },
+      series: { [self] _, _, _ in
+        // Every series still there, as their values' records alone.
+        let deleted = Set(
+          log.value.compactMap { if case .deleted(let id) = $0 { id } else { nil } })
+        let ids = log.value.compactMap { if case .added(let id) = $0 { id } else { nil } }
+          .filter { series.value.contains($0) && !deleted.contains($0) }
+        return HealthPage(mutations: ids.map(seriesRecord), anchor: Data("s".utf8), hasMore: false)
       })
   }
 }
@@ -98,8 +113,10 @@ private final class FakeBatches: Sendable {
   /// Each accepted batch's record IDs (not its provenance records), in order, and whether it
   /// failed.
   let batches = LockIsolated<[(id: String, records: [String], failed: Bool)]>([])
-  /// Records the server refuses, and whether it names them.
+  /// Records the server refuses, and whether it names them. A series' values are `series:<id>`
+  /// in `batches`, and `refusedSeries` refuses them by their sample's ID.
   let refused = LockIsolated<Set<String>>([])
+  let refusedSeries = LockIsolated<Set<String>>([])
   let namesRefused = LockIsolated(true)
   /// Batches it fails whole, by a record in them when they're uploaded, and whether every batch
   /// is still queued.
@@ -116,6 +133,9 @@ private final class FakeBatches: Sendable {
         .compactMap { line -> String? in
           let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any]
           guard object?["entity"] as? String != "health_provenance" else { return nil }
+          if object?["entity"] as? String == HealthEncoder.quantitySeriesEntity {
+            return (object?["id"] as? String).map { "series:\($0)" }
+          }
           return object?["id"] as? String
         }
       let failed = !failsWith.value.isDisjoint(with: ids)
@@ -134,12 +154,16 @@ private final class FakeBatches: Sendable {
           return HealthBatchStatus(id: id, status: "failed", failure: "The batch timed out")
         }
         let refusedHere = records.filter(refused.value.contains)
+        let refusedSeriesHere = refusedSeries.value.filter { records.contains("series:\($0)") }
         return HealthBatchStatus(
-          id: id, status: "applied", rejected: refusedHere.count,
+          id: id, status: "applied", rejected: refusedHere.count + refusedSeriesHere.count,
           rejectedLines: refusedHere.map {
             namesRefused.value
               ? .init(entity: HealthEncoder.sampleEntity, id: $0) : .init(entity: nil, id: nil)
-          })
+          }
+            + refusedSeriesHere.sorted().map {
+              .init(entity: HealthEncoder.quantitySeriesEntity, id: $0)
+            })
       }
     }
   }
@@ -165,6 +189,91 @@ private func makeBackfill(
 }
 
 struct HeldBackTests {
+  /// A series whose values the server refuses, though it took its sample (851-4149), is held back
+  /// and no longer counted, then counted once when it goes up whole.
+  @Test
+  func aSeriesTheServerRefusesIsHeldBackAndCountedOnce() async throws {
+    let health = FakeRecords(["a", "b"])
+    health.series.setValue(["b"])
+    let server = FakeBatches()
+    server.refusedSeries.setValue(["b"])
+    let storage = HealthBackfillStorage.inMemory()
+    try await makeBackfill(health: health, server: server, storage: storage).run()
+    #expect(server.uploaded == ["a", "b", "series:b"])
+    // Its values don't count as a record.
+    #expect(try storage.loadState()?.uploadedRecords == 2)
+
+    // The next run hears it was refused.
+    try await makeBackfill(health: health, server: server, storage: storage).run()
+    var state = try #require(try storage.loadState())
+    #expect(state.heldBack[temperature.id]?.records["b"]?.reason == .refused)
+    #expect(state.uploadedRecords == 1)
+
+    // A newer build sends it again, sample and values, counted once.
+    server.refusedSeries.setValue([])
+    let updated = makeBackfill(health: health, server: server, storage: storage, build: "1.1 (2)")
+    try await updated.run()
+    try await updated.run()
+    #expect(server.uploaded == ["a", "b", "series:b", "b", "series:b"])
+    state = try #require(try storage.loadState())
+    #expect(state.heldBack == [:])
+    #expect(state.uploadedRecords == 2)
+  }
+
+  /// Series read again whose batch fails (851-4149) are held back and tried again by ID, and the
+  /// counts end where they were.
+  @Test
+  func seriesReadAgainWhoseBatchFailsAreTriedAgain() async throws {
+    let health = FakeRecords(["a", "b"])
+    health.series.setValue(["b"])
+    let server = FakeBatches()
+    let storage = HealthBackfillStorage.inMemory()
+    // One backfill throughout, so batch IDs don't repeat.
+    let backfill = makeBackfill(health: health, server: server, storage: storage)
+    try await backfill.run()
+    // Read by an earlier release.
+    var state = try #require(try storage.loadState())
+    state.quantitySeriesEncodings = [:]
+    try storage.saveState(state)
+
+    server.failsWith.setValue(["series:b"])
+    try await backfill.run()
+    #expect(server.uploaded == ["a", "b", "series:b", "series:b"])
+    #expect(try storage.loadState()?.uploadedRecords == 2)
+
+    // The next run hears it failed, holds it back and sends it again, whole.
+    server.failsWith.setValue([])
+    try await backfill.run()
+    #expect(health.lookups.value == [["b"]])
+    #expect(server.uploaded == ["a", "b", "series:b", "series:b", "b", "series:b"])
+    state = try #require(try storage.loadState())
+    #expect(state.heldBack == [:])
+    #expect(state.uploadedRecords == 2)
+    #expect(state.quantitySeriesEncodings[temperature.id] == HealthEncoder.quantitySeriesEncoding)
+  }
+
+  /// A record held back isn't let go by its series going up alone when series are read again.
+  @Test
+  func seriesReadAgainLeaveRecordsHeldBackAlone() async throws {
+    let health = FakeRecords(["a", "huge"])
+    health.series.setValue(["a", "huge"])
+    health.tooLong.setValue(["huge"])
+    let server = FakeBatches()
+    let storage = HealthBackfillStorage.inMemory()
+    try await makeBackfill(health: health, server: server, storage: storage).run()
+    var state = try #require(try storage.loadState())
+    #expect(state.heldBack[temperature.id]?.records["huge"]?.reason == .tooLarge)
+    state.quantitySeriesEncodings = [:]
+    try storage.saveState(state)
+
+    try await makeBackfill(health: health, server: server, storage: storage).run()
+    #expect(
+      server.uploaded.filter { $0.hasPrefix("series:") } == ["series:a", "series:huge", "series:a"])
+    state = try #require(try storage.loadState())
+    #expect(state.heldBack[temperature.id]?.records["huge"]?.reason == .tooLarge)
+    #expect(state.uploadedRecords == 1)
+  }
+
   @Test
   func aRecordThatCantBeEncodedIsHeldBackAndTriedEveryRun() async throws {
     let health = FakeRecords(["a", "b", "c"])

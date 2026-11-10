@@ -349,6 +349,12 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
     sql: `ALTER TABLE agent_access_log ADD COLUMN card_id TEXT;
     ALTER TABLE agent_access_log ADD COLUMN card_name TEXT;`,
   },
+  {
+    version: 29,
+    name: "health_quantity_series",
+    // `HealthQuantitySeries` in `src/health/HealthEntities.ts` (851-4149): a series sample's values.
+    sql: `CREATE TABLE "health_quantity_series" (id TEXT PRIMARY KEY, "type" TEXT NOT NULL, "start_date" INTEGER NOT NULL, "count" INTEGER NOT NULL, "times" TEXT, "durations" TEXT, "values" TEXT, "minimum" REAL, "maximum" REAL, "most_recent" REAL, "most_recent_start_date" INTEGER, "most_recent_end_date" INTEGER) STRICT;`,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

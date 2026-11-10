@@ -150,6 +150,8 @@ const readLoggedRows = (
  *   `copyRows` (`logsRowCopies`). Without one, `readChanges` serves it with the whole record as
  *   it is now. Rolling the server back past an entity schema change therefore needs a new epoch
  *   (see `docs/sync/protocol.md`).
+ * - Deleting a record deletes those with the same ID of entities deleted with its own
+ *   (`Entity.deletedWith`), each appending its own delete when there was one.
  * - For an entity with key fields (`Entity.key`), upserts find the record by them and its ID, so
  *   they must include them. A delete leaves a tombstone, and the record's row is removed later
  *   (`src/store/Tombstones.ts`): it can't be found by its ID alone. Its first delete is appended
@@ -181,6 +183,10 @@ export const applyMutations = (
       }
       return count;
     };
+
+    /** Entities deleted with each entity (`Entity.deletedWith`). */
+    const dependents = (entity: Entity) =>
+      [...entities.values()].filter((other) => other.deletedWith === entity.name);
 
     const entityOf = (index: number, mutation: Mutation) => {
       const entity = entities.get(mutation.entity);
@@ -220,6 +226,9 @@ export const applyMutations = (
           mutation.id,
           at,
         );
+        for (const dependent of dependents(entity)) {
+          applyDelete(index, dependent, { entity: dependent.name, op: "delete", id: mutation.id });
+        }
       }
     };
 

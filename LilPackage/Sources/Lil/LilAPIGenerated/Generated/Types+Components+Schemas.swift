@@ -2258,6 +2258,211 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthQuantitySeries`.
+        public struct HealthQuantitySeries: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HealthQuantitySeries/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthQuantitySeries/type`.
+            public var _type: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthQuantitySeries/startDate`.
+            public var startDate: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthQuantitySeries/count`.
+            public var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthQuantitySeries/times`.
+            public var times: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthQuantitySeries/durations`.
+            public var durations: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthQuantitySeries/values`.
+            public var values: OpenAPIRuntime.OpenAPIValueContainer?
+            /// - Remark: Generated from `#/components/schemas/HealthQuantitySeries/minimum`.
+            public var minimum: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/HealthQuantitySeries/maximum`.
+            public var maximum: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/HealthQuantitySeries/mostRecent`.
+            public var mostRecent: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/HealthQuantitySeries/mostRecentStartDate`.
+            public var mostRecentStartDate: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/HealthQuantitySeries/mostRecentEndDate`.
+            public var mostRecentEndDate: Swift.Int?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthQuantitySeries`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - _type:
+            ///   - startDate:
+            ///   - count:
+            ///   - times:
+            ///   - durations:
+            ///   - values:
+            ///   - minimum:
+            ///   - maximum:
+            ///   - mostRecent:
+            ///   - mostRecentStartDate:
+            ///   - mostRecentEndDate:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                _type: Swift.String,
+                startDate: Swift.Int,
+                count: Swift.Int,
+                times: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                durations: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                values: OpenAPIRuntime.OpenAPIValueContainer? = nil,
+                minimum: Swift.Double? = nil,
+                maximum: Swift.Double? = nil,
+                mostRecent: Swift.Double? = nil,
+                mostRecentStartDate: Swift.Int? = nil,
+                mostRecentEndDate: Swift.Int? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self._type = _type
+                self.startDate = startDate
+                self.count = count
+                self.times = times
+                self.durations = durations
+                self.values = values
+                self.minimum = minimum
+                self.maximum = maximum
+                self.mostRecent = mostRecent
+                self.mostRecentStartDate = mostRecentStartDate
+                self.mostRecentEndDate = mostRecentEndDate
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case _type = "type"
+                case startDate
+                case count
+                case times
+                case durations
+                case values
+                case minimum
+                case maximum
+                case mostRecent
+                case mostRecentStartDate
+                case mostRecentEndDate
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self._type = try container.decode(
+                    Swift.String.self,
+                    forKey: ._type
+                )
+                self.startDate = try container.decode(
+                    Swift.Int.self,
+                    forKey: .startDate
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.times = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .times
+                )
+                self.durations = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .durations
+                )
+                self.values = try container.decodeIfPresent(
+                    OpenAPIRuntime.OpenAPIValueContainer.self,
+                    forKey: .values
+                )
+                self.minimum = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .minimum
+                )
+                self.maximum = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .maximum
+                )
+                self.mostRecent = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .mostRecent
+                )
+                self.mostRecentStartDate = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .mostRecentStartDate
+                )
+                self.mostRecentEndDate = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .mostRecentEndDate
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "type",
+                    "startDate",
+                    "count",
+                    "times",
+                    "durations",
+                    "values",
+                    "minimum",
+                    "maximum",
+                    "mostRecent",
+                    "mostRecentStartDate",
+                    "mostRecentEndDate"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self._type,
+                    forKey: ._type
+                )
+                try container.encode(
+                    self.startDate,
+                    forKey: .startDate
+                )
+                try container.encode(
+                    self.count,
+                    forKey: .count
+                )
+                try container.encodeIfPresent(
+                    self.times,
+                    forKey: .times
+                )
+                try container.encodeIfPresent(
+                    self.durations,
+                    forKey: .durations
+                )
+                try container.encodeIfPresent(
+                    self.values,
+                    forKey: .values
+                )
+                try container.encodeIfPresent(
+                    self.minimum,
+                    forKey: .minimum
+                )
+                try container.encodeIfPresent(
+                    self.maximum,
+                    forKey: .maximum
+                )
+                try container.encodeIfPresent(
+                    self.mostRecent,
+                    forKey: .mostRecent
+                )
+                try container.encodeIfPresent(
+                    self.mostRecentStartDate,
+                    forKey: .mostRecentStartDate
+                )
+                try container.encodeIfPresent(
+                    self.mostRecentEndDate,
+                    forKey: .mostRecentEndDate
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthCorrelation`.
         public struct HealthCorrelation: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HealthCorrelation/id`.

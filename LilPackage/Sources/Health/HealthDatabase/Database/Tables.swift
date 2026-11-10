@@ -53,6 +53,46 @@ public struct HealthSample: Equatable, Identifiable, Sendable {
   public var end: Date { Date(unixMilliseconds: endDate) }
 }
 
+/// A quantity series' values (`health_quantity_series`, 851-4149): a ``HealthSample`` whose
+/// `count` is over 1 keeps them here, under its ID. `times`, `durations` and `values` are JSON
+/// arrays, one entry per value, as the server documents them; `nil` when the iPhone didn't upload
+/// them (too many). The summary is a discrete series'.
+@Table("healthQuantitySeries")
+public struct HealthQuantitySeries: Equatable, Identifiable, Sendable {
+  public let id: String
+  public var type: String
+  public var startDate: Int
+  public var count: Int
+  public var times: String?
+  public var durations: String?
+  public var values: String?
+  public var minimum: Double?
+  public var maximum: Double?
+  public var mostRecent: Double?
+  public var mostRecentStartDate: Int?
+  public var mostRecentEndDate: Int?
+
+  public init(
+    id: String, type: String, startDate: Int, count: Int, times: String? = nil,
+    durations: String? = nil, values: String? = nil, minimum: Double? = nil,
+    maximum: Double? = nil, mostRecent: Double? = nil, mostRecentStartDate: Int? = nil,
+    mostRecentEndDate: Int? = nil
+  ) {
+    self.id = id
+    self.type = type
+    self.startDate = startDate
+    self.count = count
+    self.times = times
+    self.durations = durations
+    self.values = values
+    self.minimum = minimum
+    self.maximum = maximum
+    self.mostRecent = mostRecent
+    self.mostRecentStartDate = mostRecentStartDate
+    self.mostRecentEndDate = mostRecentEndDate
+  }
+}
+
 /// A blood pressure or food correlation. Its samples point at it with `correlationID`.
 @Table
 public struct HealthCorrelation: Equatable, Identifiable, Sendable {

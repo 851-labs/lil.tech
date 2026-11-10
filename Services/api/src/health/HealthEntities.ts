@@ -83,6 +83,73 @@ export const HealthSample = defineEntity("health_sample", {
   },
 });
 
+/**
+ * Quantity series (851-4149): a `health_sample` whose `count` is over 1, such as a Watch's heart
+ * rate during a workout or an app's steps written with `HKQuantitySeriesSampleBuilder`, keeps its
+ * values here, under the sample's ID. The sample's `value` is HealthKit's `quantity` for the whole
+ * series: the sum of a cumulative one, the average of a discrete one. Samples of a single value
+ * have no record. Deleting a sample deletes its series (`deletedWith`), so it's keyed by ID alone.
+ */
+export const HealthQuantitySeries = defineEntity("health_quantity_series", {
+  clientWritable: false,
+  id: healthKitUUID,
+  deletedWith: "health_sample",
+  fields: {
+    /** The sample's type and start: the values' times are seconds since it. */
+    type: Column.text,
+    startDate: Column.integer,
+    /** `HKQuantitySample.count`: how many values HealthKit says the series has. */
+    count: Column.integer,
+    /**
+     * Each value's start, in seconds since `startDate` (rounded to the millisecond), in order;
+     * its duration in seconds (0 for an instant); and the value, in the type's unit, as
+     * `health_sample.value`. The three have one entry per value. `null` when the series has more
+     * values than the iPhone uploads (`HealthEncoder.maxSeriesValues`), or its values couldn't be
+     * read: then only `count` and the discrete summary are known.
+     */
+    times: Column.nullable(Column.json),
+    durations: Column.nullable(Column.json),
+    values: Column.nullable(Column.json),
+    /**
+     * A discrete series' (`HKDiscreteQuantitySample`) lowest, highest and most recent value, and
+     * the most recent's start and end (Unix milliseconds); `null` for a cumulative one.
+     */
+    minimum: Column.nullable(Column.real),
+    maximum: Column.nullable(Column.real),
+    mostRecent: Column.nullable(Column.real),
+    mostRecentStartDate: Column.nullable(Column.integer),
+    mostRecentEndDate: Column.nullable(Column.integer),
+  },
+  checkRow: (_, row) => checkQuantitySeries(row),
+});
+
+/** Checks a quantity series has the shape `HealthQuantitySeries` documents. */
+const checkQuantitySeries = (row: Record<string, unknown>): string | undefined => {
+  if (!Number.isInteger(row.count) || (row.count as number) < 2) {
+    return "count must be an integer over 1";
+  }
+  const { times, durations, values } = row;
+  if (times === null && durations === null && values === null) return undefined;
+  if (!Array.isArray(times) || !Array.isArray(durations) || !Array.isArray(values)) {
+    return "times, durations and values must all be arrays, or all null";
+  }
+  if (durations.length !== times.length || values.length !== times.length) {
+    return "times, durations and values must have one entry per value";
+  }
+  let previous = 0;
+  for (const time of times) {
+    if (typeof time !== "number" || time < previous) {
+      return "times must be non-negative seconds, in order";
+    }
+    previous = time;
+  }
+  if (!durations.every((duration) => typeof duration === "number" && duration >= 0)) {
+    return "durations must be non-negative seconds";
+  }
+  if (!values.every((value) => typeof value === "number")) return "values must be numbers";
+  return undefined;
+};
+
 /** Blood pressure and food correlations. Their member samples point at them. */
 export const HealthCorrelation = defineEntity("health_correlation", {
   clientWritable: false,
@@ -647,6 +714,7 @@ export const HealthStatisticsDevice = defineEntity("health_statistics_device", {
 export const healthEntities = [
   HealthProvenance,
   HealthSample,
+  HealthQuantitySeries,
   HealthCorrelation,
   HealthCharacteristic,
   HealthActivitySummary,
