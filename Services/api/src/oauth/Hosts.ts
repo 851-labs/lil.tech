@@ -53,7 +53,7 @@ export interface AgentApp {
   readonly writeScopes?: Readonly<Record<string, AgentWriteScope>>;
   /**
    * The most sensitive data reading it includes, which the consent page names after "all of your
-   * <app> data", as the privacy policy does: "your ECGs, …" (851-4157).
+   * <app> data", as the privacy policy does: "What it can read includes your ECGs, …" (851-4157).
    */
   readonly sensitiveReads?: string;
   /** The consent connecting an agent records (`Consents.ts`). */

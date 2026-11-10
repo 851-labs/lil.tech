@@ -357,15 +357,19 @@ const unchangedText = (writes: ReadonlyArray<AgentWriteScope>) =>
   list([...new Set(writes.map((write) => `your ${escape(write.unchanged)}`))]);
 
 /**
- * The sensitive data reading includes, a paragraph per app that names some (851-4157): "That
- * includes your ECGs, …" for one app's server, "In lil health, that includes …" for the combined.
+ * The sensitive data reading includes, a paragraph per app that names some (851-4157): "What it
+ * can read includes your ECGs, …" for one app's server, "In lil health, what it can read includes
+ * …" for the combined. Not "That includes", which would follow "It can't change …".
  */
 const sensitiveText = (target: TargetView) =>
   target.apps
-    .filter((app) => app.sensitiveReads !== undefined)
-    .map(
-      (app) =>
-        `<p>${target.combined ? `In ${escape(app.name)}, that` : "That"} includes ${escape(app.sensitiveReads ?? "")}.</p>\n`,
+    .flatMap(({ name, sensitiveReads }) =>
+      sensitiveReads === undefined
+        ? []
+        : [
+            `<p>${target.combined ? `In ${escape(name)}, what` : "What"} it can read includes ` +
+              `${escape(sensitiveReads)}.</p>\n`,
+          ],
     )
     .join("");
 

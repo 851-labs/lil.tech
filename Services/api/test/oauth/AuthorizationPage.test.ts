@@ -230,7 +230,7 @@ describe("The authorization page", () => {
           // The sensitive kinds it includes, as the privacy policy names them (851-4157).
           assert.include(
             consent.html,
-            "<p>That includes your ECGs, State of Mind and anxiety and depression scores " +
+            "<p>What it can read includes your ECGs, State of Mind and anxiety and depression scores " +
               "(GAD-7, PHQ-9), hearing tests, medications, cycle tracking, clinical documents and " +
               "your workout routes&#39; precise locations.</p>",
           );
@@ -1397,7 +1397,10 @@ describe("Authorizing the combined server", () => {
           const html = started.consent.html;
           assert.include(html, "Allow MCP Inspector to read your lil data and change your cards?");
           assert.include(html, "all of your data in these lil apps: lil health");
-          assert.include(html, "<p>In lil health, that includes your ECGs, State of Mind");
+          assert.include(
+            html,
+            "<p>In lil health, what it can read includes your ECGs, State of Mind",
+          );
           assert.include(
             html,
             "and create, change and delete your cards in lil health. It can't change your Health " +
@@ -1508,7 +1511,7 @@ describe("Authorizing the combined server", () => {
             query(clientId, { resource: origin, scope: "mail:read" }).search,
           );
           // Only an app that names sensitive kinds gets a line for them.
-          assert.notInclude(mailOnly.consent.html, "that includes");
+          assert.notInclude(mailOnly.consent.html, "it can read includes");
           assert.strictEqual((yield* decide(handler, mailOnly, "allow")).status, 303);
           assert.deepStrictEqual(yield* consentsOf(["agents:health", "agents:mail"]), {
             "agents:health": null,
