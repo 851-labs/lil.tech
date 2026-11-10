@@ -1512,7 +1512,7 @@ export const ElectrocardiogramVoltages = readOnly(
 export const heartbeatSeriesLimit = 100;
 /**
  * The most beats `heartbeat_series_beats` gives a page, and how many it gives by default: an Apple
- * Watch series' hundred or so in one page, and about 130 KB at most, with every value at its
+ * Watch series' hundred or so in one page, and about 120 KB at most, with every value at its
  * longest.
  */
 export const heartbeatBeatsLimit = 2000;
@@ -1605,7 +1605,8 @@ export const HealthHeartbeat = Schema.Struct({
   interval: Schema.NullOr(Schema.Finite).annotate({
     description:
       "Milliseconds since the beat before, to 1 decimal place; null for the series' first " +
-      "beat and a beat preceded by a gap.",
+      "beat and a beat preceded by a gap, and 0 for a duplicate beat (at the same time as the " +
+      "one before), which heartbeat_series' averages skip.",
   }),
   precededByGap: Schema.Boolean.annotate({
     description:
@@ -1630,7 +1631,9 @@ export const HeartbeatSeriesBeats = readOnly(
     description:
       "One heartbeat series' beats, in order, a page at a time: each beat's time since the " +
       "series' start, the interval since the beat before in ms, and whether a gap preceded it, " +
-      "to work out HRV or look at the rhythm another way. By its ID, from heartbeat_series, " +
+      `to work out HRV or look at the rhythm another way. ${heartbeatIntervals} ` +
+      "heartbeat_series works out the average heart rate, SDNN and RMSSD by these rules. By " +
+      "its ID, from heartbeat_series, " +
       "whose average heart rate, SDNN and RMSSD usually answer what's asked: call this only " +
       `when they don't. ${heartbeatBeatsDefaultLimit.toLocaleString("en-US")} beats a page ` +
       "by default, which is a whole Apple Watch series.",

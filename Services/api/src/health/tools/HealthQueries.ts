@@ -480,7 +480,8 @@ export interface QuantitySeriesValues {
   readonly values: ReadonlyArray<number>;
 }
 
-const numberArray = (json: SqlValue | undefined): ReadonlyArray<number> | null => {
+/** A JSON array of numbers, or null if `json` isn't one. */
+export const numberArray = (json: SqlValue | undefined): ReadonlyArray<number> | null => {
   if (typeof json !== "string") return null;
   try {
     const parsed: unknown = JSON.parse(json);

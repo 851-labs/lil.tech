@@ -13852,7 +13852,7 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthHeartbeat/time`.
             public var time: Swift.Double
-            /// Milliseconds since the beat before, to 1 decimal place; null for the series' first beat and a beat preceded by a gap.
+            /// Milliseconds since the beat before, to 1 decimal place; null for the series' first beat and a beat preceded by a gap, and 0 for a duplicate beat (at the same time as the one before), which heartbeat_series' averages skip.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthHeartbeat/interval`.
             public var interval: Swift.Double?
@@ -13866,7 +13866,7 @@ extension Components {
             ///
             /// - Parameters:
             ///   - time: Seconds from the series' start to the beat, to 4 decimal places (0.1 ms).
-            ///   - interval: Milliseconds since the beat before, to 1 decimal place; null for the series' first beat and a beat preceded by a gap.
+            ///   - interval: Milliseconds since the beat before, to 1 decimal place; null for the series' first beat and a beat preceded by a gap, and 0 for a duplicate beat (at the same time as the one before), which heartbeat_series' averages skip.
             ///   - precededByGap: Whether beats HealthKit couldn't measure came before it, so the time since the beat before isn't an interval between two beats.
             ///   - additionalProperties: A container of undocumented properties.
             public init(

@@ -2,10 +2,12 @@ import { Clock, Effect } from "effect";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import {
   heartbeatBeatsDefaultLimit,
+  heartbeatBeatsLimit,
   heartbeatSeriesLimit,
   HealthToolError,
   type HealthToolkit,
 } from "./HealthToolkit.ts";
+import { numberArray } from "./HealthQueries.ts";
 import { RecordedZones } from "./RecordedTimes.ts";
 import { jsonObject } from "./SampleDetails.ts";
 import { localTime, type ToolRange, toolPeriod, toolTimeZone } from "./ToolTime.ts";
@@ -46,14 +48,6 @@ const seriesRow = (row: Record<string, unknown>): SeriesRow => ({
   metadata: (row["metadata"] as string | null) ?? null,
 });
 
-const parse = (json: string): unknown => {
-  try {
-    return JSON.parse(json);
-  } catch {
-    return undefined;
-  }
-};
-
 /**
  * A series' beats' times and the beats preceded by a gap, as the Mac's
  * `HealthHeartbeatSeries.analysis` reads them: beats that can't be read are none, and gaps that
@@ -61,15 +55,11 @@ const parse = (json: string): unknown => {
  * checks both, so neither happens on the server.)
  */
 export const seriesBeats = (series: { readonly beats: string; readonly gaps: string }) => {
-  const parsedBeats = parse(series.beats);
-  const times =
-    Array.isArray(parsedBeats) && parsedBeats.every((beat) => typeof beat === "number")
-      ? (parsedBeats as ReadonlyArray<number>)
-      : [];
-  const parsedGaps = parse(series.gaps);
+  const times = numberArray(series.beats) ?? [];
+  const gapIndices = numberArray(series.gaps);
   const gaps =
-    Array.isArray(parsedGaps) && parsedGaps.every((gap) => Number.isInteger(gap))
-      ? new Set(parsedGaps as ReadonlyArray<number>)
+    gapIndices !== null && gapIndices.every(Number.isInteger)
+      ? new Set(gapIndices)
       : new Set(times.keys());
   return { times, gaps };
 };
@@ -205,6 +195,13 @@ export const healthHeartbeatSeriesBeats = Effect.fn("healthHeartbeatSeriesBeats"
   },
 ) {
   const { zone, name } = yield* toolTimeZone(input.timeZone);
+  // The toolkit's schema checks it too; as on the Mac, so a caller that skips it can't loop.
+  const limit = input.limit ?? heartbeatBeatsDefaultLimit;
+  if (!Number.isInteger(limit) || limit < 1 || limit > heartbeatBeatsLimit) {
+    return yield* new HealthToolError({
+      message: `The limit must be from 1 to ${heartbeatBeatsLimit}.`,
+    });
+  }
   const series = sql
     .exec(`SELECT ${seriesColumns} FROM health_heartbeat_series WHERE id = ?`, input.id)
     .map(seriesRow)[0];
@@ -220,7 +217,7 @@ export const healthHeartbeatSeriesBeats = Effect.fn("healthHeartbeatSeriesBeats"
       message: `Invalid cursor: ${input.cursor}. Pass the previous page's nextCursor.`,
     });
   }
-  const end = Math.min(start + (input.limit ?? heartbeatBeatsDefaultLimit), times.length);
+  const end = Math.min(start + limit, times.length);
   const beats: Array<BeatsResult["beats"][number]> = [];
   for (let index = start; index < end; index++) {
     const precededByGap = gaps.has(index);

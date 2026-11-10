@@ -7084,7 +7084,7 @@
               "number",
               "null"
             ],
-            "description": "Milliseconds since the beat before, to 1 decimal place; null for the series' first beat and a beat preceded by a gap."
+            "description": "Milliseconds since the beat before, to 1 decimal place; null for the series' first beat and a beat preceded by a gap, and 0 for a duplicate beat (at the same time as the one before), which heartbeat_series' averages skip."
           },
           "precededByGap": {
             "type": "boolean",

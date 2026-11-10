@@ -3664,7 +3664,7 @@
   },
   {
     "name": "heartbeat_series_beats",
-    "description": "One heartbeat series' beats, in order, a page at a time: each beat's time since the series' start, the interval since the beat before in ms, and whether a gap preceded it, to work out HRV or look at the rhythm another way. By its ID, from heartbeat_series, whose average heart rate, SDNN and RMSSD usually answer what's asked: call this only when they don't. 1,000 beats a page by default, which is a whole Apple Watch series.",
+    "description": "One heartbeat series' beats, in order, a page at a time: each beat's time since the series' start, the interval since the beat before in ms, and whether a gap preceded it, to work out HRV or look at the rhythm another way. An interval is the time from one beat to the next. A beat preceded by a gap (beats HealthKit couldn't measure came before it) starts afresh: there's no interval from the beat before it, and no difference of intervals spans the gap. An interval of 0 (two beats at the same time) is skipped as a duplicate beat. Beats aren't filtered otherwise: no ectopic or artifact correction. heartbeat_series works out the average heart rate, SDNN and RMSSD by these rules. By its ID, from heartbeat_series, whose average heart rate, SDNN and RMSSD usually answer what's asked: call this only when they don't. 1,000 beats a page by default, which is a whole Apple Watch series.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3758,7 +3758,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Milliseconds since the beat before, to 1 decimal place; null for the series' first beat and a beat preceded by a gap."
+              "description": "Milliseconds since the beat before, to 1 decimal place; null for the series' first beat and a beat preceded by a gap, and 0 for a duplicate beat (at the same time as the one before), which heartbeat_series' averages skip."
             },
             "precededByGap": {
               "type": "boolean",
