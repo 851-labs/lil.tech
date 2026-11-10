@@ -325,6 +325,9 @@ public actor HealthBackfill {
   private var rateLimitedUntil: Date?
   /// An upload in this run failed for a moment even after its retries (`retryDelays`).
   private var serverFailing = false
+  /// Batches uploaded since the server was last asked about them: between types, it's asked
+  /// again only once as many as it answers for have gone up, not about the same queued ones.
+  private var uploadedSinceCheck = 0
   /// While storage is full, how long uploads for changes wait between tries. `run()` (the app
   /// opening, Try Again) always tries.
   static let storageFullRetryInterval: TimeInterval = 6 * 60 * 60
@@ -581,9 +584,7 @@ public actor HealthBackfill {
               }
             }
             // A backfill uploads many: they're checked as they add up, between types.
-            if state.uploaded.reduce(0, { $0 + $1.batches.count })
-              >= HealthBatchStatusReader.maxBatches
-            {
+            if uploadedSinceCheck >= HealthBatchStatusReader.maxBatches {
               try await checkUploads(&state)
             }
           }
@@ -769,7 +770,15 @@ public actor HealthBackfill {
     for (sha256, blob) in blobs {
       try storage.saveFile(HealthBackfillState.PendingPage.blobFile(sha256), blob)
     }
-    try await upload(pending, &state)
+    let committed = try await upload(pending, &state)
+    // Whatever went up isn't held back anymore, e.g. read again after a batch failed.
+    if committed, state.heldBack[type.id] != nil {
+      let skipped = Set(tooLarge)
+      release(
+        page.mutations.filter { $0.op == .upsert && !skipped.contains($0.id) }.map(\.id),
+        of: type.id, because: "went up", &state)
+      try storage.saveState(state)
+    }
     return pending
   }
 
@@ -841,10 +850,17 @@ public actor HealthBackfill {
     let due = held.records.filter { $0.value.isDue(build: build) }.keys.sorted()
     guard !due.isEmpty else { return }
     BackfillLog.write("trying \(due.count) held back of \(BackfillLog.name(type.id)) again")
-    var page = try await reader.records(type, due)
+    // A series that still can't be read is held back again, rather than failing the type.
+    var reading = type
+    reading.skipsUnreadableSeries = true
+    var page = try await reader.records(reading, due)
     let sent = Set(page.mutations.map(\.id))
     let found = sent.union(page.failed)
-    release(due.filter { !found.contains($0) }, of: type.id, because: "aren't in Health", &state)
+    // Gone from Health, so gone from the server too: deleting one it doesn't have does nothing,
+    // and a deletion it refused goes up this way.
+    let gone = due.filter { !found.contains($0) }
+    page.mutations += gone.map { .delete(type.entity, id: $0) }
+    release(gone, of: type.id, because: "aren't in Health", &state)
     page.anchor = anchor
     page.hasMore = !state.finished.contains(type.id)
     _ = try await uploadPage(
@@ -862,6 +878,7 @@ public actor HealthBackfill {
   private func checkUploads(_ state: inout HealthBackfillState) async throws {
     let asked = Array(
       state.uploaded.lazy.flatMap(\.batches).prefix(HealthBatchStatusReader.maxBatches))
+    uploadedSinceCheck = 0
     guard !asked.isEmpty else { return }
     let statuses: [String: HealthBatchStatus]
     do {
@@ -874,8 +891,10 @@ public actor HealthBackfill {
       return
     }
     let isAsked = Set(asked)
-    /// Types sent again from an earlier page: their later pages go up again too.
+    /// Types sent again from an earlier page: their later pages go up again too. Those read
+    /// again from the start keep none of their pages.
     var rewound: Set<String> = []
+    var restarted: Set<String> = []
     var kept: [HealthBackfillState.UploadedPage] = []
     for var page in state.uploaded {
       let name = BackfillLog.name(page.type)
@@ -883,33 +902,34 @@ public actor HealthBackfill {
         uncount(page.records, of: page.type, &state)
         continue
       }
-      var failed = false
-      var waiting: [String] = []
-      for batch in page.batches {
-        guard isAsked.contains(batch) else {
-          waiting.append(batch)
-          continue
-        }
-        guard let status = statuses[batch] else {
-          BackfillLog.write("batch \(batch) of \(name) is unknown to the server")
-          continue
-        }
-        switch status.status {
-        case "queued", "applying":
-          waiting.append(batch)
-        case "applied":
-          if status.rejected > 0 { holdRefused(status, of: page, &state) }
-        case "failed":
-          BackfillLog.write("batch \(batch) of \(name) failed: \(status.failure ?? "no reason")")
-          failed = true
-        default:
-          BackfillLog.write("batch \(batch) of \(name) is \(status.status)")
+      let answered = page.batches.compactMap { isAsked.contains($0) ? statuses[$0] : nil }
+      for batch in page.batches where isAsked.contains(batch) && statuses[batch] == nil {
+        BackfillLog.write("batch \(batch) of \(name) is unknown to the server")
+      }
+      let waiting = page.batches.filter { batch in
+        !isAsked.contains(batch) || ["queued", "applying"].contains(statuses[batch]?.status)
+      }
+      let failed = answered.filter { $0.status == "failed" }
+      for status in failed {
+        BackfillLog.write(
+          "batch \(status.id) of \(name) failed: \(status.failure ?? "no reason")")
+      }
+      for status in answered
+      where !["queued", "applying", "applied", "failed"].contains(status.status) {
+        BackfillLog.write("batch \(status.id) of \(name) is \(status.status)")
+      }
+      // A page sent again whole needn't hold back what its other batches refused: it's all
+      // read again.
+      if failed.isEmpty || page.from == nil {
+        for status in answered where status.status == "applied" && status.rejected > 0 {
+          holdRefused(status, of: page, &state)
         }
       }
-      if failed {
+      if !failed.isEmpty {
         if let from = page.from {
           rewind(page, to: from, &state)
           rewound.insert(page.type)
+          if from.isEmpty { restarted.insert(page.type) }
         } else {
           uncount(page.records, of: page.type, &state)
           if let retried = page.retried {
@@ -924,7 +944,7 @@ public actor HealthBackfill {
       page.batches = waiting
       if !page.batches.isEmpty { kept.append(page) }
     }
-    state.uploaded = kept
+    state.uploaded = kept.filter { !restarted.contains($0.type) }
     try storage.saveState(state)
     updateCounts(state)
   }
@@ -938,15 +958,18 @@ public actor HealthBackfill {
     BackfillLog.write(
       "batch \(status.id) of \(BackfillLog.name(page.type)): \(status.rejected) lines refused")
     let type = types.first { $0.id == page.type }
-    // A correlation's samples are sent with it. Provenance records aren't records of the type.
-    let entities: Set<String> =
-      type?.isCorrelation == true
-      ? [HealthEncoder.correlationEntity, HealthEncoder.sampleEntity] : [type?.entity ?? ""]
     var named: [String] = []
     var unnamed = max(0, status.rejected - status.rejectedLines.count)
     for line in status.rejectedLines {
       if let entity = line.entity, let id = line.id {
-        if entities.contains(entity) { named.append(id) }
+        if entity == type?.entity {
+          named.append(id)
+        } else if type?.isCorrelation == true, entity == HealthEncoder.sampleEntity {
+          // A correlation's sample is read with it, so it can't be looked up by its own ID:
+          // the type (a small one) is read again instead.
+          unnamed += 1
+        }
+        // Otherwise a provenance record, which isn't a record of the type.
       } else {
         unnamed += 1
       }
@@ -1483,10 +1506,11 @@ public actor HealthBackfill {
   }
 
   /// Uploads a page's blobs, then its batches, so no row arrives before its blob. Then commits
-  /// its anchor.
+  /// its anchor. Returns whether it did, rather than dropping the page (its files went missing).
+  @discardableResult
   private func upload(
     _ pending: HealthBackfillState.PendingPage, _ state: inout HealthBackfillState
-  ) async throws {
+  ) async throws -> Bool {
     // The run stopped before writing them all: drop the page, and read it again from the anchor
     // before it. Records are keyed by UUID and blobs by hash, so whatever already went up is
     // harmless.
@@ -1530,7 +1554,10 @@ public actor HealthBackfill {
         }
       }
     }
-    if missingBlob { return try dropPage() }
+    if missingBlob {
+      try dropPage()
+      return false
+    }
     let uploading = ContinuousClock.now
     // A few at a time, in any order: the anchor only moves once they're all accepted, and a
     // batch that went up before a failure is known to the server by its ID when it's tried again.
@@ -1571,7 +1598,10 @@ public actor HealthBackfill {
       )
       throw error
     }
-    if missingBatch { return try dropPage() }
+    if missingBatch {
+      try dropPage()
+      return false
+    }
     BackfillLog.write(
       "uploaded \(BackfillLog.name(pending.type)): \(pending.records) records, \(pending.batches.count) batches, \(pending.blobs.count) blobs in \(BackfillLog.since(uploading))"
     )
@@ -1588,6 +1618,7 @@ public actor HealthBackfill {
         .init(
           type: pending.type, batches: pending.batches, from: pending.from,
           records: pending.records, retried: pending.retried))
+      uploadedSinceCheck += pending.batches.count
       var unchecked = state.uploaded.reduce(0) { $0 + $1.batches.count }
       while unchecked > Self.maxUncheckedBatches, let oldest = state.uploaded.first {
         unchecked -= oldest.batches.count
@@ -1601,6 +1632,7 @@ public actor HealthBackfill {
     try storage.saveState(state)
     for file in pending.files { try storage.removeFile(file) }
     updateCounts(state)
+    return true
   }
 
   /// Blobs uploaded at once. They're independent, and only have to arrive before the page's

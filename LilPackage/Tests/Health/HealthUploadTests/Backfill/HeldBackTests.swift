@@ -28,6 +28,8 @@ private final class FakeRecords: Sendable {
   /// The anchor each page read started from, and the IDs each lookup asked for.
   let reads = LockIsolated<[Int?]>([])
   let lookups = LockIsolated<[[String]]>([])
+  /// Whether each lookup skipped series that can't be read, rather than failing on them.
+  let lookupsSkipSeries = LockIsolated<[Bool]>([])
 
   init(_ ids: [String], perPage: Int = 10) {
     log = LockIsolated(ids.map(Event.added))
@@ -79,8 +81,9 @@ private final class FakeRecords: Sendable {
         page.hasMore = end < events.count
         return page
       },
-      records: { [self] _, ids in
+      records: { [self] type, ids in
         lookups.withValue { $0.append(ids) }
+        lookupsSkipSeries.withValue { $0.append(type.skipsUnreadableSeries) }
         let deleted = Set(
           log.value.compactMap { if case .deleted(let id) = $0 { id } else { nil } })
         let present = Set(
@@ -144,7 +147,8 @@ private final class FakeBatches: Sendable {
 
 private func makeBackfill(
   health: FakeRecords, server: FakeBatches, storage: HealthBackfillStorage,
-  build: String = "1.0 (1)", statusReader: HealthBatchStatusReader? = nil
+  build: String = "1.0 (1)", statusReader: HealthBatchStatusReader? = nil,
+  type: HealthBackfillType = temperature
 ) -> HealthBackfill {
   withDependencies {
     $0.healthReader = health.reader
@@ -156,7 +160,7 @@ private func makeBackfill(
     $0.uuid = .incrementing
     $0.date.now = Date(timeIntervalSince1970: 1_760_400_000)
   } operation: {
-    HealthBackfill(types: [temperature], build: build)
+    HealthBackfill(types: [type], build: build)
   }
 }
 
@@ -185,6 +189,8 @@ struct HeldBackTests {
     health.unreadable.setValue([])
     try await backfill.run()
     #expect(health.lookups.value == [["b"], ["b"]])
+    // A series that still can't be read is held back again, not a failure of the type.
+    #expect(health.lookupsSkipSeries.value == [true, true])
     #expect(server.uploaded == ["a", "c", "b"])
     progress = await backfill.currentProgress()
     #expect(progress.heldBack == [:])
@@ -396,6 +402,54 @@ struct HeldBackTests {
     let updated = makeBackfill(health: health, server: server, storage: storage, build: "1.1 (2)")
     try await updated.run()
     #expect(health.lookups.value == [["c"]])
+    #expect(await updated.currentProgress().heldBack == [:])
+    // Its deletion goes up, in case the server has it (a deletion it refused).
+    #expect(server.uploaded.last == "c")
+  }
+
+  @Test
+  func aHeldBackRecordThatGoesUpInAPageReadAgainIsLetGo() async throws {
+    let health = FakeRecords(["a", "b", "c", "d"], perPage: 2)
+    health.tooLong.setValue(["c"])
+    let server = FakeBatches()
+    server.failsWith.setValue(["d"])
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = makeBackfill(health: health, server: server, storage: storage)
+    try await backfill.run()
+    #expect(await backfill.currentProgress().heldBack == [temperature.id: 1])
+
+    // The failed batch sends its page again from its anchor, and now "c" fits.
+    health.tooLong.setValue([])
+    server.failsWith.setValue([])
+    try await backfill.run()
+    #expect(server.uploaded == ["a", "b", "d", "c", "d"])
+    #expect(health.lookups.value.isEmpty)
+    #expect(await backfill.currentProgress().heldBack == [:])
+    #expect(await backfill.currentProgress().uploadedRecords == 4)
+  }
+
+  @Test
+  func aRefusedSampleOfACorrelationReadsItsTypeAgainOnceTheAppIsUpdated() async throws {
+    let bloodPressure = HealthBackfillType(
+      id: "HKCorrelationTypeIdentifierBloodPressure", isCorrelation: true)
+    let health = FakeRecords(["a", "b"])
+    let server = FakeBatches()
+    server.refused.setValue(["b"])
+    let storage = HealthBackfillStorage.inMemory()
+    let backfill = makeBackfill(
+      health: health, server: server, storage: storage, type: bloodPressure)
+    try await backfill.run()
+    try await backfill.run()
+    // It's read with its correlation, so it can't be looked up by its own ID.
+    #expect(await backfill.currentProgress().heldBack == [bloodPressure.id: 1])
+    #expect(try storage.loadState()?.heldBack[bloodPressure.id]?.unnamed == 1)
+
+    server.refused.setValue([])
+    let updated = makeBackfill(
+      health: health, server: server, storage: storage, build: "1.1 (2)", type: bloodPressure)
+    try await updated.run()
+    #expect(health.lookups.value.isEmpty)
+    #expect(health.reads.value.last == .some(nil))
     #expect(await updated.currentProgress().heldBack == [:])
   }
 

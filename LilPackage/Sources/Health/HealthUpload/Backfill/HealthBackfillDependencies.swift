@@ -164,7 +164,7 @@ public struct HealthReader: Sendable {
       @escaping @Sendable (_ type: HealthBackfillType, _ ids: [String]) async throws -> HealthPage =
       { _, _ in
         reportIssue("Unimplemented: @Dependency(\\.healthReader).records")
-        throw CancellationError()
+        throw Unimplemented()
       }
   ) {
     self.page = page
@@ -173,6 +173,12 @@ public struct HealthReader: Sendable {
 
   struct UnknownType: Error {
     let id: String
+  }
+
+  /// A reader made without `records`: trying held-back records fails their type, rather than
+  /// stopping the run as a cancellation would.
+  public struct Unimplemented: Error {
+    public init() {}
   }
 
   /// A series (an ECG's voltages, a heartbeat series' beats) couldn't be read: its query failed.
