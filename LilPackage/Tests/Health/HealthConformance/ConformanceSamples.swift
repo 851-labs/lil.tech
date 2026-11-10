@@ -192,6 +192,17 @@ public struct ConformanceSamples: Sendable {
     return activities
   }
 
+  /// Only the samples of `types` (identifiers), with every workout. The dataset extends the
+  /// Health tools' (`Services/api/test/health/tools/conformance`), whose samples include types the
+  /// iPhone's HealthKit tests can't write: types their host isn't granted (`TestHealthTypes`),
+  /// Apple's own (high heart rate notifications), and types that need metadata the writer doesn't
+  /// pass (insulin's delivery reason, 851-4166). The cards' cases read only the host's types.
+  public func only(types: Set<String>) -> ConformanceSamples {
+    var part = self
+    part.samples = samples.filter { types.contains($0.type) }
+    return part
+  }
+
   /// The samples and workouts of one source.
   public func of(source: String) -> ConformanceSamples {
     var part = self

@@ -342,9 +342,6 @@ export interface SampleRow {
   readonly sourceBundleId: string;
 }
 
-const sampleColumns =
-  "id, start_date, end_date, value, unit, category_value, source_name, source_bundle_id";
-
 const sampleRow = (row: SqlRow): SampleRow => ({
   id: row["id"] as string,
   startDate: Number(row["start_date"]),
@@ -354,6 +351,24 @@ const sampleRow = (row: SqlRow): SampleRow => ({
   categoryValue: numberOrNull(row["category_value"]),
   sourceName: row["source_name"] as string,
   sourceBundleId: row["source_bundle_id"] as string,
+});
+
+/**
+ * A sample or correlation as `samples` lists it (851-4166): its row, with its source revision,
+ * device and metadata as JSON, the revision and device from its `health_provenance` record when
+ * the row has none (as the Mac's `withProvenance`).
+ */
+export interface DetailedSampleRow extends SampleRow {
+  readonly sourceRevision: string | null;
+  readonly device: string | null;
+  readonly metadata: string | null;
+}
+
+const detailedRow = (row: SqlRow): DetailedSampleRow => ({
+  ...sampleRow(row),
+  sourceRevision: stringOrNull(row["source_revision"]),
+  device: stringOrNull(row["device"]),
+  metadata: stringOrNull(row["metadata"]),
 });
 
 /**
@@ -425,8 +440,11 @@ export interface SampleCursor {
 }
 
 /**
- * Up to `limit` of a type's samples that start in `[from, to)`, newest first (then by ID,
- * descending), after `cursor` (as the Mac's `HealthDatabase.samplePage`).
+ * Up to `limit` of a type's samples, or a correlation type's correlations (`correlation`), that
+ * start in `[from, to)`, newest first (by start, then ID, both descending), after `cursor` (as
+ * the Mac's `HealthDatabase.samplePage` and `correlationPage`), with their source revision, device
+ * and metadata (851-4166). Correlations have no value, and no tombstones (they have no key
+ * fields, so they're deleted at once).
  */
 export const samplePage = (
   sql: StoreSql,
@@ -434,21 +452,63 @@ export const samplePage = (
   range: { readonly from: number; readonly to: number },
   cursor: SampleCursor | null,
   limit: number,
-): ReadonlyArray<SampleRow> =>
+  correlation = false,
+): ReadonlyArray<DetailedSampleRow> =>
   sql
     .exec(
-      `SELECT ${sampleColumns} FROM health_sample s
-      WHERE type = ? AND start_date >= ? AND start_date < ?
-        ${cursor === null ? "" : "AND start_date <= ? AND (start_date < ? OR id < ?)"}
-        AND ${liveSample}
-      ORDER BY start_date DESC, id DESC LIMIT ?`,
+      `SELECT s.id, s.start_date, s.end_date,
+        ${correlation ? "NULL AS value, NULL AS unit, NULL AS category_value" : "s.value, s.unit, s.category_value"},
+        s.source_name, s.source_bundle_id,
+        coalesce(s.source_revision, p.source_revision) AS source_revision,
+        coalesce(s.device, p.device) AS device, s.metadata
+      FROM ${correlation ? "health_correlation" : "health_sample"} s
+      LEFT JOIN health_provenance p ON p.id = s.provenance
+      WHERE s.type = ? AND s.start_date >= ? AND s.start_date < ?
+        ${cursor === null ? "" : "AND s.start_date <= ? AND (s.start_date < ? OR s.id < ?)"}
+        ${correlation ? "" : `AND ${liveSample}`}
+      ORDER BY s.start_date DESC, s.id DESC LIMIT ?`,
       type,
       range.from,
       range.to,
       ...(cursor === null ? [] : [cursor.startDate, cursor.startDate, cursor.id]),
       limit,
     )
-    .map(sampleRow);
+    .map(detailedRow);
+
+/** A correlation's member sample: its type, value and unit. */
+export interface CorrelatedValueRow {
+  readonly correlationId: string;
+  readonly type: string;
+  readonly value: number | null;
+  readonly unit: string | null;
+}
+
+/**
+ * The samples in each of `correlations`, past tombstones, by correlation, then systolic before
+ * diastolic (blood pressure reads 118/76), then by type and ID. Only correlation pages read them,
+ * a page's IDs at once, through the `correlation_id` index. The Mac's `correlatedSamples` orders
+ * them alike.
+ */
+export const correlatedValues = (
+  sql: StoreSql,
+  correlations: ReadonlyArray<string>,
+): ReadonlyArray<CorrelatedValueRow> =>
+  correlations.length === 0
+    ? []
+    : sql
+        .exec(
+          `SELECT s.correlation_id, s.type, s.value, s.unit FROM health_sample s
+          WHERE s.correlation_id IN (SELECT value FROM json_each(?)) AND ${liveSample}
+          ORDER BY s.correlation_id, s.type <> 'HKQuantityTypeIdentifierBloodPressureSystolic',
+            s.type, s.id`,
+          JSON.stringify(correlations),
+        )
+        .map((row) => ({
+          correlationId: row["correlation_id"] as string,
+          type: row["type"] as string,
+          value: numberOrNull(row["value"]),
+          unit: stringOrNull(row["unit"]),
+        }));
 
 export interface WorkoutRow {
   readonly id: string;

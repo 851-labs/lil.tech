@@ -443,7 +443,7 @@ let mcpToolsJSON = #"""
   },
   {
     "name": "samples",
-    "description": "Individual samples of a quantity or category type in a period, newest first, a page at a time. A type can have many thousands of samples a day: use metric for totals and trends, and this only to look at particular readings.",
+    "description": "Individual samples of a quantity, category or correlation type (blood pressure, food) in a period, newest first, a page at a time, each with its source app and device (listed once a page, in sources) and what its metadata says (how and where it was measured, whether it was entered by hand), fields only when HealthKit has them. A type can have many thousands of samples a day: use metric for totals and trends, and this only to look at particular readings. Workouts, medications and health details have their own tools.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -517,6 +517,13 @@ let mcpToolsJSON = #"""
           },
           "description": "Samples that start in the period, newest first."
         },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HealthSampleSource"
+          },
+          "description": "Where this page's samples came from, each app and device once, in the order they first appear: a sample's sourceIndex is its entry."
+        },
         "nextCursor": {
           "anyOf": [
             {
@@ -536,10 +543,47 @@ let mcpToolsJSON = #"""
         "end",
         "type",
         "samples",
+        "sources",
         "nextCursor"
       ],
       "additionalProperties": true,
       "$defs": {
+        "HealthCorrelatedValue": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them."
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Its value, in `unit`."
+            },
+            "unit": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "value",
+            "unit"
+          ],
+          "additionalProperties": true
+        },
         "HealthSampleItem": {
           "type": "object",
           "properties": {
@@ -564,7 +608,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "A quantity's value, in `unit`. Null for category types."
+              "description": "A quantity's value, in `unit`. Null for category types and correlations."
             },
             "unit": {
               "anyOf": [
@@ -587,11 +631,160 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "A category sample's HealthKit value (HKCategoryValue…). Null for quantities."
+              "description": "A category sample's HealthKit value (HKCategoryValue…). Null for quantities and correlations."
             },
             "source": {
               "type": "string",
               "description": "The app or device that recorded it, e.g. an Apple Watch's name."
+            },
+            "sourceIndex": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Its entry in `sources`: the app, its version and the device, from 0."
+            },
+            "userEntered": {
+              "type": "boolean",
+              "description": "True if someone entered it by hand, e.g. in the Health app (HKMetadataKeyWasUserEntered)."
+            },
+            "recordedTimeZone": {
+              "type": "string",
+              "description": "The time zone where it was recorded (HKMetadataKeyTimeZone), e.g. America/New_York. Times here are still in the output's `timeZone`."
+            },
+            "values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/HealthCorrelatedValue"
+              },
+              "description": "For a correlation (blood pressure, food): the samples it groups, by type, e.g. systolic and diastolic, or each nutrient of a food."
+            },
+            "food": {
+              "type": "string",
+              "description": "A food's name (HKMetadataKeyFoodType)."
+            },
+            "motionContext": {
+              "type": "string",
+              "description": "Heart rate: sedentary (still) or active (moving or working out) (HKMetadataKeyHeartRateMotionContext)."
+            },
+            "userMotionContext": {
+              "type": "string",
+              "description": "stationary or active, how the person was moving (HKMetadataKeyUserMotionContext)."
+            },
+            "sensorLocation": {
+              "type": "string",
+              "description": "Where it was measured: for heart rate chest, wrist, finger, hand, earLobe, foot or other (HKMetadataKeyHeartRateSensorLocation); for body temperature armpit, body, ear, finger, gastroIntestinal, mouth, rectum, toe, earDrum, temporalArtery, forehead or other (HKMetadataKeyBodyTemperatureSensorLocation)."
+            },
+            "mealTime": {
+              "type": "string",
+              "description": "Blood glucose: preprandial (before a meal) or postprandial (after one) (HKMetadataKeyBloodGlucoseMealTime)."
+            },
+            "insulinDeliveryReason": {
+              "type": "string",
+              "description": "Insulin: basal or bolus (HKMetadataKeyInsulinDeliveryReason)."
+            },
+            "vo2MaxTestType": {
+              "type": "string",
+              "description": "Cardio fitness: how it was measured, maxExercise, predictionSubMaxExercise, predictionNonExercise or predictionStepTest (HKMetadataKeyVO2MaxTestType). Apple Watch's estimates are predictionSubMaxExercise."
+            },
+            "vo2Max": {
+              "type": "number",
+              "description": "A low cardio fitness event's VO2 max, in mL/(kg·min) (HKMetadataKeyVO2MaxValue)."
+            },
+            "lowCardioFitnessThreshold": {
+              "type": "number",
+              "description": "The VO2 max under which cardio fitness counted as low, in mL/(kg·min) (HKMetadataKeyLowCardioFitnessEventThreshold)."
+            },
+            "heartRateEventThreshold": {
+              "type": "number",
+              "description": "A high or low heart rate event's threshold, in beats per minute (HKMetadataKeyHeartRateEventThreshold)."
+            },
+            "heartRateRecoveryTestType": {
+              "type": "string",
+              "description": "Cardio recovery: maxExercise, predictionSubMaxExercise, predictionNonExercise or stepTest (HKMetadataKeyHeartRateRecoveryTestType)."
+            },
+            "heartRateRecoveryActivity": {
+              "type": "string",
+              "description": "Cardio recovery: the workout activity before it, e.g. Running (HKMetadataKeyHeartRateRecoveryActivityType)."
+            },
+            "heartRateRecoveryActivityDuration": {
+              "type": "number",
+              "description": "Cardio recovery: seconds of that activity (HKMetadataKeyHeartRateRecoveryActivityDuration)."
+            },
+            "maxObservedRecoveryHeartRate": {
+              "type": "number",
+              "description": "Cardio recovery: the highest heart rate seen, in beats per minute (HKMetadataKeyHeartRateRecoveryMaxObservedRecoveryHeartRate)."
+            },
+            "audioExposureLevel": {
+              "type": "number",
+              "description": "A noise or headphone audio event's level, in dB(A) SPL (HKMetadataKeyAudioExposureLevel)."
+            },
+            "audioExposureDuration": {
+              "type": "number",
+              "description": "Seconds of headphone audio it covers (HKMetadataKeyAudioExposureDuration)."
+            },
+            "headphoneGain": {
+              "type": "number",
+              "description": "A headphone audio event's gain, in dB(A) SPL (HKMetadataKeyHeadphoneGain)."
+            },
+            "physicalEffortEstimationType": {
+              "type": "string",
+              "description": "Physical effort: activityLookup or deviceSensed (HKMetadataKeyPhysicalEffortEstimationType)."
+            },
+            "activity": {
+              "type": "string",
+              "description": "The workout activity it was during, e.g. Hiking (HKMetadataKeyActivityType)."
+            },
+            "placementSide": {
+              "type": "string",
+              "description": "Where the iPhone was carried while walking: left, right or central (HKMetadataKeyDevicePlacementSide)."
+            },
+            "deviceCalibrated": {
+              "type": "boolean",
+              "description": "Whether the device had enough calibration data for it (HKMetadataKeyAppleDeviceCalibrated)."
+            },
+            "algorithmVersion": {
+              "type": "number",
+              "description": "The version of the algorithm that estimated it (HKMetadataKeyAlgorithmVersion)."
+            },
+            "earliestDataUsedForEstimate": {
+              "type": "string",
+              "description": "How far back the estimate's data goes (HKMetadataKeyDateOfEarliestDataUsedForEstimate)."
+            },
+            "clampedToLowerBound": {
+              "type": "boolean",
+              "description": "True if the value was raised to the lowest the sensor reports (HKMetadataKeyQuantityClampedToLowerBound)."
+            },
+            "clampedToUpperBound": {
+              "type": "boolean",
+              "description": "True if the value was lowered to the highest the sensor reports (HKMetadataKeyQuantityClampedToUpperBound)."
+            },
+            "referenceRangeLowerLimit": {
+              "type": "number",
+              "description": "A lab result's reference range's lower limit (HKMetadataKeyReferenceRangeLowerLimit)."
+            },
+            "referenceRangeUpperLimit": {
+              "type": "number",
+              "description": "A lab result's reference range's upper limit (HKMetadataKeyReferenceRangeUpperLimit)."
+            },
+            "takenInLab": {
+              "type": "boolean",
+              "description": "Whether it was taken in a lab (HKMetadataKeyWasTakenInLab)."
+            },
+            "waterSalinity": {
+              "type": "string",
+              "description": "Underwater depth or water temperature: freshWater or saltWater (HKMetadataKeyWaterSalinity)."
+            },
+            "maximumLightIntensity": {
+              "type": "number",
+              "description": "Time in daylight: the brightest light, in lux (HKMetadataKeyMaximumLightIntensity)."
+            },
+            "menstrualCycleStart": {
+              "type": "boolean",
+              "description": "Menstrual flow: whether it started a cycle (HKMetadataKeyMenstrualCycleStart)."
+            },
+            "protectionUsed": {
+              "type": "boolean",
+              "description": "Sexual activity: whether protection was used (HKMetadataKeySexualActivityProtectionUsed)."
             }
           },
           "required": [
@@ -601,7 +794,71 @@ let mcpToolsJSON = #"""
             "value",
             "unit",
             "categoryValue",
-            "source"
+            "source",
+            "sourceIndex"
+          ],
+          "additionalProperties": true
+        },
+        "HealthSampleDevice": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The device's name, e.g. Apple Watch."
+            },
+            "manufacturer": {
+              "type": "string",
+              "description": "Who made it, e.g. Apple Inc."
+            },
+            "model": {
+              "type": "string",
+              "description": "Its model, e.g. Watch."
+            },
+            "hardwareVersion": {
+              "type": "string",
+              "description": "Its hardware version, e.g. Watch7,1."
+            },
+            "firmwareVersion": {
+              "type": "string",
+              "description": "Its firmware version."
+            },
+            "softwareVersion": {
+              "type": "string",
+              "description": "Its software version, e.g. 26.1."
+            }
+          },
+          "additionalProperties": true,
+          "description": "The device that measured it (HKDevice, else the HKMetadataKeyDeviceName and …ManufacturerName metadata), with only the properties it has."
+        },
+        "HealthSampleSource": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The app or device that saved it, as the sample's `source`."
+            },
+            "bundleId": {
+              "type": "string",
+              "description": "The bundle ID of the app that saved it, e.g. com.dexcom.G7. Left out for Apple devices' own (com.apple.health.<UUID>), whose UUID identifies the device."
+            },
+            "version": {
+              "type": "string",
+              "description": "The version of the app, or the OS, that saved it."
+            },
+            "productType": {
+              "type": "string",
+              "description": "The hardware the app that saved it ran on, e.g. iPhone17,1 or Watch7,1."
+            },
+            "operatingSystemVersion": {
+              "type": "string",
+              "description": "The OS version it ran on, e.g. 26.1.0."
+            },
+            "device": {
+              "$ref": "#/$defs/HealthSampleDevice"
+            }
+          },
+          "required": [
+            "name"
           ],
           "additionalProperties": true
         }

@@ -9,6 +9,10 @@ enum TestHealthTypes {
     .bodyMass, .bodyTemperature, .heartRateVariabilitySDNN, .environmentalAudioExposure,
   ]
 
+  /// Their identifiers: the conformance dataset's samples of other types aren't written
+  /// (`ConformanceSamples.only(types:)`).
+  static var identifiers: Set<String> { Set(all.map(\.identifier)) }
+
   static var all: Set<HKSampleType> {
     var types = Set<HKSampleType>(quantities.map { HKQuantityType($0) })
     // For event windows (851-3200).

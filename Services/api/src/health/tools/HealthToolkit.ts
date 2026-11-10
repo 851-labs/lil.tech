@@ -277,20 +277,222 @@ export const Metric = readOnly(
 /** The most samples one call returns. */
 export const samplesLimit = 500;
 
+/** A field a sample has only when HealthKit says (851-4166): absent, never null. */
+const when = <S extends Schema.Top>(schema: S, description: string) =>
+  Schema.optionalKey(schema.annotate({ description }));
+
+/** An enum-like field: HealthKit's case name, without its prefix, as a plain string. */
+const caseName = (description: string) => when(Schema.String, description);
+
+export const HealthSampleDevice = Schema.Struct({
+  name: when(Schema.String, "The device's name, e.g. Apple Watch."),
+  manufacturer: when(Schema.String, "Who made it, e.g. Apple Inc."),
+  model: when(Schema.String, "Its model, e.g. Watch."),
+  hardwareVersion: when(Schema.String, "Its hardware version, e.g. Watch7,1."),
+  firmwareVersion: when(Schema.String, "Its firmware version."),
+  softwareVersion: when(Schema.String, "Its software version, e.g. 26.1."),
+}).annotate({ identifier: "HealthSampleDevice" });
+
+export const HealthCorrelatedValue = Schema.Struct({
+  type: healthType,
+  value: Schema.NullOr(Schema.Finite).annotate({ description: "Its value, in `unit`." }),
+  unit: Schema.NullOr(Schema.String),
+}).annotate({ identifier: "HealthCorrelatedValue" });
+
+/**
+ * Where samples came from (851-4166): the app or device, its version, and the device that
+ * measured them. A page lists each once, in `sources`, and each sample says which is its.
+ */
+export const HealthSampleSource = Schema.Struct({
+  name: Schema.String.annotate({
+    description: "The app or device that saved it, as the sample's `source`.",
+  }),
+  bundleId: when(
+    Schema.String,
+    "The bundle ID of the app that saved it, e.g. com.dexcom.G7. Left out for Apple devices' " +
+      "own (com.apple.health.<UUID>), whose UUID identifies the device.",
+  ),
+  version: when(Schema.String, "The version of the app, or the OS, that saved it."),
+  productType: when(
+    Schema.String,
+    "The hardware the app that saved it ran on, e.g. iPhone17,1 or Watch7,1.",
+  ),
+  operatingSystemVersion: when(Schema.String, "The OS version it ran on, e.g. 26.1.0."),
+  device: when(
+    HealthSampleDevice,
+    "The device that measured it (HKDevice, else the HKMetadataKeyDeviceName and " +
+      "…ManufacturerName metadata), with only the properties it has.",
+  ),
+}).annotate({ identifier: "HealthSampleSource" });
+
+/**
+ * What a sample's metadata says (851-4166): only the keys lil health keeps (851-4152), each read
+ * into a plain field. Every one is left out when HealthKit doesn't have it, so most samples have
+ * only a few.
+ */
+export const sampleDetailFields = {
+  userEntered: when(
+    Schema.Boolean,
+    "True if someone entered it by hand, e.g. in the Health app (HKMetadataKeyWasUserEntered).",
+  ),
+  recordedTimeZone: when(
+    Schema.String,
+    "The time zone where it was recorded (HKMetadataKeyTimeZone), e.g. America/New_York. Times " +
+      "here are still in the output's `timeZone`.",
+  ),
+  values: when(
+    Schema.Array(HealthCorrelatedValue),
+    "For a correlation (blood pressure, food): the samples it groups, by type, e.g. systolic " +
+      "and diastolic, or each nutrient of a food.",
+  ),
+  food: when(Schema.String, "A food's name (HKMetadataKeyFoodType)."),
+  motionContext: caseName(
+    "Heart rate: sedentary (still) or active (moving or working out) " +
+      "(HKMetadataKeyHeartRateMotionContext).",
+  ),
+  userMotionContext: caseName(
+    "stationary or active, how the person was moving (HKMetadataKeyUserMotionContext).",
+  ),
+  sensorLocation: caseName(
+    "Where it was measured: for heart rate chest, wrist, finger, hand, earLobe, foot or other " +
+      "(HKMetadataKeyHeartRateSensorLocation); for body temperature armpit, body, ear, finger, " +
+      "gastroIntestinal, mouth, rectum, toe, earDrum, temporalArtery, forehead or other " +
+      "(HKMetadataKeyBodyTemperatureSensorLocation).",
+  ),
+  mealTime: caseName(
+    "Blood glucose: preprandial (before a meal) or postprandial (after one) " +
+      "(HKMetadataKeyBloodGlucoseMealTime).",
+  ),
+  insulinDeliveryReason: caseName("Insulin: basal or bolus (HKMetadataKeyInsulinDeliveryReason)."),
+  vo2MaxTestType: caseName(
+    "Cardio fitness: how it was measured, maxExercise, predictionSubMaxExercise, " +
+      "predictionNonExercise or predictionStepTest (HKMetadataKeyVO2MaxTestType). Apple " +
+      "Watch's estimates are predictionSubMaxExercise.",
+  ),
+  vo2Max: when(
+    Schema.Finite,
+    "A low cardio fitness event's VO2 max, in mL/(kg·min) (HKMetadataKeyVO2MaxValue).",
+  ),
+  lowCardioFitnessThreshold: when(
+    Schema.Finite,
+    "The VO2 max under which cardio fitness counted as low, in mL/(kg·min) " +
+      "(HKMetadataKeyLowCardioFitnessEventThreshold).",
+  ),
+  heartRateEventThreshold: when(
+    Schema.Finite,
+    "A high or low heart rate event's threshold, in beats per minute " +
+      "(HKMetadataKeyHeartRateEventThreshold).",
+  ),
+  heartRateRecoveryTestType: caseName(
+    "Cardio recovery: maxExercise, predictionSubMaxExercise, predictionNonExercise or " +
+      "stepTest (HKMetadataKeyHeartRateRecoveryTestType).",
+  ),
+  heartRateRecoveryActivity: when(
+    Schema.String,
+    "Cardio recovery: the workout activity before it, e.g. Running " +
+      "(HKMetadataKeyHeartRateRecoveryActivityType).",
+  ),
+  heartRateRecoveryActivityDuration: when(
+    Schema.Finite,
+    "Cardio recovery: seconds of that activity (HKMetadataKeyHeartRateRecoveryActivityDuration).",
+  ),
+  maxObservedRecoveryHeartRate: when(
+    Schema.Finite,
+    "Cardio recovery: the highest heart rate seen, in beats per minute " +
+      "(HKMetadataKeyHeartRateRecoveryMaxObservedRecoveryHeartRate).",
+  ),
+  audioExposureLevel: when(
+    Schema.Finite,
+    "A noise or headphone audio event's level, in dB(A) SPL (HKMetadataKeyAudioExposureLevel).",
+  ),
+  audioExposureDuration: when(
+    Schema.Finite,
+    "Seconds of headphone audio it covers (HKMetadataKeyAudioExposureDuration).",
+  ),
+  headphoneGain: when(
+    Schema.Finite,
+    "A headphone audio event's gain, in dB(A) SPL (HKMetadataKeyHeadphoneGain).",
+  ),
+  physicalEffortEstimationType: caseName(
+    "Physical effort: activityLookup or deviceSensed (HKMetadataKeyPhysicalEffortEstimationType).",
+  ),
+  activity: when(
+    Schema.String,
+    "The workout activity it was during, e.g. Hiking (HKMetadataKeyActivityType).",
+  ),
+  placementSide: caseName(
+    "Where the iPhone was carried while walking: left, right or central " +
+      "(HKMetadataKeyDevicePlacementSide).",
+  ),
+  deviceCalibrated: when(
+    Schema.Boolean,
+    "Whether the device had enough calibration data for it (HKMetadataKeyAppleDeviceCalibrated).",
+  ),
+  algorithmVersion: when(
+    Schema.Finite,
+    "The version of the algorithm that estimated it (HKMetadataKeyAlgorithmVersion).",
+  ),
+  earliestDataUsedForEstimate: when(
+    LocalTime,
+    "How far back the estimate's data goes (HKMetadataKeyDateOfEarliestDataUsedForEstimate).",
+  ),
+  clampedToLowerBound: when(
+    Schema.Boolean,
+    "True if the value was raised to the lowest the sensor reports " +
+      "(HKMetadataKeyQuantityClampedToLowerBound).",
+  ),
+  clampedToUpperBound: when(
+    Schema.Boolean,
+    "True if the value was lowered to the highest the sensor reports " +
+      "(HKMetadataKeyQuantityClampedToUpperBound).",
+  ),
+  referenceRangeLowerLimit: when(
+    Schema.Finite,
+    "A lab result's reference range's lower limit (HKMetadataKeyReferenceRangeLowerLimit).",
+  ),
+  referenceRangeUpperLimit: when(
+    Schema.Finite,
+    "A lab result's reference range's upper limit (HKMetadataKeyReferenceRangeUpperLimit).",
+  ),
+  takenInLab: when(Schema.Boolean, "Whether it was taken in a lab (HKMetadataKeyWasTakenInLab)."),
+  waterSalinity: caseName(
+    "Underwater depth or water temperature: freshWater or saltWater " +
+      "(HKMetadataKeyWaterSalinity).",
+  ),
+  maximumLightIntensity: when(
+    Schema.Finite,
+    "Time in daylight: the brightest light, in lux (HKMetadataKeyMaximumLightIntensity).",
+  ),
+  menstrualCycleStart: when(
+    Schema.Boolean,
+    "Menstrual flow: whether it started a cycle (HKMetadataKeyMenstrualCycleStart).",
+  ),
+  protectionUsed: when(
+    Schema.Boolean,
+    "Sexual activity: whether protection was used (HKMetadataKeySexualActivityProtectionUsed).",
+  ),
+};
+
 export const HealthSampleItem = Schema.Struct({
   id: Schema.String.annotate({ description: "HealthKit's UUID for the sample." }),
   start: LocalTime,
   end: LocalTime,
   value: Schema.NullOr(Schema.Finite).annotate({
-    description: "A quantity's value, in `unit`. Null for category types.",
+    description: "A quantity's value, in `unit`. Null for category types and correlations.",
   }),
   unit: Schema.NullOr(Schema.String),
   categoryValue: Schema.NullOr(Schema.Int).annotate({
-    description: "A category sample's HealthKit value (HKCategoryValue…). Null for quantities.",
+    description:
+      "A category sample's HealthKit value (HKCategoryValue…). Null for quantities and " +
+      "correlations.",
   }),
   source: Schema.String.annotate({
     description: "The app or device that recorded it, e.g. an Apple Watch's name.",
   }),
+  sourceIndex: Schema.Int.annotate({
+    description: "Its entry in `sources`: the app, its version and the device, from 0.",
+  }),
+  ...sampleDetailFields,
 }).annotate({ identifier: "HealthSampleItem" });
 
 export const HealthSamplesResult = Schema.Struct({
@@ -298,6 +500,11 @@ export const HealthSamplesResult = Schema.Struct({
   type: healthType,
   samples: Schema.Array(HealthSampleItem).annotate({
     description: "Samples that start in the period, newest first.",
+  }),
+  sources: Schema.Array(HealthSampleSource).annotate({
+    description:
+      "Where this page's samples came from, each app and device once, in the order they first " +
+      "appear: a sample's sourceIndex is its entry.",
   }),
   nextCursor: Schema.NullOr(Schema.String).annotate({
     description: "Pass it as `cursor` for the next, older page; null on the last page.",
@@ -307,9 +514,12 @@ export const HealthSamplesResult = Schema.Struct({
 export const Samples = readOnly(
   Tool.make("samples", {
     description:
-      "Individual samples of a quantity or category type in a period, newest first, a page at " +
-      "a time. A type can have many thousands of samples a day: use metric for totals and " +
-      "trends, and this only to look at particular readings.",
+      "Individual samples of a quantity, category or correlation type (blood pressure, food) " +
+      "in a period, newest first, a page at a time, each with its source app and device (listed " +
+      "once a page, in sources) and what its metadata says (how and where it was measured, whether it was entered by hand), " +
+      "fields only when HealthKit has them. A type can have many thousands of samples a day: " +
+      "use metric for totals and trends, and this only to look at particular readings. " +
+      "Workouts, medications and health details have their own tools.",
     parameters: Schema.Struct({
       type: healthType,
       range,

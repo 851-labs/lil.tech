@@ -469,6 +469,36 @@
             "last": "2026-10-17T07:30:00+00:00"
           },
           {
+            "type": "HKCorrelationTypeIdentifierBloodPressure",
+            "name": "Blood Pressure",
+            "category": "Heart",
+            "kind": "correlation",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-10-19T08:00:00+00:00",
+            "last": "2026-10-19T08:00:00+00:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierVO2Max",
+            "name": "Cardio Fitness",
+            "category": "Heart",
+            "kind": "quantity",
+            "unit": "ml/(kg*min)",
+            "cumulative": false,
+            "first": "2026-10-19T18:00:00+00:00",
+            "last": "2026-10-19T18:00:00+00:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierBloodPressureDiastolic",
+            "name": "Diastolic Blood Pressure",
+            "category": "Heart",
+            "kind": "quantity",
+            "unit": "mmHg",
+            "cumulative": false,
+            "first": "2026-10-19T08:00:00+00:00",
+            "last": "2026-10-19T08:00:00+00:00"
+          },
+          {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "name": "Heart Rate",
             "category": "Heart",
@@ -479,6 +509,16 @@
             "last": "2026-10-20T14:45:30+00:00"
           },
           {
+            "type": "HKCategoryTypeIdentifierHighHeartRateEvent",
+            "name": "High Heart Rate Notifications",
+            "category": "Heart",
+            "kind": "category",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-10-19T20:00:00+00:00",
+            "last": "2026-10-19T20:00:00+00:00"
+          },
+          {
             "type": "HKQuantityTypeIdentifierRestingHeartRate",
             "name": "Resting Heart Rate",
             "category": "Heart",
@@ -487,6 +527,16 @@
             "cumulative": false,
             "first": "2026-10-19T07:00:00+00:00",
             "last": "2026-10-19T07:00:00+00:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierBloodPressureSystolic",
+            "name": "Systolic Blood Pressure",
+            "category": "Heart",
+            "kind": "quantity",
+            "unit": "mmHg",
+            "cumulative": false,
+            "first": "2026-10-19T08:00:00+00:00",
+            "last": "2026-10-19T08:00:00+00:00"
           },
           {
             "type": "HKMedicationDoseEventTypeIdentifierMedicationDoseEvent",
@@ -517,6 +567,26 @@
             "cumulative": false,
             "first": "2026-10-17T23:00:00+00:00",
             "last": "2026-10-20T00:00:00+00:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierBloodGlucose",
+            "name": "Blood Glucose",
+            "category": "Vitals",
+            "kind": "quantity",
+            "unit": "mg/dL",
+            "cumulative": false,
+            "first": "2026-10-19T07:30:00+00:00",
+            "last": "2026-10-19T09:15:00+00:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierInsulinDelivery",
+            "name": "Insulin Delivery",
+            "category": "Other Data",
+            "kind": "quantity",
+            "unit": "IU",
+            "cumulative": true,
+            "first": "2026-10-19T01:00:00+00:00",
+            "last": "2026-10-19T07:35:00+00:00"
           }
         ]
       }
@@ -602,6 +672,36 @@
             "last": "2026-10-17T00:30:00-07:00"
           },
           {
+            "type": "HKCorrelationTypeIdentifierBloodPressure",
+            "name": "Blood Pressure",
+            "category": "Heart",
+            "kind": "correlation",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-10-19T01:00:00-07:00",
+            "last": "2026-10-19T01:00:00-07:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierVO2Max",
+            "name": "Cardio Fitness",
+            "category": "Heart",
+            "kind": "quantity",
+            "unit": "ml/(kg*min)",
+            "cumulative": false,
+            "first": "2026-10-19T11:00:00-07:00",
+            "last": "2026-10-19T11:00:00-07:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierBloodPressureDiastolic",
+            "name": "Diastolic Blood Pressure",
+            "category": "Heart",
+            "kind": "quantity",
+            "unit": "mmHg",
+            "cumulative": false,
+            "first": "2026-10-19T01:00:00-07:00",
+            "last": "2026-10-19T01:00:00-07:00"
+          },
+          {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "name": "Heart Rate",
             "category": "Heart",
@@ -612,6 +712,16 @@
             "last": "2026-10-20T07:45:30-07:00"
           },
           {
+            "type": "HKCategoryTypeIdentifierHighHeartRateEvent",
+            "name": "High Heart Rate Notifications",
+            "category": "Heart",
+            "kind": "category",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-10-19T13:00:00-07:00",
+            "last": "2026-10-19T13:00:00-07:00"
+          },
+          {
             "type": "HKQuantityTypeIdentifierRestingHeartRate",
             "name": "Resting Heart Rate",
             "category": "Heart",
@@ -620,6 +730,16 @@
             "cumulative": false,
             "first": "2026-10-19T00:00:00-07:00",
             "last": "2026-10-19T00:00:00-07:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierBloodPressureSystolic",
+            "name": "Systolic Blood Pressure",
+            "category": "Heart",
+            "kind": "quantity",
+            "unit": "mmHg",
+            "cumulative": false,
+            "first": "2026-10-19T01:00:00-07:00",
+            "last": "2026-10-19T01:00:00-07:00"
           },
           {
             "type": "HKMedicationDoseEventTypeIdentifierMedicationDoseEvent",
@@ -650,6 +770,26 @@
             "cumulative": false,
             "first": "2026-10-17T16:00:00-07:00",
             "last": "2026-10-19T17:00:00-07:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierBloodGlucose",
+            "name": "Blood Glucose",
+            "category": "Vitals",
+            "kind": "quantity",
+            "unit": "mg/dL",
+            "cumulative": false,
+            "first": "2026-10-19T00:30:00-07:00",
+            "last": "2026-10-19T02:15:00-07:00"
+          },
+          {
+            "type": "HKQuantityTypeIdentifierInsulinDelivery",
+            "name": "Insulin Delivery",
+            "category": "Other Data",
+            "kind": "quantity",
+            "unit": "IU",
+            "cumulative": true,
+            "first": "2026-10-18T18:00:00-07:00",
+            "last": "2026-10-19T00:35:00-07:00"
           }
         ]
       }
@@ -1118,7 +1258,13 @@
             "value": 50,
             "unit": "count",
             "categoryValue": null,
-            "source": "Test Apple Watch"
+            "source": "Test Apple Watch",
+            "sourceIndex": 0
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch"
           }
         ],
         "nextCursor": "1792512000000_0c0f0000-0000-4000-8000-000000000003"
@@ -1149,7 +1295,13 @@
             "value": 412,
             "unit": "count",
             "categoryValue": null,
-            "source": "Test Apple Watch"
+            "source": "Test Apple Watch",
+            "sourceIndex": 0
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch"
           }
         ],
         "nextCursor": null
@@ -1179,7 +1331,8 @@
             "value": null,
             "unit": null,
             "categoryValue": 3,
-            "source": "Test Apple Watch"
+            "source": "Test Apple Watch",
+            "sourceIndex": 0
           },
           {
             "id": "0c0f0000-0000-4000-8000-000000000114",
@@ -1188,7 +1341,8 @@
             "value": null,
             "unit": null,
             "categoryValue": 2,
-            "source": "Test Apple Watch"
+            "source": "Test Apple Watch",
+            "sourceIndex": 0
           },
           {
             "id": "0c0f0000-0000-4000-8000-000000000113",
@@ -1197,7 +1351,13 @@
             "value": null,
             "unit": null,
             "categoryValue": 5,
-            "source": "Test Apple Watch"
+            "source": "Test Apple Watch",
+            "sourceIndex": 0
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch"
           }
         ],
         "nextCursor": "1792452600000_0c0f0000-0000-4000-8000-000000000113"
@@ -1222,7 +1382,349 @@
         "type": "HKWorkoutTypeIdentifier",
         "range": "W"
       },
-      "expectedError": "Workouts (HKWorkoutTypeIdentifier) isn't a quantity or category type, so it has no samples. Use the tool for its kind (workouts, medications, health_details)."
+      "expectedError": "samples doesn't list Workouts (HKWorkoutTypeIdentifier): use workouts."
+    },
+    {
+      "name": "samples: blood glucose with its meal time, where it came from, its device, and whether it was entered by hand",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierBloodGlucose",
+        "range": "D",
+        "date": "2026-10-19"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-10-19T00:00:00+00:00",
+        "end": "2026-10-20T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierBloodGlucose",
+        "samples": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000302",
+            "start": "2026-10-19T09:15:00+00:00",
+            "end": "2026-10-19T09:15:00+00:00",
+            "value": 142,
+            "unit": "mg/dL",
+            "categoryValue": null,
+            "source": "Test Health App",
+            "sourceIndex": 0,
+            "userEntered": false,
+            "mealTime": "postprandial",
+            "referenceRangeLowerLimit": 70,
+            "referenceRangeUpperLimit": 140
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000301",
+            "start": "2026-10-19T07:30:00+00:00",
+            "end": "2026-10-19T07:30:00+00:00",
+            "value": 95,
+            "unit": "mg/dL",
+            "categoryValue": null,
+            "source": "Health",
+            "sourceIndex": 1,
+            "userEntered": true,
+            "recordedTimeZone": "America/New_York",
+            "mealTime": "preprandial"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Health App",
+            "bundleId": "com.example.health",
+            "version": "2.4.1",
+            "productType": "iPhone17,1",
+            "operatingSystemVersion": "26.1.0",
+            "device": {
+              "name": "Test Meter",
+              "manufacturer": "Example Medical",
+              "model": "GM-1",
+              "firmwareVersion": "1.2",
+              "softwareVersion": "3.0"
+            }
+          },
+          {
+            "name": "Health",
+            "bundleId": "com.apple.Health",
+            "version": "26.1",
+            "productType": "iPhone17,1",
+            "operatingSystemVersion": "26.1.0"
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "samples: insulin's delivery reason, with a device named only in the metadata and an empty one",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierInsulinDelivery",
+        "range": "D",
+        "date": "2026-10-19"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-10-19T00:00:00+00:00",
+        "end": "2026-10-20T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierInsulinDelivery",
+        "samples": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000312",
+            "start": "2026-10-19T07:35:00+00:00",
+            "end": "2026-10-19T07:35:00+00:00",
+            "value": 4.5,
+            "unit": "IU",
+            "categoryValue": null,
+            "source": "Test Health App",
+            "sourceIndex": 0,
+            "insulinDeliveryReason": "bolus"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000311",
+            "start": "2026-10-19T01:00:00+00:00",
+            "end": "2026-10-19T01:00:00+00:00",
+            "value": 0.8,
+            "unit": "IU",
+            "categoryValue": null,
+            "source": "Test Health App",
+            "sourceIndex": 1,
+            "insulinDeliveryReason": "basal"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Health App",
+            "bundleId": "com.example.health",
+            "version": "1.0",
+            "operatingSystemVersion": "26.1.0",
+            "device": {
+              "name": "Test Health App",
+              "manufacturer": "Example Medical"
+            }
+          },
+          {
+            "name": "Test Health App",
+            "bundleId": "com.example.health",
+            "version": "1.0",
+            "operatingSystemVersion": "26.1.0"
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "samples: cardio fitness from an Apple Watch, without its bundle ID, in London",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierVO2Max",
+        "range": "D",
+        "date": "2026-10-19",
+        "timeZone": "Europe/London"
+      },
+      "expected": {
+        "timeZone": "Europe/London",
+        "range": "D",
+        "start": "2026-10-19T00:00:00+01:00",
+        "end": "2026-10-20T00:00:00+01:00",
+        "type": "HKQuantityTypeIdentifierVO2Max",
+        "samples": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000321",
+            "start": "2026-10-19T19:00:00+01:00",
+            "end": "2026-10-19T19:00:00+01:00",
+            "value": 42.5,
+            "unit": "ml/(kg*min)",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "vo2MaxTestType": "predictionSubMaxExercise",
+            "deviceCalibrated": true,
+            "algorithmVersion": 2,
+            "earliestDataUsedForEstimate": "2026-10-12T01:00:00+01:00"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch",
+            "version": "26.1",
+            "productType": "Watch7,1",
+            "operatingSystemVersion": "26.1.0",
+            "device": {
+              "name": "Apple Watch",
+              "manufacturer": "Apple Inc.",
+              "model": "Watch",
+              "hardwareVersion": "Watch7,1",
+              "softwareVersion": "26.1"
+            }
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "samples: a high heart rate notification's threshold and motion context",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKCategoryTypeIdentifierHighHeartRateEvent",
+        "range": "D",
+        "date": "2026-10-19"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-10-19T00:00:00+00:00",
+        "end": "2026-10-20T00:00:00+00:00",
+        "type": "HKCategoryTypeIdentifierHighHeartRateEvent",
+        "samples": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000331",
+            "start": "2026-10-19T20:00:00+00:00",
+            "end": "2026-10-19T20:10:00+00:00",
+            "value": null,
+            "unit": null,
+            "categoryValue": 0,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "motionContext": "sedentary",
+            "heartRateEventThreshold": 120
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch"
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "samples: heart rate's motion context and sensor location",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "range": "D",
+        "date": "2026-10-19"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-10-19T00:00:00+00:00",
+        "end": "2026-10-20T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "samples": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000005",
+            "start": "2026-10-19T09:00:00+00:00",
+            "end": "2026-10-19T09:00:00+00:00",
+            "value": 65,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "motionContext": "sedentary",
+            "sensorLocation": "wrist"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch"
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "samples of blood pressure: each reading with its systolic and diastolic values",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKCorrelationTypeIdentifierBloodPressure",
+        "range": "D",
+        "date": "2026-10-19"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-10-19T00:00:00+00:00",
+        "end": "2026-10-20T00:00:00+00:00",
+        "type": "HKCorrelationTypeIdentifierBloodPressure",
+        "samples": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000341",
+            "start": "2026-10-19T08:00:00+00:00",
+            "end": "2026-10-19T08:01:00+00:00",
+            "value": null,
+            "unit": null,
+            "categoryValue": null,
+            "source": "Test Health App",
+            "sourceIndex": 0,
+            "userEntered": false,
+            "recordedTimeZone": "Europe/London",
+            "values": [
+              {
+                "type": "HKQuantityTypeIdentifierBloodPressureSystolic",
+                "value": 118,
+                "unit": "mmHg"
+              },
+              {
+                "type": "HKQuantityTypeIdentifierBloodPressureDiastolic",
+                "value": 76,
+                "unit": "mmHg"
+              }
+            ]
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Health App",
+            "bundleId": "com.example.health",
+            "version": "5.2",
+            "productType": "iPhone17,1",
+            "operatingSystemVersion": "26.1.0",
+            "device": {
+              "name": "Test Health App",
+              "manufacturer": "Example Medical",
+              "model": "BP-2"
+            }
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "samples of ECGs fails: no tool reads them yet",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKDataTypeIdentifierElectrocardiogram",
+        "range": "W"
+      },
+      "expectedError": "samples doesn't list ECG (HKDataTypeIdentifierElectrocardiogram), and no other tool reads that kind yet."
+    },
+    {
+      "name": "samples of a characteristic fails: health_details has them",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKCharacteristicTypeIdentifierBloodType",
+        "range": "W"
+      },
+      "expectedError": "samples doesn't list Blood Type (HKCharacteristicTypeIdentifierBloodType): use health_details."
+    },
+    {
+      "name": "samples of workout routes fails: workout_routes has them",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKWorkoutRouteTypeIdentifier",
+        "range": "W"
+      },
+      "expectedError": "samples doesn't list Workout Routes (HKWorkoutRouteTypeIdentifier): use workout_routes."
     },
     {
       "name": "workouts of a week in UTC, newest first, with their statistics",
@@ -1962,6 +2464,12 @@
             "hasData": true
           },
           {
+            "type": "HKCategoryTypeIdentifierHighHeartRateEvent",
+            "name": "High Heart Rate Notifications",
+            "category": "Heart",
+            "hasData": true
+          },
+          {
             "type": "HKQuantityTypeIdentifierRestingHeartRate",
             "name": "Resting Heart Rate",
             "category": "Heart",
@@ -1982,12 +2490,6 @@
           {
             "type": "HKQuantityTypeIdentifierHeartRateVariabilityRMSSD",
             "name": "Heart Rate Variability (RMSSD)",
-            "category": "Heart",
-            "hasData": false
-          },
-          {
-            "type": "HKCategoryTypeIdentifierHighHeartRateEvent",
-            "name": "High Heart Rate Notifications",
             "category": "Heart",
             "hasData": false
           },
@@ -2063,7 +2565,7 @@
             "type": "HKQuantityTypeIdentifierVO2Max",
             "name": "Cardio Fitness",
             "category": "Heart",
-            "hasData": false
+            "hasData": true
           }
         ],
         "medications": []
@@ -3232,6 +3734,7 @@
         "end": "2000-01-02T00:00:00+00:00",
         "type": "HKQuantityTypeIdentifierStepCount",
         "samples": [],
+        "sources": [],
         "nextCursor": null
       }
     },
@@ -3251,6 +3754,7 @@
         "end": "3000-01-01T00:00:00+00:00",
         "type": "HKQuantityTypeIdentifierStepCount",
         "samples": [],
+        "sources": [],
         "nextCursor": null
       }
     },

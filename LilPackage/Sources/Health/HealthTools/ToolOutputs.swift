@@ -142,6 +142,42 @@ public struct HealthSampleItem: Codable, Equatable, Sendable {
   public var unit: String?
   public var categoryValue: Int?
   public var source: String
+  /// Its entry in the page's `sources` (851-4166).
+  public var sourceIndex: Int
+  /// What its metadata says, each field only when the sample has it (851-4166).
+  public var details: HealthSampleDetails
+
+  public init(
+    id: String, start: String, end: String, value: Double?, unit: String?, categoryValue: Int?,
+    source: String, sourceIndex: Int, details: HealthSampleDetails = HealthSampleDetails()
+  ) {
+    self.id = id
+    self.start = start
+    self.end = end
+    self.value = value
+    self.unit = unit
+    self.categoryValue = categoryValue
+    self.source = source
+    self.sourceIndex = sourceIndex
+    self.details = details
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id, start, end, value, unit, categoryValue, source, sourceIndex
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(String.self, forKey: .id)
+    start = try container.decode(String.self, forKey: .start)
+    end = try container.decode(String.self, forKey: .end)
+    value = try container.decodeIfPresent(Double.self, forKey: .value)
+    unit = try container.decodeIfPresent(String.self, forKey: .unit)
+    categoryValue = try container.decodeIfPresent(Int.self, forKey: .categoryValue)
+    source = try container.decode(String.self, forKey: .source)
+    sourceIndex = try container.decode(Int.self, forKey: .sourceIndex)
+    details = try HealthSampleDetails(from: decoder)
+  }
 
   public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
@@ -152,6 +188,121 @@ public struct HealthSampleItem: Codable, Equatable, Sendable {
     try container.encode(unit, .unit)
     try container.encode(categoryValue, .categoryValue)
     try container.encode(source, .source)
+    try container.encode(sourceIndex, .sourceIndex)
+    // Beside the fields above, in the same object.
+    try details.encode(to: encoder)
+  }
+}
+
+/// What a sample's metadata says (`sampleDetailFields` in `HealthToolkit.ts`, 851-4166), read
+/// by `SampleDetails`. Every field is left out of the JSON when it's nil, as the toolkit's optional
+/// keys are: synthesized `Codable` does that.
+public struct HealthSampleDetails: Codable, Equatable, Sendable {
+  public var userEntered: Bool?
+  public var recordedTimeZone: String?
+  /// A correlation's samples, by type.
+  public var values: [HealthCorrelatedValue]?
+  public var food: String?
+  public var motionContext: String?
+  public var userMotionContext: String?
+  public var sensorLocation: String?
+  public var mealTime: String?
+  public var insulinDeliveryReason: String?
+  public var vo2MaxTestType: String?
+  public var vo2Max: Double?
+  public var lowCardioFitnessThreshold: Double?
+  public var heartRateEventThreshold: Double?
+  public var heartRateRecoveryTestType: String?
+  public var heartRateRecoveryActivity: String?
+  public var heartRateRecoveryActivityDuration: Double?
+  public var maxObservedRecoveryHeartRate: Double?
+  public var audioExposureLevel: Double?
+  public var audioExposureDuration: Double?
+  public var headphoneGain: Double?
+  public var physicalEffortEstimationType: String?
+  public var activity: String?
+  public var placementSide: String?
+  public var deviceCalibrated: Bool?
+  public var algorithmVersion: Double?
+  public var earliestDataUsedForEstimate: String?
+  public var clampedToLowerBound: Bool?
+  public var clampedToUpperBound: Bool?
+  public var referenceRangeLowerLimit: Double?
+  public var referenceRangeUpperLimit: Double?
+  public var takenInLab: Bool?
+  public var waterSalinity: String?
+  public var maximumLightIntensity: Double?
+  public var menstrualCycleStart: Bool?
+  public var protectionUsed: Bool?
+
+  public init() {}
+}
+
+/// Where a page's samples came from (`HealthSampleSource` in `HealthToolkit.ts`, 851-4166): the
+/// app or device, its version and the device that measured them, listed once a page. Optional
+/// fields are left out of the JSON when they're nil.
+public struct HealthSampleSource: Codable, Hashable, Sendable {
+  public var name: String
+  public var bundleId: String?
+  public var version: String?
+  public var productType: String?
+  public var operatingSystemVersion: String?
+  public var device: HealthSampleDevice?
+
+  public init(
+    name: String, bundleId: String? = nil, version: String? = nil, productType: String? = nil,
+    operatingSystemVersion: String? = nil, device: HealthSampleDevice? = nil
+  ) {
+    self.name = name
+    self.bundleId = bundleId
+    self.version = version
+    self.productType = productType
+    self.operatingSystemVersion = operatingSystemVersion
+    self.device = device
+  }
+}
+
+/// The device that measured a sample: `HKDevice`'s properties lil health keeps, those it has.
+public struct HealthSampleDevice: Codable, Hashable, Sendable {
+  public var name: String?
+  public var manufacturer: String?
+  public var model: String?
+  public var hardwareVersion: String?
+  public var firmwareVersion: String?
+  public var softwareVersion: String?
+
+  public init(
+    name: String? = nil, manufacturer: String? = nil, model: String? = nil,
+    hardwareVersion: String? = nil, firmwareVersion: String? = nil, softwareVersion: String? = nil
+  ) {
+    self.name = name
+    self.manufacturer = manufacturer
+    self.model = model
+    self.hardwareVersion = hardwareVersion
+    self.firmwareVersion = firmwareVersion
+    self.softwareVersion = softwareVersion
+  }
+
+  var isEmpty: Bool { self == HealthSampleDevice() }
+}
+
+/// One of a correlation's samples (blood pressure's systolic, a food's energy).
+public struct HealthCorrelatedValue: Codable, Equatable, Sendable {
+  public var type: String
+  public var value: Double?
+  public var unit: String?
+
+  public init(type: String, value: Double?, unit: String?) {
+    self.type = type
+    self.value = value
+    self.unit = unit
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(type, .type)
+    try container.encode(value, .value)
+    try container.encode(unit, .unit)
   }
 }
 
@@ -162,6 +313,7 @@ public struct HealthSamplesResult: HealthToolOutput {
   public var end: String
   public var type: String
   public var samples: [HealthSampleItem]
+  public var sources: [HealthSampleSource]
   public var nextCursor: String?
 
   public func encode(to encoder: any Encoder) throws {
@@ -172,6 +324,7 @@ public struct HealthSamplesResult: HealthToolOutput {
     try container.encode(end, .end)
     try container.encode(type, .type)
     try container.encode(samples, .samples)
+    try container.encode(sources, .sources)
     try container.encode(nextCursor, .nextCursor)
   }
 }

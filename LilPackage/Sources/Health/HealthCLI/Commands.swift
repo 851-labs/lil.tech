@@ -162,7 +162,9 @@ struct MetricCommand: QueryCommand {
 struct SamplesCommand: QueryCommand {
   static let configuration = CommandConfiguration(
     commandName: "samples",
-    abstract: "A quantity or category type's samples in a range, newest first, a page at a time.")
+    abstract:
+      "A quantity, category or correlation type's samples in a range, newest first, a page at a "
+      + "time.")
 
   @Argument(help: typeHelp) var type: String
   @Option(name: .shortAndLong, help: rangeHelp) var range = RangeArgument(.day)

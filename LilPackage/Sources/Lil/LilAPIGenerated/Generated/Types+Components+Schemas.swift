@@ -6459,6 +6459,80 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthCorrelatedValue`.
+        public struct HealthCorrelatedValue: Codable, Hashable, Sendable {
+            /// A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCorrelatedValue/type`.
+            public var _type: Swift.String
+            /// Its value, in `unit`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthCorrelatedValue/value`.
+            public var value: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/HealthCorrelatedValue/unit`.
+            public var unit: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthCorrelatedValue`.
+            ///
+            /// - Parameters:
+            ///   - _type: A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.
+            ///   - value: Its value, in `unit`.
+            ///   - unit:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                _type: Swift.String,
+                value: Swift.Double? = nil,
+                unit: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self._type = _type
+                self.value = value
+                self.unit = unit
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _type = "type"
+                case value
+                case unit
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self._type = try container.decode(
+                    Swift.String.self,
+                    forKey: ._type
+                )
+                self.value = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .value
+                )
+                self.unit = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .unit
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "type",
+                    "value",
+                    "unit"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self._type,
+                    forKey: ._type
+                )
+                try container.encodeIfPresent(
+                    self.value,
+                    forKey: .value
+                )
+                try container.encodeIfPresent(
+                    self.unit,
+                    forKey: .unit
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthSampleItem`.
         public struct HealthSampleItem: Codable, Hashable, Sendable {
             /// HealthKit's UUID for the sample.
@@ -6473,13 +6547,13 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSampleItem/end`.
             public var end: Swift.String
-            /// A quantity's value, in `unit`. Null for category types.
+            /// A quantity's value, in `unit`. Null for category types and correlations.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSampleItem/value`.
             public var value: Swift.Double?
             /// - Remark: Generated from `#/components/schemas/HealthSampleItem/unit`.
             public var unit: Swift.String?
-            /// A category sample's HealthKit value (HKCategoryValue…). Null for quantities.
+            /// A category sample's HealthKit value (HKCategoryValue…). Null for quantities and correlations.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSampleItem/categoryValue`.
             public var categoryValue: Swift.Int?
@@ -6487,6 +6561,150 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSampleItem/source`.
             public var source: Swift.String
+            /// Its entry in `sources`: the app, its version and the device, from 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/sourceIndex`.
+            public var sourceIndex: Swift.Int
+            /// True if someone entered it by hand, e.g. in the Health app (HKMetadataKeyWasUserEntered).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/userEntered`.
+            public var userEntered: Swift.Bool?
+            /// The time zone where it was recorded (HKMetadataKeyTimeZone), e.g. America/New_York. Times here are still in the output's `timeZone`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/recordedTimeZone`.
+            public var recordedTimeZone: Swift.String?
+            /// For a correlation (blood pressure, food): the samples it groups, by type, e.g. systolic and diastolic, or each nutrient of a food.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/values`.
+            public var values: [Components.Schemas.HealthCorrelatedValue]?
+            /// A food's name (HKMetadataKeyFoodType).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/food`.
+            public var food: Swift.String?
+            /// Heart rate: sedentary (still) or active (moving or working out) (HKMetadataKeyHeartRateMotionContext).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/motionContext`.
+            public var motionContext: Swift.String?
+            /// stationary or active, how the person was moving (HKMetadataKeyUserMotionContext).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/userMotionContext`.
+            public var userMotionContext: Swift.String?
+            /// Where it was measured: for heart rate chest, wrist, finger, hand, earLobe, foot or other (HKMetadataKeyHeartRateSensorLocation); for body temperature armpit, body, ear, finger, gastroIntestinal, mouth, rectum, toe, earDrum, temporalArtery, forehead or other (HKMetadataKeyBodyTemperatureSensorLocation).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/sensorLocation`.
+            public var sensorLocation: Swift.String?
+            /// Blood glucose: preprandial (before a meal) or postprandial (after one) (HKMetadataKeyBloodGlucoseMealTime).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/mealTime`.
+            public var mealTime: Swift.String?
+            /// Insulin: basal or bolus (HKMetadataKeyInsulinDeliveryReason).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/insulinDeliveryReason`.
+            public var insulinDeliveryReason: Swift.String?
+            /// Cardio fitness: how it was measured, maxExercise, predictionSubMaxExercise, predictionNonExercise or predictionStepTest (HKMetadataKeyVO2MaxTestType). Apple Watch's estimates are predictionSubMaxExercise.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/vo2MaxTestType`.
+            public var vo2MaxTestType: Swift.String?
+            /// A low cardio fitness event's VO2 max, in mL/(kg·min) (HKMetadataKeyVO2MaxValue).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/vo2Max`.
+            public var vo2Max: Swift.Double?
+            /// The VO2 max under which cardio fitness counted as low, in mL/(kg·min) (HKMetadataKeyLowCardioFitnessEventThreshold).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/lowCardioFitnessThreshold`.
+            public var lowCardioFitnessThreshold: Swift.Double?
+            /// A high or low heart rate event's threshold, in beats per minute (HKMetadataKeyHeartRateEventThreshold).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/heartRateEventThreshold`.
+            public var heartRateEventThreshold: Swift.Double?
+            /// Cardio recovery: maxExercise, predictionSubMaxExercise, predictionNonExercise or stepTest (HKMetadataKeyHeartRateRecoveryTestType).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/heartRateRecoveryTestType`.
+            public var heartRateRecoveryTestType: Swift.String?
+            /// Cardio recovery: the workout activity before it, e.g. Running (HKMetadataKeyHeartRateRecoveryActivityType).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/heartRateRecoveryActivity`.
+            public var heartRateRecoveryActivity: Swift.String?
+            /// Cardio recovery: seconds of that activity (HKMetadataKeyHeartRateRecoveryActivityDuration).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/heartRateRecoveryActivityDuration`.
+            public var heartRateRecoveryActivityDuration: Swift.Double?
+            /// Cardio recovery: the highest heart rate seen, in beats per minute (HKMetadataKeyHeartRateRecoveryMaxObservedRecoveryHeartRate).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/maxObservedRecoveryHeartRate`.
+            public var maxObservedRecoveryHeartRate: Swift.Double?
+            /// A noise or headphone audio event's level, in dB(A) SPL (HKMetadataKeyAudioExposureLevel).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/audioExposureLevel`.
+            public var audioExposureLevel: Swift.Double?
+            /// Seconds of headphone audio it covers (HKMetadataKeyAudioExposureDuration).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/audioExposureDuration`.
+            public var audioExposureDuration: Swift.Double?
+            /// A headphone audio event's gain, in dB(A) SPL (HKMetadataKeyHeadphoneGain).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/headphoneGain`.
+            public var headphoneGain: Swift.Double?
+            /// Physical effort: activityLookup or deviceSensed (HKMetadataKeyPhysicalEffortEstimationType).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/physicalEffortEstimationType`.
+            public var physicalEffortEstimationType: Swift.String?
+            /// The workout activity it was during, e.g. Hiking (HKMetadataKeyActivityType).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/activity`.
+            public var activity: Swift.String?
+            /// Where the iPhone was carried while walking: left, right or central (HKMetadataKeyDevicePlacementSide).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/placementSide`.
+            public var placementSide: Swift.String?
+            /// Whether the device had enough calibration data for it (HKMetadataKeyAppleDeviceCalibrated).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/deviceCalibrated`.
+            public var deviceCalibrated: Swift.Bool?
+            /// The version of the algorithm that estimated it (HKMetadataKeyAlgorithmVersion).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/algorithmVersion`.
+            public var algorithmVersion: Swift.Double?
+            /// How far back the estimate's data goes (HKMetadataKeyDateOfEarliestDataUsedForEstimate).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/earliestDataUsedForEstimate`.
+            public var earliestDataUsedForEstimate: Swift.String?
+            /// True if the value was raised to the lowest the sensor reports (HKMetadataKeyQuantityClampedToLowerBound).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/clampedToLowerBound`.
+            public var clampedToLowerBound: Swift.Bool?
+            /// True if the value was lowered to the highest the sensor reports (HKMetadataKeyQuantityClampedToUpperBound).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/clampedToUpperBound`.
+            public var clampedToUpperBound: Swift.Bool?
+            /// A lab result's reference range's lower limit (HKMetadataKeyReferenceRangeLowerLimit).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/referenceRangeLowerLimit`.
+            public var referenceRangeLowerLimit: Swift.Double?
+            /// A lab result's reference range's upper limit (HKMetadataKeyReferenceRangeUpperLimit).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/referenceRangeUpperLimit`.
+            public var referenceRangeUpperLimit: Swift.Double?
+            /// Whether it was taken in a lab (HKMetadataKeyWasTakenInLab).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/takenInLab`.
+            public var takenInLab: Swift.Bool?
+            /// Underwater depth or water temperature: freshWater or saltWater (HKMetadataKeyWaterSalinity).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/waterSalinity`.
+            public var waterSalinity: Swift.String?
+            /// Time in daylight: the brightest light, in lux (HKMetadataKeyMaximumLightIntensity).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/maximumLightIntensity`.
+            public var maximumLightIntensity: Swift.Double?
+            /// Menstrual flow: whether it started a cycle (HKMetadataKeyMenstrualCycleStart).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/menstrualCycleStart`.
+            public var menstrualCycleStart: Swift.Bool?
+            /// Sexual activity: whether protection was used (HKMetadataKeySexualActivityProtectionUsed).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/protectionUsed`.
+            public var protectionUsed: Swift.Bool?
             /// A container of undocumented properties.
             public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
             /// Creates a new `HealthSampleItem`.
@@ -6495,10 +6713,46 @@ extension Components {
             ///   - id: HealthKit's UUID for the sample.
             ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
             ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
-            ///   - value: A quantity's value, in `unit`. Null for category types.
+            ///   - value: A quantity's value, in `unit`. Null for category types and correlations.
             ///   - unit:
-            ///   - categoryValue: A category sample's HealthKit value (HKCategoryValue…). Null for quantities.
+            ///   - categoryValue: A category sample's HealthKit value (HKCategoryValue…). Null for quantities and correlations.
             ///   - source: The app or device that recorded it, e.g. an Apple Watch's name.
+            ///   - sourceIndex: Its entry in `sources`: the app, its version and the device, from 0.
+            ///   - userEntered: True if someone entered it by hand, e.g. in the Health app (HKMetadataKeyWasUserEntered).
+            ///   - recordedTimeZone: The time zone where it was recorded (HKMetadataKeyTimeZone), e.g. America/New_York. Times here are still in the output's `timeZone`.
+            ///   - values: For a correlation (blood pressure, food): the samples it groups, by type, e.g. systolic and diastolic, or each nutrient of a food.
+            ///   - food: A food's name (HKMetadataKeyFoodType).
+            ///   - motionContext: Heart rate: sedentary (still) or active (moving or working out) (HKMetadataKeyHeartRateMotionContext).
+            ///   - userMotionContext: stationary or active, how the person was moving (HKMetadataKeyUserMotionContext).
+            ///   - sensorLocation: Where it was measured: for heart rate chest, wrist, finger, hand, earLobe, foot or other (HKMetadataKeyHeartRateSensorLocation); for body temperature armpit, body, ear, finger, gastroIntestinal, mouth, rectum, toe, earDrum, temporalArtery, forehead or other (HKMetadataKeyBodyTemperatureSensorLocation).
+            ///   - mealTime: Blood glucose: preprandial (before a meal) or postprandial (after one) (HKMetadataKeyBloodGlucoseMealTime).
+            ///   - insulinDeliveryReason: Insulin: basal or bolus (HKMetadataKeyInsulinDeliveryReason).
+            ///   - vo2MaxTestType: Cardio fitness: how it was measured, maxExercise, predictionSubMaxExercise, predictionNonExercise or predictionStepTest (HKMetadataKeyVO2MaxTestType). Apple Watch's estimates are predictionSubMaxExercise.
+            ///   - vo2Max: A low cardio fitness event's VO2 max, in mL/(kg·min) (HKMetadataKeyVO2MaxValue).
+            ///   - lowCardioFitnessThreshold: The VO2 max under which cardio fitness counted as low, in mL/(kg·min) (HKMetadataKeyLowCardioFitnessEventThreshold).
+            ///   - heartRateEventThreshold: A high or low heart rate event's threshold, in beats per minute (HKMetadataKeyHeartRateEventThreshold).
+            ///   - heartRateRecoveryTestType: Cardio recovery: maxExercise, predictionSubMaxExercise, predictionNonExercise or stepTest (HKMetadataKeyHeartRateRecoveryTestType).
+            ///   - heartRateRecoveryActivity: Cardio recovery: the workout activity before it, e.g. Running (HKMetadataKeyHeartRateRecoveryActivityType).
+            ///   - heartRateRecoveryActivityDuration: Cardio recovery: seconds of that activity (HKMetadataKeyHeartRateRecoveryActivityDuration).
+            ///   - maxObservedRecoveryHeartRate: Cardio recovery: the highest heart rate seen, in beats per minute (HKMetadataKeyHeartRateRecoveryMaxObservedRecoveryHeartRate).
+            ///   - audioExposureLevel: A noise or headphone audio event's level, in dB(A) SPL (HKMetadataKeyAudioExposureLevel).
+            ///   - audioExposureDuration: Seconds of headphone audio it covers (HKMetadataKeyAudioExposureDuration).
+            ///   - headphoneGain: A headphone audio event's gain, in dB(A) SPL (HKMetadataKeyHeadphoneGain).
+            ///   - physicalEffortEstimationType: Physical effort: activityLookup or deviceSensed (HKMetadataKeyPhysicalEffortEstimationType).
+            ///   - activity: The workout activity it was during, e.g. Hiking (HKMetadataKeyActivityType).
+            ///   - placementSide: Where the iPhone was carried while walking: left, right or central (HKMetadataKeyDevicePlacementSide).
+            ///   - deviceCalibrated: Whether the device had enough calibration data for it (HKMetadataKeyAppleDeviceCalibrated).
+            ///   - algorithmVersion: The version of the algorithm that estimated it (HKMetadataKeyAlgorithmVersion).
+            ///   - earliestDataUsedForEstimate: How far back the estimate's data goes (HKMetadataKeyDateOfEarliestDataUsedForEstimate).
+            ///   - clampedToLowerBound: True if the value was raised to the lowest the sensor reports (HKMetadataKeyQuantityClampedToLowerBound).
+            ///   - clampedToUpperBound: True if the value was lowered to the highest the sensor reports (HKMetadataKeyQuantityClampedToUpperBound).
+            ///   - referenceRangeLowerLimit: A lab result's reference range's lower limit (HKMetadataKeyReferenceRangeLowerLimit).
+            ///   - referenceRangeUpperLimit: A lab result's reference range's upper limit (HKMetadataKeyReferenceRangeUpperLimit).
+            ///   - takenInLab: Whether it was taken in a lab (HKMetadataKeyWasTakenInLab).
+            ///   - waterSalinity: Underwater depth or water temperature: freshWater or saltWater (HKMetadataKeyWaterSalinity).
+            ///   - maximumLightIntensity: Time in daylight: the brightest light, in lux (HKMetadataKeyMaximumLightIntensity).
+            ///   - menstrualCycleStart: Menstrual flow: whether it started a cycle (HKMetadataKeyMenstrualCycleStart).
+            ///   - protectionUsed: Sexual activity: whether protection was used (HKMetadataKeySexualActivityProtectionUsed).
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 id: Swift.String,
@@ -6508,6 +6762,42 @@ extension Components {
                 unit: Swift.String? = nil,
                 categoryValue: Swift.Int? = nil,
                 source: Swift.String,
+                sourceIndex: Swift.Int,
+                userEntered: Swift.Bool? = nil,
+                recordedTimeZone: Swift.String? = nil,
+                values: [Components.Schemas.HealthCorrelatedValue]? = nil,
+                food: Swift.String? = nil,
+                motionContext: Swift.String? = nil,
+                userMotionContext: Swift.String? = nil,
+                sensorLocation: Swift.String? = nil,
+                mealTime: Swift.String? = nil,
+                insulinDeliveryReason: Swift.String? = nil,
+                vo2MaxTestType: Swift.String? = nil,
+                vo2Max: Swift.Double? = nil,
+                lowCardioFitnessThreshold: Swift.Double? = nil,
+                heartRateEventThreshold: Swift.Double? = nil,
+                heartRateRecoveryTestType: Swift.String? = nil,
+                heartRateRecoveryActivity: Swift.String? = nil,
+                heartRateRecoveryActivityDuration: Swift.Double? = nil,
+                maxObservedRecoveryHeartRate: Swift.Double? = nil,
+                audioExposureLevel: Swift.Double? = nil,
+                audioExposureDuration: Swift.Double? = nil,
+                headphoneGain: Swift.Double? = nil,
+                physicalEffortEstimationType: Swift.String? = nil,
+                activity: Swift.String? = nil,
+                placementSide: Swift.String? = nil,
+                deviceCalibrated: Swift.Bool? = nil,
+                algorithmVersion: Swift.Double? = nil,
+                earliestDataUsedForEstimate: Swift.String? = nil,
+                clampedToLowerBound: Swift.Bool? = nil,
+                clampedToUpperBound: Swift.Bool? = nil,
+                referenceRangeLowerLimit: Swift.Double? = nil,
+                referenceRangeUpperLimit: Swift.Double? = nil,
+                takenInLab: Swift.Bool? = nil,
+                waterSalinity: Swift.String? = nil,
+                maximumLightIntensity: Swift.Double? = nil,
+                menstrualCycleStart: Swift.Bool? = nil,
+                protectionUsed: Swift.Bool? = nil,
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
                 self.id = id
@@ -6517,6 +6807,42 @@ extension Components {
                 self.unit = unit
                 self.categoryValue = categoryValue
                 self.source = source
+                self.sourceIndex = sourceIndex
+                self.userEntered = userEntered
+                self.recordedTimeZone = recordedTimeZone
+                self.values = values
+                self.food = food
+                self.motionContext = motionContext
+                self.userMotionContext = userMotionContext
+                self.sensorLocation = sensorLocation
+                self.mealTime = mealTime
+                self.insulinDeliveryReason = insulinDeliveryReason
+                self.vo2MaxTestType = vo2MaxTestType
+                self.vo2Max = vo2Max
+                self.lowCardioFitnessThreshold = lowCardioFitnessThreshold
+                self.heartRateEventThreshold = heartRateEventThreshold
+                self.heartRateRecoveryTestType = heartRateRecoveryTestType
+                self.heartRateRecoveryActivity = heartRateRecoveryActivity
+                self.heartRateRecoveryActivityDuration = heartRateRecoveryActivityDuration
+                self.maxObservedRecoveryHeartRate = maxObservedRecoveryHeartRate
+                self.audioExposureLevel = audioExposureLevel
+                self.audioExposureDuration = audioExposureDuration
+                self.headphoneGain = headphoneGain
+                self.physicalEffortEstimationType = physicalEffortEstimationType
+                self.activity = activity
+                self.placementSide = placementSide
+                self.deviceCalibrated = deviceCalibrated
+                self.algorithmVersion = algorithmVersion
+                self.earliestDataUsedForEstimate = earliestDataUsedForEstimate
+                self.clampedToLowerBound = clampedToLowerBound
+                self.clampedToUpperBound = clampedToUpperBound
+                self.referenceRangeLowerLimit = referenceRangeLowerLimit
+                self.referenceRangeUpperLimit = referenceRangeUpperLimit
+                self.takenInLab = takenInLab
+                self.waterSalinity = waterSalinity
+                self.maximumLightIntensity = maximumLightIntensity
+                self.menstrualCycleStart = menstrualCycleStart
+                self.protectionUsed = protectionUsed
                 self.additionalProperties = additionalProperties
             }
             public enum CodingKeys: String, CodingKey {
@@ -6527,6 +6853,42 @@ extension Components {
                 case unit
                 case categoryValue
                 case source
+                case sourceIndex
+                case userEntered
+                case recordedTimeZone
+                case values
+                case food
+                case motionContext
+                case userMotionContext
+                case sensorLocation
+                case mealTime
+                case insulinDeliveryReason
+                case vo2MaxTestType
+                case vo2Max
+                case lowCardioFitnessThreshold
+                case heartRateEventThreshold
+                case heartRateRecoveryTestType
+                case heartRateRecoveryActivity
+                case heartRateRecoveryActivityDuration
+                case maxObservedRecoveryHeartRate
+                case audioExposureLevel
+                case audioExposureDuration
+                case headphoneGain
+                case physicalEffortEstimationType
+                case activity
+                case placementSide
+                case deviceCalibrated
+                case algorithmVersion
+                case earliestDataUsedForEstimate
+                case clampedToLowerBound
+                case clampedToUpperBound
+                case referenceRangeLowerLimit
+                case referenceRangeUpperLimit
+                case takenInLab
+                case waterSalinity
+                case maximumLightIntensity
+                case menstrualCycleStart
+                case protectionUsed
             }
             public init(from decoder: any Swift.Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -6558,6 +6920,150 @@ extension Components {
                     Swift.String.self,
                     forKey: .source
                 )
+                self.sourceIndex = try container.decode(
+                    Swift.Int.self,
+                    forKey: .sourceIndex
+                )
+                self.userEntered = try container.decodeIfPresent(
+                    Swift.Bool.self,
+                    forKey: .userEntered
+                )
+                self.recordedTimeZone = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTimeZone
+                )
+                self.values = try container.decodeIfPresent(
+                    [Components.Schemas.HealthCorrelatedValue].self,
+                    forKey: .values
+                )
+                self.food = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .food
+                )
+                self.motionContext = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .motionContext
+                )
+                self.userMotionContext = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .userMotionContext
+                )
+                self.sensorLocation = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .sensorLocation
+                )
+                self.mealTime = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .mealTime
+                )
+                self.insulinDeliveryReason = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .insulinDeliveryReason
+                )
+                self.vo2MaxTestType = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .vo2MaxTestType
+                )
+                self.vo2Max = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .vo2Max
+                )
+                self.lowCardioFitnessThreshold = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .lowCardioFitnessThreshold
+                )
+                self.heartRateEventThreshold = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .heartRateEventThreshold
+                )
+                self.heartRateRecoveryTestType = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .heartRateRecoveryTestType
+                )
+                self.heartRateRecoveryActivity = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .heartRateRecoveryActivity
+                )
+                self.heartRateRecoveryActivityDuration = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .heartRateRecoveryActivityDuration
+                )
+                self.maxObservedRecoveryHeartRate = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .maxObservedRecoveryHeartRate
+                )
+                self.audioExposureLevel = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .audioExposureLevel
+                )
+                self.audioExposureDuration = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .audioExposureDuration
+                )
+                self.headphoneGain = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .headphoneGain
+                )
+                self.physicalEffortEstimationType = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .physicalEffortEstimationType
+                )
+                self.activity = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .activity
+                )
+                self.placementSide = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .placementSide
+                )
+                self.deviceCalibrated = try container.decodeIfPresent(
+                    Swift.Bool.self,
+                    forKey: .deviceCalibrated
+                )
+                self.algorithmVersion = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .algorithmVersion
+                )
+                self.earliestDataUsedForEstimate = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .earliestDataUsedForEstimate
+                )
+                self.clampedToLowerBound = try container.decodeIfPresent(
+                    Swift.Bool.self,
+                    forKey: .clampedToLowerBound
+                )
+                self.clampedToUpperBound = try container.decodeIfPresent(
+                    Swift.Bool.self,
+                    forKey: .clampedToUpperBound
+                )
+                self.referenceRangeLowerLimit = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .referenceRangeLowerLimit
+                )
+                self.referenceRangeUpperLimit = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .referenceRangeUpperLimit
+                )
+                self.takenInLab = try container.decodeIfPresent(
+                    Swift.Bool.self,
+                    forKey: .takenInLab
+                )
+                self.waterSalinity = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .waterSalinity
+                )
+                self.maximumLightIntensity = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .maximumLightIntensity
+                )
+                self.menstrualCycleStart = try container.decodeIfPresent(
+                    Swift.Bool.self,
+                    forKey: .menstrualCycleStart
+                )
+                self.protectionUsed = try container.decodeIfPresent(
+                    Swift.Bool.self,
+                    forKey: .protectionUsed
+                )
                 additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
                     "id",
                     "start",
@@ -6565,7 +7071,43 @@ extension Components {
                     "value",
                     "unit",
                     "categoryValue",
-                    "source"
+                    "source",
+                    "sourceIndex",
+                    "userEntered",
+                    "recordedTimeZone",
+                    "values",
+                    "food",
+                    "motionContext",
+                    "userMotionContext",
+                    "sensorLocation",
+                    "mealTime",
+                    "insulinDeliveryReason",
+                    "vo2MaxTestType",
+                    "vo2Max",
+                    "lowCardioFitnessThreshold",
+                    "heartRateEventThreshold",
+                    "heartRateRecoveryTestType",
+                    "heartRateRecoveryActivity",
+                    "heartRateRecoveryActivityDuration",
+                    "maxObservedRecoveryHeartRate",
+                    "audioExposureLevel",
+                    "audioExposureDuration",
+                    "headphoneGain",
+                    "physicalEffortEstimationType",
+                    "activity",
+                    "placementSide",
+                    "deviceCalibrated",
+                    "algorithmVersion",
+                    "earliestDataUsedForEstimate",
+                    "clampedToLowerBound",
+                    "clampedToUpperBound",
+                    "referenceRangeLowerLimit",
+                    "referenceRangeUpperLimit",
+                    "takenInLab",
+                    "waterSalinity",
+                    "maximumLightIntensity",
+                    "menstrualCycleStart",
+                    "protectionUsed"
                 ])
             }
             public func encode(to encoder: any Swift.Encoder) throws {
@@ -6598,6 +7140,404 @@ extension Components {
                     self.source,
                     forKey: .source
                 )
+                try container.encode(
+                    self.sourceIndex,
+                    forKey: .sourceIndex
+                )
+                try container.encodeIfPresent(
+                    self.userEntered,
+                    forKey: .userEntered
+                )
+                try container.encodeIfPresent(
+                    self.recordedTimeZone,
+                    forKey: .recordedTimeZone
+                )
+                try container.encodeIfPresent(
+                    self.values,
+                    forKey: .values
+                )
+                try container.encodeIfPresent(
+                    self.food,
+                    forKey: .food
+                )
+                try container.encodeIfPresent(
+                    self.motionContext,
+                    forKey: .motionContext
+                )
+                try container.encodeIfPresent(
+                    self.userMotionContext,
+                    forKey: .userMotionContext
+                )
+                try container.encodeIfPresent(
+                    self.sensorLocation,
+                    forKey: .sensorLocation
+                )
+                try container.encodeIfPresent(
+                    self.mealTime,
+                    forKey: .mealTime
+                )
+                try container.encodeIfPresent(
+                    self.insulinDeliveryReason,
+                    forKey: .insulinDeliveryReason
+                )
+                try container.encodeIfPresent(
+                    self.vo2MaxTestType,
+                    forKey: .vo2MaxTestType
+                )
+                try container.encodeIfPresent(
+                    self.vo2Max,
+                    forKey: .vo2Max
+                )
+                try container.encodeIfPresent(
+                    self.lowCardioFitnessThreshold,
+                    forKey: .lowCardioFitnessThreshold
+                )
+                try container.encodeIfPresent(
+                    self.heartRateEventThreshold,
+                    forKey: .heartRateEventThreshold
+                )
+                try container.encodeIfPresent(
+                    self.heartRateRecoveryTestType,
+                    forKey: .heartRateRecoveryTestType
+                )
+                try container.encodeIfPresent(
+                    self.heartRateRecoveryActivity,
+                    forKey: .heartRateRecoveryActivity
+                )
+                try container.encodeIfPresent(
+                    self.heartRateRecoveryActivityDuration,
+                    forKey: .heartRateRecoveryActivityDuration
+                )
+                try container.encodeIfPresent(
+                    self.maxObservedRecoveryHeartRate,
+                    forKey: .maxObservedRecoveryHeartRate
+                )
+                try container.encodeIfPresent(
+                    self.audioExposureLevel,
+                    forKey: .audioExposureLevel
+                )
+                try container.encodeIfPresent(
+                    self.audioExposureDuration,
+                    forKey: .audioExposureDuration
+                )
+                try container.encodeIfPresent(
+                    self.headphoneGain,
+                    forKey: .headphoneGain
+                )
+                try container.encodeIfPresent(
+                    self.physicalEffortEstimationType,
+                    forKey: .physicalEffortEstimationType
+                )
+                try container.encodeIfPresent(
+                    self.activity,
+                    forKey: .activity
+                )
+                try container.encodeIfPresent(
+                    self.placementSide,
+                    forKey: .placementSide
+                )
+                try container.encodeIfPresent(
+                    self.deviceCalibrated,
+                    forKey: .deviceCalibrated
+                )
+                try container.encodeIfPresent(
+                    self.algorithmVersion,
+                    forKey: .algorithmVersion
+                )
+                try container.encodeIfPresent(
+                    self.earliestDataUsedForEstimate,
+                    forKey: .earliestDataUsedForEstimate
+                )
+                try container.encodeIfPresent(
+                    self.clampedToLowerBound,
+                    forKey: .clampedToLowerBound
+                )
+                try container.encodeIfPresent(
+                    self.clampedToUpperBound,
+                    forKey: .clampedToUpperBound
+                )
+                try container.encodeIfPresent(
+                    self.referenceRangeLowerLimit,
+                    forKey: .referenceRangeLowerLimit
+                )
+                try container.encodeIfPresent(
+                    self.referenceRangeUpperLimit,
+                    forKey: .referenceRangeUpperLimit
+                )
+                try container.encodeIfPresent(
+                    self.takenInLab,
+                    forKey: .takenInLab
+                )
+                try container.encodeIfPresent(
+                    self.waterSalinity,
+                    forKey: .waterSalinity
+                )
+                try container.encodeIfPresent(
+                    self.maximumLightIntensity,
+                    forKey: .maximumLightIntensity
+                )
+                try container.encodeIfPresent(
+                    self.menstrualCycleStart,
+                    forKey: .menstrualCycleStart
+                )
+                try container.encodeIfPresent(
+                    self.protectionUsed,
+                    forKey: .protectionUsed
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// The device that measured it (HKDevice, else the HKMetadataKeyDeviceName and …ManufacturerName metadata), with only the properties it has.
+        ///
+        /// - Remark: Generated from `#/components/schemas/HealthSampleDevice`.
+        public struct HealthSampleDevice: Codable, Hashable, Sendable {
+            /// The device's name, e.g. Apple Watch.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/name`.
+            public var name: Swift.String?
+            /// Who made it, e.g. Apple Inc.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/manufacturer`.
+            public var manufacturer: Swift.String?
+            /// Its model, e.g. Watch.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/model`.
+            public var model: Swift.String?
+            /// Its hardware version, e.g. Watch7,1.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/hardwareVersion`.
+            public var hardwareVersion: Swift.String?
+            /// Its firmware version.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/firmwareVersion`.
+            public var firmwareVersion: Swift.String?
+            /// Its software version, e.g. 26.1.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/softwareVersion`.
+            public var softwareVersion: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthSampleDevice`.
+            ///
+            /// - Parameters:
+            ///   - name: The device's name, e.g. Apple Watch.
+            ///   - manufacturer: Who made it, e.g. Apple Inc.
+            ///   - model: Its model, e.g. Watch.
+            ///   - hardwareVersion: Its hardware version, e.g. Watch7,1.
+            ///   - firmwareVersion: Its firmware version.
+            ///   - softwareVersion: Its software version, e.g. 26.1.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                name: Swift.String? = nil,
+                manufacturer: Swift.String? = nil,
+                model: Swift.String? = nil,
+                hardwareVersion: Swift.String? = nil,
+                firmwareVersion: Swift.String? = nil,
+                softwareVersion: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.name = name
+                self.manufacturer = manufacturer
+                self.model = model
+                self.hardwareVersion = hardwareVersion
+                self.firmwareVersion = firmwareVersion
+                self.softwareVersion = softwareVersion
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case name
+                case manufacturer
+                case model
+                case hardwareVersion
+                case firmwareVersion
+                case softwareVersion
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.name = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .name
+                )
+                self.manufacturer = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .manufacturer
+                )
+                self.model = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .model
+                )
+                self.hardwareVersion = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .hardwareVersion
+                )
+                self.firmwareVersion = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .firmwareVersion
+                )
+                self.softwareVersion = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .softwareVersion
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "name",
+                    "manufacturer",
+                    "model",
+                    "hardwareVersion",
+                    "firmwareVersion",
+                    "softwareVersion"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encodeIfPresent(
+                    self.name,
+                    forKey: .name
+                )
+                try container.encodeIfPresent(
+                    self.manufacturer,
+                    forKey: .manufacturer
+                )
+                try container.encodeIfPresent(
+                    self.model,
+                    forKey: .model
+                )
+                try container.encodeIfPresent(
+                    self.hardwareVersion,
+                    forKey: .hardwareVersion
+                )
+                try container.encodeIfPresent(
+                    self.firmwareVersion,
+                    forKey: .firmwareVersion
+                )
+                try container.encodeIfPresent(
+                    self.softwareVersion,
+                    forKey: .softwareVersion
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthSampleSource`.
+        public struct HealthSampleSource: Codable, Hashable, Sendable {
+            /// The app or device that saved it, as the sample's `source`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSource/name`.
+            public var name: Swift.String
+            /// The bundle ID of the app that saved it, e.g. com.dexcom.G7. Left out for Apple devices' own (com.apple.health.<UUID>), whose UUID identifies the device.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSource/bundleId`.
+            public var bundleId: Swift.String?
+            /// The version of the app, or the OS, that saved it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSource/version`.
+            public var version: Swift.String?
+            /// The hardware the app that saved it ran on, e.g. iPhone17,1 or Watch7,1.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSource/productType`.
+            public var productType: Swift.String?
+            /// The OS version it ran on, e.g. 26.1.0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSource/operatingSystemVersion`.
+            public var operatingSystemVersion: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSource/device`.
+            public var device: Components.Schemas.HealthSampleDevice?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthSampleSource`.
+            ///
+            /// - Parameters:
+            ///   - name: The app or device that saved it, as the sample's `source`.
+            ///   - bundleId: The bundle ID of the app that saved it, e.g. com.dexcom.G7. Left out for Apple devices' own (com.apple.health.<UUID>), whose UUID identifies the device.
+            ///   - version: The version of the app, or the OS, that saved it.
+            ///   - productType: The hardware the app that saved it ran on, e.g. iPhone17,1 or Watch7,1.
+            ///   - operatingSystemVersion: The OS version it ran on, e.g. 26.1.0.
+            ///   - device:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                name: Swift.String,
+                bundleId: Swift.String? = nil,
+                version: Swift.String? = nil,
+                productType: Swift.String? = nil,
+                operatingSystemVersion: Swift.String? = nil,
+                device: Components.Schemas.HealthSampleDevice? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.name = name
+                self.bundleId = bundleId
+                self.version = version
+                self.productType = productType
+                self.operatingSystemVersion = operatingSystemVersion
+                self.device = device
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case name
+                case bundleId
+                case version
+                case productType
+                case operatingSystemVersion
+                case device
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.name = try container.decode(
+                    Swift.String.self,
+                    forKey: .name
+                )
+                self.bundleId = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .bundleId
+                )
+                self.version = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .version
+                )
+                self.productType = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .productType
+                )
+                self.operatingSystemVersion = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .operatingSystemVersion
+                )
+                self.device = try container.decodeIfPresent(
+                    Components.Schemas.HealthSampleDevice.self,
+                    forKey: .device
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "name",
+                    "bundleId",
+                    "version",
+                    "productType",
+                    "operatingSystemVersion",
+                    "device"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.name,
+                    forKey: .name
+                )
+                try container.encodeIfPresent(
+                    self.bundleId,
+                    forKey: .bundleId
+                )
+                try container.encodeIfPresent(
+                    self.version,
+                    forKey: .version
+                )
+                try container.encodeIfPresent(
+                    self.productType,
+                    forKey: .productType
+                )
+                try container.encodeIfPresent(
+                    self.operatingSystemVersion,
+                    forKey: .operatingSystemVersion
+                )
+                try container.encodeIfPresent(
+                    self.device,
+                    forKey: .device
+                )
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
@@ -6627,6 +7567,10 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSamplesResult/samples`.
             public var samples: [Components.Schemas.HealthSampleItem]
+            /// Where this page's samples came from, each app and device once, in the order they first appear: a sample's sourceIndex is its entry.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSamplesResult/sources`.
+            public var sources: [Components.Schemas.HealthSampleSource]
             /// Pass it as `cursor` for the next, older page; null on the last page.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSamplesResult/nextCursor`.
@@ -6642,6 +7586,7 @@ extension Components {
             ///   - end: When the period ends (exclusive).
             ///   - _type: A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.
             ///   - samples: Samples that start in the period, newest first.
+            ///   - sources: Where this page's samples came from, each app and device once, in the order they first appear: a sample's sourceIndex is its entry.
             ///   - nextCursor: Pass it as `cursor` for the next, older page; null on the last page.
             ///   - additionalProperties: A container of undocumented properties.
             public init(
@@ -6651,6 +7596,7 @@ extension Components {
                 end: Swift.String,
                 _type: Swift.String,
                 samples: [Components.Schemas.HealthSampleItem],
+                sources: [Components.Schemas.HealthSampleSource],
                 nextCursor: Swift.String? = nil,
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
@@ -6660,6 +7606,7 @@ extension Components {
                 self.end = end
                 self._type = _type
                 self.samples = samples
+                self.sources = sources
                 self.nextCursor = nextCursor
                 self.additionalProperties = additionalProperties
             }
@@ -6670,6 +7617,7 @@ extension Components {
                 case end
                 case _type = "type"
                 case samples
+                case sources
                 case nextCursor
             }
             public init(from decoder: any Swift.Decoder) throws {
@@ -6698,6 +7646,10 @@ extension Components {
                     [Components.Schemas.HealthSampleItem].self,
                     forKey: .samples
                 )
+                self.sources = try container.decode(
+                    [Components.Schemas.HealthSampleSource].self,
+                    forKey: .sources
+                )
                 self.nextCursor = try container.decodeIfPresent(
                     Swift.String.self,
                     forKey: .nextCursor
@@ -6709,6 +7661,7 @@ extension Components {
                     "end",
                     "type",
                     "samples",
+                    "sources",
                     "nextCursor"
                 ])
             }
@@ -6737,6 +7690,10 @@ extension Components {
                 try container.encode(
                     self.samples,
                     forKey: .samples
+                )
+                try container.encode(
+                    self.sources,
+                    forKey: .sources
                 )
                 try container.encodeIfPresent(
                     self.nextCursor,

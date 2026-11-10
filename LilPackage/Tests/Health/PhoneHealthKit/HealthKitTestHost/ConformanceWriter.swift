@@ -49,7 +49,7 @@ enum ConformanceWriter {
         description: "The dataset has \(dataset.sources.count) sources, so no app \(number).")
     }
     let source = dataset.sources[number - 1]
-    let part = dataset.of(source: source)
+    let part = dataset.of(source: source).only(types: TestHealthTypes.identifiers)
     let samples = try samples(part.samples)
     if !samples.isEmpty {
       try await store.save(samples)
