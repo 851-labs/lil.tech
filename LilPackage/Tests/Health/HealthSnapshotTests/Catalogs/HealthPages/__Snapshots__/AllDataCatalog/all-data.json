@@ -74,6 +74,20 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sample-recorded-in-tokyo-dark.png",
+      "id" : "all-data.sample-recorded-in-tokyo",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sample-recorded-in-tokyo-light.png",
+      "name" : "Sample recorded in Tokyo",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sample-recorded-in-los-angeles-dark.png",
+      "id" : "all-data.sample-recorded-in-los-angeles",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sample-recorded-in-los-angeles-light.png",
+      "name" : "Sample recorded in Los Angeles",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sources-dark.png",
       "id" : "all-data.sources",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sources-light.png",
