@@ -153,6 +153,8 @@ A bulk server-side migration, or restoring a store from point-in-time recovery, 
 
 Clients see the new epoch on their next pull and bootstrap from a snapshot that already contains the new data.
 
+A change to records that goes through the change log instead, as `applyMutations` upserts, needs no epoch: clients get it with their next pull, record by record, and later snapshots are written from the changed records. It's the way to change some records of a large store, which a new epoch would make every client download again whole. The metadata cleanup (851-4152, `src/health/MetadataCleanup.ts`) works this way, from the store's alarm, a chunk at a time.
+
 ### Compaction
 
 - Changes are deleted when they're both covered by the latest snapshot (`seq <= S`) and older than 30 days. Clients that synced within the last 30 days never need to bootstrap again.

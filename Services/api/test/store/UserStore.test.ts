@@ -322,9 +322,10 @@ describe("UserStores", () => {
       yield* stores.forUser(bob).deleteAll();
 
       assert.deepStrictEqual([...opened.keys()], [`user:${ada}`, `user:${bob}`]);
-      assert.deepStrictEqual(opened.get(`user:${ada}`)?.sql.exec("SELECT value FROM meta"), [
-        { value: "1" },
-      ]);
+      assert.deepStrictEqual(
+        opened.get(`user:${ada}`)?.sql.exec("SELECT value FROM meta WHERE key = 'epoch'"),
+        [{ value: "1" }],
+      );
     }),
   );
 

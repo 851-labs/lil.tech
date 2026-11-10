@@ -11,6 +11,12 @@ import {
   touchQueuedHealthBatch,
 } from "../health/HealthBatchStore.ts";
 import { seedWelcomeCards } from "../health/cards/WelcomeSeed.ts";
+import {
+  markNewStoreMetadataClean,
+  metadataCleanupInterval,
+  metadataCleanupPending,
+  metadataCleanupStep,
+} from "../health/MetadataCleanup.ts";
 import { DisposableBucket } from "../Deployment.ts";
 import { makeStoreMcpServers } from "../mcp/StoreMcpServers.ts";
 import { requestPath } from "../oauth/Requests.ts";
@@ -232,6 +238,12 @@ export const makeUserStore = (
   let wiping = readMeta(sql, "wiping", 0) === 1;
   /** Whether a retired device still has records to delete, kept so writes don't have to ask. */
   let retiring = hasRetiringDevices(sql);
+  /**
+   * Whether the store's records still hold metadata lil health no longer keeps, which the alarm
+   * drops a chunk at a time (`src/health/MetadataCleanup.ts`, 851-4152). A new store has none.
+   */
+  markNewStoreMetadataClean(sql);
+  let cleaningMetadata = metadataCleanupPending(sql) && !deleted;
 
   /** When the alarm is set for, once known, so most writes don't have to ask. */
   let alarmAt: number | null | undefined;
@@ -247,12 +259,14 @@ export const makeUserStore = (
     // skip listing the sockets: an alarm already set for an expiry is never moved later.
     const expiry = options.sockets === true ? yield* notices.nextExpiry : null;
     const retireAt = retiring ? now + retireStepInterval : null;
+    const cleanAt = cleaningMetadata && !wiping ? now + metadataCleanupInterval : null;
     // A store being deleted is wiped as soon as it can be.
     const wipeAt = wiping ? now : null;
     const times = [
       nextAlarmAt(sql, now),
       expiry,
       retireAt,
+      cleanAt,
       nextBlobSweepAt(sql),
       nextTombstoneSweepAt(sql, now),
       nextAgentAccessTrimAt(sql),
@@ -289,6 +303,8 @@ export const makeUserStore = (
     // (in memory) still refuses everything.
     migrate(sql);
     sql.exec("INSERT INTO meta (key, value) VALUES ('deleted', 1)");
+    // Nothing is left to clean, and nothing can be written again.
+    cleaningMetadata = false;
     if (devicesSignedOut)
       sql.exec("INSERT INTO meta (key, value) VALUES ('devices_signed_out', 1)");
     retiring = false;
@@ -615,6 +631,17 @@ export const makeUserStore = (
           if (retireStep(sql, registry, now) > 0) yield* notices.notify(now);
           retiring = hasRetiringDevices(sql);
         }
+        if (cleaningMetadata) {
+          const step = metadataCleanupStep(sql, registry, now);
+          if (step.changed > 0) yield* notices.notify(now);
+          if (step.finished) {
+            cleaningMetadata = false;
+            yield* Effect.logInfo(
+              `Dropped metadata lil health doesn't keep: ${step.total} records changed, ` +
+                `${step.totalSkipped} refused by their checks and left as they were`,
+            );
+          }
+        }
         sweepTombstones(sql, registry, now);
         const trimAt = nextAgentAccessTrimAt(sql);
         if (trimAt !== null && trimAt <= now) trimAgentAccessLog(sql, now);
@@ -649,6 +676,13 @@ export const startUserStore = Effect.fnUntraced(function* (
 ) {
   const store = makeUserStore(...args);
   const [sql, registry = entities] = args;
+  // Records stored with metadata lil health no longer keeps are cleaned by the alarm
+  // (`src/health/MetadataCleanup.ts`), which a store that's only read never sets otherwise.
+  if (metadataCleanupPending(sql) && readMeta(sql, "deleted", 0) !== 1) {
+    const at = (yield* Clock.currentTimeMillis) + metadataCleanupInterval;
+    const set = yield* Effect.promise(() => sql.getAlarm());
+    if (set === null || set > at) yield* Effect.promise(() => sql.setAlarm(at));
+  }
   // A store past its hard limit takes no upserts (`apply`), the seed's included: it seeds once
   // it's back under.
   if (sql.databaseSize() >= storageHardLimitBytes) return store;

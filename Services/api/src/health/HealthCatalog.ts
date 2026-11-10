@@ -106,6 +106,13 @@ const HealthCatalogFile = Schema.Struct({
     }),
   ),
   otherWorkoutActivityName: Schema.String,
+  /**
+   * The metadata keys lil health keeps (851-4152, `HealthCatalog.keptMetadataKeys`): HealthKit's
+   * values, such as `HKTimeZone`, and lil health's own. Any other key is dropped.
+   */
+  metadataKeys: Schema.Array(Schema.String),
+  /** The `HKDevice` properties lil health keeps (`HealthCatalog.keptDeviceProperties`). */
+  deviceProperties: Schema.Array(Schema.String),
 });
 
 const catalog = Schema.decodeUnknownSync(HealthCatalogFile)(catalogJson);
@@ -147,3 +154,9 @@ export const workoutActivities: ReadonlyArray<{
 /** How Health names a workout's activity (`HKWorkoutActivityType`'s raw value), e.g. "Running". */
 export const workoutActivityName = (activityType: number): string =>
   activityNames.get(activityType) ?? catalog.otherWorkoutActivityName;
+
+/** The metadata keys lil health keeps (`src/health/HealthMetadata.ts`). Any other is dropped. */
+export const keptMetadataKeys: ReadonlySet<string> = new Set(catalog.metadataKeys);
+
+/** The `HKDevice` properties lil health keeps (`src/health/HealthMetadata.ts`). */
+export const keptDeviceProperties: ReadonlySet<string> = new Set(catalog.deviceProperties);

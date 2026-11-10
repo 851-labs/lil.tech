@@ -93,6 +93,25 @@ struct HealthCatalogTests {
     )
   }
 
+  /// The metadata keys kept are HealthKit's, decided one by one, and lil health's own.
+  @Test
+  func keptMetadataKeys() {
+    #expect(HealthCatalog.keptMetadataKeys.contains("HKTimeZone"))
+    #expect(HealthCatalog.keptMetadataKeys.contains("LilWorkoutPlan"))
+    for dropped in [
+      "HKDeviceSerialNumber", "HKUDIProductionIdentifier", "HKUDIDeviceIdentifier",
+      "HKDigitalSignature", "HKExternalUUID", "HKMetadataKeySyncIdentifier",
+      "HKMetadataKeySyncVersion", "HKMetadataKeyAppleFitnessPlusCatalogIdentifier",
+    ] {
+      #expect(!HealthCatalog.keptMetadataKeys.contains(dropped), "\(dropped) is kept")
+    }
+    #expect(
+      HealthCatalog.keptMetadata([
+        "HKTimeZone": 1, "HKDeviceSerialNumber": 2, "com.example.app.key": 3,
+      ]) == ["HKTimeZone": 1])
+    #expect(HealthCatalog.keptMetadata(["com.example.app.key": 3]) == nil)
+  }
+
   @Test
   func workoutActivityNames() {
     #expect(HealthCatalog.workoutActivityName(37) == "Running")
@@ -241,6 +260,33 @@ struct HealthCatalogTests {
       #expect(Int(HKWorkoutActivityType.underwaterDiving.rawValue) == 84)
       #expect(Int(HKWorkoutActivityType.other.rawValue) == 3000)
     }
+
+    /// Every metadata key the SDK declares is kept or dropped (851-4152), once, under the value
+    /// HealthKit puts in metadata, which isn't always the constant's name. A key a new SDK adds
+    /// fails this until it's decided.
+    @Test
+    func decidesEveryMetadataKey() throws {
+      let declared = try SDKHeaders.metadataKeyConstants()
+      #expect(declared.count >= 71)
+      let listed = HealthCatalog.healthKitMetadataKeys.map(\.constant)
+      #expect(Set(listed).count == listed.count, "A key is listed twice")
+      let undecided = declared.subtracting(listed)
+      #expect(undecided.isEmpty, "Keep or drop: \(undecided.sorted())")
+      let unknown = Set(listed).subtracting(declared)
+      #expect(unknown.isEmpty, "Not in the SDK: \(unknown.sorted())")
+
+      // HealthKit's values, read from its constants by name.
+      #expect(HKMetadataKeyTimeZone == "HKTimeZone")
+      let everywhere = UnsafeMutableRawPointer(bitPattern: -2)  // RTLD_DEFAULT
+      for key in HealthCatalog.healthKitMetadataKeys {
+        guard let symbol = dlsym(everywhere, key.constant) else {
+          Issue.record("HealthKit has no \(key.constant)")
+          continue
+        }
+        let value = symbol.load(as: Unmanaged<NSString>.self).takeUnretainedValue() as String
+        #expect(value == key.key, "\(key.constant) is \(value)")
+      }
+    }
   }
 
   extension HealthDataType.Aggregation {
@@ -346,6 +392,18 @@ struct HealthCatalogTests {
         }
       }
       return sdk
+    }
+
+    /// The metadata key constants `HKMetadata.h` declares (`HKMetadataKey…`).
+    static func metadataKeyConstants() throws -> Set<String> {
+      let header = try String(
+        contentsOf: sdkPath().appending(
+          path: "System/Library/Frameworks/HealthKit.framework/Headers/HKMetadata.h"),
+        encoding: .utf8)
+      return Set(
+        header.matches(of: /HK_EXTERN NSString \* const (HKMetadataKey\w+)/).map {
+          String($0.output.1)
+        })
     }
 
     private static func sdkPath() throws -> URL {
