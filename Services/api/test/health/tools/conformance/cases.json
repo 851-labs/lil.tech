@@ -7788,7 +7788,7 @@
           },
           {
             "time": "2026-10-15T09:00:00+00:00",
-            "kind": "Momentary Emotion",
+            "kind": "Unknown",
             "valence": 0.2,
             "classification": "Unknown",
             "labels": ["Peaceful"],

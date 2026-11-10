@@ -17,10 +17,9 @@ extension HealthDatabase {
   {
     let (lower, upper) = (range.lowerBound.unixMilliseconds, range.upperBound.unixMilliseconds)
     let inRange = HealthStateOfMind.where { $0.startDate >= lower && $0.startDate < upper }
-    return (
-      try inRange.fetchCount(db),
-      try inRange.order { ($0.startDate.desc(), $0.id.desc()) }.limit(limit).fetchAll(db)
-    )
+    let logs = try inRange.order { ($0.startDate.desc(), $0.id.desc()) }.limit(limit).fetchAll(db)
+    // Counted only when they don't all fit.
+    return (logs.count < limit ? logs.count : try inRange.fetchCount(db), logs)
   }
 
   /// The assessments of `kinds` that start in `range`, newest first (then by ID), at most
@@ -33,10 +32,10 @@ extension HealthDatabase {
     let inRange = HealthScoredAssessment.where {
       $0.type.in(types) && $0.startDate >= lower && $0.startDate < upper
     }
-    return (
-      try inRange.fetchCount(db),
-      try inRange.order { ($0.startDate.desc(), $0.id.desc()) }.limit(limit).fetchAll(db)
-    )
+    let assessments = try inRange.order { ($0.startDate.desc(), $0.id.desc()) }.limit(limit)
+      .fetchAll(db)
+    // Counted only when they don't all fit.
+    return (assessments.count < limit ? assessments.count : try inRange.fetchCount(db), assessments)
   }
 
   /// A type's assessments (e.g. `HKScoredAssessmentTypeIdentifierGAD7`), newest first, at most
@@ -89,8 +88,12 @@ public enum StateOfMindVocabulary {
 
   /// Names for raw values, skipping ones this app doesn't know (from a newer iOS).
   static func names(_ json: String, in names: [String]) -> [String] {
-    let values = (try? JSONDecoder().decode([Int].self, from: Data(json.utf8))) ?? []
-    return values.compactMap { names.indices.contains($0 - 1) ? names[$0 - 1] : nil }
+    rawValues(json).compactMap { names.indices.contains($0 - 1) ? names[$0 - 1] : nil }
+  }
+
+  /// A JSON array of HealthKit raw values, or none if it can't be read.
+  static func rawValues(_ json: String) -> [Int] {
+    (try? JSONDecoder().decode([Int].self, from: Data(json.utf8))) ?? []
   }
 }
 
@@ -99,6 +102,16 @@ extension HealthStateOfMind {
   public var isDailyMood: Bool { kind == 2 }
 
   public var kindName: String { isDailyMood ? "Daily Mood" : "Momentary Emotion" }
+
+  /// The kind's name as the tools give it (851-4160): `Unknown` for one a later iOS adds, where
+  /// the page shows it as a momentary emotion.
+  public var toolKindName: String {
+    switch kind {
+    case 1: "Momentary Emotion"
+    case 2: "Daily Mood"
+    default: "Unknown"
+    }
+  }
 
   public var decodedValenceClassification: ValenceClassification? {
     ValenceClassification(rawValue: valenceClassification)
@@ -135,6 +148,11 @@ public enum AssessmentKind: String, CaseIterable, Sendable {
     case .gad7: [0, 5, 10, 15]
     case .phq9: [0, 5, 10, 15, 20]
     }
+  }
+
+  /// An assessment's answers' names, in question order, or none if they can't be read.
+  public func answerNames(_ assessment: HealthScoredAssessment) -> [String] {
+    StateOfMindVocabulary.rawValues(assessment.answers).map(answerName)
   }
 
   public func riskName(_ risk: Int) -> String {

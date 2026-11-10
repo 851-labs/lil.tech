@@ -2917,7 +2917,7 @@ let mcpToolsJSON = #"""
             },
             "kind": {
               "type": "string",
-              "description": "Momentary Emotion (how they felt right then) or Daily Mood (how they felt over the day)."
+              "description": "Momentary Emotion (how they felt right then) or Daily Mood (how they felt over the day), or Unknown for one a later iOS adds."
             },
             "valence": {
               "type": "number",

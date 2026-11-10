@@ -576,7 +576,7 @@ public struct HealthTools: Sendable {
       end: time.localTime(period.end), count: count,
       logs: logs.map { log in
         HealthStateOfMindItem(
-          time: time.localTime(Date(unixMilliseconds: log.startDate)), kind: log.kindName,
+          time: time.localTime(Date(unixMilliseconds: log.startDate)), kind: log.toolKindName,
           valence: log.valence,
           classification: log.decodedValenceClassification?.name ?? "Unknown",
           labels: log.labelNames, associations: log.associationNames, source: log.sourceName)
@@ -607,13 +607,8 @@ public struct HealthTools: Sendable {
           time: time.localTime(Date(unixMilliseconds: assessment.startDate)),
           score: assessment.score, maximumScore: kind.maximumScore,
           risk: kind.riskName(assessment.risk),
-          answers: Self.rawValues(assessment.answers).map(kind.answerName))
+          answers: kind.answerNames(assessment))
       })
-  }
-
-  /// A JSON array of HealthKit raw values, or none if it can't be read.
-  private static func rawValues(_ json: String) -> [Int] {
-    (try? JSONDecoder().decode([Int].self, from: Data(json.utf8))) ?? []
   }
 
   // MARK: - medications

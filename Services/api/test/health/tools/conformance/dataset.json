@@ -10,7 +10,7 @@
     "Samples' details (851-4166) are on 19 October, from ph2, which HealthKit syncs every app's samples to: blood glucose entered by hand in Health (before a meal, recorded in New York) and from a third-party health app, which records the rest too (after a meal, with a reference range, its meter in a provenance record, and keys lil health doesn't keep, which ingestion drops); insulin (basal with an empty device, bolus with its pump named only in its metadata and a motion context that isn't one); cardio fitness from an Apple Watch; a high heart rate notification with its threshold; a blood pressure reading, a correlation of a systolic and a diastolic sample; and the morning's heart rate says it was sedentary, on the wrist.",
     "Quantity series (851-4171) are on 14 April 2026, a day no cards case reads, so the iPhone's HealthKit run (which writes each series as one sample) gives the same cards: heart rate from the Watch, a workout's 120 values every 5 s from 09:55 (the sample's own value, 130.5, is HealthKit's for the whole series), crossing 10:00, beside a chest strap's readings and a Watch reading after it; a series of 25,000 values from 14:00 whose values weren't uploaded, only its count and summary (55 to 190); and a series from 23:58 that crosses midnight, so 15 April's values come from a series that started the day before.",
     "Activity rings (851-4158) are on 20 September and 14 to 20 October, from ph1, keyed by the iPhone's day: 14 October has no move value, no exercise goal (0) and no stand value or pause flag; 15 October is in Move time, with active energy beside it the tools don't read; 16 October has no Exercise or Stand goal (no Watch that day); 17 October is paused; 18 October has none; 20 October is today, unfinished.",
-    "Mental Wellbeing (851-4160): State of Mind logs from 13 September to 20 October, momentary emotions and daily moods logged in Health and on the Watch: one with every label and association, one with none, raw values a later iOS might add (a classification of 9, a label of 39, 0s), one at the start of 14 September and one a second before, and one ph2 deleted. GAD-7 and PHQ-9 assessments from 25 September to 20 October: PHQ-9's 9th question skipped (Prefer not to answer), an answer of 5 and a risk of 6 a later iOS might add, and a GAD-7 ph2 deleted."
+    "Mental Wellbeing (851-4160): State of Mind logs from 13 September to 20 October, momentary emotions and daily moods logged in Health and on the Watch: one with every label and association, one with none, raw values a later iOS might add (a kind of 3, a classification of 9, a label of 39, 0s), one at the start of 14 September and one a second before, and one ph2 deleted. GAD-7 and PHQ-9 assessments from 25 September to 20 October: PHQ-9's 9th question skipped (Prefer not to answer), an answer of 5 and a risk of 6 a later iOS might add, and a GAD-7 ph2 deleted."
   ],
   "batches": [
     {
@@ -2333,7 +2333,7 @@
           "row": {
             "startDate": 1792054800000,
             "endDate": 1792054800000,
-            "kind": 1,
+            "kind": 3,
             "valence": 0.2,
             "valenceClassification": 9,
             "labels": [0, 24],

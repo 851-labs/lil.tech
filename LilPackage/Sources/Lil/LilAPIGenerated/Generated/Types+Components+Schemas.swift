@@ -11753,7 +11753,7 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthStateOfMindItem/time`.
             public var time: Swift.String
-            /// Momentary Emotion (how they felt right then) or Daily Mood (how they felt over the day).
+            /// Momentary Emotion (how they felt right then) or Daily Mood (how they felt over the day), or Unknown for one a later iOS adds.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthStateOfMindItem/kind`.
             public var kind: Swift.String
@@ -11783,7 +11783,7 @@ extension Components {
             ///
             /// - Parameters:
             ///   - time: When it was logged: a momentary emotion's moment, or for a daily mood, a time in the day it describes.
-            ///   - kind: Momentary Emotion (how they felt right then) or Daily Mood (how they felt over the day).
+            ///   - kind: Momentary Emotion (how they felt right then) or Daily Mood (how they felt over the day), or Unknown for one a later iOS adds.
             ///   - valence: How pleasant it felt, from -1 (very unpleasant) to 1 (very pleasant).
             ///   - classification: The valence as the person chose it: Very Unpleasant, Unpleasant, Slightly Unpleasant, Neutral, Slightly Pleasant, Pleasant or Very Pleasant (Unknown for one a later iOS adds).
             ///   - labels: The feelings that described it, e.g. Calm, Grateful or Stressed, in the order they were logged. Empty if none.

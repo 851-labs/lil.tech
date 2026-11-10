@@ -1183,7 +1183,7 @@ export const HealthStateOfMindItem = Schema.Struct({
   kind: Schema.String.annotate({
     description:
       "Momentary Emotion (how they felt right then) or Daily Mood (how they felt over the " +
-      "day).",
+      "day), or Unknown for one a later iOS adds.",
   }),
   valence: Schema.Finite.annotate({
     description: "How pleasant it felt, from -1 (very unpleasant) to 1 (very pleasant).",

@@ -89,12 +89,19 @@ const stateOfMindAssociations = [
 
 const decodeRawValues = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Array(Schema.Int)));
 
+/** A JSON array of HealthKit raw values, or none if it can't be read. */
+const rawValues = (json: string): ReadonlyArray<number> =>
+  Option.getOrElse(decodeRawValues(json), () => []);
+
+/** `HKStateOfMind.Kind`'s names, by raw value from 1 (`HealthStateOfMind.toolKindName`). */
+const stateOfMindKinds = ["Momentary Emotion", "Daily Mood"];
+
 /**
  * The names of a JSON array of raw values numbered from 1, skipping those without one (from a
  * later iOS), or none if it can't be read, as the Mac's `StateOfMindVocabulary.names`.
  */
 const names = (json: string, vocabulary: ReadonlyArray<string>): Array<string> =>
-  Option.getOrElse(decodeRawValues(json), () => []).flatMap((value) => {
+  rawValues(json).flatMap((value) => {
     const name = vocabulary[value - 1];
     return name === undefined ? [] : [name];
   });
@@ -123,7 +130,7 @@ export const healthStateOfMind = Effect.fn("healthStateOfMind")(function* (
     count,
     logs: logs.map((log) => ({
       time: localTime(log.startDate, zone),
-      kind: log.kind === 2 ? "Daily Mood" : "Momentary Emotion",
+      kind: stateOfMindKinds[log.kind - 1] ?? "Unknown",
       valence: log.valence,
       classification: valenceClassifications[log.valenceClassification - 1] ?? "Unknown",
       labels: names(log.labels, stateOfMindLabels),
@@ -208,9 +215,7 @@ export const healthAssessments = Effect.fn("healthAssessments")(function* (
           score: assessment.score,
           maximumScore: kind.maximumScore,
           risk: kind.risks[assessment.risk - 1] ?? "Unknown",
-          answers: Option.getOrElse(decodeRawValues(assessment.answers), () => []).map(
-            (answer) => kind.answers[answer] ?? "Unknown",
-          ),
+          answers: rawValues(assessment.answers).map((answer) => kind.answers[answer] ?? "Unknown"),
         },
       ];
     }),

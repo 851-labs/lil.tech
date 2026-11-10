@@ -301,7 +301,9 @@ extension HealthAssessmentsResult: TextOutput {
       lines.append(
         "  \(time(assessment.time))   \(assessment.name)   \(assessment.risk), score "
           + "\(assessment.score) of \(assessment.maximumScore)")
-      lines.append("      " + assessment.answers.joined(separator: " · "))
+      if !assessment.answers.isEmpty {
+        lines.append("      " + assessment.answers.joined(separator: " · "))
+      }
     }
     if assessments.count < count {
       lines += ["", "Showing the \(assessments.count) most recent assessments."]

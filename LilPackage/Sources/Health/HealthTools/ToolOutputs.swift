@@ -718,7 +718,7 @@ public struct HealthActivityRingsResult: HealthToolOutput {
 /// A State of Mind log, in the words of the Mac's State of Mind page.
 public struct HealthStateOfMindItem: Codable, Equatable, Sendable {
   public var time: String
-  /// `Momentary Emotion` or `Daily Mood`.
+  /// `Momentary Emotion` or `Daily Mood` (`Unknown` for one a later iOS adds).
   public var kind: String
   /// From -1 (very unpleasant) to 1 (very pleasant).
   public var valence: Double
