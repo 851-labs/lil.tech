@@ -314,4 +314,55 @@ describe("workersLogger's redaction (851-4054)", () => {
       assert.notInclude(text(lines), "synthetic-line-4054");
     }),
   );
+
+  it.effect("shows a failure's name and message only when it's an Error", () =>
+    Effect.gen(function* () {
+      const lines = yield* loggedFailure(
+        Effect.fail({ name: "Synthetic's iPhone", message: "synthetic note", pushToken: "t" }),
+      );
+      const logged = text(lines);
+      assert.include(logged, "pushToken");
+      assert.notInclude(logged, "Synthetic's iPhone");
+      assert.notInclude(logged, "synthetic note");
+    }),
+  );
+
+  it.effect("ends at an error whose cause holds it, and keeps no array in a kept field", () =>
+    Effect.gen(function* () {
+      const error = new Holding({ message: "Wrapped", appleError: "invalid_grant" });
+      Object.assign(error, { cause: Cause.die(error), status: ["synthetic-status-4054"] });
+      const lines = yield* loggedFailure(Effect.fail(error));
+      const logged = text(lines);
+      assert.include(logged, "Holding: Wrapped");
+      assert.include(logged, "invalid_grant");
+      assert.notInclude(logged, "synthetic-status-4054");
+    }),
+  );
+
+  it.effect("formats a bare Schema issue's paths, and keeps a message's other parts", () =>
+    Effect.gen(function* () {
+      const issue = yield* Schema.decodeUnknownEffect(Schema.Struct({ email: Schema.String }))(
+        { email: 4054 },
+        { reportInput: true },
+      ).pipe(
+        Effect.flip,
+        Effect.map((error) => error.issue),
+      );
+      const lines = yield* logged(
+        Effect.fail(issue).pipe(
+          Effect.catchCause((cause) =>
+            Effect.logWarning(
+              "Store call failed",
+              `Store call "applyMutations" for batch "b_1" failed: SyntaxError: Unexpected token 'x', "synthetic-line-4054" is not valid JSON`,
+              cause,
+            ),
+          ),
+        ),
+      );
+      const output = text(lines);
+      assert.include(output, String.raw`at [\"email\"]`);
+      assert.include(output, String.raw`Store call \"applyMutations\" for batch \"b_1\" failed`);
+      assert.notInclude(output, "4054");
+    }),
+  );
 });
