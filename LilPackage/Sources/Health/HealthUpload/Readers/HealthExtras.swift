@@ -314,3 +314,48 @@ extension HealthActivitySummaryReader: DependencyKey {
     }
   }
 }
+
+extension DependencyValues {
+  public var healthWorkoutEffortsReader: HealthWorkoutEffortsReader {
+    get { self[HealthWorkoutEffortsReader.self] }
+    set { self[HealthWorkoutEffortsReader.self] = newValue }
+  }
+}
+
+/// Reads every workout's effort scores (`HKWorkoutEffortRelationship`, 851-4153), a record per
+/// workout that has any. Relating a score to a workout doesn't change the workout's anchor, and the
+/// relationships' own anchor reports scores related since, but not one unrelated or deleted
+/// (measured in the iOS 27.2 simulator), so they're all read whole, every run of everything and
+/// whenever workouts or effort scores change (`HealthBackfill.uploadEfforts`). The query is cheap:
+/// 100 workouts' in 0.18 s.
+public struct HealthWorkoutEffortsReader: Sendable {
+  public var read: @Sendable () async throws -> [HealthMutation]
+
+  public init(read: @escaping @Sendable () async throws -> [HealthMutation]) {
+    self.read = read
+  }
+}
+
+extension HealthWorkoutEffortsReader: DependencyKey {
+  public static var liveValue: Self {
+    let store = HKHealthStore()
+    return Self {
+      do {
+        let all = try await HKWorkoutEffortRelationshipQueryDescriptor(
+          predicate: nil, anchor: nil, option: .default
+        ).result(for: store)
+        let relevant = try await HKWorkoutEffortRelationshipQueryDescriptor(
+          predicate: nil, anchor: nil, option: .mostRelevant
+        ).result(for: store)
+        return WorkoutEffortRecord.records(
+          all.relationships, mostRelevant: relevant.relationships
+        ).map(HealthEncoder.workoutEffort)
+      } catch {
+        throw HealthReader.Locked.mapped(error)
+      }
+    }
+  }
+
+  /// None, unless a test says otherwise: most tests aren't about them.
+  public static var testValue: Self { Self { [] } }
+}

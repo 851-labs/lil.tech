@@ -7,6 +7,8 @@ enum TestHealthTypes {
   static let quantities: [HKQuantityTypeIdentifier] = [
     .stepCount, .activeEnergyBurned, .distanceWalkingRunning, .heartRate, .restingHeartRate,
     .bodyMass, .bodyTemperature, .heartRateVariabilitySDNN, .environmentalAudioExposure,
+    // Linked to workouts (851-4153).
+    .workoutEffortScore,
   ]
 
   /// Their identifiers: the conformance dataset's samples of other types aren't written

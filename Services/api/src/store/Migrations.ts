@@ -362,6 +362,15 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
     // before a range included (`seriesLookbackMillis` in `src/health/tools/HealthQueries.ts`).
     sql: `CREATE INDEX health_quantity_series_type_start ON health_quantity_series (type, start_date);`,
   },
+  {
+    version: 31,
+    name: "health_links",
+    // What HealthKit links to a workout or an ECG (851-4153), in `src/health/HealthEntities.ts`:
+    // `HealthWorkoutSamples`, `HealthElectrocardiogramSymptoms` and `HealthWorkoutEffort`.
+    sql: `CREATE TABLE "health_workout_samples" (id TEXT PRIMARY KEY, "count" INTEGER NOT NULL, "samples" TEXT) STRICT;
+    CREATE TABLE "health_electrocardiogram_symptoms" (id TEXT PRIMARY KEY, "count" INTEGER NOT NULL, "samples" TEXT) STRICT;
+    CREATE TABLE "health_workout_effort" (id TEXT PRIMARY KEY, "samples" TEXT NOT NULL, "most_relevant" TEXT, "legs" TEXT NOT NULL) STRICT;`,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

@@ -1267,3 +1267,84 @@ struct HealthBatchWriterTests {
     #expect(writer.pendingCount == 0)
   }
 }
+
+/// What HealthKit links to a workout or an ECG (851-4153), as it goes up.
+struct HealthLinksEncodingTests {
+  func uuid(_ n: Int) -> UUID {
+    UUID(uuidString: "6f1c2a40-0000-4000-8000-\(String(format: "%012d", n))")!
+  }
+
+  @Test
+  func linkedSamplesGoUpByType() throws {
+    let linked = LinkedSamples(
+      id: uuid(1),
+      samples: [
+        "HKQuantityTypeIdentifierHeartRate": [uuid(2), uuid(3)],
+        "HKQuantityTypeIdentifierActiveEnergyBurned": [uuid(4)],
+      ])
+    let decoded = try row(
+      HealthEncoder.workoutSamples(linked), as: Components.Schemas.HealthWorkoutSamples.self)
+    #expect(decoded.id == "6f1c2a40-0000-4000-8000-000000000001")
+    #expect(decoded.count == 3)
+    let samples = try #require(
+      try line(HealthEncoder.workoutSamples(linked))["row"] as? [String: Any])["samples"]
+    #expect(
+      samples as? [String: [String]] == [
+        "HKQuantityTypeIdentifierHeartRate": [
+          "6f1c2a40-0000-4000-8000-000000000002", "6f1c2a40-0000-4000-8000-000000000003",
+        ],
+        "HKQuantityTypeIdentifierActiveEnergyBurned": ["6f1c2a40-0000-4000-8000-000000000004"],
+      ])
+    // An ECG's are the same shape, under its own entity.
+    let symptoms = HealthEncoder.electrocardiogramSymptoms(LinkedSamples(id: uuid(5), samples: [:]))
+    #expect(symptoms.entity == HealthEncoder.electrocardiogramSymptomsEntity)
+    _ = try row(symptoms, as: Components.Schemas.HealthElectrocardiogramSymptoms.self)
+    let symptomsRow = try #require(try line(symptoms)["row"] as? [String: AnyHashable])
+    #expect(symptomsRow == ["count": 0, "samples": [String: AnyHashable]()])
+  }
+
+  /// Past `maxLinkedSamples`, only the count goes up, so the line stays under 1 MB.
+  @Test
+  func tooManyLinkedSamplesGoUpAsACount() throws {
+    let many = (0..<HealthEncoder.maxLinkedSamples).map { uuid(10 + $0) }
+    let atMost = LinkedSamples(id: uuid(1), samples: ["HKQuantityTypeIdentifierHeartRate": many])
+    #expect(atMost.samples != nil)
+    var writer = HealthBatchWriter()
+    _ = try writer.append(HealthEncoder.workoutSamples(atMost))
+    let over = LinkedSamples(
+      id: uuid(1),
+      samples: [
+        "HKQuantityTypeIdentifierHeartRate": many,
+        "HKQuantityTypeIdentifierActiveEnergyBurned": [uuid(5)],
+      ])
+    #expect(over.samples == nil)
+    #expect(over.count == HealthEncoder.maxLinkedSamples + 1)
+    let decoded = try row(
+      HealthEncoder.workoutSamples(over), as: Components.Schemas.HealthWorkoutSamples.self)
+    #expect(decoded.samples == nil)
+  }
+
+  @Test
+  func effortScoresGoUpWithTheirLegs() throws {
+    let effort = WorkoutEffortRecord(
+      workout: uuid(1), samples: [uuid(2), uuid(3)], mostRelevant: uuid(3),
+      activities: [.init(id: uuid(4), samples: [uuid(5)], mostRelevant: nil)])
+    let mutation = HealthEncoder.workoutEffort(effort)
+    _ = try row(mutation, as: Components.Schemas.HealthWorkoutEffort.self)
+    let encoded = try #require(try line(mutation)["row"] as? [String: AnyHashable])
+    #expect(
+      encoded == [
+        "samples": [
+          "6f1c2a40-0000-4000-8000-000000000002", "6f1c2a40-0000-4000-8000-000000000003",
+        ],
+        "mostRelevant": "6f1c2a40-0000-4000-8000-000000000003",
+        "legs": [
+          [
+            "activity": "6f1c2a40-0000-4000-8000-000000000004",
+            "samples": ["6f1c2a40-0000-4000-8000-000000000005"],
+            "mostRelevant": NSNull(),
+          ] as [String: AnyHashable]
+        ],
+      ])
+  }
+}

@@ -32,10 +32,16 @@ private final class FakeRecords: Sendable {
   let lookups = LockIsolated<[[String]]>([])
   /// Whether each lookup skipped series that can't be read, rather than failing on them.
   let lookupsSkipSeries = LockIsolated<[Bool]>([])
+  /// What `series`' records are: a quantity series' values, or a workout's or ECG's links
+  /// (851-4153).
+  let dependent: String
 
-  init(_ ids: [String], perPage: Int = 10) {
+  init(
+    _ ids: [String], perPage: Int = 10, dependent: String = HealthEncoder.quantitySeriesEntity
+  ) {
     log = LockIsolated(ids.map(Event.added))
     self.perPage = perPage
+    self.dependent = dependent
   }
 
   func encode(_ ids: [String]) -> HealthPage {
@@ -59,7 +65,7 @@ private final class FakeRecords: Sendable {
   }
 
   func seriesRecord(_ id: String) -> HealthMutation {
-    .upsert(HealthEncoder.quantitySeriesEntity, id: id, row: ["count": 2])
+    .upsert(dependent, id: id, row: ["count": 2])
   }
 
   var reader: HealthReader {
@@ -123,6 +129,12 @@ private final class FakeBatches: Sendable {
   let failsWith = LockIsolated<Set<String>>([])
   let queued = LockIsolated(false)
   let checks = LockIsolated<[[String]]>([])
+  /// The entity `refusedSeries` names.
+  let dependent: String
+
+  init(dependent: String = HealthEncoder.quantitySeriesEntity) {
+    self.dependent = dependent
+  }
 
   var uploaded: [String] { batches.value.flatMap(\.records) }
 
@@ -133,7 +145,7 @@ private final class FakeBatches: Sendable {
         .compactMap { line -> String? in
           let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any]
           guard object?["entity"] as? String != "health_provenance" else { return nil }
-          if object?["entity"] as? String == HealthEncoder.quantitySeriesEntity {
+          if HealthEncoder.dependentEntities.contains(object?["entity"] as? String ?? "") {
             return (object?["id"] as? String).map { "series:\($0)" }
           }
           return object?["id"] as? String
@@ -162,7 +174,7 @@ private final class FakeBatches: Sendable {
               ? .init(entity: HealthEncoder.sampleEntity, id: $0) : .init(entity: nil, id: nil)
           }
             + refusedSeriesHere.sorted().map {
-              .init(entity: HealthEncoder.quantitySeriesEntity, id: $0)
+              .init(entity: dependent, id: $0)
             })
       }
     }
@@ -215,6 +227,38 @@ struct HeldBackTests {
     try await updated.run()
     try await updated.run()
     #expect(server.uploaded == ["a", "b", "series:b", "b", "series:b"])
+    state = try #require(try storage.loadState())
+    #expect(state.heldBack == [:])
+    #expect(state.uploadedRecords == 2)
+  }
+
+  /// A workout whose samples' record the server refuses, though it took the workout (851-4153),
+  /// is held back as a series is, and goes up again whole, counted once.
+  @Test
+  func aWorkoutWhoseLinksTheServerRefusesIsHeldBackAndCountedOnce() async throws {
+    let workouts = HealthBackfillType(id: "HKWorkoutTypeIdentifier")
+    let health = FakeRecords(["a", "b"], dependent: HealthEncoder.workoutSamplesEntity)
+    health.series.setValue(["a", "b"])
+    let server = FakeBatches(dependent: HealthEncoder.workoutSamplesEntity)
+    server.refusedSeries.setValue(["b"])
+    let storage = HealthBackfillStorage.inMemory()
+    func backfill(_ build: String = "1.0 (1)") -> HealthBackfill {
+      makeBackfill(health: health, server: server, storage: storage, build: build, type: workouts)
+    }
+    try await backfill().run()
+    #expect(server.uploaded == ["a", "series:a", "b", "series:b"])
+    #expect(try storage.loadState()?.uploadedRecords == 2)
+
+    try await backfill().run()
+    var state = try #require(try storage.loadState())
+    #expect(state.heldBack[workouts.id]?.records["b"]?.reason == .refused)
+    #expect(state.uploadedRecords == 1)
+
+    server.refusedSeries.setValue([])
+    let updated = backfill("1.1 (2)")
+    try await updated.run()
+    try await updated.run()
+    #expect(server.uploaded.suffix(2) == ["b", "series:b"])
     state = try #require(try storage.loadState())
     #expect(state.heldBack == [:])
     #expect(state.uploadedRecords == 2)
