@@ -31,6 +31,9 @@ public struct ConformanceSamples: Sendable {
     /// Its values, when it's a quantity series (`health_quantity_series`, 851-4172), which the
     /// iPhone writes with `HKQuantitySeriesSampleBuilder`, as a Watch does.
     public var series: [SeriesValue]?
+    /// The zone it was recorded in, its metadata's `HKTimeZone` as the dataset has it, which
+    /// HealthKit never adds itself (851-4155).
+    public var timeZone: String?
   }
 
   /// One of a series' values: when it starts and ends (Unix milliseconds), and the value, in
@@ -53,6 +56,8 @@ public struct ConformanceSamples: Sendable {
     /// Its activities, as the Mac and the server read them: all of them, or none if one can't
     /// be read.
     public var activities: [Activity] = []
+    /// Its metadata's `HKTimeZone`, as the dataset has it.
+    public var timeZone: String?
   }
 
   /// One of a workout's activities, with what says where it was.
@@ -141,6 +146,7 @@ public struct ConformanceSamples: Sendable {
       guard let start = row["startDate"] as? Int, let end = row["endDate"] as? Int,
         let source = row["sourceBundleId"] as? String
       else { throw ConformanceError("\(entity) \(id) has no dates") }
+      let metadata = row["metadata"] as? [String: Any]
       if entity == "health_workout" {
         guard let activityType = row["activityType"] as? Int else {
           throw ConformanceError("workout \(id) has no activity type")
@@ -148,8 +154,9 @@ public struct ConformanceSamples: Sendable {
         workouts.append(
           Workout(
             id: id, activityType: activityType, start: start, end: end, source: source,
-            indoor: (row["metadata"] as? [String: Any])?["HKIndoorWorkout"] as? NSNumber,
-            activities: Self.activities(row["activities"])))
+            indoor: metadata?["HKIndoorWorkout"] as? NSNumber,
+            activities: Self.activities(row["activities"]),
+            timeZone: metadata?["HKTimeZone"] as? String))
         continue
       }
       guard let type = row["type"] as? String else {
@@ -167,7 +174,7 @@ public struct ConformanceSamples: Sendable {
           id: id, type: type, start: start, end: end,
           value: (row["value"] as? NSNumber)?.doubleValue, unit: row["unit"] as? String,
           categoryValue: row["categoryValue"] as? Int, source: source, device: device,
-          series: series[id]))
+          series: series[id], timeZone: metadata?["HKTimeZone"] as? String))
     }
     self.sources = sources.sorted()
   }

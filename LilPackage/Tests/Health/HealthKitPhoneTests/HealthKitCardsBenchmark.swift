@@ -119,23 +119,37 @@ struct HealthKitCardsBenchmark {
 
     // Windows (851-3200): a Watch's night ending on every day of the year (in bed, Core, awake
     // twice, Deep, REM), falling asleep between 22:00 and 01:00, and a run at 07:00 every other
-    // day.
+    // day. Each record says where it was recorded, as a Watch's do (851-4176, as the Mac's
+    // `CardQueriesBenchmark`): London, but a week in Tokyo every month.
     var nights: [HKSample] = []
     day = date(1, 1)
     for index in 0..<365 {
       let bed = day.addingTimeInterval((-2 + Double((index * 5) % 7) / 2) * 3600)
       func at(_ hours: Double) -> Date { bed.addingTimeInterval(hours * 3600) }
+      let zone = index % 30 < 7 ? "Asia/Tokyo" : "Europe/London"
       nights += [
-        SyntheticHealthKit.sleep(.inBed, at(-0.4), at(8.2)),
-        SyntheticHealthKit.sleep(.asleepCore, at(0), at(2)),
-        SyntheticHealthKit.sleep(.awake, at(2), at(2 + 1 / 6)),
-        SyntheticHealthKit.sleep(.asleepDeep, at(2 + 1 / 6), at(4)),
-        SyntheticHealthKit.sleep(.asleepREM, at(4), at(7.5)),
-        SyntheticHealthKit.sleep(.awake, at(7.5), at(7.75)),
+        SyntheticHealthKit.sleep(.inBed, at(-0.4), at(8.2), timeZone: zone),
+        SyntheticHealthKit.sleep(.asleepCore, at(0), at(2), timeZone: zone),
+        SyntheticHealthKit.sleep(.awake, at(2), at(2 + 1 / 6), timeZone: zone),
+        SyntheticHealthKit.sleep(.asleepDeep, at(2 + 1 / 6), at(4), timeZone: zone),
+        SyntheticHealthKit.sleep(.asleepREM, at(4), at(7.5), timeZone: zone),
+        SyntheticHealthKit.sleep(.awake, at(7.5), at(7.75), timeZone: zone),
       ]
       day = london.date(byAdding: .day, value: 1, to: day)!
     }
     try await health.save(nights)
+    // The year's nights alone: reading their records (zones included), then grouping them.
+    let nightDays = date(1, 1)..<london.date(byAdding: .year, value: 1, to: date(1, 1))!
+    for _ in 0..<3 {
+      let reading = clock.now
+      let records = try await engine.sleepRecords(
+        overlapping: CardNights.recordRange(days: nightDays))
+      let grouping = clock.now
+      let grouped = CardNights.nights(records, days: nightDays, calendar: london)
+      print(
+        "Benchmark: a year of nights: reading \(records.count) records \(grouping - reading), grouping \(grouped.count) nights \(clock.now - grouping)"
+      )
+    }
     day = date(1, 1)
     for index in 0..<365 {
       if index % 2 == 0 {

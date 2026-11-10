@@ -286,6 +286,20 @@ TEST_RUNNER_LIL_HEALTHKIT_BENCHMARK=1 scripts/test-iphone-healthkit HealthKitCar
 
     The last left out a 4-value series' first and last values (`docs/decisions/cards.md` › Details 851-4172 settled), so it isn't used.
 
+- **Recorded time zones** (851-4176, `docs/decisions/cards.md` › Recorded time zones): the year's nights now say where they were recorded (`HKMetadataKeyTimeZone`), as a Watch's do and as the Mac's benchmark has them: London, but a week in Tokyo every month. The run also times the year's nights alone: reading their 2,190 records over the widened range (`CardNights.recordRange`, 26 hours wider each side since 851-4174), and grouping them in the core. **2026-11-10**, the same simulator and Mac, beside other agents' work (load 28–48 before, 5–35 after). Before is main's engine on the same samples, which doesn't read the zone; seconds, each run:
+
+  | Card | Before | After |
+  | --- | ---: | ---: |
+  | Heart rate while asleep, by the night, with a 7-night moving average, Y | 0.47–0.56 | 0.46 |
+  | Heart rate in the 5 minutes before falling asleep, by the night, Y | 0.33–0.34 | 0.33–0.34 |
+  | Heart rate while asleep, by the night, W | 0.014–0.022 | 0.014–0.026 |
+  | A year of nights: reading 2,190 records | 0.036–0.038 | 0.037–0.047 |
+  | A year of nights: grouping 365 nights (the core, a Debug build) | 0.028–0.029 | 0.034 |
+
+  - **Reading the zone** is a dictionary lookup in each record's metadata, on HealthKit's queue, and each name is checked (`CardTimeZone.named`) once a query: within the noise.
+  - **Grouping** costs the core's runs and placement, about 5 ms a year here (unoptimized), as on the Mac (2.5 ms, release). The cards' times are HealthKit's reading of the readings, and don't change.
+  - **HealthKit checks the name itself** when a sample is made: it refuses `+09:00`, `europe/kyiv`, a blank or an unknown name (`_HKObjectValidationFailureException`, "not a valid time zone name string"), but takes `GMT+9` and abbreviations such as `PST`. So a zone the iPhone reads is always a name Foundation knows, and `CardTimeZone.named` leaves out only `GMT±N` (and takes abbreviations, as 851-4184 says).
+
 ## The iPhone's upload
 
 How long the iPhone's upload takes to read a quantity type's series (851-4182), from a simulator's HealthKit. `HealthKitUploadBenchmark` (`LilPackage/Tests/Health/HealthKitPhoneTests`) writes the data, times HealthKit's values queries and ways of splitting a page's series into them, then reads the type as the backfill does, a page of 10,000 at a time (`HealthReader.page`), and its series again (`HealthReader.series`, the one-time read of 851-4149), checking that every series comes with all its values:

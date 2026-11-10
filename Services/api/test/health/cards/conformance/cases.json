@@ -4644,9 +4644,6 @@
       "timeZone": "Europe/London",
       "range": "W",
       "date": "2025-06-10",
-      "pending": {
-        "iphone": "851-4176"
-      },
       "spec": {
         "version": 1,
         "display": {
@@ -4709,9 +4706,6 @@
       "timeZone": "Pacific/Auckland",
       "range": "W",
       "date": "2025-06-16",
-      "pending": {
-        "iphone": "851-4176"
-      },
       "spec": {
         "version": 1,
         "display": {

@@ -19,11 +19,13 @@ import Testing
 @Suite
 struct HealthKitConformanceTests {
   /// The dataset in HealthKit, checked once: every source's samples and workouts, from its app,
-  /// and none of the host's, which the other suites' last test left.
+  /// and none of the host's, which the other suites' last test left, with the zones they were
+  /// recorded in (`HKMetadataKeyTimeZone`, 851-4176).
   static let store = Task {
     let health = try await SyntheticHealthKit.empty(allowingOtherSources: true)
     let dataset = try ConformanceSamples.cards()
     var written: [String: Int] = [:]
+    var zoned: [String: Int] = [:]
     for type in TestHealthTypes.all {
       let samples = try await HKSampleQueryDescriptor(
         predicates: [.sample(type: type)], sortDescriptors: []
@@ -31,15 +33,24 @@ struct HealthKitConformanceTests {
       .result(for: health.store)
       for sample in samples {
         written[sample.sourceRevision.source.bundleIdentifier, default: 0] += 1
+        if sample.metadata?[HKMetadataKeyTimeZone] != nil {
+          zoned[sample.sourceRevision.source.bundleIdentifier, default: 0] += 1
+        }
       }
     }
     var expected: [String: Int] = [:]
+    var expectedZoned: [String: Int] = [:]
     for (source, app) in ConformanceSourceApps.apps(for: dataset.sources) {
       let part = dataset.of(source: source).only(types: TestHealthTypes.identifiers)
       expected[app] = part.samples.count + part.workouts.count
+      expectedZoned[app] =
+        part.samples.count { $0.timeZone != nil } + part.workouts.count { $0.timeZone != nil }
     }
-    guard written == expected.filter({ $0.value > 0 }) else {
-      throw NotWritten(written: written, expected: expected)
+    guard written == expected.filter({ $0.value > 0 }),
+      zoned == expectedZoned.filter({ $0.value > 0 })
+    else {
+      throw NotWritten(
+        written: written, expected: expected, zoned: zoned, expectedZoned: expectedZoned)
     }
     return (health.store, ConformanceSourceApps.apps(for: dataset.sources))
   }
@@ -89,12 +100,14 @@ struct HealthKitConformanceTests {
   struct NotWritten: Error, CustomStringConvertible {
     var written: [String: Int]
     var expected: [String: Int]
+    var zoned: [String: Int]
+    var expectedZoned: [String: Int]
 
     var description: String {
       """
-      HealthKit holds \(written) samples and workouts by source app, not the dataset's \
-      \(expected): run scripts/test-iphone-healthkit HealthKitConformanceTests, whose source \
-      apps write them.
+      HealthKit holds \(written) samples and workouts by source app, \(zoned) with a time zone, \
+      not the dataset's \(expected), \(expectedZoned) with one: run scripts/test-iphone-healthkit \
+      HealthKitConformanceTests, whose source apps write them.
       """
     }
   }
