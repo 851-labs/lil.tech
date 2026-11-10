@@ -61,6 +61,10 @@ describe("card conformance cases", () => {
     for (const testCase of cases) {
       canonicalSpec(testCase);
       assert.isFalse(Number.isNaN(millis(testCase.now)), `${testCase.name}: now`);
+      assert.isFalse(
+        testCase.iphone !== undefined && testCase.pending?.iphone !== undefined,
+        `${testCase.name}: both iphone.skip and pending.iphone`,
+      );
     }
   });
 
