@@ -23,7 +23,7 @@ struct LilHealthCommand: ParsableCommand {
       open, sync and export ask lil health to do it, under the same setting, launching it if \
       it isn't running.
 
-      Exit statuses: 64 for a usage error, 65 for an unknown type, workout, route, ECG, time zone, date, \
+      Exit statuses: 64 for a usage error, 65 for an unknown type, workout, route, ECG, heartbeat series, time zone, date, \
       page or folder, 69 if there's no lil health data to read, or lil health isn't installed, didn't answer or \
       isn't signed in, 75 if its sync or export failed, 77 while access is off.
       """,
@@ -31,7 +31,8 @@ struct LilHealthCommand: ParsableCommand {
       SummaryCommand.self, TypesCommand.self, MetricCommand.self, SamplesCommand.self,
       WorkoutsCommand.self, WorkoutCommand.self, RoutesCommand.self, RouteCommand.self,
       SleepCommand.self, ActivityCommand.self, StateOfMindCommand.self,
-      AssessmentsCommand.self, ECGsCommand.self, ECGCommand.self, MedicationsCommand.self,
+      AssessmentsCommand.self, ECGsCommand.self, ECGCommand.self, HeartbeatsCommand.self,
+      HeartbeatCommand.self, MedicationsCommand.self,
       DetailsCommand.self,
       SearchCommand.self, SyncCommand.self, OpenCommand.self, ExportCommand.self,
       MCPCommand.self,
@@ -358,6 +359,47 @@ struct ECGCommand: QueryCommand {
     Answer(
       try tools.electrocardiogramVoltages(
         id: id, timeZone: timeZone, cursor: cursor, seconds: seconds, db))
+  }
+}
+
+struct HeartbeatsCommand: QueryCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "heartbeats",
+    abstract: "Heartbeat series in a range: beats, average heart rate, SDNN and RMSSD.",
+    discussion: """
+      Apple Watch's beat-to-beat measurements (heartbeat_series), with the HRV their intervals \
+      give. A beat after a gap starts afresh: no interval spans a gap.
+      """)
+
+  @Option(name: .shortAndLong, help: rangeHelp) var range = RangeArgument(.week)
+  @Option(help: dateHelp) var date: String?
+  @Option(help: timeZoneHelp) var timeZone: String?
+  @OptionGroup var output: OutputOptions
+
+  func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
+    Answer(try tools.heartbeatSeries(range: range.range, date: date, timeZone: timeZone, db))
+  }
+}
+
+struct HeartbeatCommand: QueryCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "heartbeat",
+    abstract: "A heartbeat series' beats, with the interval to each, a page at a time.")
+
+  @Argument(help: "A heartbeat series' ID, from `heartbeats --json`.") var id: String
+  @Option(help: "The previous page's next cursor.") var cursor: String?
+  @Option(
+    help: """
+      Beats per page, at most \(HealthTools.heartbeatBeatsLimit). Defaults to \
+      \(HealthTools.heartbeatBeatsDefaultLimit).
+      """)
+  var limit: Int?
+  @Option(help: timeZoneHelp) var timeZone: String?
+  @OptionGroup var output: OutputOptions
+
+  func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
+    Answer(
+      try tools.heartbeatSeriesBeats(id: id, timeZone: timeZone, cursor: cursor, limit: limit, db))
   }
 }
 

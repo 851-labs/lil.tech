@@ -6939,6 +6939,211 @@
         ],
         "additionalProperties": true
       },
+      "HealthHeartbeatSeriesItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "HealthKit's UUID for the series."
+          },
+          "start": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "end": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "recordedTimeZone": {
+            "type": "string",
+            "description": "The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records."
+          },
+          "recordedStart": {
+            "type": "string",
+            "description": "When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+          },
+          "recordedEnd": {
+            "type": "string",
+            "description": "When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+          },
+          "beatCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "How many beats it has, all of them."
+          },
+          "duration": {
+            "type": "number",
+            "description": "Seconds from its first beat to its last, to 4 decimal places (0.1 ms)."
+          },
+          "gapCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "How many of its beats are preceded by a gap (precededByGap)."
+          },
+          "intervalCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "How many intervals between beats the averages below are worked out from."
+          },
+          "averageHeartRate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "60 over the mean interval in seconds, in beats per minute, to 2 decimal places; null without an interval."
+          },
+          "sdnn": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "SDNN, in ms, to 2 decimal places: the sample standard deviation of the intervals (dividing by their count less 1). Apple Health's Heart Rate Variability is an SDNN, which Apple works out itself, so it can differ a little. Null with fewer than 2 intervals."
+          },
+          "rmssd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "RMSSD, in ms, to 2 decimal places: the root mean square of the differences between each interval and the one before it, within each run of beats without a gap. Null without two intervals in a row."
+          },
+          "source": {
+            "type": "string",
+            "description": "The app or device that measured it, e.g. Apple Watch."
+          }
+        },
+        "required": [
+          "id",
+          "start",
+          "end",
+          "beatCount",
+          "duration",
+          "gapCount",
+          "intervalCount",
+          "averageHeartRate",
+          "sdnn",
+          "rmssd",
+          "source"
+        ],
+        "additionalProperties": true
+      },
+      "HealthHeartbeatSeriesResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "range": {
+            "type": "string",
+            "description": "The range asked for: D, W, M, 6M or Y."
+          },
+          "start": {
+            "type": "string",
+            "description": "When the period starts."
+          },
+          "end": {
+            "type": "string",
+            "description": "When the period ends (exclusive)."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Heartbeat series that start in the period, all of them."
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthHeartbeatSeriesItem"
+            },
+            "description": "The series, newest first, at most 100."
+          }
+        },
+        "required": [
+          "timeZone",
+          "range",
+          "start",
+          "end",
+          "count",
+          "series"
+        ],
+        "additionalProperties": true
+      },
+      "HealthHeartbeat": {
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "number",
+            "description": "Seconds from the series' start to the beat, to 4 decimal places (0.1 ms)."
+          },
+          "interval": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Milliseconds since the beat before, to 1 decimal place; null for the series' first beat and a beat preceded by a gap."
+          },
+          "precededByGap": {
+            "type": "boolean",
+            "description": "Whether beats HealthKit couldn't measure came before it, so the time since the beat before isn't an interval between two beats."
+          }
+        },
+        "required": [
+          "time",
+          "interval",
+          "precededByGap"
+        ],
+        "additionalProperties": true
+      },
+      "HealthHeartbeatSeriesBeatsResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "id": {
+            "type": "string",
+            "description": "The series' ID."
+          },
+          "start": {
+            "type": "string",
+            "description": "When the series starts: its beats' time 0."
+          },
+          "beatCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "How many beats the series has, all of them."
+          },
+          "beats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthHeartbeat"
+            },
+            "description": "This page's beats, in order."
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass it as `cursor` for the next page; null on the last page."
+          }
+        },
+        "required": [
+          "timeZone",
+          "id",
+          "start",
+          "beatCount",
+          "beats",
+          "nextCursor"
+        ],
+        "additionalProperties": true
+      },
       "HealthMedicationItem": {
         "type": "object",
         "properties": {

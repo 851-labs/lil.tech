@@ -35,7 +35,7 @@ const samplesElsewhere: Readonly<
   characteristic: "health_details",
   visionPrescription: "health_details",
   activitySummary: "activity_rings",
-  heartbeatSeries: null,
+  heartbeatSeries: "heartbeat_series",
   electrocardiogram: "electrocardiograms",
   audiogram: null,
   stateOfMind: "state_of_mind",

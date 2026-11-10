@@ -157,12 +157,14 @@ export const routePoints = (bytes: Uint8Array): ReadonlyArray<RoutePoint> => {
   return points;
 };
 
+const roundingFactors = { 1: 10, 2: 100, 3: 1000, 4: 10_000, 5: 100_000 } as const;
+
 /**
  * `value` to `digits` decimal places, halves away from zero, as Swift's `rounded()`, and never
  * `-0`, so both servers write the same number.
  */
-export const roundTo = (value: number, digits: 2 | 3 | 5): number => {
-  const factor = digits === 2 ? 100 : digits === 3 ? 1000 : 100_000;
+export const roundTo = (value: number, digits: 1 | 2 | 3 | 4 | 5): number => {
+  const factor = roundingFactors[digits];
   const rounded = Math.round(Math.abs(value) * factor) / factor;
   return (value < 0 ? -rounded : rounded) + 0;
 };

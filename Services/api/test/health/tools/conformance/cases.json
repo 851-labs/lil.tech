@@ -6,7 +6,8 @@
     "Arguments outside a tool's input schema (a range not in its list, a missing type, a limit out of bounds) are the tool's error on both servers, in the remote's words: `Invalid parameters for tool '<tool>': ` and each issue with where it is, in the schema's order (851-4034). A `date` is any string in the schema, and the tool refuses one that isn't a day from 2000-01-01 to 2999-12-31: `Invalid date: …` (851-4044), as the card tools do.",
     "The route tools (851-4164) read routes' points from blobs.json, as the server reads them from R2 and the Mac from the app's blob cache. Their simplified shapes' expected points come from a reference implementation written apart from both servers, since hundreds of points can't be worked out by hand; the rest is by hand.",
     "Quantity series (851-4171): the heart rate statistics and the pages of a series' values are worked out by a reference implementation written apart from both servers, from the rules in docs/decisions/health.md, since 120 values every 5 s can't be weighted by hand; the rest is by hand.",
-    "ECGs (851-4159): the pages of voltages are worked out by a reference implementation written apart from both servers (a 32-bit float per measurement, halves away from zero), since 20 values can't be read off base64 by hand; the rest is by hand."
+    "ECGs (851-4159): the pages of voltages are worked out by a reference implementation written apart from both servers (a 32-bit float per measurement, halves away from zero), since 20 values can't be read off base64 by hand; the rest is by hand.",
+    "Heartbeat series (851-4162): the series' average heart rate, SDNN and RMSSD, and the pages of beats, are worked out by a reference implementation written apart from both servers, from the rules in the tools' descriptions (Python's statistics module, halves away from zero), since hundreds of beats can't be worked out by hand; the rest is by hand."
   ],
   "cases": [
     {
@@ -649,6 +650,16 @@
             "last": "2026-10-20T14:45:30+00:00"
           },
           {
+            "type": "HKDataTypeIdentifierHeartbeatSeries",
+            "name": "Heartbeat Series",
+            "category": "Heart",
+            "kind": "heartbeatSeries",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-10-13T23:59:00+00:00",
+            "last": "2026-10-19T07:00:00+00:00"
+          },
+          {
             "type": "HKCategoryTypeIdentifierHighHeartRateEvent",
             "name": "High Heart Rate Notifications",
             "category": "Heart",
@@ -890,6 +901,16 @@
             "cumulative": false,
             "first": "2026-04-14T02:50:00-07:00",
             "last": "2026-10-20T07:45:30-07:00"
+          },
+          {
+            "type": "HKDataTypeIdentifierHeartbeatSeries",
+            "name": "Heartbeat Series",
+            "category": "Heart",
+            "kind": "heartbeatSeries",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-10-13T16:59:00-07:00",
+            "last": "2026-10-19T00:00:00-07:00"
           },
           {
             "type": "HKCategoryTypeIdentifierHighHeartRateEvent",
@@ -1906,7 +1927,7 @@
         "type": "HKCategoryTypeIdentifierSleepAnalysis",
         "range": "W"
       },
-      "expectedError": "Sleep (HKCategoryTypeIdentifierSleepAnalysis) isn't a quantity type, so it has no statistics. Use samples, or the tool for its kind (sleep, activity_rings, state_of_mind, assessments, electrocardiograms, workouts, medications)."
+      "expectedError": "Sleep (HKCategoryTypeIdentifierSleepAnalysis) isn't a quantity type, so it has no statistics. Use samples, or the tool for its kind (sleep, activity_rings, state_of_mind, assessments, electrocardiograms, heartbeat_series, workouts, medications)."
     },
     {
       "name": "metric of an unknown type fails",
@@ -5242,6 +5263,16 @@
         "range": "W"
       },
       "expectedError": "samples doesn't list ECG (HKDataTypeIdentifierElectrocardiogram): use electrocardiograms."
+    },
+    {
+      "name": "samples of heartbeat series fails: heartbeat_series has them",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKDataTypeIdentifierHeartbeatSeries",
+        "range": "W"
+      },
+      "expectedError": "samples doesn't list Heartbeat Series (HKDataTypeIdentifierHeartbeatSeries): use heartbeat_series."
     },
     {
       "name": "samples of audiograms fails: no tool reads them yet",
@@ -9454,6 +9485,937 @@
         "id": "0c0f0000-0000-4000-8000-0000000000ff"
       },
       "expectedError": "No workout or route with ID 0c0f0000-0000-4000-8000-0000000000ff. workouts and workout_routes list them, with their IDs."
+    },
+    {
+      "name": "heartbeat_series of a week in UTC, newest first: one without gaps, recorded in London; one with gaps, a beat alone between two and a duplicate beat; two intervals, one, none across a gap, one beat and none; a third-party app's whose first beat follows a gap; a deleted one and one a minute before the week aren't listed",
+      "tool": "heartbeat_series",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "W",
+        "start": "2026-10-14T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "count": 8,
+        "series": [
+          {
+            "id": "be470000-0000-4000-8000-000000000001",
+            "start": "2026-10-19T07:00:00+00:00",
+            "end": "2026-10-19T07:00:50+00:00",
+            "recordedTimeZone": "Europe/London",
+            "recordedStart": "2026-10-19T08:00:00+01:00",
+            "recordedEnd": "2026-10-19T08:00:50+01:00",
+            "beatCount": 60,
+            "duration": 50.2037,
+            "gapCount": 0,
+            "intervalCount": 59,
+            "averageHeartRate": 70.51,
+            "sdnn": 30.25,
+            "rmssd": 29.75,
+            "source": "Test Apple Watch"
+          },
+          {
+            "id": "be470000-0000-4000-8000-000000000002",
+            "start": "2026-10-18T21:00:00+00:00",
+            "end": "2026-10-18T21:00:34+00:00",
+            "recordedTimeZone": "Europe/Paris",
+            "recordedStart": "2026-10-18T23:00:00+02:00",
+            "recordedEnd": "2026-10-18T23:00:34+02:00",
+            "beatCount": 40,
+            "duration": 34.2005,
+            "gapCount": 3,
+            "intervalCount": 35,
+            "averageHeartRate": 66.89,
+            "sdnn": 20.84,
+            "rmssd": 26.5,
+            "source": "Test Apple Watch"
+          },
+          {
+            "id": "be470000-0000-4000-8000-000000000003",
+            "start": "2026-10-17T06:00:00+00:00",
+            "end": "2026-10-17T06:00:01+00:00",
+            "beatCount": 3,
+            "duration": 1.75,
+            "gapCount": 0,
+            "intervalCount": 2,
+            "averageHeartRate": 68.57,
+            "sdnn": 176.78,
+            "rmssd": 250.0,
+            "source": "Test Apple Watch"
+          },
+          {
+            "id": "be470000-0000-4000-8000-000000000004",
+            "start": "2026-10-16T12:00:00+00:00",
+            "end": "2026-10-16T12:00:00+00:00",
+            "beatCount": 2,
+            "duration": 0.9,
+            "gapCount": 0,
+            "intervalCount": 1,
+            "averageHeartRate": 66.67,
+            "sdnn": null,
+            "rmssd": null,
+            "source": "Test Apple Watch"
+          },
+          {
+            "id": "be470000-0000-4000-8000-000000000005",
+            "start": "2026-10-16T07:00:00+00:00",
+            "end": "2026-10-16T07:00:05+00:00",
+            "beatCount": 2,
+            "duration": 5.2,
+            "gapCount": 1,
+            "intervalCount": 0,
+            "averageHeartRate": null,
+            "sdnn": null,
+            "rmssd": null,
+            "source": "Test Apple Watch"
+          },
+          {
+            "id": "be470000-0000-4000-8000-000000000006",
+            "start": "2026-10-15T12:00:00+00:00",
+            "end": "2026-10-15T12:00:00+00:00",
+            "beatCount": 1,
+            "duration": 0.0,
+            "gapCount": 0,
+            "intervalCount": 0,
+            "averageHeartRate": null,
+            "sdnn": null,
+            "rmssd": null,
+            "source": "Test Apple Watch"
+          },
+          {
+            "id": "be470000-0000-4000-8000-000000000007",
+            "start": "2026-10-15T09:00:00+00:00",
+            "end": "2026-10-15T09:00:00+00:00",
+            "beatCount": 0,
+            "duration": 0,
+            "gapCount": 0,
+            "intervalCount": 0,
+            "averageHeartRate": null,
+            "sdnn": null,
+            "rmssd": null,
+            "source": "Test Apple Watch"
+          },
+          {
+            "id": "be470000-0000-4000-8000-000000000008",
+            "start": "2026-10-15T08:00:00+00:00",
+            "end": "2026-10-15T08:14:34+00:00",
+            "beatCount": 1250,
+            "duration": 874.6054,
+            "gapCount": 4,
+            "intervalCount": 1246,
+            "averageHeartRate": 85.68,
+            "sdnn": 43.36,
+            "rmssd": 18.93,
+            "source": "Test HRV App"
+          }
+        ]
+      }
+    },
+    {
+      "name": "heartbeat_series of a day in Los Angeles: times in the call's zone with the recorded zone's beside them; one starting at the next midnight isn't listed",
+      "tool": "heartbeat_series",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "D",
+        "date": "2026-10-18",
+        "timeZone": "America/Los_Angeles"
+      },
+      "expected": {
+        "timeZone": "America/Los_Angeles",
+        "range": "D",
+        "start": "2026-10-18T00:00:00-07:00",
+        "end": "2026-10-19T00:00:00-07:00",
+        "count": 1,
+        "series": [
+          {
+            "id": "be470000-0000-4000-8000-000000000002",
+            "start": "2026-10-18T14:00:00-07:00",
+            "end": "2026-10-18T14:00:34-07:00",
+            "recordedTimeZone": "Europe/Paris",
+            "recordedStart": "2026-10-18T23:00:00+02:00",
+            "recordedEnd": "2026-10-18T23:00:34+02:00",
+            "beatCount": 40,
+            "duration": 34.2005,
+            "gapCount": 3,
+            "intervalCount": 35,
+            "averageHeartRate": 66.89,
+            "sdnn": 20.84,
+            "rmssd": 26.5,
+            "source": "Test Apple Watch"
+          }
+        ]
+      }
+    },
+    {
+      "name": "heartbeat_series of a day without any",
+      "tool": "heartbeat_series",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "D",
+        "date": "2026-10-10"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-10-10T00:00:00+00:00",
+        "end": "2026-10-11T00:00:00+00:00",
+        "count": 0,
+        "series": []
+      }
+    },
+    {
+      "name": "heartbeat_series_beats: a whole Apple Watch series in one page, in London",
+      "tool": "heartbeat_series_beats",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "be470000-0000-4000-8000-000000000001",
+        "timeZone": "Europe/London"
+      },
+      "expected": {
+        "timeZone": "Europe/London",
+        "id": "be470000-0000-4000-8000-000000000001",
+        "start": "2026-10-19T08:00:00+01:00",
+        "beatCount": 60,
+        "beats": [
+          {
+            "time": 0.0,
+            "interval": null,
+            "precededByGap": false
+          },
+          {
+            "time": 0.835,
+            "interval": 835.0,
+            "precededByGap": false
+          },
+          {
+            "time": 1.7133,
+            "interval": 878.3,
+            "precededByGap": false
+          },
+          {
+            "time": 2.6113,
+            "interval": 898.0,
+            "precededByGap": false
+          },
+          {
+            "time": 3.4664,
+            "interval": 855.1,
+            "precededByGap": false
+          },
+          {
+            "time": 4.2987,
+            "interval": 832.3,
+            "precededByGap": false
+          },
+          {
+            "time": 5.1216,
+            "interval": 822.9,
+            "precededByGap": false
+          },
+          {
+            "time": 5.9317,
+            "interval": 810.1,
+            "precededByGap": false
+          },
+          {
+            "time": 6.7854,
+            "interval": 853.7,
+            "precededByGap": false
+          },
+          {
+            "time": 7.6821,
+            "interval": 896.7,
+            "precededByGap": false
+          },
+          {
+            "time": 8.5649,
+            "interval": 882.8,
+            "precededByGap": false
+          },
+          {
+            "time": 9.4374,
+            "interval": 872.5,
+            "precededByGap": false
+          },
+          {
+            "time": 10.2541,
+            "interval": 816.7,
+            "precededByGap": false
+          },
+          {
+            "time": 11.0619,
+            "interval": 807.8,
+            "precededByGap": false
+          },
+          {
+            "time": 11.8904,
+            "interval": 828.5,
+            "precededByGap": false
+          },
+          {
+            "time": 12.7297,
+            "interval": 839.3,
+            "precededByGap": false
+          },
+          {
+            "time": 13.6119,
+            "interval": 882.2,
+            "precededByGap": false
+          },
+          {
+            "time": 14.5125,
+            "interval": 900.6,
+            "precededByGap": false
+          },
+          {
+            "time": 15.3694,
+            "interval": 856.9,
+            "precededByGap": false
+          },
+          {
+            "time": 16.2035,
+            "interval": 834.1,
+            "precededByGap": false
+          },
+          {
+            "time": 17.0291,
+            "interval": 825.6,
+            "precededByGap": false
+          },
+          {
+            "time": 17.8431,
+            "interval": 814.0,
+            "precededByGap": false
+          },
+          {
+            "time": 18.7011,
+            "interval": 858.0,
+            "precededByGap": false
+          },
+          {
+            "time": 19.5686,
+            "interval": 867.5,
+            "precededByGap": false
+          },
+          {
+            "time": 20.454,
+            "interval": 885.4,
+            "precededByGap": false
+          },
+          {
+            "time": 21.3283,
+            "interval": 874.3,
+            "precededByGap": false
+          },
+          {
+            "time": 22.1468,
+            "interval": 818.5,
+            "precededByGap": false
+          },
+          {
+            "time": 22.9573,
+            "interval": 810.5,
+            "precededByGap": false
+          },
+          {
+            "time": 23.7897,
+            "interval": 832.4,
+            "precededByGap": false
+          },
+          {
+            "time": 24.6334,
+            "interval": 843.7,
+            "precededByGap": false
+          },
+          {
+            "time": 25.5193,
+            "interval": 885.9,
+            "precededByGap": false
+          },
+          {
+            "time": 26.4226,
+            "interval": 903.3,
+            "precededByGap": false
+          },
+          {
+            "time": 27.2812,
+            "interval": 858.6,
+            "precededByGap": false
+          },
+          {
+            "time": 28.1171,
+            "interval": 835.9,
+            "precededByGap": false
+          },
+          {
+            "time": 28.9125,
+            "interval": 795.4,
+            "precededByGap": false
+          },
+          {
+            "time": 29.7304,
+            "interval": 817.9,
+            "precededByGap": false
+          },
+          {
+            "time": 30.5928,
+            "interval": 862.4,
+            "precededByGap": false
+          },
+          {
+            "time": 31.4641,
+            "interval": 871.3,
+            "precededByGap": false
+          },
+          {
+            "time": 32.3522,
+            "interval": 888.1,
+            "precededByGap": false
+          },
+          {
+            "time": 33.2282,
+            "interval": 876.0,
+            "precededByGap": false
+          },
+          {
+            "time": 34.0485,
+            "interval": 820.3,
+            "precededByGap": false
+          },
+          {
+            "time": 34.8618,
+            "interval": 813.3,
+            "precededByGap": false
+          },
+          {
+            "time": 35.6981,
+            "interval": 836.3,
+            "precededByGap": false
+          },
+          {
+            "time": 36.5461,
+            "interval": 848.0,
+            "precededByGap": false
+          },
+          {
+            "time": 37.4358,
+            "interval": 889.7,
+            "precededByGap": false
+          },
+          {
+            "time": 38.3086,
+            "interval": 872.8,
+            "precededByGap": false
+          },
+          {
+            "time": 39.169,
+            "interval": 860.4,
+            "precededByGap": false
+          },
+          {
+            "time": 40.0068,
+            "interval": 837.8,
+            "precededByGap": false
+          },
+          {
+            "time": 40.805,
+            "interval": 798.2,
+            "precededByGap": false
+          },
+          {
+            "time": 41.6268,
+            "interval": 821.8,
+            "precededByGap": false
+          },
+          {
+            "time": 42.4935,
+            "interval": 866.7,
+            "precededByGap": false
+          },
+          {
+            "time": 43.3685,
+            "interval": 875.0,
+            "precededByGap": false
+          },
+          {
+            "time": 44.2591,
+            "interval": 890.6,
+            "precededByGap": false
+          },
+          {
+            "time": 45.1368,
+            "interval": 877.7,
+            "precededByGap": false
+          },
+          {
+            "time": 45.959,
+            "interval": 822.2,
+            "precededByGap": false
+          },
+          {
+            "time": 46.7752,
+            "interval": 816.2,
+            "precededByGap": false
+          },
+          {
+            "time": 47.5825,
+            "interval": 807.3,
+            "precededByGap": false
+          },
+          {
+            "time": 48.4349,
+            "interval": 852.4,
+            "precededByGap": false
+          },
+          {
+            "time": 49.3283,
+            "interval": 893.4,
+            "precededByGap": false
+          },
+          {
+            "time": 50.2037,
+            "interval": 875.4,
+            "precededByGap": false
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "heartbeat_series_beats: no interval to a beat after a gap, a beat alone between two gaps, and a duplicate beat's interval of 0",
+      "tool": "heartbeat_series_beats",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "be470000-0000-4000-8000-000000000002"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "be470000-0000-4000-8000-000000000002",
+        "start": "2026-10-18T21:00:00+00:00",
+        "beatCount": 40,
+        "beats": [
+          {
+            "time": 0.0,
+            "interval": null,
+            "precededByGap": false
+          },
+          {
+            "time": 0.9165,
+            "interval": 916.5,
+            "precededByGap": false
+          },
+          {
+            "time": 1.838,
+            "interval": 921.5,
+            "precededByGap": false
+          },
+          {
+            "time": 2.7213,
+            "interval": 883.3,
+            "precededByGap": false
+          },
+          {
+            "time": 3.604,
+            "interval": 882.7,
+            "precededByGap": false
+          },
+          {
+            "time": 4.5181,
+            "interval": 914.1,
+            "precededByGap": false
+          },
+          {
+            "time": 5.4429,
+            "interval": 924.8,
+            "precededByGap": false
+          },
+          {
+            "time": 6.3355,
+            "interval": 892.6,
+            "precededByGap": false
+          },
+          {
+            "time": 7.1936,
+            "interval": 858.1,
+            "precededByGap": false
+          },
+          {
+            "time": 8.0903,
+            "interval": 896.7,
+            "precededByGap": false
+          },
+          {
+            "time": 9.0187,
+            "interval": null,
+            "precededByGap": true
+          },
+          {
+            "time": 9.9504,
+            "interval": null,
+            "precededByGap": true
+          },
+          {
+            "time": 10.8455,
+            "interval": 895.1,
+            "precededByGap": false
+          },
+          {
+            "time": 11.7112,
+            "interval": 865.7,
+            "precededByGap": false
+          },
+          {
+            "time": 12.5911,
+            "interval": 879.9,
+            "precededByGap": false
+          },
+          {
+            "time": 13.5015,
+            "interval": 910.4,
+            "precededByGap": false
+          },
+          {
+            "time": 14.4389,
+            "interval": 937.4,
+            "precededByGap": false
+          },
+          {
+            "time": 15.3368,
+            "interval": 897.9,
+            "precededByGap": false
+          },
+          {
+            "time": 16.2115,
+            "interval": 874.7,
+            "precededByGap": false
+          },
+          {
+            "time": 17.1067,
+            "interval": 895.2,
+            "precededByGap": false
+          },
+          {
+            "time": 17.1067,
+            "interval": 0.0,
+            "precededByGap": false
+          },
+          {
+            "time": 18.0171,
+            "interval": 910.4,
+            "precededByGap": false
+          },
+          {
+            "time": 18.8867,
+            "interval": 869.6,
+            "precededByGap": false
+          },
+          {
+            "time": 19.7718,
+            "interval": 885.1,
+            "precededByGap": false
+          },
+          {
+            "time": 20.6824,
+            "interval": 910.6,
+            "precededByGap": false
+          },
+          {
+            "time": 21.6162,
+            "interval": 933.8,
+            "precededByGap": false
+          },
+          {
+            "time": 22.5302,
+            "interval": 914.0,
+            "precededByGap": false
+          },
+          {
+            "time": 23.4039,
+            "interval": 873.7,
+            "precededByGap": false
+          },
+          {
+            "time": 24.2692,
+            "interval": 865.3,
+            "precededByGap": false
+          },
+          {
+            "time": 25.1638,
+            "interval": 894.6,
+            "precededByGap": false
+          },
+          {
+            "time": 26.1073,
+            "interval": null,
+            "precededByGap": true
+          },
+          {
+            "time": 27.0243,
+            "interval": 917.0,
+            "precededByGap": false
+          },
+          {
+            "time": 27.9031,
+            "interval": 878.8,
+            "precededByGap": false
+          },
+          {
+            "time": 28.7813,
+            "interval": 878.2,
+            "precededByGap": false
+          },
+          {
+            "time": 29.6909,
+            "interval": 909.6,
+            "precededByGap": false
+          },
+          {
+            "time": 30.6112,
+            "interval": 920.3,
+            "precededByGap": false
+          },
+          {
+            "time": 31.4993,
+            "interval": 888.1,
+            "precededByGap": false
+          },
+          {
+            "time": 32.3844,
+            "interval": 885.1,
+            "precededByGap": false
+          },
+          {
+            "time": 33.2766,
+            "interval": 892.2,
+            "precededByGap": false
+          },
+          {
+            "time": 34.2005,
+            "interval": 923.9,
+            "precededByGap": false
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "heartbeat_series_beats: a page from a cursor across two gaps in a row",
+      "tool": "heartbeat_series_beats",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "be470000-0000-4000-8000-000000000008",
+        "cursor": "395",
+        "limit": 10
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "be470000-0000-4000-8000-000000000008",
+        "start": "2026-10-15T08:00:00+00:00",
+        "beatCount": 1250,
+        "beats": [
+          {
+            "time": 276.6009,
+            "interval": 753.2,
+            "precededByGap": false
+          },
+          {
+            "time": 277.3608,
+            "interval": 759.9,
+            "precededByGap": false
+          },
+          {
+            "time": 278.1192,
+            "interval": 758.4,
+            "precededByGap": false
+          },
+          {
+            "time": 278.8687,
+            "interval": 749.5,
+            "precededByGap": false
+          },
+          {
+            "time": 279.6038,
+            "interval": 735.1,
+            "precededByGap": false
+          },
+          {
+            "time": 280.3213,
+            "interval": null,
+            "precededByGap": true
+          },
+          {
+            "time": 280.987,
+            "interval": null,
+            "precededByGap": true
+          },
+          {
+            "time": 281.6377,
+            "interval": 650.7,
+            "precededByGap": false
+          },
+          {
+            "time": 282.2786,
+            "interval": 640.9,
+            "precededByGap": false
+          },
+          {
+            "time": 282.917,
+            "interval": 638.4,
+            "precededByGap": false
+          }
+        ],
+        "nextCursor": "405"
+      }
+    },
+    {
+      "name": "heartbeat_series_beats: a first beat preceded by a gap has no interval",
+      "tool": "heartbeat_series_beats",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "be470000-0000-4000-8000-000000000008",
+        "limit": 3
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "be470000-0000-4000-8000-000000000008",
+        "start": "2026-10-15T08:00:00+00:00",
+        "beatCount": 1250,
+        "beats": [
+          {
+            "time": 0.0,
+            "interval": null,
+            "precededByGap": true
+          },
+          {
+            "time": 0.684,
+            "interval": 684.0,
+            "precededByGap": false
+          },
+          {
+            "time": 1.3937,
+            "interval": 709.7,
+            "precededByGap": false
+          }
+        ],
+        "nextCursor": "3"
+      }
+    },
+    {
+      "name": "heartbeat_series_beats: the last page, from a cursor",
+      "tool": "heartbeat_series_beats",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "be470000-0000-4000-8000-000000000008",
+        "cursor": "1245"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "be470000-0000-4000-8000-000000000008",
+        "start": "2026-10-15T08:00:00+00:00",
+        "beatCount": 1250,
+        "beats": [
+          {
+            "time": 871.6556,
+            "interval": 756.0,
+            "precededByGap": false
+          },
+          {
+            "time": 872.4107,
+            "interval": 755.1,
+            "precededByGap": false
+          },
+          {
+            "time": 873.1575,
+            "interval": 746.8,
+            "precededByGap": false
+          },
+          {
+            "time": 873.8902,
+            "interval": 732.7,
+            "precededByGap": false
+          },
+          {
+            "time": 874.6054,
+            "interval": 715.2,
+            "precededByGap": false
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "heartbeat_series_beats: a cursor at the end gives an empty page",
+      "tool": "heartbeat_series_beats",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "be470000-0000-4000-8000-000000000008",
+        "cursor": "1250"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "be470000-0000-4000-8000-000000000008",
+        "start": "2026-10-15T08:00:00+00:00",
+        "beatCount": 1250,
+        "beats": [],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "heartbeat_series_beats: a series without beats",
+      "tool": "heartbeat_series_beats",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "be470000-0000-4000-8000-000000000007"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "be470000-0000-4000-8000-000000000007",
+        "start": "2026-10-15T09:00:00+00:00",
+        "beatCount": 0,
+        "beats": [],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "heartbeat_series_beats: a cursor past the end",
+      "tool": "heartbeat_series_beats",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "be470000-0000-4000-8000-000000000008",
+        "cursor": "1251"
+      },
+      "expectedError": "Invalid cursor: 1251. Pass the previous page's nextCursor."
+    },
+    {
+      "name": "heartbeat_series_beats: a cursor that isn't one",
+      "tool": "heartbeat_series_beats",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "be470000-0000-4000-8000-000000000008",
+        "cursor": "next"
+      },
+      "expectedError": "Invalid cursor: next. Pass the previous page's nextCursor."
+    },
+    {
+      "name": "heartbeat_series_beats: a deleted series isn't there",
+      "tool": "heartbeat_series_beats",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "be470000-0000-4000-8000-000000000010"
+      },
+      "expectedError": "No heartbeat series with ID be470000-0000-4000-8000-000000000010. heartbeat_series lists them, with their IDs."
+    },
+    {
+      "name": "heartbeat_series_beats: more than 2,000 beats a page",
+      "tool": "heartbeat_series_beats",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "be470000-0000-4000-8000-000000000008",
+        "limit": 2001
+      },
+      "expectedError": "Invalid parameters for tool 'heartbeat_series_beats': Expected a value between 1 and 2000\n  at [\"limit\"]"
     }
   ]
 }
