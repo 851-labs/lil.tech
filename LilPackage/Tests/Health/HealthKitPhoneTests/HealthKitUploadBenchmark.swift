@@ -10,8 +10,8 @@ import Testing
 /// (365 series of 720 values, 262,800 values), beside heart rate every 5 minutes the rest of the
 /// day (about 100,000 single samples). Both reads: the type's pages, as the backfill uploads them,
 /// and the one-time read of its series again (`HealthBackfill.readSeriesAgain`). Every series must
-/// come with all its values, the first and last included. Only when asked, since writing the year
-/// takes a while:
+/// come with all its values, the first and last included. Then the same for 5,000 small series
+/// (`manySmallSeries`). Only when asked, since writing them takes a while:
 /// `TEST_RUNNER_LIL_HEALTHKIT_BENCHMARK=1 scripts/test-iphone-healthkit HealthKitUploadBenchmark`.
 @Suite(
   .serialized,
@@ -53,8 +53,7 @@ struct HealthKitUploadBenchmark {
       "Benchmark: saved \(singles.count) samples, \(series.count) workouts and their series of 720 values in \(clock.now - saving)"
     )
 
-    // Values queries by many IDs at once, as the upload read them before 851-4182 (up to 500
-    // series or 100,000 values a query, with each value's sample), and by fewer.
+    // Values queries by many IDs (851-4172 saw 183 take 125 s), and by fewer.
     let type = HKQuantityType(.heartRate)
     func byIDs(
       _ samples: [HKQuantitySample], includeSample: Bool, and others: [NSPredicate] = []
@@ -70,12 +69,6 @@ struct HealthKitUploadBenchmark {
       return count
     }
     for (name, chunks, includeSample) in [
-      (
-        "as before, 138 IDs a query, with samples",
-        stride(from: 0, to: saved.count, by: 138).map {
-          Array(saved[$0..<min($0 + 138, saved.count)])
-        }, true
-      ),
       ("183 IDs, with samples", [Array(saved.prefix(183))], true),
       ("183 IDs, without", [Array(saved.prefix(183))], false),
       ("10 IDs, without", [Array(saved.prefix(10))], false),
@@ -112,21 +105,7 @@ struct HealthKitUploadBenchmark {
       print(
         "Benchmark:   values by 183 IDs, callback query: \(values) values in \(clock.now - start)")
     }
-    do {
-      // A query per ID, 8 at once, as the upload reads them since 851-4182.
-      let start = clock.now
-      let values = try await withThrowingTaskGroup(of: Int.self) { group in
-        var values = 0
-        for (index, sample) in saved.enumerated() {
-          if index >= 8, let done = try await group.next() { values += done }
-          group.addTask { try await byIDs([sample], includeSample: false) }
-        }
-        for try await done in group { values += done }
-        return values
-      }
-      print(
-        "Benchmark:   values by 1 ID a query, 8 at once: \(values) values in \(clock.now - start)")
-    }
+    try await Self.compareChunks(saved, store: health.store)
 
     let backfillType = HealthBackfillType(id: HKQuantityTypeIdentifier.heartRate.rawValue)
     for (name, read) in [
@@ -166,11 +145,103 @@ struct HealthKitUploadBenchmark {
       // Every value, the first and last included: a values query with `count` in its predicate
       // left them out (iOS 27.2, 851-4172).
       for (id, row) in rows {
-        let times = row["times"].map(Self.numbers) ?? []
+        let times = numbers(row["times"])
         #expect(row["count"] == 720, "\(id)")
         #expect(times.count == 720, "\(id)")
         #expect(times.first == 0 && times.last == 3595, "\(id)")
       }
+    }
+  }
+
+  /// Many small series (851-4182 code review): 5,000 of 4 heart rates a minute apart, an hour
+  /// apart, as an app writing a few values at a time with `HKQuantitySeriesSampleBuilder` would,
+  /// where a query each costs HealthKit's overhead per query more than the values.
+  @Test
+  func manySmallSeries() async throws {
+    let health = try await SyntheticHealthKit.empty()
+    let bpm = HKUnit.count().unitDivided(by: .minute())
+    let clock = ContinuousClock()
+    let saving = clock.now
+    var saved: [HKQuantitySample] = []
+    for index in 0..<5_000 {
+      let start = date(1, 1).addingTimeInterval(Double(index) * 3600)
+      let builder = HKQuantitySeriesSampleBuilder(
+        healthStore: health.store, quantityType: HKQuantityType(.heartRate), startDate: start,
+        device: nil)
+      for minute in 0..<4 {
+        try builder.insert(
+          HKQuantity(unit: bpm, doubleValue: Double(60 + (index + minute) % 60)),
+          at: start.addingTimeInterval(Double(minute) * 60))
+      }
+      saved += try await builder.finishSeries(metadata: nil, endDate: nil)
+    }
+    print("Benchmark: saved \(saved.count) series of 4 values in \(clock.now - saving)")
+    try await Self.compareChunks(saved, store: health.store)
+
+    let backfillType = HealthBackfillType(id: HKQuantityTypeIdentifier.heartRate.rawValue)
+    for (name, read) in [
+      ("the type's pages", HealthReader.liveValue.page),
+      ("its series again", HealthReader.liveValue.series),
+    ] {
+      let start = clock.now
+      var anchor: Data?
+      var series = 0
+      while true {
+        let page = try await read(backfillType, anchor, 10_000)
+        series += page.mutations.count { $0.entity == "health_quantity_series" }
+        anchor = page.anchor
+        if !page.hasMore { break }
+      }
+      print("Benchmark: small series, \(name): \(series) series in \(clock.now - start)")
+      #expect(series == saved.count)
+    }
+  }
+
+  /// Times reading the series' values in chunks of at most so many series and values, a query
+  /// each, so many at once: one of a single series without its sample, one of more with each
+  /// value's sample, to tell whose it is.
+  private static func compareChunks(_ samples: [HKQuantitySample], store: HKHealthStore)
+    async throws
+  {
+    let clock = ContinuousClock()
+    for (ids, values, width) in [
+      (500, 100_000, 1), (1, 1, 8), (50, 1_000, 8), (100, 2_000, 8), (500, 5_000, 8),
+      (500, 10_000, 8),
+    ] {
+      var chunks: [[HKQuantitySample]] = []
+      var chunkValues = 0
+      for sample in samples {
+        if chunks.isEmpty || chunks[chunks.count - 1].count == ids
+          || chunkValues + sample.count > values
+        {
+          chunks.append([])
+          chunkValues = 0
+        }
+        chunks[chunks.count - 1].append(sample)
+        chunkValues += sample.count
+      }
+      let start = clock.now
+      let read = try await withThrowingTaskGroup(of: Int.self) { group in
+        var read = 0
+        for (index, chunk) in chunks.enumerated() {
+          if index >= width, let done = try await group.next() { read += done }
+          let ids = Set(chunk.map(\.uuid))
+          group.addTask {
+            let descriptor = HKQuantitySeriesSampleQueryDescriptor(
+              predicate: .quantitySample(
+                type: HKQuantityType(.heartRate), predicate: HKQuery.predicateForObjects(with: ids)),
+              options: ids.count > 1 ? .includeSample : [])
+            var count = 0
+            for try await _ in descriptor.results(for: store) { count += 1 }
+            return count
+          }
+        }
+        for try await done in group { read += done }
+        return read
+      }
+      print(
+        "Benchmark:   values in chunks of \(ids) series or \(values) values, \(width) at once (\(chunks.count) queries): \(read) values in \(clock.now - start)"
+      )
     }
   }
 
@@ -185,10 +256,5 @@ struct HealthKitUploadBenchmark {
       }
     }
     return result == KERN_SUCCESS ? info.phys_footprint : 0
-  }
-
-  private static func numbers(_ value: JSONValue) -> [Double] {
-    guard case .array(let values) = value else { return [] }
-    return values.compactMap { if case .number(let number) = $0 { number } else { nil } }
   }
 }

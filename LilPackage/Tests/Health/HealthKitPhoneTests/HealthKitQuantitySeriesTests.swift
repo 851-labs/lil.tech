@@ -195,15 +195,16 @@ struct HealthKitQuantitySeriesTests {
     return try await builder.finishSeries(metadata: nil, endDate: nil)
   }
 
-  private func numbers(_ value: JSONValue?) -> [Double] {
-    guard case .array(let values) = value else { return [] }
-    return values.compactMap { if case .number(let number) = $0 { number } else { nil } }
-  }
-
   /// `count` heart rates from 60 bpm up and down, each once.
   private func zigzag(_ count: Int) -> [Double] {
     (0..<count).map { Double(60 + ($0 * 37) % 120) }
   }
+}
+
+/// The numbers in a JSON array, as a series' row has them.
+func numbers(_ value: JSONValue?) -> [Double] {
+  guard case .array(let values) = value else { return [] }
+  return values.compactMap { if case .number(let number) = $0 { number } else { nil } }
 }
 
 extension Int {
