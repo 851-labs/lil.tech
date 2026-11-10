@@ -607,8 +607,11 @@ export const HealthStatistic = defineEntity("health_statistic", {
     if (typeof row.bucketStart !== "number" || row.bucketStart % statisticsBucketMillis !== 0) {
       return "bucketStart must be a multiple of 30 minutes";
     }
+    if (typeof row.device !== "string" || typeof row.type !== "string") {
+      return "device and type must be text";
+    }
     // One key per device, type and bucket.
-    const expected = `${String(row.device)}/${String(row.type)}@${row.bucketStart}`;
+    const expected = `${row.device}/${row.type}@${row.bucketStart}`;
     return id === expected ? undefined : `The ID must be ${expected}`;
   },
 });

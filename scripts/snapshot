@@ -121,7 +121,14 @@ since() {
 print_report() {
   recorded=0
   changed=0
+  matched=0
   while IFS='	' read -r result image reference diff; do
+    # On CI, the images that match are only counted: a run there is read for what differs, and
+    # the iPhone's are hundreds of lines (851-3229). Here each is listed, to be read.
+    if [ "$result" = matches ] && [ "${LIL_SNAPSHOT_CI:-}" = 1 ]; then
+      matched=$((matched + 1))
+      continue
+    fi
     printf '%-10s %s\n' "$result" "$image"
     if [ "$result" != matches ]; then
       printf '%-10s %s\n' "" "reference: $reference"
@@ -134,6 +141,9 @@ print_report() {
       differs | new) changed=$((changed + 1)) ;;
     esac
   done <"$output/report.tsv"
+  if [ "$matched" -gt 0 ]; then
+    echo "$matched images match their references."
+  fi
   if [ "$changed" -gt 0 ] && [ "${LIL_SNAPSHOT_CI:-}" != 1 ]; then
     echo
     echo "New or changed images: $changed. If they're right, record them: run this again with"
