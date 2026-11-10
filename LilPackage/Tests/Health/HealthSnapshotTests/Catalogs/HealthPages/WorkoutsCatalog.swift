@@ -88,7 +88,7 @@
   ) -> some View {
     var workout = workouts.first { $0.activityType == kind }!
     if let timeZone {
-      workout.metadata = metadata(workout.metadata, recordedIn: timeZone)
+      workout.metadata = metadataRecorded(in: timeZone, workout.metadata)
     }
     let heartRates = try! catalogDatabase.read { db in
       try HealthDatabase.samples(

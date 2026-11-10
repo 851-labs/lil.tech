@@ -27,17 +27,17 @@ struct RecordedTimeZone: Equatable {
     }
   }
 
-  /// The zone's long name at `date`. A name kept as the record wrote it: Foundation reads `UTC`
-  /// as `GMT` ("Greenwich Mean Time"), so it's named as `Etc/UTC` is, "Coordinated Universal
-  /// Time", as the tools keep `UTC` (851-4177). A zone Foundation has no name for reads as its
-  /// offset ("GMT+09:00"), and failing that, its name.
+  /// The zone's long name at `date`, as ICU names it then ("zzzz"): standard or daylight by the
+  /// zone's metazone, so a zone always on summer time in the time zone database (Morocco's) isn't
+  /// called "Summer Time". A name kept as the record wrote it: Foundation reads `UTC` as `GMT`
+  /// ("Greenwich Mean Time"), so it's named as `Etc/UTC` is, "Coordinated Universal Time", as the
+  /// tools keep `UTC` (851-4177). A zone ICU has no name for reads as its offset ("GMT+01:00").
   static func longName(of zone: TimeZone, named name: String, at date: Date, locale: Locale)
     -> String
   {
     let zone = name == "UTC" ? TimeZone(identifier: "Etc/UTC") ?? zone : zone
-    let style: NSTimeZone.NameStyle =
-      zone.isDaylightSavingTime(for: date) ? .daylightSaving : .standard
-    return zone.localizedName(for: style, locale: locale) ?? name
+    return date.formatted(
+      Date.FormatStyle(locale: locale, timeZone: zone).timeZone(.specificName(.long)))
   }
 }
 

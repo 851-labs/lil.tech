@@ -8,8 +8,9 @@ import MapKit
 import SQLiteData
 import SwiftUI
 
-/// A workout, as in Health: its summary figures and recorded time zone, heart rate over the workout, the route colored
-/// by pace with its splits (per kilometer or mile, by the locale), and its segments.
+/// A workout, as in Health: its summary figures and recorded time zone, heart rate over the
+/// workout, the route colored by pace with its splits (per kilometer or mile, by the locale), and
+/// its segments.
 struct WorkoutDetailView: View {
   let workout: HealthWorkout
   @Dependency(\.defaultDatabase) private var database

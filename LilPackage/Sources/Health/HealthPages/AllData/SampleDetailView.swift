@@ -4,7 +4,8 @@ import HealthDatabase
 import HealthUI
 import SwiftUI
 
-/// One sample's details: its value, times and recorded time zone, the app and device it came from, and its metadata.
+/// One sample's details: its value, times and recorded time zone, the app and device it came
+/// from, and its metadata.
 struct SampleDetailView: View {
   let type: HealthDataType
   let sample: HealthSample

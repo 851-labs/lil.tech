@@ -37,6 +37,10 @@ struct RecordedTimeZoneTests {
     #expect(
       RecordedTimeZone("America/New_York", start: july, calendar: losAngeles)?.name
         == "Eastern Daylight Time")
+    // Always on daylight saving time in the time zone database, but not "Summer Time" to ICU.
+    #expect(
+      RecordedTimeZone("Africa/Casablanca", start: july, calendar: losAngeles)?.name
+        == "GMT+01:00")
   }
 
   @Test

@@ -131,7 +131,7 @@
   /// `sample`, recorded in the zone named `zone` (`HKTimeZone`), with its other metadata.
   private func recorded(in zone: String, _ sample: HealthSample) -> HealthSample {
     var sample = sample
-    sample.metadata = metadata(sample.metadata, recordedIn: zone)
+    sample.metadata = metadataRecorded(in: zone, sample.metadata)
     return sample
   }
 

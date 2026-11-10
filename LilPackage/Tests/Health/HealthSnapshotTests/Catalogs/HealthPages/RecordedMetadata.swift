@@ -2,7 +2,7 @@ import Foundation
 
 /// A record's JSON `metadata`, recorded in the zone named `zone` (`HKTimeZone`, 851-4179), with
 /// the rest of it kept: for catalog states of records from another zone.
-func metadata(_ metadata: String?, recordedIn zone: String) -> String {
+func metadataRecorded(in zone: String, _ metadata: String?) -> String {
   var object =
     metadata.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
     ?? [:]
