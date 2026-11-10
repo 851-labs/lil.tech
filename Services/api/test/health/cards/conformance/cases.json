@@ -4848,6 +4848,479 @@
         },
         "goal": null
       }
+    },
+    {
+      "name": "heart rate by the hour around a run recorded as a series: each value is a reading, weighted until its source's next",
+      "note": "11 June (BST): the Watch's 70 at 16:00, until the series' first value at 18:00 (capped: 3600 s). The run's hour: the series' values each until the next (60, 60, 180, 300, 300 and 600 s), its last, 125 at 18:25, until the Watch's 80 at 19:00 (2100 s); the strap's 128 until its 142 (600 s), and 142, its last, for its own minute. 80 at 19:00 until the night's series at 23:30 (capped). 23:00: the night series' first three values, 10 minutes each; the rest are on 12 June. Drawn as ranges, the header is the lowest and highest value, the series' included.",
+      "timeZone": "Europe/London",
+      "range": "D",
+      "date": "2024-06-11",
+      "now": "2024-06-13T12:00:00Z",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate"
+          }
+        ]
+      },
+      "expected": {
+        "range": "D",
+        "start": "2024-06-11",
+        "end": "2024-06-11",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "hour",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2024-06-11T16:00:00+01:00",
+                "value": 70,
+                "minimum": 70,
+                "maximum": 70,
+                "readings": 1
+              },
+              {
+                "start": "2024-06-11T18:00:00+01:00",
+                "value": 130.8732394366197,
+                "minimum": 120,
+                "maximum": 150,
+                "readings": 9
+              },
+              {
+                "start": "2024-06-11T19:00:00+01:00",
+                "value": 80,
+                "minimum": 80,
+                "maximum": 80,
+                "readings": 1
+              },
+              {
+                "start": "2024-06-11T23:00:00+01:00",
+                "value": 60.0,
+                "minimum": 58,
+                "maximum": 62,
+                "readings": 3
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "range",
+          "value": null,
+          "minimum": 58,
+          "maximum": 150
+        },
+        "goal": null
+      }
+    },
+    {
+      "name": "heart rate as a line over a week with series: each day's average time-weighted across series' values and single readings",
+      "note": "11 June as by the hour (14 readings); 12 June: the night series' 57, 56 and 55 for 10 minutes each, 54 at 00:30 until the Watch's 65 at 07:00 (capped: 3600 s), and 65, the Watch's last, lasting no time (1 s). The header is the time-weighted average of all 19 readings.",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2024-06-11",
+      "now": "2024-06-13T12:00:00Z",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate"
+          }
+        ],
+        "chart": {
+          "style": "line"
+        }
+      },
+      "expected": {
+        "range": "W",
+        "start": "2024-06-10",
+        "end": "2024-06-16",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2024-06-11T00:00:00+01:00",
+                "value": 90.91402714932127,
+                "minimum": 58,
+                "maximum": 150,
+                "readings": 14
+              },
+              {
+                "start": "2024-06-12T00:00:00+01:00",
+                "value": 54.66857989261248,
+                "minimum": 54,
+                "maximum": 65,
+                "readings": 5
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 80.42361073897433,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "name": "a count of heart rate readings by the hour: a series that started the day before has values after midnight",
+      "note": "12 June (BST): the night series started at 23:30 on 11 June, before the period; its values at 00:00, 00:10, 00:20 and 00:30 are readings of 12 June's first hour. Then the Watch's 65 at 07:00.",
+      "timeZone": "Europe/London",
+      "range": "D",
+      "date": "2024-06-12",
+      "now": "2024-06-13T12:00:00Z",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Heart Rate Readings"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "aggregation": "count"
+          }
+        ]
+      },
+      "expected": {
+        "range": "D",
+        "start": "2024-06-12",
+        "end": "2024-06-12",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "hour",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "count",
+            "unit": "count",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2024-06-12T00:00:00+01:00",
+                "value": 4,
+                "minimum": 4,
+                "maximum": 4,
+                "readings": 4
+              },
+              {
+                "start": "2024-06-12T07:00:00+01:00",
+                "value": 1,
+                "minimum": 1,
+                "maximum": 1,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "count",
+          "value": 5,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "name": "HRV as dots, with a series: each of its values counts once in the average",
+      "note": "11 June: the series' 40, 50 and 66, and the single 30: (40 + 50 + 66 + 30) / 4.",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2024-06-11",
+      "now": "2024-06-13T12:00:00Z",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "HRV"
+        },
+        "series": [
+          {
+            "type": "HeartRateVariabilitySDNN"
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2024-06-10",
+        "end": "2024-06-16",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate Variability",
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "aggregation": "avg",
+            "unit": "ms",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2024-06-11T00:00:00+01:00",
+                "value": 46.5,
+                "minimum": 30,
+                "maximum": 66,
+                "readings": 4
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 46.5,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "name": "the highest and the average heart rate during a run recorded as a series: its values in the run's stretch",
+      "note": "The run, 18:00 to 18:30 on 11 June: the series' 7 values and the strap's 2. The highest is the series' 150. In the stretch, the series' last value, 125 at 18:25, counts until the run's end (300 s), and the strap's 142 too (600 s); the others as by the hour.",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2024-06-11",
+      "now": "2024-06-13T12:00:00Z",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Running HR"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "aggregation": "max",
+            "window": {
+              "kind": "workout",
+              "activities": ["Running"]
+            }
+          },
+          {
+            "type": "HeartRate",
+            "aggregation": "avg",
+            "window": {
+              "kind": "workout",
+              "activities": ["Running"]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2024-06-10",
+        "end": "2024-06-16",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "max",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2024-06-11T00:00:00+01:00",
+                "value": 150,
+                "minimum": 120,
+                "maximum": 150,
+                "readings": 9
+              }
+            ]
+          },
+          {
+            "id": "b",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2024-06-11T00:00:00+01:00",
+                "value": 136.4,
+                "minimum": 120,
+                "maximum": 150,
+                "readings": 9
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "highest",
+          "value": 150,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "name": "a count of the Watch's heart rate readings by its device model: a series' values are its sample's, the Watch's",
+      "note": "11 June: 70, the run's 7 values, 80 and the night series' 3 before midnight; 12 June: its 4 after midnight and 65. The strap's 2 are left out.",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2024-06-11",
+      "now": "2024-06-13T12:00:00Z",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Watch Readings"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "aggregation": "count",
+            "filter": {
+              "deviceModels": ["Watch"]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2024-06-10",
+        "end": "2024-06-16",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "count",
+            "unit": "count",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2024-06-11T00:00:00+01:00",
+                "value": 12,
+                "minimum": 12,
+                "maximum": 12,
+                "readings": 12
+              },
+              {
+                "start": "2024-06-12T00:00:00+01:00",
+                "value": 5,
+                "minimum": 5,
+                "maximum": 5,
+                "readings": 5
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "count",
+          "value": 17,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "name": "the latest heart rate reading of each day: a series' latest value in the day, not the series",
+      "note": "11 June's latest reading is the night series' 58 at 23:50, its last value before midnight; 12 June's the Watch's 65 at 07:00. The header is their average.",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2024-06-11",
+      "now": "2024-06-13T12:00:00Z",
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Latest HR"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "aggregation": "latest"
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2024-06-10",
+        "end": "2024-06-16",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "latest",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2024-06-11T00:00:00+01:00",
+                "value": 58,
+                "minimum": 58,
+                "maximum": 150,
+                "readings": 14
+              },
+              {
+                "start": "2024-06-12T00:00:00+01:00",
+                "value": 65,
+                "minimum": 54,
+                "maximum": 65,
+                "readings": 5
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 61.5,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
     }
   ]
 }

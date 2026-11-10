@@ -1,6 +1,5 @@
 import { Clock, Effect } from "effect";
 import type { StoreSql } from "../../store/StoreSql.ts";
-import { latestSample } from "../tools/HealthQueries.ts";
 import { localDate, localTime, startOfLocalDay, toolDate } from "../tools/ToolTime.ts";
 import {
   type CardCalendar,
@@ -18,7 +17,12 @@ import {
   headlineSearchEnds,
   leadPoints,
 } from "./CardEngine.ts";
-import { fetchCardData, fetchCardWindow, latestDataStart } from "./CardQueries.ts";
+import {
+  fetchCardData,
+  fetchCardWindow,
+  latestCardReading,
+  latestDataStart,
+} from "./CardQueries.ts";
 import type {
   CardAggregation,
   CardBucket,
@@ -211,13 +215,13 @@ export const cardHeadline = (
     case undefined:
       return null;
     case "latestReading": {
-      const sample = latestSample(sql, lookup.type, now);
-      if (sample === null || sample.value === null) return null;
+      const reading = latestCardReading(sql, lookup.type, now);
+      if (reading === null) return null;
       return {
-        value: sample.value,
-        date: localTime(sample.startDate, calendar.zone),
+        value: reading.value,
+        date: localTime(reading.start, calendar.zone),
         kind: "reading",
-        data: json(run(sample.startDate)),
+        data: json(run(reading.start)),
       };
     }
     case "latestData": {

@@ -122,7 +122,8 @@ export const latestReading = (sql: StoreSql, type: string, now: number): LatestS
         };
   const later = sql.exec(
     `SELECT s.id, s.unit, q.most_recent, q.most_recent_start_date, q.most_recent_end_date
-    FROM health_quantity_series q JOIN health_sample s ON s.id = q.id
+    FROM health_quantity_series q
+    CROSS JOIN health_sample s ON s.type = q.type AND s.start_date = q.start_date AND s.id = q.id
     WHERE q.type = ? AND q.start_date >= ? AND q.start_date <= ? AND q.most_recent IS NOT NULL
       AND q.most_recent_start_date > ? AND q.most_recent_start_date <= ? AND ${liveSample}
     ORDER BY q.most_recent_start_date DESC, s.id DESC LIMIT 1`,
@@ -568,6 +569,10 @@ export const seriesReadings = (series: QuantitySeriesSample): ReadonlyArray<Quan
  * A type's series whose samples start in `[from, to)` and end at or after `endingFrom`, oldest
  * first, then by ID, past tombstones. Through the series' own (type, start_date) index, so a
  * range without series costs a seek.
+ *
+ * Joined to its sample by the samples' key (type, start, ID), which has no index of the ID alone,
+ * with `CROSS JOIN` keeping the series first (851-4172): by the ID alone, SQLite scanned the
+ * samples for each series, or read a year's samples for a year's range.
  */
 export const quantitySeries = (
   sql: StoreSql,
@@ -580,7 +585,8 @@ export const quantitySeries = (
     .rows(
       `SELECT s.id, s.start_date, s.end_date, s.value, s.source_bundle_id,
         q.times, q.durations, q."values", q.minimum, q.maximum
-      FROM health_quantity_series q JOIN health_sample s ON s.id = q.id
+      FROM health_quantity_series q
+      CROSS JOIN health_sample s ON s.type = q.type AND s.start_date = q.start_date AND s.id = q.id
       WHERE q.type = ? AND q.start_date >= ? AND q.start_date < ? AND s.end_date >= ?
         AND ${liveSample}
       ORDER BY q.start_date, q.id`,

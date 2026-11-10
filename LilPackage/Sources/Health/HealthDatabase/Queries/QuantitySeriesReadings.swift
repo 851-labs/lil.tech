@@ -107,7 +107,9 @@ extension HealthDatabase {
   /// (or after the sample's end) don't count anywhere, so what a range reads doesn't depend on
   /// where it starts. The iPhone uploads at most 20,000 values a series
   /// (`HealthEncoder.maxSeriesValues`): a week of them every 30 s.
-  public static let seriesLookback: TimeInterval = 7 * 86_400
+  /// The cards' engines read series by the same rules, from this constant (`CardSeries.reach`,
+  /// 851-4172).
+  public static let seriesLookback: TimeInterval = TimeInterval(CardSeries.reach) / 1000
 
   static let seriesLookbackMilliseconds = Int(seriesLookback * 1000)
 

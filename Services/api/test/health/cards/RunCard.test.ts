@@ -71,6 +71,42 @@ const insertSample = (
   return id;
 };
 
+/** A series (851-4172): a sample with its values in `health_quantity_series`, instants. */
+const insertSeries = (
+  sql: StoreSql,
+  series: {
+    readonly start: number;
+    readonly minutes: ReadonlyArray<number>;
+    readonly values: ReadonlyArray<number>;
+    readonly source?: string;
+    readonly device?: string | null;
+    readonly uploadedValues?: boolean;
+  },
+) => {
+  const seconds = series.minutes.map((minutes) => minutes * 60);
+  const id = insertSample(sql, {
+    type: heartRate,
+    start: series.start,
+    end: series.start + seconds.at(-1)! * 1000,
+    value: series.values.reduce((sum, value) => sum + value, 0) / series.values.length,
+    source: series.source ?? watch,
+    device: series.device ?? null,
+  });
+  const uploaded = series.uploadedValues ?? true;
+  sql.exec(
+    `INSERT INTO health_quantity_series (id, type, start_date, count, times, durations, "values")
+    VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    id,
+    heartRate,
+    series.start,
+    series.values.length,
+    uploaded ? JSON.stringify(seconds) : null,
+    uploaded ? JSON.stringify(seconds.map(() => 0)) : null,
+    uploaded ? JSON.stringify(series.values) : null,
+  );
+  return id;
+};
+
 /** The iPhone whose statistics count, and a 30-minute sum of a type. */
 const insertStatistic = (sql: StoreSql, type: string, bucketStart: number, sum: number) => {
   sql.exec(
@@ -203,6 +239,61 @@ describe("runCard", () => {
     assert.deepStrictEqual(maxOf({ deviceModels: ["Watch"] }), [[70, 2]]);
     assert.deepStrictEqual(maxOf({ sources: [phone] }), [[80, 1]]);
     assert.deepStrictEqual(maxOf({ sources: [watch], deviceModels: ["iPhone"] }), []);
+  });
+
+  it("reads a series as its values, the Mac's CardQueriesTests.seriesAreReadAsTheirValues", () => {
+    const sql = makeStore();
+    const watchDevice = JSON.stringify({ name: "Apple Watch", model: "Watch" });
+    // From 23:30 the day before: its last two values are in the period.
+    insertSeries(sql, {
+      start: date(10, 19, 23, 30),
+      minutes: [0, 15, 30, 45],
+      values: [50, 52, 54, 56],
+      device: watchDevice,
+    });
+    // A run, across an hour's end.
+    insertSeries(sql, {
+      start: date(10, 20, 9, 45),
+      minutes: [0, 10, 20],
+      values: [120, 150, 130],
+      device: watchDevice,
+    });
+    insertSeries(sql, {
+      start: date(10, 20, 14),
+      minutes: [0, 1],
+      values: [70, 90],
+      device: watchDevice,
+      uploadedValues: false,
+    });
+    insertSample(sql, { type: heartRate, start: date(10, 20, 10, 30), value: 100, source: phone });
+    // A deleted series the store hasn't swept yet.
+    const deleted = insertSeries(sql, { start: date(10, 20, 16), minutes: [0, 1], values: [1, 2] });
+    sql.exec("INSERT INTO tombstones (entity, id, at) VALUES ('health_sample', ?, 0)", deleted);
+    const points = (aggregation: string, filter: object | null = null) =>
+      runCard(
+        sql,
+        spec({
+          version: 1,
+          display: { name: "HR" },
+          series: [{ type: "Heart Rate", aggregation, filter }],
+          bucket: "hour",
+          range: "D",
+        }),
+        "D",
+        date(10, 20),
+        london,
+        now,
+      ).series[0]!.points.map((point) => point.value);
+    // 00:00: the series from the day before's last two; 09:00 and 10:00: the run's values, and
+    // the other source's; 14:00: the series without its values, as its sample.
+    assert.deepStrictEqual(points("count"), [2, 2, 2, 1]);
+    assert.deepStrictEqual(points("max"), [56, 150, 130, 80]);
+    assert.deepStrictEqual(points("count", { deviceModels: ["Watch"] }), [2, 2, 1, 1]);
+    // 09:00: 120 and 150 for 10 minutes each. 10:00: 130 until the source's next reading,
+    // 14:00's (capped: an hour), and the other source's 100, its last, for its own minute.
+    const averages = points("avg");
+    assert.strictEqual(averages[1], 135);
+    assert.closeTo(averages[2]!, (130 * 3600 + 100 * 60) / 3660, 1e-9);
   });
 
   it("reads sample IDs for first's and latest's ties", () => {
@@ -397,6 +488,25 @@ describe("cardHeadline", () => {
       grain: "day",
     });
     assert.strictEqual(headline?.data.series[0]!.points.length, 2);
+  });
+
+  it("is a series' latest value started by then, from any source, not its sample's", () => {
+    const sql = makeStore();
+    insertSeries(sql, {
+      start: date(10, 20, 9),
+      minutes: [0, 30, 60, 90],
+      values: [110, 140, 120, 90],
+    });
+    insertSample(sql, { type: heartRate, start: date(10, 20, 10, 15), value: 75, source: phone });
+    const headline = (at: number) => cardHeadline(sql, seed(1), london, at);
+    // The other source's 75 at 10:15 is the latest sample, but the series' 90 at 10:30 is later.
+    assert.deepInclude(headline(date(10, 20, 12)), {
+      value: 90,
+      date: "2026-10-20T10:30:00+01:00",
+    });
+    assert.strictEqual(headline(date(10, 20, 10, 18))?.value, 75);
+    // The series is the latest sample: its latest value by then.
+    assert.strictEqual(headline(date(10, 20, 9, 45))?.value, 140);
   });
 
   it("is a total's latest day with data, from its statistics or samples", () => {

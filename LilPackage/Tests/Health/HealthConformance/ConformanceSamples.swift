@@ -28,6 +28,17 @@ public struct ConformanceSamples: Sendable {
     public var source: String
     /// The sample's own device, or its provenance record's.
     public var device: Device?
+    /// Its values, when it's a quantity series (`health_quantity_series`, 851-4172), which the
+    /// iPhone writes with `HKQuantitySeriesSampleBuilder`, as a Watch does.
+    public var series: [SeriesValue]?
+  }
+
+  /// One of a series' values: when it starts and ends (Unix milliseconds), and the value, in
+  /// the sample's unit.
+  public struct SeriesValue: Sendable, Equatable {
+    public var start: Int
+    public var end: Int
+    public var value: Double
   }
 
   public struct Workout: Sendable {
@@ -79,6 +90,8 @@ public struct ConformanceSamples: Sendable {
   public init(_ batches: [ConformanceBatch]) throws {
     // Each record's device, if it has one.
     var provenance: [String: Device?] = [:]
+    // Each series' values, by its sample's ID.
+    var series: [String: [SeriesValue]] = [:]
     // By entity and ID, in the order they were first written.
     var rows: [String: (order: Int, entity: String, id: String, row: [String: Any])] = [:]
     var sources: Set<String> = []
@@ -88,20 +101,27 @@ public struct ConformanceSamples: Sendable {
         guard let entity = line["entity"] as? String, let id = line["id"] as? String,
           let op = line["op"] as? String
         else { throw ConformanceError("a line without an entity, ID or op") }
-        guard ["health_sample", "health_workout", "health_provenance"].contains(entity) else {
-          continue
-        }
+        guard
+          ["health_sample", "health_workout", "health_provenance", "health_quantity_series"]
+            .contains(entity)
+        else { continue }
         let key = "\(entity) \(id)"
         switch op {
         case "delete":
           rows[key] = nil
           if entity == "health_provenance" { provenance[id] = nil }
+          // Deleting a sample deletes its series, as the server does (`deletedWith`).
+          if entity == "health_sample" || entity == "health_quantity_series" { series[id] = nil }
         case "upsert":
           guard let row = line["row"] as? [String: Any] else {
             throw ConformanceError("\(entity) \(id) has no row")
           }
           if entity == "health_provenance" {
             provenance[id] = .some((row["device"] as? [String: Any]).map(Device.init))
+            continue
+          }
+          if entity == "health_quantity_series" {
+            series[id] = Self.seriesValues(row)
             continue
           }
           guard let source = row["sourceBundleId"] as? String else {
@@ -146,9 +166,28 @@ public struct ConformanceSamples: Sendable {
         Sample(
           id: id, type: type, start: start, end: end,
           value: (row["value"] as? NSNumber)?.doubleValue, unit: row["unit"] as? String,
-          categoryValue: row["categoryValue"] as? Int, source: source, device: device))
+          categoryValue: row["categoryValue"] as? Int, source: source, device: device,
+          series: series[id]))
     }
     self.sources = sources.sorted()
+  }
+
+  /// A `health_quantity_series` row's values, each at its seconds since the series' start;
+  /// `nil` for a series uploaded without them (the tools' dataset has one, 851-4171), which the
+  /// iPhone writes as a single sample, as the Mac and the server read it.
+  static func seriesValues(_ row: [String: Any]) -> [SeriesValue]? {
+    guard let start = row["startDate"] as? Int,
+      let times = (row["times"] as? [NSNumber])?.map(\.doubleValue),
+      let durations = (row["durations"] as? [NSNumber])?.map(\.doubleValue),
+      let values = (row["values"] as? [NSNumber])?.map(\.doubleValue),
+      !times.isEmpty, durations.count == times.count, values.count == times.count
+    else { return nil }
+    return times.indices.map { index in
+      let valueStart = start + Int((times[index] * 1000).rounded())
+      return SeriesValue(
+        start: valueStart, end: valueStart + Int((durations[index] * 1000).rounded()),
+        value: values[index])
+    }
   }
 
   /// A workout's activities as the Mac reads them (`HealthWorkout.decodedActivities`): all of
