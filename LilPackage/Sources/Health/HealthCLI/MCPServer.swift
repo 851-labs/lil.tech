@@ -473,6 +473,19 @@ private struct ToolCall {
       let timeZone = arguments.string("timeZone")
       try arguments.check()
       query = { tools, db in try tools.medications(timeZone: timeZone, db) }
+    case "medication_doses":
+      let range = arguments.required("range", arguments.range)
+      let date = arguments.string("date")
+      let timeZone = arguments.string("timeZone")
+      let medication = arguments.string("medication")
+      let cursor = arguments.string("cursor")
+      let limit = arguments.integer("limit", in: 1...HealthTools.medicationDosesLimit)
+      guard let range, arguments.isValid else { throw arguments.invalid }
+      query = { tools, db in
+        try tools.medicationDoses(
+          range: range, date: date, timeZone: timeZone, medication: medication, cursor: cursor,
+          limit: limit, db)
+      }
     case "health_details":
       let timeZone = arguments.string("timeZone")
       try arguments.check()

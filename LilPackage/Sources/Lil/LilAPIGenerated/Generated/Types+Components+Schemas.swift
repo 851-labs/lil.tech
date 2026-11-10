@@ -14049,6 +14049,82 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthMedicationCoding`.
+        public struct HealthMedicationCoding: Codable, Hashable, Sendable {
+            /// The coding system, as HealthKit names it, e.g. http://www.nlm.nih.gov/research/umls/rxnorm.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationCoding/system`.
+            public var system: Swift.String
+            /// The system's version, or null.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationCoding/version`.
+            public var version: Swift.String?
+            /// The code in that system, e.g. an RxNorm RxCUI.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationCoding/code`.
+            public var code: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthMedicationCoding`.
+            ///
+            /// - Parameters:
+            ///   - system: The coding system, as HealthKit names it, e.g. http://www.nlm.nih.gov/research/umls/rxnorm.
+            ///   - version: The system's version, or null.
+            ///   - code: The code in that system, e.g. an RxNorm RxCUI.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                system: Swift.String,
+                version: Swift.String? = nil,
+                code: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.system = system
+                self.version = version
+                self.code = code
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case system
+                case version
+                case code
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.system = try container.decode(
+                    Swift.String.self,
+                    forKey: .system
+                )
+                self.version = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .version
+                )
+                self.code = try container.decode(
+                    Swift.String.self,
+                    forKey: .code
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "system",
+                    "version",
+                    "code"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.system,
+                    forKey: .system
+                )
+                try container.encodeIfPresent(
+                    self.version,
+                    forKey: .version
+                )
+                try container.encode(
+                    self.code,
+                    forKey: .code
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthMedicationItem`.
         public struct HealthMedicationItem: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/id`.
@@ -14239,6 +14315,10 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/lastTaken`.
             public var lastTaken: Swift.String?
+            /// Codes for it in clinical coding systems (HKClinicalCoding), which name the drug exactly, e.g. RxNorm's, as Health has them. Empty if Health has none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/codings`.
+            public var codings: [Components.Schemas.HealthMedicationCoding]
             /// A container of undocumented properties.
             public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
             /// Creates a new `HealthMedicationItem`.
@@ -14253,6 +14333,7 @@ extension Components {
             ///   - last7Days: Adherence over today and the 6 days before.
             ///   - last30Days: Adherence over today and the 29 days before.
             ///   - lastTaken: When a dose was last logged as taken, or null.
+            ///   - codings: Codes for it in clinical coding systems (HKClinicalCoding), which name the drug exactly, e.g. RxNorm's, as Health has them. Empty if Health has none.
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 id: Swift.String,
@@ -14264,6 +14345,7 @@ extension Components {
                 last7Days: Components.Schemas.HealthMedicationItem.Last7DaysPayload,
                 last30Days: Components.Schemas.HealthMedicationItem.Last30DaysPayload,
                 lastTaken: Swift.String? = nil,
+                codings: [Components.Schemas.HealthMedicationCoding],
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
                 self.id = id
@@ -14275,6 +14357,7 @@ extension Components {
                 self.last7Days = last7Days
                 self.last30Days = last30Days
                 self.lastTaken = lastTaken
+                self.codings = codings
                 self.additionalProperties = additionalProperties
             }
             public enum CodingKeys: String, CodingKey {
@@ -14287,6 +14370,7 @@ extension Components {
                 case last7Days
                 case last30Days
                 case lastTaken
+                case codings
             }
             public init(from decoder: any Swift.Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -14326,6 +14410,10 @@ extension Components {
                     Swift.String.self,
                     forKey: .lastTaken
                 )
+                self.codings = try container.decode(
+                    [Components.Schemas.HealthMedicationCoding].self,
+                    forKey: .codings
+                )
                 additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
                     "id",
                     "name",
@@ -14335,7 +14423,8 @@ extension Components {
                     "scheduled",
                     "last7Days",
                     "last30Days",
-                    "lastTaken"
+                    "lastTaken",
+                    "codings"
                 ])
             }
             public func encode(to encoder: any Swift.Encoder) throws {
@@ -14375,6 +14464,10 @@ extension Components {
                 try container.encodeIfPresent(
                     self.lastTaken,
                     forKey: .lastTaken
+                )
+                try container.encode(
+                    self.codings,
+                    forKey: .codings
                 )
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
@@ -14434,6 +14527,396 @@ extension Components {
                 try container.encode(
                     self.medications,
                     forKey: .medications
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthMedicationDoseItem`.
+        public struct HealthMedicationDoseItem: Codable, Hashable, Sendable {
+            /// The medication's ID, as medications gives it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDoseItem/medicationId`.
+            public var medicationId: Swift.String
+            /// The medication's name: the one the person gave it, else Health's.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDoseItem/medication`.
+            public var medication: Swift.String
+            /// What happened to it, as lil health's Medications page says it: Taken, Skipped, Snoozed, Not Logged (a scheduled dose nobody logged, or a status the person undid), Reminder Not Sent, or Unknown for one a later iOS adds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDoseItem/status`.
+            public var status: Swift.String
+            /// Scheduled (due at scheduledTime) or As Needed, or Unknown for one a later iOS adds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDoseItem/schedule`.
+            public var schedule: Swift.String
+            /// When it was logged (taken, skipped or snoozed), or for a scheduled dose nobody logged, when Health marked it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDoseItem/time`.
+            public var time: Swift.String
+            /// When it was due, for a scheduled dose; null for one taken as needed. A dose belongs to the day it was due, however long before or after it was logged.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDoseItem/scheduledTime`.
+            public var scheduledTime: Swift.String?
+            /// The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDoseItem/recordedTimeZone`.
+            public var recordedTimeZone: Swift.String?
+            /// Its time, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDoseItem/recordedTime`.
+            public var recordedTime: Swift.String?
+            /// When it was due, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDoseItem/recordedScheduledTime`.
+            public var recordedScheduledTime: Swift.String?
+            /// The dose logged, in `unit`, or null: usually only a taken dose has one.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDoseItem/amount`.
+            public var amount: Swift.Double?
+            /// The dose scheduled, in `unit`, or null for one taken as needed.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDoseItem/scheduledAmount`.
+            public var scheduledAmount: Swift.Double?
+            /// The amounts' unit, as HealthKit writes it, e.g. mg or mL; count is the medication's own units, its form's (tablets, capsules, puffs…).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDoseItem/unit`.
+            public var unit: Swift.String
+            /// The app or device it was logged in, e.g. Health.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDoseItem/source`.
+            public var source: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthMedicationDoseItem`.
+            ///
+            /// - Parameters:
+            ///   - medicationId: The medication's ID, as medications gives it.
+            ///   - medication: The medication's name: the one the person gave it, else Health's.
+            ///   - status: What happened to it, as lil health's Medications page says it: Taken, Skipped, Snoozed, Not Logged (a scheduled dose nobody logged, or a status the person undid), Reminder Not Sent, or Unknown for one a later iOS adds.
+            ///   - schedule: Scheduled (due at scheduledTime) or As Needed, or Unknown for one a later iOS adds.
+            ///   - time: When it was logged (taken, skipped or snoozed), or for a scheduled dose nobody logged, when Health marked it.
+            ///   - scheduledTime: When it was due, for a scheduled dose; null for one taken as needed. A dose belongs to the day it was due, however long before or after it was logged.
+            ///   - recordedTimeZone: The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///   - recordedTime: Its time, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///   - recordedScheduledTime: When it was due, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///   - amount: The dose logged, in `unit`, or null: usually only a taken dose has one.
+            ///   - scheduledAmount: The dose scheduled, in `unit`, or null for one taken as needed.
+            ///   - unit: The amounts' unit, as HealthKit writes it, e.g. mg or mL; count is the medication's own units, its form's (tablets, capsules, puffs…).
+            ///   - source: The app or device it was logged in, e.g. Health.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                medicationId: Swift.String,
+                medication: Swift.String,
+                status: Swift.String,
+                schedule: Swift.String,
+                time: Swift.String,
+                scheduledTime: Swift.String? = nil,
+                recordedTimeZone: Swift.String? = nil,
+                recordedTime: Swift.String? = nil,
+                recordedScheduledTime: Swift.String? = nil,
+                amount: Swift.Double? = nil,
+                scheduledAmount: Swift.Double? = nil,
+                unit: Swift.String,
+                source: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.medicationId = medicationId
+                self.medication = medication
+                self.status = status
+                self.schedule = schedule
+                self.time = time
+                self.scheduledTime = scheduledTime
+                self.recordedTimeZone = recordedTimeZone
+                self.recordedTime = recordedTime
+                self.recordedScheduledTime = recordedScheduledTime
+                self.amount = amount
+                self.scheduledAmount = scheduledAmount
+                self.unit = unit
+                self.source = source
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case medicationId
+                case medication
+                case status
+                case schedule
+                case time
+                case scheduledTime
+                case recordedTimeZone
+                case recordedTime
+                case recordedScheduledTime
+                case amount
+                case scheduledAmount
+                case unit
+                case source
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.medicationId = try container.decode(
+                    Swift.String.self,
+                    forKey: .medicationId
+                )
+                self.medication = try container.decode(
+                    Swift.String.self,
+                    forKey: .medication
+                )
+                self.status = try container.decode(
+                    Swift.String.self,
+                    forKey: .status
+                )
+                self.schedule = try container.decode(
+                    Swift.String.self,
+                    forKey: .schedule
+                )
+                self.time = try container.decode(
+                    Swift.String.self,
+                    forKey: .time
+                )
+                self.scheduledTime = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .scheduledTime
+                )
+                self.recordedTimeZone = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTimeZone
+                )
+                self.recordedTime = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTime
+                )
+                self.recordedScheduledTime = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedScheduledTime
+                )
+                self.amount = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .amount
+                )
+                self.scheduledAmount = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .scheduledAmount
+                )
+                self.unit = try container.decode(
+                    Swift.String.self,
+                    forKey: .unit
+                )
+                self.source = try container.decode(
+                    Swift.String.self,
+                    forKey: .source
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "medicationId",
+                    "medication",
+                    "status",
+                    "schedule",
+                    "time",
+                    "scheduledTime",
+                    "recordedTimeZone",
+                    "recordedTime",
+                    "recordedScheduledTime",
+                    "amount",
+                    "scheduledAmount",
+                    "unit",
+                    "source"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.medicationId,
+                    forKey: .medicationId
+                )
+                try container.encode(
+                    self.medication,
+                    forKey: .medication
+                )
+                try container.encode(
+                    self.status,
+                    forKey: .status
+                )
+                try container.encode(
+                    self.schedule,
+                    forKey: .schedule
+                )
+                try container.encode(
+                    self.time,
+                    forKey: .time
+                )
+                try container.encodeIfPresent(
+                    self.scheduledTime,
+                    forKey: .scheduledTime
+                )
+                try container.encodeIfPresent(
+                    self.recordedTimeZone,
+                    forKey: .recordedTimeZone
+                )
+                try container.encodeIfPresent(
+                    self.recordedTime,
+                    forKey: .recordedTime
+                )
+                try container.encodeIfPresent(
+                    self.recordedScheduledTime,
+                    forKey: .recordedScheduledTime
+                )
+                try container.encodeIfPresent(
+                    self.amount,
+                    forKey: .amount
+                )
+                try container.encodeIfPresent(
+                    self.scheduledAmount,
+                    forKey: .scheduledAmount
+                )
+                try container.encode(
+                    self.unit,
+                    forKey: .unit
+                )
+                try container.encode(
+                    self.source,
+                    forKey: .source
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthMedicationDosesResult`.
+        public struct HealthMedicationDosesResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDosesResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The range asked for: D, W, M, 6M or Y.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDosesResult/range`.
+            public var range: Swift.String
+            /// When the period starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDosesResult/start`.
+            public var start: Swift.String
+            /// When the period ends (exclusive).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDosesResult/end`.
+            public var end: Swift.String
+            /// Doses in the period, of every page: the medication's, if one was asked for.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDosesResult/count`.
+            public var count: Swift.Int
+            /// This page's doses, newest first by when they were due (or logged, for one taken as needed), as lil health's dose log lists them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDosesResult/doses`.
+            public var doses: [Components.Schemas.HealthMedicationDoseItem]
+            /// Pass it as `cursor` for the next, older page; null on the last page.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthMedicationDosesResult/nextCursor`.
+            public var nextCursor: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthMedicationDosesResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - range: The range asked for: D, W, M, 6M or Y.
+            ///   - start: When the period starts.
+            ///   - end: When the period ends (exclusive).
+            ///   - count: Doses in the period, of every page: the medication's, if one was asked for.
+            ///   - doses: This page's doses, newest first by when they were due (or logged, for one taken as needed), as lil health's dose log lists them.
+            ///   - nextCursor: Pass it as `cursor` for the next, older page; null on the last page.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                range: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                count: Swift.Int,
+                doses: [Components.Schemas.HealthMedicationDoseItem],
+                nextCursor: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.range = range
+                self.start = start
+                self.end = end
+                self.count = count
+                self.doses = doses
+                self.nextCursor = nextCursor
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case range
+                case start
+                case end
+                case count
+                case doses
+                case nextCursor
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.range = try container.decode(
+                    Swift.String.self,
+                    forKey: .range
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.doses = try container.decode(
+                    [Components.Schemas.HealthMedicationDoseItem].self,
+                    forKey: .doses
+                )
+                self.nextCursor = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .nextCursor
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "range",
+                    "start",
+                    "end",
+                    "count",
+                    "doses",
+                    "nextCursor"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.range,
+                    forKey: .range
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.count,
+                    forKey: .count
+                )
+                try container.encode(
+                    self.doses,
+                    forKey: .doses
+                )
+                try container.encodeIfPresent(
+                    self.nextCursor,
+                    forKey: .nextCursor
                 )
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }

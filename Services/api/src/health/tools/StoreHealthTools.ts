@@ -6,7 +6,7 @@ import type { Effect } from "effect";
 import type { HealthToolError, HealthToolkit } from "./HealthToolkit.ts";
 import { healthHeartbeatSeries, healthHeartbeatSeriesBeats } from "./HeartbeatSeries.ts";
 import { healthListTypes } from "./ListTypes.ts";
-import { healthMedications } from "./Medications.ts";
+import { healthMedicationDoses, healthMedications } from "./Medications.ts";
 import { healthAssessments, healthStateOfMind } from "./MentalWellbeing.ts";
 import { healthMetric } from "./Metric.ts";
 import { healthSamples } from "./Samples.ts";
@@ -61,6 +61,7 @@ export const storeHealthTools = (
   heartbeat_series: (params) => healthHeartbeatSeries(sql, params),
   heartbeat_series_beats: (params) => healthHeartbeatSeriesBeats(sql, params),
   medications: (params) => healthMedications(sql, params),
+  medication_doses: (params) => healthMedicationDoses(sql, params),
   health_details: (params) => healthDetails(sql, params),
   search: (params) => healthSearch(sql, params),
   sync_status: (params) => healthSyncStatus(sql, params),

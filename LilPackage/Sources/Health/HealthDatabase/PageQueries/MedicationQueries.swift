@@ -24,6 +24,39 @@ extension HealthDatabase {
       .map(Date.init(unixMilliseconds:))
   }
 
+  /// The doses of `medications` whose day (`MedicationDoseDay.date(of:)`: when they were due,
+  /// else logged) is in `range`, newest day first, then newest logged, then by ID, after
+  /// `cursor`, at most `limit`, and how many there are in `range`, counted only when they don't
+  /// all fit on a first page: the `medication_doses` tool's (851-4167), as the server's `doseLog`.
+  public static func doseLog(
+    of medications: [String], in range: Range<Date>, after cursor: DoseCursor?, limit: Int,
+    _ db: Database
+  ) throws -> (count: Int, doses: [HealthMedicationDose]) {
+    let (lower, upper) = (range.lowerBound.unixMilliseconds, range.upperBound.unixMilliseconds)
+    let inRange = HealthMedicationDose.where {
+      $0.medication.in(medications) && ($0.scheduledDate ?? $0.startDate) >= lower
+        && ($0.scheduledDate ?? $0.startDate) < upper
+    }
+    var page = inRange
+    if let cursor {
+      page = page.where { dose in
+        let day = dose.scheduledDate ?? dose.startDate
+        let sameDay =
+          day.eq(cursor.day)
+          && (dose.startDate < cursor.startDate
+            || (dose.startDate.eq(cursor.startDate) && dose.id < cursor.id))
+        return day < cursor.day || sameDay
+      }
+    }
+    let doses =
+      try page
+      .order { (($0.scheduledDate ?? $0.startDate).desc(), $0.startDate.desc(), $0.id.desc()) }
+      .limit(limit)
+      .fetchAll(db)
+    let count = cursor == nil && doses.count < limit ? doses.count : try inRange.fetchCount(db)
+    return (count, doses)
+  }
+
   /// A medication, its adherence over the last 7 and 30 days, and its latest `limit` doses by
   /// day, as of `now` in `calendar`. `nil` once it's no longer shared.
   public static func medicationDetail(
@@ -54,6 +87,24 @@ extension HealthDatabase {
         MedicationAdherence(days: $0, doses: recent, now: now, calendar: calendar)
       },
       days: days, isLimited: isLimited)
+  }
+}
+
+/// Where a page of the dose log ends: its last dose's day (`MedicationDoseDay.date(of:)`), when
+/// it was logged, and its ID.
+public struct DoseCursor: Hashable, Sendable {
+  public var day: Int
+  public var startDate: Int
+  public var id: String
+
+  public init(day: Int, startDate: Int, id: String) {
+    self.day = day
+    self.startDate = startDate
+    self.id = id
+  }
+
+  public init(after dose: HealthMedicationDose) {
+    self.init(day: dose.scheduledDate ?? dose.startDate, startDate: dose.startDate, id: dose.id)
   }
 }
 
@@ -199,6 +250,28 @@ public enum MedicationDoseStatus: Int, Sendable {
 public enum MedicationDoseSchedule: Int, Sendable {
   case asNeeded = 1
   case scheduled = 2
+
+  /// "As Needed" or "Scheduled", as the Medications page says a medication's schedule.
+  public var name: String {
+    switch self {
+    case .asNeeded: "As Needed"
+    case .scheduled: "Scheduled"
+    }
+  }
+}
+
+/// A code for a medication in a clinical coding system (`HKClinicalCoding`), e.g. RxNorm's.
+public struct MedicationCoding: Decodable, Equatable, Sendable {
+  /// The system, as HealthKit names it, e.g. `http://www.nlm.nih.gov/research/umls/rxnorm`.
+  public var system: String
+  public var version: String?
+  public var code: String
+
+  public init(system: String, version: String? = nil, code: String) {
+    self.system = system
+    self.version = version
+    self.code = code
+  }
 }
 
 extension HealthMedicationDose {
@@ -216,6 +289,11 @@ extension HealthMedicationDose {
 }
 
 extension HealthMedication {
+  /// Its codings, in the order stored, or none if they can't be read, as the server reads them.
+  public var decodedCodings: [MedicationCoding] {
+    (try? JSONDecoder().decode([MedicationCoding].self, from: Data(codings.utf8))) ?? []
+  }
+
   /// The name the person gave it, or Health's.
   public var displayName: String {
     guard let nickname, !nickname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {

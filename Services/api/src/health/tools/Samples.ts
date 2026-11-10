@@ -31,7 +31,7 @@ const samplesElsewhere: Readonly<
   workout: "workouts",
   workoutRoute: "workout_routes",
   medication: "medications",
-  medicationDoseEvent: "medications",
+  medicationDoseEvent: "medication_doses",
   characteristic: "health_details",
   visionPrescription: "health_details",
   activitySummary: "activity_rings",
