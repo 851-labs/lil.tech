@@ -336,6 +336,96 @@ struct HealthKitCardsTests {
     #expect(try await engine.headline(weight, now: now, calendar: london) == nil)
   }
 
+  // MARK: - Series
+
+  /// A heart rate series written as a Watch writes it, with `HKQuantitySeriesSampleBuilder`:
+  /// instants at `minutes` past `start`.
+  private func heartRateSeries(
+    _ health: SyntheticHealthKit, _ start: Date, minutes: [Double], values: [Double],
+    device: HKDevice? = nil
+  ) async throws {
+    let bpm = HKUnit.count().unitDivided(by: .minute())
+    let builder = HKQuantitySeriesSampleBuilder(
+      healthStore: health.store, quantityType: HKQuantityType(.heartRate), startDate: start,
+      device: device)
+    for (minute, value) in zip(minutes, values) {
+      try builder.insert(
+        HKQuantity(unit: bpm, doubleValue: value), at: start.addingTimeInterval(minute * 60))
+    }
+    let saved = try await builder.finishSeries(
+      metadata: nil, endDate: start.addingTimeInterval((minutes.last ?? 0) * 60))
+    #expect(saved.map(\.count) == [values.count])
+  }
+
+  /// A series is read as its values (851-4172), as the Mac and the server read them
+  /// (`CardQueriesTests.seriesAreReadAsTheirValues`): each a reading at its own time, with its
+  /// sample's source and device, so they fall in their own hours, count one each, and weigh
+  /// until the source's next. One that started before the period has its values in it read.
+  @Test
+  func seriesAreReadAsTheirValues() async throws {
+    let health = try await SyntheticHealthKit.empty()
+    let watch = HKDevice(
+      name: "Apple Watch", manufacturer: "Apple Inc.", model: "Watch", hardwareVersion: nil,
+      firmwareVersion: nil, softwareVersion: nil, localIdentifier: nil, udiDeviceIdentifier: nil)
+    // From 23:30 the day before: its last two values are in the period.
+    try await heartRateSeries(
+      health, date(10, 19, 23, 30), minutes: [0, 15, 30, 45], values: [50, 52, 54, 56],
+      device: watch)
+    // A run, across an hour's end.
+    try await heartRateSeries(
+      health, date(10, 20, 9, 45), minutes: [0, 10, 20], values: [120, 150, 130], device: watch)
+    try await health.save([
+      SyntheticHealthKit.sample(heartRate, 80, at: date(10, 20, 14)),
+      SyntheticHealthKit.sample(heartRate, 100, at: date(10, 20, 10, 30)),
+    ])
+    let engine = HealthKitCardEngine(store: health.store)
+    func points(_ series: String, filter: String = "null") async throws -> [CardPoint] {
+      let card = try CardSpec(
+        inputJSON: Data(
+          #"{"version": 1, "display": {"name": "HR"}, "series": [{"type": "Heart Rate", \#(series), "filter": \#(filter)}], "bucket": "hour", "range": "D"}"#
+            .utf8))
+      return try await engine.data(
+        CardRun(spec: card, range: .day, date: date(10, 20), now: now, calendar: london)
+      )
+      .series[0].points
+    }
+    // 00:00: the series from the day before's last two; 09:00 and 10:00: the run's values, and
+    // a single reading; 14:00: a single reading.
+    #expect(try await points(#""aggregation": "count""#).map(\.value) == [2, 2, 2, 1])
+    #expect(try await points(#""aggregation": "max""#).map(\.value) == [56, 150, 130, 80])
+    #expect(
+      try await points(#""aggregation": "count""#, filter: #"{"deviceModels": ["Watch"]}"#)
+        .map(\.value) == [2, 2, 1])
+    // 09:00: 120 and 150 for 10 minutes each (one source here: the tests' app). 10:00: 130 until
+    // the source's next reading, 100 at 10:30 (1500 s), and 100 until 14:00's (capped: an hour).
+    let averages = try await points(#""aggregation": "avg""#).map(\.value)
+    #expect(averages[1] == 135)
+    #expect(abs(averages[2] - (130 * 1500 + 100 * 3600) / 5100) < 1e-9)
+  }
+
+  /// A Summary row's latest reading is a series' most recent value, not its sample's, as on the
+  /// Mac (`CardQueriesTests.aSeriesLatestValueIsTheLatestReading`).
+  @Test
+  func aSeriesLatestValueIsTheLatestReading() async throws {
+    let health = try await SyntheticHealthKit.empty()
+    try await heartRateSeries(
+      health, date(10, 20, 9), minutes: [0, 30, 60, 90], values: [110, 140, 120, 90])
+    try await health.save([SyntheticHealthKit.sample(heartRate, 75, at: date(10, 20, 10, 15))])
+    let engine = HealthKitCardEngine(store: health.store)
+    let card = try CardSpec(
+      inputJSON: Data(
+        #"{"version": 1, "display": {"name": "HR"}, "series": [{"type": "HeartRate"}]}"#.utf8))
+    // 75 at 10:15 is the latest sample, but the series' 90 at 10:30 is later.
+    let latest = try await engine.headline(card, now: date(10, 20, 12), calendar: london)
+    #expect(latest?.value == 90)
+    #expect(latest?.date == date(10, 20, 10, 30))
+    #expect(
+      try await engine.headline(card, now: date(10, 20, 10, 18), calendar: london)?.value == 75)
+    // The series is the latest sample: its most recent value, as the tools take it.
+    #expect(
+      try await engine.headline(card, now: date(10, 20, 9, 45), calendar: london)?.value == 90)
+  }
+
   // MARK: - Cancelling
 
   @Test

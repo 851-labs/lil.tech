@@ -50,9 +50,15 @@ enum ConformanceWriter {
     }
     let source = dataset.sources[number - 1]
     let part = dataset.of(source: source).only(types: TestHealthTypes.identifiers)
-    let samples = try samples(part.samples)
+    var samples = try samples(part.samples.filter { $0.series == nil })
     if !samples.isEmpty {
       try await store.save(samples)
+    }
+    // Series as a Watch writes them (851-4172): each value inserted into a series builder, which
+    // saves one sample with every value.
+    for sample in part.samples {
+      guard let series = sample.series else { continue }
+      samples.append(try await self.series(sample, series, in: store))
     }
     for workout in part.workouts {
       func configuration(
@@ -123,6 +129,46 @@ enum ConformanceWriter {
       "Wrote \(samples.count) samples and \(part.workouts.count) workouts of \(source) as \(bundleID)."
   }
 
+  /// A series sample written with `HKQuantitySeriesSampleBuilder`: one sample with each value,
+  /// an instant at its start or, with a duration, over its interval.
+  private static func series(
+    _ sample: ConformanceSamples.Sample, _ values: [ConformanceSamples.SeriesValue],
+    in store: HKHealthStore
+  ) async throws -> HKSample {
+    guard let unit = sample.unit.map(HKUnit.init(from:)) else {
+      throw Failure(description: "Series \(sample.id) has no unit.")
+    }
+    let builder = HKQuantitySeriesSampleBuilder(
+      healthStore: store, quantityType: HKQuantityType(.init(rawValue: sample.type)),
+      startDate: date(sample.start), device: device(sample))
+    for value in values {
+      let quantity = HKQuantity(unit: unit, doubleValue: value.value)
+      if value.end > value.start {
+        try builder.insert(
+          quantity, for: DateInterval(start: date(value.start), end: date(value.end)))
+      } else {
+        try builder.insert(quantity, at: date(value.start))
+      }
+    }
+    let saved = try await builder.finishSeries(metadata: nil, endDate: date(sample.end))
+    guard saved.count == 1, let first = saved.first, first.count == values.count else {
+      throw Failure(
+        description:
+          "Series \(sample.id) was saved as \(saved.map(\.count)), not one series of \(values.count)."
+      )
+    }
+    return first
+  }
+
+  private static func device(_ sample: ConformanceSamples.Sample) -> HKDevice? {
+    sample.device.map {
+      HKDevice(
+        name: $0.name, manufacturer: $0.manufacturer, model: $0.model,
+        hardwareVersion: $0.hardwareVersion, firmwareVersion: nil,
+        softwareVersion: $0.softwareVersion, localIdentifier: nil, udiDeviceIdentifier: nil)
+    }
+  }
+
   /// `deleteObjects` fails when there's nothing to delete.
   private static func deleteAll(of type: HKSampleType, in store: HKHealthStore) async throws {
     let mine = HKQuery.predicateForObjects(from: .default())
@@ -162,12 +208,7 @@ enum ConformanceWriter {
   }
 
   private static func sample(_ sample: ConformanceSamples.Sample) throws -> HKSample {
-    let device = sample.device.map {
-      HKDevice(
-        name: $0.name, manufacturer: $0.manufacturer, model: $0.model,
-        hardwareVersion: $0.hardwareVersion, firmwareVersion: nil,
-        softwareVersion: $0.softwareVersion, localIdentifier: nil, udiDeviceIdentifier: nil)
-    }
+    let device = device(sample)
     let (start, end) = (date(sample.start), date(sample.end))
     if let categoryValue = sample.categoryValue {
       return HKCategorySample(

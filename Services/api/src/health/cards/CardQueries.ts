@@ -24,6 +24,14 @@ import type {
   CardWorkout,
 } from "./CardEngine.ts";
 import { type CardSleepRecord, sleepAnalysisType } from "./CardNights.ts";
+import {
+  type CardSeries,
+  anySeriesStarts,
+  cardSeries,
+  cardSeriesStarts,
+  mergedReadings,
+  readingsOfSeries,
+} from "./CardSeries.ts";
 import type { CardFilter } from "./CardSpec.ts";
 import { storedWorkoutIndoor } from "../WorkoutMetadata.ts";
 
@@ -52,19 +60,14 @@ export const cardTotals = (
 };
 
 /**
- * A type's readings starting in `range`, oldest first, that match `filter`: a range of the (type,
- * start) key. A device model is the sample's own device's, or its provenance's (851-2674), and
- * JSON that doesn't parse matches no model, rather than failing the card.
+ * What `filter` asks of a sample (`s`): its source, and its device's model, the sample's own or its
+ * provenance's (851-2674). JSON that doesn't parse matches no model, rather than failing the card.
  */
-export const cardReadings = (
-  sql: StoreSql,
-  type: string,
-  range: CardInterval,
+const sampleConditions = (
   filter: CardFilter | null,
-  sampleIds: boolean,
-): Array<CardReading> => {
-  const conditions = ["s.type = ?", "s.start_date >= ?", "s.start_date < ?", "s.value IS NOT NULL"];
-  const bindings: Array<SqlValue> = [type, range.start, range.end];
+): { join: string; conditions: Array<string>; bindings: Array<SqlValue> } => {
+  const conditions: Array<string> = [];
+  const bindings: Array<SqlValue> = [];
   let join = "";
   if (filter?.sources) {
     conditions.push(`s.source_bundle_id IN (${placeholders(filter.sources.length)})`);
@@ -79,9 +82,134 @@ export const cardReadings = (
     );
     bindings.push(...filter.deviceModels);
   }
+  return { join, conditions, bindings };
+};
+
+/**
+ * The series of `type` that can have values in `range`, by start then ID, whose samples match
+ * `filter` and aren't deleted: those starting a day before it or later (`cardSeriesStarts`), and
+ * before its end, whose samples end in it or later, since a series' values are within its sample.
+ * A range of the series' (type, start) index, each joined to its sample by the samples' key
+ * (type, start, ID), which has no index of the ID alone. `CROSS JOIN` keeps the series first:
+ * SQLite would otherwise read the samples' range of the key, a year's samples for a year's card
+ * (65 ms with no series at all). A series whose values don't parse is read
+ * as its sample. `parsed`: series parsed already, by ID, which are used again.
+ */
+export const cardSeriesIn = (
+  sql: StoreSql,
+  type: string,
+  range: CardInterval,
+  filter: CardFilter | null,
+  parsed: Map<string, CardSeries> = new Map(),
+): Array<CardSeries> => {
+  const { join, conditions, bindings } = sampleConditions(filter);
+  const starts = cardSeriesStarts(range);
+  const rows = sql.rows(
+    `SELECT q.id, s.start_date, s.end_date, s.value, s.source_bundle_id, q.start_date, q.times,
+      q.durations, q."values"
+    FROM health_quantity_series q
+    CROSS JOIN health_sample s ON s.type = q.type AND s.start_date = q.start_date AND s.id = q.id
+    ${join}
+    WHERE q.type = ? AND q.start_date >= ? AND q.start_date < ? AND q."values" IS NOT NULL
+      AND s.value IS NOT NULL AND s.end_date >= ?
+      ${conditions.map((condition) => `AND ${condition} `).join("")}
+      AND ${liveSample}
+    ORDER BY q.start_date, q.id`,
+    type,
+    starts.start,
+    starts.end,
+    range.start,
+    ...bindings,
+  );
+  // Arrays that don't parse are empty, so the series is read as its sample.
+  const array = (json: unknown): ReadonlyArray<unknown> => {
+    try {
+      const value: unknown = typeof json === "string" ? JSON.parse(json) : null;
+      return Array.isArray(value) ? value : [];
+    } catch {
+      return [];
+    }
+  };
+  return rows.map((row) => {
+    const id = row[0] as string;
+    const known = parsed.get(id);
+    if (known !== undefined) return known;
+    const series = cardSeries(
+      {
+        start: Number(row[1]),
+        end: Number(row[2]),
+        value: Number(row[3]),
+        source: row[4] as string,
+        sampleId: id,
+      },
+      Number(row[5]),
+      array(row[6]),
+      array(row[7]),
+      array(row[8]),
+    );
+    parsed.set(id, series);
+    return series;
+  });
+};
+
+/**
+ * A type's readings starting in `range`, oldest first, that match `filter`: a range of the (type,
+ * start) key, with a series' values as readings in place of its sample (`CardSeries`, 851-4172),
+ * from a range of the series' (type, start) index. `series`: those that can have readings in the
+ * range, read already.
+ */
+export const cardReadings = (
+  sql: StoreSql,
+  type: string,
+  range: CardInterval,
+  filter: CardFilter | null,
+  sampleIds: boolean,
+  series: ReadonlyArray<CardSeries> = cardSeriesIn(sql, type, range, filter),
+): Array<CardReading> => {
+  // Without series starting in the range, its samples are read as before: nothing to leave out.
+  const singles = singleReadings(
+    sql,
+    type,
+    range,
+    filter,
+    sampleIds,
+    anySeriesStarts(range, series),
+  );
+  if (series.length === 0) return singles;
+  return mergedReadings(singles, readingsOfSeries(series, range));
+};
+
+/**
+ * The samples' readings in `range`; with `leavingOutSeries`, but those of series with values
+ * starting in it, which are read as their values instead.
+ */
+const singleReadings = (
+  sql: StoreSql,
+  type: string,
+  range: CardInterval,
+  filter: CardFilter | null,
+  sampleIds: boolean,
+  leavingOutSeries: boolean,
+): Array<CardReading> => {
+  const filtered = sampleConditions(filter);
+  const conditions = [
+    "s.type = ?",
+    "s.start_date >= ?",
+    "s.start_date < ?",
+    "s.value IS NOT NULL",
+    ...filtered.conditions,
+  ];
+  const bindings: Array<SqlValue> = [type, range.start, range.end, ...filtered.bindings];
+  if (leavingOutSeries) {
+    conditions.push(
+      `s.id NOT IN (SELECT id FROM health_quantity_series WHERE type = ? AND start_date >= ?
+        AND start_date < ? AND "values" IS NOT NULL)`,
+    );
+    bindings.push(type, range.start, range.end);
+  }
   const rows = sql.rows(
     `SELECT s.start_date, s.end_date, s.value, s.source_bundle_id${sampleIds ? ", s.id" : ""}
-    FROM health_sample s ${join}
+    FROM health_sample s ${filtered.join}
     WHERE ${conditions.join(" AND ")} AND ${liveSample}
     ORDER BY s.start_date, s.id`,
     ...bindings,
@@ -103,7 +231,8 @@ export const cardReadings = (
 /**
  * A type's readings starting in one of `stretches` (in order and apart), oldest first: a range of
  * the key for each. Reading a night's stretches as one range, and dropping the minutes awake
- * between them, was no faster, on the server as on the Mac (851-3196).
+ * between them, was no faster, on the server as on the Mac (851-3196). A series near two
+ * stretches is parsed once (851-4172).
  */
 export const cardStretchReadings = (
   sql: StoreSql,
@@ -111,8 +240,19 @@ export const cardStretchReadings = (
   stretches: ReadonlyArray<CardStretch>,
   filter: CardFilter | null,
   sampleIds: boolean,
-): Array<CardReading> =>
-  stretches.flatMap((stretch) => cardReadings(sql, type, stretch, filter, sampleIds));
+): Array<CardReading> => {
+  const parsed = new Map<string, CardSeries>();
+  return stretches.flatMap((stretch) =>
+    cardReadings(
+      sql,
+      type,
+      stretch,
+      filter,
+      sampleIds,
+      cardSeriesIn(sql, type, stretch, filter, parsed),
+    ),
+  );
+};
 
 /**
  * Sleep analysis records with a value that end after `range` starts and start before it ends, by

@@ -420,6 +420,143 @@ struct CardQueriesTests {
     #expect(try counts("null") == [30, 90])
   }
 
+  /// A series (851-4172): a sample with its values in `healthQuantitySeries`, instants at
+  /// `minutes` past `start`.
+  private func series(
+    _ type: String, _ start: Date, minutes: [Double], values: [Double],
+    source: String = "com.apple.health.watch", device: String? = nil, uploadedValues: Bool = true
+  ) -> (HealthSample, HealthQuantitySeries) {
+    let id = UUID().uuidString.lowercased()
+    let seconds = minutes.map { $0 * 60 }
+    func json(_ numbers: [Double]) -> String {
+      "[" + numbers.map { "\($0)" }.joined(separator: ",") + "]"
+    }
+    return (
+      HealthSample(
+        id: id, type: type, startDate: start.unixMilliseconds,
+        endDate: start.addingTimeInterval(seconds.last ?? 0).unixMilliseconds,
+        value: values.reduce(0, +) / Double(values.count), unit: "x", sourceName: "Test",
+        sourceBundleID: source, device: device),
+      HealthQuantitySeries(
+        id: id, type: type, startDate: start.unixMilliseconds, count: values.count,
+        times: uploadedValues ? json(seconds) : nil,
+        durations: uploadedValues ? json(seconds.map { _ in 0 }) : nil,
+        values: uploadedValues ? json(values) : nil, minimum: values.min(),
+        maximum: values.max(), mostRecent: values.last,
+        mostRecentStartDate: start.addingTimeInterval(seconds.last ?? 0).unixMilliseconds,
+        mostRecentEndDate: start.addingTimeInterval(seconds.last ?? 0).unixMilliseconds)
+    )
+  }
+
+  private func insert(_ series: [(HealthSample, HealthQuantitySeries)], _ db: Database) throws {
+    try HealthSample.insert { series.map(\.0) }.execute(db)
+    try HealthQuantitySeries.insert { series.map(\.1) }.execute(db)
+  }
+
+  /// A series is read as its values (851-4172): each a reading at its own time, with its
+  /// sample's source and device, so they fall in their own hours, count one each, and weigh
+  /// until the source's next. One that started before the period has its values in it read,
+  /// and one uploaded without its values is one reading, its sample.
+  @Test
+  func seriesAreReadAsTheirValues() throws {
+    let watch = #"{"name":"Apple Watch","model":"Watch"}"#
+    try database.write { db in
+      try insert(
+        [
+          // From 23:30 the day before: its last two values are in the period.
+          series(
+            heartRate, date(10, 19, 23.5), minutes: [0, 15, 30, 45], values: [50, 52, 54, 56],
+            device: watch),
+          // A run, across an hour's end.
+          series(
+            heartRate, date(10, 20, 9.75), minutes: [0, 10, 20], values: [120, 150, 130],
+            device: watch),
+          series(
+            heartRate, date(10, 20, 14), minutes: [0, 1], values: [70, 90], device: watch,
+            uploadedValues: false),
+        ], db)
+      try HealthSample.insert {
+        sample(heartRate, date(10, 20, 10.5), 100, source: "com.example.strap")
+      }
+      .execute(db)
+    }
+    func points(_ series: String, filter: String = "null") throws -> [CardPoint] {
+      let card = try spec(
+        #"{"version": 1, "display": {"name": "HR"}, "series": [{"type": "Heart Rate", \#(series), "filter": \#(filter)}], "bucket": "hour", "range": "D"}"#
+      )
+      return try database.read { db in
+        try HealthDatabase.cardData(
+          card, range: .day, date: date(10, 20), now: date(10, 21), calendar: calendar, db)
+      }
+      .series[0].points
+    }
+    // 00:00: the series from the day before's last two; 09:00 and 10:00: the run's values, and
+    // the strap's; 14:00: the series without its values, as its sample.
+    #expect(try points(#""aggregation": "count""#).map(\.value) == [2, 2, 2, 1])
+    #expect(try points(#""aggregation": "max""#).map(\.value) == [56, 150, 130, 80])
+    #expect(
+      try points(#""aggregation": "count""#, filter: #"{"deviceModels": ["Watch"]}"#)
+        .map(\.value) == [2, 2, 1, 1])
+    // 09:00: 120 and 150 for 10 minutes each. 10:00: 130 until the source's next reading,
+    // 14:00's (capped: an hour), and the strap's 100, its last, for its own minute.
+    let averages = try points(#""aggregation": "avg""#).map(\.value)
+    #expect(averages[1] == 135)
+    #expect(abs(averages[2] - (130 * 3600 + 100 * 60) / 3660) < 1e-9)
+  }
+
+  /// Series' JSON arrays are read as JSON reads them, to the bit, quickly where it can.
+  @Test
+  func seriesArraysParseAsJSON() throws {
+    func numbers(_ json: String) -> [Double] {
+      json.withCString { text in
+        text.withMemoryRebound(to: UInt8.self, capacity: json.utf8.count) {
+          HealthDatabase.numbers($0, Int32(json.utf8.count))
+        }
+      }
+    }
+    let json =
+      "[0, 0.005, 125, -3.25, 72.499999999999, 1e-7, 1.5E3, 0.1, 123456789012345678, 0.30000000000000004]"
+    let expected = try JSONDecoder().decode([Double].self, from: Data(json.utf8))
+    #expect(numbers(json) == expected)
+    #expect(numbers("[]") == [])
+    #expect(numbers(" [ 1 ,2 ] ") == [1, 2])
+    for broken in ["", "[", "[1,]", "[1 2]", "[a]", "{}"] {
+      #expect(numbers(broken) == [], "\(broken)")
+    }
+  }
+
+  /// A Summary row's latest reading is a series' most recent value, not its sample's, which is
+  /// the whole series', as the tools' latest (`latestReading`, 851-4171): a later one, by then,
+  /// from a series that started before another source's latest sample too (851-4172).
+  @Test
+  func aSeriesLatestValueIsTheLatestReading() throws {
+    try database.write { db in
+      try insert(
+        [
+          series(
+            heartRate, date(10, 20, 9), minutes: [0, 30, 60, 90], values: [110, 140, 120, 90])
+        ],
+        db)
+      try HealthSample.insert {
+        sample(heartRate, date(10, 20, 10.25), 75, source: "com.example.strap")
+      }
+      .execute(db)
+    }
+    let card = try spec(
+      #"{"version": 1, "display": {"name": "HR"}, "series": [{"type": "Heart Rate"}]}"#)
+    func headline(at now: Date) throws -> CardHeadline? {
+      try database.read { db in
+        try HealthDatabase.cardHeadline(card, now: now, calendar: calendar, db)
+      }
+    }
+    // The strap's 75 at 10:15 is the latest sample, but the series' 90 at 10:30 is later.
+    #expect(try headline(at: date(10, 20, 12))?.value == 90)
+    #expect(try headline(at: date(10, 20, 12))?.date == date(10, 20, 10.5))
+    #expect(try headline(at: date(10, 20, 10.3))?.value == 75)
+    // The series is the latest sample: its most recent value, as the tools take it.
+    #expect(try headline(at: date(10, 20, 9.75))?.value == 90)
+  }
+
   /// A night card's nights are Sleep's: on the catalogs' demo data, last night's heart rate while
   /// asleep is the Sleep page's highlight's.
   @Test
@@ -484,17 +621,48 @@ struct CardQueriesBenchmark {
     return times.sorted()[2]
   }
 
-  @Test
-  func aYearByTheDay() throws {
+  /// `withSeries` (851-4172): each day's run, 18:00 to 18:45, has heart rate as a Watch records
+  /// a workout's, a series of a value every 5 seconds (540 values), in place of its minutes.
+  @Test(arguments: [false, true])
+  func aYearByTheDay(withSeries: Bool) throws {
     let url = URL.temporaryDirectory.appending(path: "card-benchmark-\(UUID().uuidString).sqlite")
     defer { try? FileManager.default.removeItem(at: url) }
     let database = try HealthDatabase.make(at: url)
     let start = Date(timeIntervalSince1970: 1_767_225_600)  // 2026-01-01 00:00 UTC
     let minutes = 525_600
     let upsert = PreparedUpsert<HealthSample>()
+    let watch = "com.apple.health.81F3A2C4-5D6E-4F70-8A9B-0C1D2E3F4A5B"
+    let watchDevice = #"{"name":"Apple Watch","model":"Watch"}"#
+    func inRun(_ minute: Int) -> Bool {
+      withSeries && (18 * 60..<18 * 60 + 45).contains(minute % 1440)
+    }
+    if withSeries {
+      let seconds = Array(stride(from: 0, to: 45 * 60, by: 5))
+      let times = "[" + seconds.map(String.init).joined(separator: ",") + "]"
+      let durations = "[" + seconds.map { _ in "0" }.joined(separator: ",") + "]"
+      let values = "[" + seconds.map { String(120 + ($0 * 7) % 50) }.joined(separator: ",") + "]"
+      try database.write { db in
+        for day in 0..<365 {
+          let at = start.unixMilliseconds + (day * 1440 + 18 * 60) * 60_000
+          let id = UUID().uuidString.lowercased()
+          try upsert.execute(
+            HealthSample(
+              id: id, type: heartRate, startDate: at, endDate: at + (45 * 60 - 5) * 1000,
+              value: 140, unit: "count/min", sourceName: "Apple Watch", sourceBundleID: watch,
+              device: watchDevice),
+            db)
+          try HealthQuantitySeries.insert {
+            HealthQuantitySeries(
+              id: id, type: heartRate, startDate: at, count: seconds.count, times: times,
+              durations: durations, values: values)
+          }
+          .execute(db)
+        }
+      }
+    }
     for type in ["HKQuantityTypeIdentifierActiveEnergyBurned", heartRate] {
       try database.write { db in
-        for minute in 0..<minutes {
+        for minute in 0..<minutes where type != heartRate || !inRun(minute) {
           let at = start.unixMilliseconds + minute * 60_000
           try upsert.execute(
             HealthSample(
@@ -518,6 +686,14 @@ struct CardQueriesBenchmark {
         arguments: [heartRate, start.unixMilliseconds, start.unixMilliseconds + 366 * 86_400_000])
     }
     print("SQLite reading a year's rows: \(floor) ms")
+    let seriesLookup = try median(database) { db in
+      var parsed: [String: CardSeries.Series] = [:]
+      _ = try HealthDatabase.cardSeries(
+        of: heartRate, for: start.unixMilliseconds..<start.unixMilliseconds + 366 * 86_400_000,
+        nil, parsed: &parsed, db)
+    }
+    print(
+      "Series \(withSeries ? "with" : "without") series, reading the year's: \(seriesLookup) ms")
     let cards = [
       ("avg", #"{"type": "Heart Rate"}"#),
       (
@@ -545,7 +721,9 @@ struct CardQueriesBenchmark {
         let data = try HealthDatabase.cardData(run, now: start, db)
         #expect(data.series[0].points.count == 365)
       }
-      print("A year by the day, \(name): \(total) ms, of which fetching \(fetch) ms")
+      print(
+        "A year by the day, \(withSeries ? "with series, " : "")\(name): \(total) ms, of which fetching \(fetch) ms"
+      )
     }
 
     // A year of a Watch's nights (10 records each, two awake in the night) and a 45-minute run
@@ -583,6 +761,7 @@ struct CardQueriesBenchmark {
       ("asleep, by the night", #"{"kind": "asleep"}"#, "night"),
       ("5 minutes before sleep, by the night", #"{"kind": "beforeSleep", "minutes": 5}"#, "night"),
       ("during runs, by the day", #"{"kind": "workout", "activities": [37]}"#, "day"),
+      ("during cycling, by the day", #"{"kind": "workout", "activities": [13]}"#, "day"),
     ]
     for (name, window, bucket) in windowed {
       let card = try CardSpec(
@@ -595,7 +774,9 @@ struct CardQueriesBenchmark {
         points = try HealthDatabase.cardData(run, now: start, db).series[0].points.count
       }
       #expect(points > 180)
-      print("A year, heart rate \(name): \(total) ms, \(points) points")
+      print(
+        "A year, \(withSeries ? "with series, " : "")heart rate \(name): \(total) ms, \(points) points"
+      )
     }
   }
 }

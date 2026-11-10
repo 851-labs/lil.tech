@@ -7,7 +7,8 @@
     "Workouts say where they were as the workouts tool's indoor reads it (851-4031): 22 October's run indoors in its metadata (HKIndoorWorkout true), 24 October's run outdoors only through its one activity's configuration (locationType 3), and 24 October's strength workout nothing. The tools' dataset's 20 October run says outdoors as a number (HKIndoorWorkout 0).",
     "Weight comes from a scale (org.example.scale): weigh-ins before and after noon, one at noon exactly, on both sides of the clock change, and ties for first and latest. HRV, resting heart rate and body temperature have a few readings each, and environmental sound two readings of different lengths.",
     "The second batch (851-4043) is America/Los_Angeles over both of its changes of clock in 2025, away from every other case's period: Sunday 9 March, when 02:00 PST (10:00Z) becomes 03:00 PDT (a day of 23 hours), and Sunday 2 November, when 02:00 PDT (09:00Z) becomes 01:00 PST (25 hours, 01:00 twice). Around each, from the Watch: the nights ending the day before, on the day and the day after, and one in the next week (and in November one in the last week of October), with heart rate before sleep, asleep, awake in the night and after waking. 9 March's night is asleep across the skipped hour; on 2 November the Watch lies awake through the first 01:00 and falls asleep 2 minutes into the second, so its 5 minutes before sleep straddle the change. From the scale, weigh-ins at 19:30Z on either side of each change: 11:30 on the clock on one side, 12:30 on the other; and in November, mornings in the week before, for a moving average.",
-    "The third batch (851-4155) is a trip in June 2025, away from every other case's period, with records that say where they were recorded (`HKTimeZone`): body temperature taken in Tokyo at 07:00 and 23:30 JST on Tuesday 10 June (22:00Z on the 9th, 23:00 BST, and 14:30Z), one without a zone at 12:00Z on the 11th, and one taken in Tokyo at 07:00 JST on Monday 16 June (22:00Z on Sunday the 15th); the Watch's night in Tokyo, 23:00 JST on the 11th to 06:30 JST on the 12th (14:00Z to 21:30Z, a day's sleep on London's clock), with heart rate asleep; a run in Tokyo, 07:00 to 07:30 JST on Friday 13 June (22:00Z on the 12th), with heart rate during it; and a night across a change of zone, flying from New York to London, its first record recorded in New York (21:00 EDT on the 15th) and its last two in London (06:00 to 09:00 BST on the 16th), with heart rate asleep. The heart rate has no zone of its own, as a Watch's readings usually haven't."
+    "The third batch (851-4155) is a trip in June 2025, away from every other case's period, with records that say where they were recorded (`HKTimeZone`): body temperature taken in Tokyo at 07:00 and 23:30 JST on Tuesday 10 June (22:00Z on the 9th, 23:00 BST, and 14:30Z), one without a zone at 12:00Z on the 11th, and one taken in Tokyo at 07:00 JST on Monday 16 June (22:00Z on Sunday the 15th); the Watch's night in Tokyo, 23:00 JST on the 11th to 06:30 JST on the 12th (14:00Z to 21:30Z, a day's sleep on London's clock), with heart rate asleep; a run in Tokyo, 07:00 to 07:30 JST on Friday 13 June (22:00Z on the 12th), with heart rate during it; and a night across a change of zone, flying from New York to London, its first record recorded in New York (21:00 EDT on the 15th) and its last two in London (06:00 to 09:00 BST on the 16th), with heart rate asleep. The heart rate has no zone of its own, as a Watch's readings usually haven't.",
+    "The fourth batch (851-4172) is quantity series, in Europe/London (BST, UTC+1) on Tuesday 11 and Wednesday 12 June 2024, away from every other case's period. Each series is a health_sample (its value HealthKit's for the whole series, which no engine reads now) and a health_quantity_series record of its values, instants (durations 0), as the iPhone uploads them (851-4149). From the Watch: heart rate 70 at 16:00, a run from 18:00 to 18:30 with a series of 7 values (120 at 18:00, 130 at 18:01, 140 at 18:02, 150 at 18:05, 145 at 18:10, 135 at 18:15, 125 at 18:25), 80 at 19:00, a series of 7 values every 10 minutes from 23:30 to 00:30 (62, 60, 58, 57, 56, 55, 54), across midnight, and 65 at 07:00 on 12 June; from the chest strap, a minute each of 128 at 18:10 and 142 at 18:20, in the run. HRV from the Watch: a series of 40, 50 and 66 at 07:00, 07:00:30 and 07:01, and 30 at 09:00. The iPhone writes each series with HKQuantitySeriesSampleBuilder, as a Watch does."
   ],
   "extends": "../../tools/conformance/dataset.json",
   "batches": [
@@ -809,7 +810,9 @@
             "activities": [],
             "events": [],
             "statistics": {},
-            "metadata": { "HKIndoorWorkout": true },
+            "metadata": {
+              "HKIndoorWorkout": true
+            },
             "sourceName": "Test Apple Watch",
             "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
           }
@@ -2474,6 +2477,228 @@
             "sourceName": "Test Apple Watch",
             "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
             "provenance": "0ca7d000000000000000000000000001"
+          }
+        }
+      ]
+    },
+    {
+      "device": "dev_00000000000000000000000ph1",
+      "receivedAt": "2026-10-31T10:00:00Z",
+      "lines": [
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000401",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1718118000000,
+            "endDate": 1718118000000,
+            "value": 70,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000402",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1718125200000,
+            "endDate": 1718126700000,
+            "value": 139.8,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_quantity_series",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000402",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1718125200000,
+            "count": 7,
+            "times": [0, 60, 120, 300, 600, 900, 1500],
+            "durations": [0, 0, 0, 0, 0, 0, 0],
+            "values": [120, 130, 140, 150, 145, 135, 125],
+            "minimum": 120,
+            "maximum": 150,
+            "mostRecent": 125,
+            "mostRecentStartDate": 1718126700000,
+            "mostRecentEndDate": 1718126700000
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000403",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1718128800000,
+            "endDate": 1718128800000,
+            "value": 80,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000404",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1718145000000,
+            "endDate": 1718148600000,
+            "value": 58.0,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_quantity_series",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000404",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1718145000000,
+            "count": 7,
+            "times": [0, 600, 1200, 1800, 2400, 3000, 3600],
+            "durations": [0, 0, 0, 0, 0, 0, 0],
+            "values": [62, 60, 58, 57, 56, 55, 54],
+            "minimum": 54,
+            "maximum": 62,
+            "mostRecent": 54,
+            "mostRecentStartDate": 1718148600000,
+            "mostRecentEndDate": 1718148600000
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000405",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1718172000000,
+            "endDate": 1718172000000,
+            "value": 65,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000406",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1718125800000,
+            "endDate": 1718125860000,
+            "value": 128,
+            "unit": "count/min",
+            "sourceName": "Test Chest Strap",
+            "sourceBundleId": "org.example.strap",
+            "device": {
+              "name": "Test Chest Strap",
+              "manufacturer": "Example",
+              "model": "Strap"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000407",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1718126400000,
+            "endDate": 1718126460000,
+            "value": 142,
+            "unit": "count/min",
+            "sourceName": "Test Chest Strap",
+            "sourceBundleId": "org.example.strap",
+            "device": {
+              "name": "Test Chest Strap",
+              "manufacturer": "Example",
+              "model": "Strap"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000408",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "startDate": 1718085600000,
+            "endDate": 1718085660000,
+            "value": 52.0,
+            "unit": "ms",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_quantity_series",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000408",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "startDate": 1718085600000,
+            "count": 3,
+            "times": [0, 30, 60],
+            "durations": [0, 0, 0],
+            "values": [40, 50, 66],
+            "minimum": 40,
+            "maximum": 66,
+            "mostRecent": 66,
+            "mostRecentStartDate": 1718085660000,
+            "mostRecentEndDate": 1718085660000
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000409",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+            "startDate": 1718092800000,
+            "endDate": 1718092800000,
+            "value": 30,
+            "unit": "ms",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "provenance": "0ca7d000000000000000000000000001"
+          }
+        },
+        {
+          "entity": "health_workout",
+          "op": "upsert",
+          "id": "0ca7d000-0000-4000-8000-000000000451",
+          "row": {
+            "activityType": 37,
+            "startDate": 1718125200000,
+            "endDate": 1718127000000,
+            "duration": 1800,
+            "activities": [],
+            "events": [],
+            "statistics": {},
+            "metadata": {
+              "HKIndoorWorkout": false
+            },
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
           }
         }
       ]

@@ -146,6 +146,25 @@ LIL_BENCHMARKS=1 swift test -c release --filter CardQueriesBenchmark
 - **Reading by column** from the statement, with one string per run of a source's rows, took fetching from 73 ms over SQLite's floor (a GRDB `Row` each, and a string each) to 42 ms. Computing the points from the readings takes the rest, 35–60 ms: the weights number each reading's source rather than hashing its bundle ID, and only `first` and `latest` keep readings in their buckets.
 - **A covering index** of `(type, startDate, endDate, value, sourceBundleID)` took SQLite's part from 97 ms to 57 ms, but would store every sample's type and bundle ID a second time, hundreds of MB on a real Mac's millions of samples, so there's none.
 
+**Quantity series** (851-4172, `docs/decisions/cards.md` › Details 851-4172 settled): `aYearByTheDay(withSeries:)` runs each card on the same year, without series, then with each day's 18:00 workout's heart rate as a Watch records it, a series of a value every 5 seconds (365 series of 540 values, 197,100 values) in place of its 45 minutes. **2026-11-10**, Apple M1 Pro, beside other agents' builds (load 20–120). CPU ms, fetching in brackets:
+
+| Card | Without series | With series |
+| --- | ---: | ---: |
+| Reading the year's series alone | 0.004 | 14 |
+| Heart rate, `avg`, by the day | 211 (153) | 280 (200) |
+| Heart rate, `max`, `deviceModels: ["Watch"]` | 287 (219) | 358 (269) |
+| Heart rate, `first`, `00:00` to `12:00` | 234 (190) | 275 (233) |
+| Heart rate, `asleep`, by the night | 100 | 101 |
+| Heart rate, `beforeSleep` 5 minutes, by the night | 11 | 13 |
+| Heart rate, `workout` of running, by the day (98,820 values) | 7 | 30 |
+
+- **Without series nothing changed:** the series' index is one seek per range, and the rows above are the first table's within the load's noise.
+- **With them, a year's card costs a third more,** for 37% more readings (706,500 against 525,600).
+- **Three things made it so** (the first measurement was 438 ms for `avg`, 78 ms before sleep and 92 ms for runs):
+  - **No per-row lookup.** The samples are read leaving out series' samples by their starts and IDs as they come, rather than `NOT IN` the range's series, a lookup per row, which cost 160 ms.
+  - **A faster parser.** The series' JSON arrays are read from their bytes (68 ms down to 12).
+  - **Only the series near a window's stretches are read,** each parsed once, rather than the whole year's for every window.
+
 ## Cards on the server
 
 What a card costs the server's engine (851-3197, `docs/decisions/cards.md`, The server), on the Mac's benchmark data (above) in a `node:sqlite` store: a year of heart rate a minute (525,600 samples) and as many of active energy, a year of a Watch's nights and a 45-minute workout a day. `CardEngineBenchmark` (`Services/api/test/health/cards`) runs each card over Y, with a 7-day moving average, five times, and prints the median's CPU time (the process's):
@@ -170,6 +189,21 @@ LIL_BENCHMARKS=1 vp test --reporter=verbose --silent=false test/health/cards/Car
 | Active energy from its samples, by the day | 577 |
 
 - **Reading the rows is most of it,** as for the Health tools (above): the engine adds 50–300 ms over the floor for half a million readings. Time-zone math is per bucket and night, not per reading.
+- **Quantity series** (851-4172), on the Mac's series data (above), **2026-11-10**, on the same Mac (load 8–90), CPU ms:
+
+  | Card | Without series | With series |
+  | --- | ---: | ---: |
+  | Reading the year's series alone | 0 | 14 |
+  | Heart rate, `avg`, by the day | 593 | 637 |
+  | Heart rate, `avg`, `auto` (by the month) | 483 | 629 |
+  | Heart rate, `max`, `deviceModels: ["Watch"]`, by the day | 647 | 777 |
+  | Heart rate, `first`, `00:00` to `12:00`, by the day | 650 | 791 |
+  | Heart rate, `asleep`, by the night | 226 | 232 |
+  | Heart rate, `beforeSleep` 5 minutes, by the night | 87 | 85 |
+  | Heart rate, `workout` of running, by the day | 44 | 56 |
+
+  - **The query plan matters:** the store's samples are keyed by (type, start, ID), with no index of the ID alone. A series is joined to its sample by that key, with `CROSS JOIN` keeping the series first. Joined by ID alone, each series scanned the samples, and the benchmark didn't finish in 14 minutes. Left to choose, SQLite read a year's samples for a year's series (65 ms with no series at all).
+  - `NOT IN` the range's series costs the server about 45 ms here, so it stays.
 - **A real account** has about 105,000 heart rate samples a year (Agent tool calls, above), a fifth of these, so a year's card costs about what a year of `metric` does, well under the store's 30 s limit and inside the tools' 0.7 s.
 
 ## Cards on the iPhone
@@ -203,6 +237,29 @@ TEST_RUNNER_LIL_HEALTHKIT_BENCHMARK=1 scripts/test-iphone-healthkit HealthKitCar
 - **Totals** cost HealthKit 8,760 hourly statistics for a year, a quarter of a second: cheap enough not to ask HealthKit for days, which would step by its calendar rather than the run's.
 - Writing the year of heart rate takes about 10 s (`HKHealthStore.save`, 10,000 a time).
 - **Windows** (851-3200, 2026-11-03, the same simulator) add a Watch's night ending on every day of the year and a 45-minute run every other day. Reading a window's stretches, a year asleep: a query per stretch one after another 1.92 s, 4 at once 0.58 s; stretches less than an hour apart as one query (a night's), one after another 1.32 s, 8 at once 0.32 s; the year's span in one query 1.37 s. Before sleep, 365 five-minute stretches: 0.66 s one after another, 0.25–0.29 s 4 or 8 at once. So the engine reads a night's stretches as one, 8 queries at once (0.50 s for the whole card with 4).
+- **Quantity series** (851-4172), `aYearOfHeartRateWithWorkoutSeries`: the year of heart rate every 5 minutes, but for a 45-minute run every other day, recorded as a Watch records a workout's, a series of a value every 5 seconds written with `HKQuantitySeriesSampleBuilder` (103,473 samples and 183 series of 540 values, 202,293 readings). **2026-11-10**, the same simulator and Mac, beside other agents' work. Seconds, each run:
+
+  | Card | Without series (`aYearOfHeartRate`) | With series |
+  | --- | ---: | ---: |
+  | Heart rate, `avg`, `auto` (by the month), Y | 1.61–1.76 | 1.72–1.85 |
+  | Heart rate, `max`, by the day, with a 7-day moving average, Y | 1.59–1.66 | 1.71–1.74 |
+  | Heart rate while running, by the day, Y (98,820 values with series) | 0.16–0.17 | 0.81 |
+  | Heart rate, `avg`, `auto` (by the day), W | 0.035 | 0.039 |
+  | HealthKit reading the year as readings | 1.43 | 1.54 |
+
+  - **Without series** the cards cost what they did, but for a device filter's (0.10 s against 0.04 s), whose series query has the device predicate too. Reading a type's series is an `HKSampleQuery` with `count > 1`.
+  - **With series,** a year of daily runs adds about 0.1–0.15 s. Each series' values are read by its own query, 8 at once, without its sample. How HealthKit's values queries behave, on this data:
+
+    | Values query | Time |
+    | --- | ---: |
+    | By dates, with each value's sample (`includeSample`) | 32 s |
+    | By dates, without | 0.44 s |
+    | By 183 IDs at once | 125 s |
+    | By 10 IDs | 0.07–0.09 s |
+    | By 1 ID | 4 ms |
+    | By dates and `count > 1` | 0.30 s, every value |
+
+    The last left out a 4-value series' first and last values (`docs/decisions/cards.md` › Details 851-4172 settled), so it isn't used.
 
 ## Snapshot tests: from an edit to an image
 

@@ -223,4 +223,90 @@ struct HealthKitCardsBenchmark {
     _ = await task.result
     print("Benchmark: cancelled after 50 ms, stopped after \(clock.now - start)")
   }
+
+  /// Series (851-4172): a year of heart rate every 5 minutes, but for a 45-minute run every other
+  /// day, recorded as a Watch records a workout's, a series of a value every 5 seconds (183 runs,
+  /// 540 values each, 98,820 values beside 102,000 single samples).
+  @Test
+  func aYearOfHeartRateWithWorkoutSeries() async throws {
+    let health = try await SyntheticHealthKit.empty()
+    let bpm = HKUnit.count().unitDivided(by: .minute())
+    let clock = ContinuousClock()
+    let saving = clock.now
+    var samples: [HKQuantitySample] = []
+    var day = date(1, 1)
+    var values = 0
+    for index in 0..<365 {
+      let run = day.addingTimeInterval(7 * 3600)
+      let runs = index % 2 == 0
+      for minute in stride(from: 0, to: 24 * 60, by: 5) {
+        let at = day.addingTimeInterval(Double(minute) * 60)
+        if runs, at >= run, at < run.addingTimeInterval(45 * 60) { continue }
+        samples.append(
+          SyntheticHealthKit.sample(heartRate, 50 + Double((minute * 37) % 70), at: at))
+      }
+      if runs {
+        let builder = HKQuantitySeriesSampleBuilder(
+          healthStore: health.store, quantityType: HKQuantityType(.heartRate), startDate: run,
+          device: nil)
+        for second in stride(from: 0, to: 45 * 60, by: 5) {
+          try builder.insert(
+            HKQuantity(unit: bpm, doubleValue: 120 + Double((second * 7) % 50)),
+            at: run.addingTimeInterval(Double(second)))
+          values += 1
+        }
+        _ = try await builder.finishSeries(
+          metadata: nil, endDate: run.addingTimeInterval(45 * 60 - 5))
+        _ = try await health.workout(.running, at: run, minutes: 45)
+      }
+      day = london.date(byAdding: .day, value: 1, to: day)!
+    }
+    try await health.save(samples)
+    print(
+      "Benchmark: saved \(samples.count) samples and 183 series of \(values) values in \(clock.now - saving)"
+    )
+
+    let engine = HealthKitCardEngine(store: health.store)
+    let cards: [(String, String, CardRange)] = [
+      (
+        "with series, Y by the month, average",
+        #"{"version": 1, "display": {"name": "HR"}, "series": [{"type": "HeartRate"}], "range": "Y"}"#,
+        .year
+      ),
+      (
+        "with series, Y by the day, highest, with a 7-day average",
+        #"{"version": 1, "display": {"name": "HR"}, "series": [{"type": "HeartRate", "aggregation": "max"}], "formulas": [{"id": "t", "kind": "movingAverage", "of": "a", "points": 7}], "bucket": "day", "range": "Y"}"#,
+        .year
+      ),
+      (
+        "with series, heart rate while running, by the day, Y",
+        #"{"version": 1, "display": {"name": "HR"}, "series": [{"type": "HeartRate", "window": {"kind": "workout", "activities": [37]}}], "bucket": "day", "range": "Y"}"#,
+        .year
+      ),
+      (
+        "with series, W by the day, average",
+        #"{"version": 1, "display": {"name": "HR"}, "series": [{"type": "HeartRate"}], "range": "W"}"#,
+        .week
+      ),
+    ]
+    for (name, json, range) in cards {
+      let card = try CardSpec(inputJSON: Data(json.utf8))
+      let run = CardRun(spec: card, range: range, date: date(10, 20), now: now, calendar: london)
+      var durations: [Duration] = []
+      var readings = 0
+      for _ in 0..<3 {
+        let start = clock.now
+        readings = try await engine.data(run).series[0].points.reduce(0) { $0 + ($1.readings ?? 0) }
+        durations.append(clock.now - start)
+      }
+      print(
+        "Benchmark: \(name) (\(readings) readings): \(durations.map(\.description).joined(separator: ", "))"
+      )
+    }
+    let year = ms(date(1, 1))..<ms(date(1, 1).addingTimeInterval(366 * 86_400))
+    let reading = clock.now
+    let readings = try await engine.readings(
+      of: heartRate, in: year, filter: nil, needsSampleIDs: false)
+    print("Benchmark: with series, reading \(readings.count) readings: \(clock.now - reading)")
+  }
 }

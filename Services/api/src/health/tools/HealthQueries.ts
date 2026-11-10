@@ -2,6 +2,7 @@ import type { DateTime } from "effect";
 import type { SqlRow, SqlValue, StoreSql } from "../../store/StoreSql.ts";
 import { type HealthCatalogType, healthCatalogTypes } from "../HealthCatalog.ts";
 import { statisticsBucketMillis } from "../HealthEntities.ts";
+import { cardSeries, cardSeriesReach } from "../cards/CardSeries.ts";
 import { startOfLocalDay } from "./ToolTime.ts";
 
 // Reads of the user's store for the Health tools. They follow the Mac's `HealthDatabase` queries,
@@ -122,7 +123,8 @@ export const latestReading = (sql: StoreSql, type: string, now: number): LatestS
         };
   const later = sql.exec(
     `SELECT s.id, s.unit, q.most_recent, q.most_recent_start_date, q.most_recent_end_date
-    FROM health_quantity_series q JOIN health_sample s ON s.id = q.id
+    FROM health_quantity_series q
+    CROSS JOIN health_sample s ON s.type = q.type AND s.start_date = q.start_date AND s.id = q.id
     WHERE q.type = ? AND q.start_date >= ? AND q.start_date <= ? AND q.most_recent IS NOT NULL
       AND q.most_recent_start_date > ? AND q.most_recent_start_date <= ? AND ${liveSample}
     ORDER BY q.most_recent_start_date DESC, s.id DESC LIMIT 1`,
@@ -465,9 +467,10 @@ export interface QuantityReading {
  * that started this long before it too, and values later than that (or after the sample's end)
  * don't count anywhere, so what a range reads doesn't depend on where it starts. The iPhone
  * uploads at most 20,000 values a series: a week of them every 30 s. The Mac's
- * `HealthDatabase.seriesLookback`.
+ * `HealthDatabase.seriesLookback`. The cards' engines read series by the same rules, from the same
+ * constant (`cardSeriesReach`, 851-4172).
  */
-export const seriesLookbackMillis = 7 * 24 * 60 * 60 * 1000;
+export const seriesLookbackMillis = cardSeriesReach;
 
 /** A quantity series' values: each one's start and duration in seconds since the sample's start. */
 export interface QuantitySeriesValues {
@@ -553,21 +556,21 @@ export const seriesReadings = (series: QuantitySeriesSample): ReadonlyArray<Quan
   if (values === null) {
     return series.value === null ? [] : [{ start, end, value: series.value, source }];
   }
-  const reach = start + seriesLookbackMillis;
-  const readings: Array<QuantityReading> = [];
-  for (let index = 0; index < values.values.length; index++) {
-    const interval = seriesValueInterval(values, index, start);
-    if (interval.start <= end && interval.start < reach) {
-      readings.push({ ...interval, value: values.values[index]!, source });
-    }
-  }
-  return readings;
+  // The cards' rules, one copy (`cardSeries`, 851-4172).
+  const sample = { start, end, value: series.value ?? 0, source, sampleId: series.id };
+  return (
+    cardSeries(sample, start, values.times, values.durations, values.values).values ?? []
+  ).map((reading) => ({ start: reading.start, end: reading.end, value: reading.value, source }));
 };
 
 /**
  * A type's series whose samples start in `[from, to)` and end at or after `endingFrom`, oldest
  * first, then by ID, past tombstones. Through the series' own (type, start_date) index, so a
  * range without series costs a seek.
+ *
+ * Joined to its sample by the samples' key (type, start, ID), which has no index of the ID alone,
+ * with `CROSS JOIN` keeping the series first (851-4172): by the ID alone, SQLite scanned the
+ * samples for each series, or read a year's samples for a year's range.
  */
 export const quantitySeries = (
   sql: StoreSql,
@@ -580,7 +583,8 @@ export const quantitySeries = (
     .rows(
       `SELECT s.id, s.start_date, s.end_date, s.value, s.source_bundle_id,
         q.times, q.durations, q."values", q.minimum, q.maximum
-      FROM health_quantity_series q JOIN health_sample s ON s.id = q.id
+      FROM health_quantity_series q
+      CROSS JOIN health_sample s ON s.type = q.type AND s.start_date = q.start_date AND s.id = q.id
       WHERE q.type = ? AND q.start_date >= ? AND q.start_date < ? AND s.end_date >= ?
         AND ${liveSample}
       ORDER BY q.start_date, q.id`,
