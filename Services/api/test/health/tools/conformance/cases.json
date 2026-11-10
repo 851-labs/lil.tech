@@ -4,7 +4,8 @@
     "Outputs match as JSON, except that numbers may differ by a relative 1e-9 (sums added in another order).",
     "Write expected outputs by hand, from the dataset and the tools' descriptions, not by copying what an implementation returns.",
     "Arguments outside a tool's input schema (a range not in its list, a missing type, a limit out of bounds) are the tool's error on both servers, in the remote's words: `Invalid parameters for tool '<tool>': ` and each issue with where it is, in the schema's order (851-4034). A `date` is any string in the schema, and the tool refuses one that isn't a day from 2000-01-01 to 2999-12-31: `Invalid date: …` (851-4044), as the card tools do.",
-    "The route tools (851-4164) read routes' points from blobs.json, as the server reads them from R2 and the Mac from the app's blob cache. Their simplified shapes' expected points come from a reference implementation written apart from both servers, since hundreds of points can't be worked out by hand; the rest is by hand."
+    "The route tools (851-4164) read routes' points from blobs.json, as the server reads them from R2 and the Mac from the app's blob cache. Their simplified shapes' expected points come from a reference implementation written apart from both servers, since hundreds of points can't be worked out by hand; the rest is by hand.",
+    "Quantity series (851-4171): the heart rate statistics and the pages of a series' values are worked out by a reference implementation written apart from both servers, from the rules in docs/decisions/health.md, since 120 values every 5 s can't be weighted by hand; the rest is by hand."
   ],
   "cases": [
     {
@@ -364,6 +365,70 @@
       }
     },
     {
+      "name": "summary when the latest heart rate is a series: its most recent value and time, not the series' own value",
+      "tool": "summary",
+      "now": "2026-04-14T21:00:00Z",
+      "arguments": {},
+      "expected": {
+        "timeZone": "UTC",
+        "date": "2026-04-14",
+        "pinned": false,
+        "metrics": [
+          {
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "unit": null,
+            "latest": null,
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "unit": "count/min",
+            "latest": {
+              "start": "2026-04-14T20:56:39+00:00",
+              "end": "2026-04-14T20:56:39+00:00",
+              "value": 120,
+              "categoryValue": null
+            },
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+            "unit": null,
+            "latest": null,
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierDistanceWalkingRunning",
+            "unit": null,
+            "latest": null,
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierRestingHeartRate",
+            "unit": null,
+            "latest": null,
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "unit": null,
+            "latest": null,
+            "today": null,
+            "last7Days": null
+          }
+        ],
+        "workouts": {
+          "count": 0,
+          "duration": 0
+        }
+      }
+    },
+    {
       "name": "summary with an unknown time zone fails",
       "tool": "summary",
       "now": "2026-10-20T15:00:00Z",
@@ -505,7 +570,7 @@
             "kind": "quantity",
             "unit": "count/min",
             "cumulative": false,
-            "first": "2026-10-19T09:00:00+00:00",
+            "first": "2026-04-14T09:50:00+00:00",
             "last": "2026-10-20T14:45:30+00:00"
           },
           {
@@ -708,7 +773,7 @@
             "kind": "quantity",
             "unit": "count/min",
             "cumulative": false,
-            "first": "2026-10-19T02:00:00-07:00",
+            "first": "2026-04-14T02:50:00-07:00",
             "last": "2026-10-20T07:45:30-07:00"
           },
           {
@@ -1204,6 +1269,480 @@
       }
     },
     {
+      "name": "metric: heart rate with a series, by the hour: each of a workout's values counts at its own time, until the Watch's next value, so the series splits at 10:00; the series without its values is one reading",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "range": "D",
+        "date": "2026-04-14"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-04-14T00:00:00+00:00",
+        "end": "2026-04-15T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "unit": "count/min",
+        "statistic": "average",
+        "value": 94.95333333333333,
+        "buckets": [
+          {
+            "start": "2026-04-14T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T01:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T02:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T03:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T04:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T05:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T06:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T07:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T08:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T09:00:00+00:00",
+            "value": 99.26470588235294
+          },
+          {
+            "start": "2026-04-14T10:00:00+00:00",
+            "value": 113.82450832072617
+          },
+          {
+            "start": "2026-04-14T11:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T12:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T13:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T14:00:00+00:00",
+            "value": 98.0
+          },
+          {
+            "start": "2026-04-14T15:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T16:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T17:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T18:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T19:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T20:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T21:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T22:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T23:00:00+00:00",
+            "value": 71.5
+          }
+        ]
+      }
+    },
+    {
+      "name": "metric: the highest heart rate by the hour, with a series: its values' peak at 10:00 in the 10:00 bucket, and a series without its values counts its own maximum",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "range": "D",
+        "statistic": "maximum",
+        "date": "2026-04-14"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-04-14T00:00:00+00:00",
+        "end": "2026-04-15T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "unit": "count/min",
+        "statistic": "maximum",
+        "value": 190,
+        "buckets": [
+          {
+            "start": "2026-04-14T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T01:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T02:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T03:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T04:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T05:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T06:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T07:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T08:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T09:00:00+00:00",
+            "value": 159
+          },
+          {
+            "start": "2026-04-14T10:00:00+00:00",
+            "value": 160
+          },
+          {
+            "start": "2026-04-14T11:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T12:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T13:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T14:00:00+00:00",
+            "value": 190
+          },
+          {
+            "start": "2026-04-14T15:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T16:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T17:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T18:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T19:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T20:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T21:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T22:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T23:00:00+00:00",
+            "value": 83
+          }
+        ]
+      }
+    },
+    {
+      "name": "metric: the lowest heart rate by the hour, with a series: a series without its values counts its own minimum",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "range": "D",
+        "statistic": "minimum",
+        "date": "2026-04-14"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-04-14T00:00:00+00:00",
+        "end": "2026-04-15T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "unit": "count/min",
+        "statistic": "minimum",
+        "value": 55,
+        "buckets": [
+          {
+            "start": "2026-04-14T00:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T01:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T02:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T03:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T04:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T05:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T06:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T07:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T08:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T09:00:00+00:00",
+            "value": 85
+          },
+          {
+            "start": "2026-04-14T10:00:00+00:00",
+            "value": 88
+          },
+          {
+            "start": "2026-04-14T11:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T12:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T13:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T14:00:00+00:00",
+            "value": 55
+          },
+          {
+            "start": "2026-04-14T15:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T16:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T17:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T18:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T19:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T20:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T21:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T22:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-14T23:00:00+00:00",
+            "value": 60
+          }
+        ]
+      }
+    },
+    {
+      "name": "metric: heart rate the day after a series that crosses midnight: only its values after midnight count",
+      "tool": "metric",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "range": "D",
+        "date": "2026-04-15"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-04-15T00:00:00+00:00",
+        "end": "2026-04-16T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "unit": "count/min",
+        "statistic": "average",
+        "value": 95.10344827586206,
+        "buckets": [
+          {
+            "start": "2026-04-15T00:00:00+00:00",
+            "value": 95.10344827586206
+          },
+          {
+            "start": "2026-04-15T01:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T02:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T03:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T04:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T05:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T06:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T07:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T08:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T09:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T10:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T11:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T12:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T13:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T14:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T15:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T16:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T17:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T18:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T19:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T20:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T21:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T22:00:00+00:00",
+            "value": null
+          },
+          {
+            "start": "2026-04-15T23:00:00+00:00",
+            "value": null
+          }
+        ]
+      }
+    },
+    {
       "name": "metric: heart rate doesn't add up, so its sum fails",
       "tool": "metric",
       "now": "2026-10-20T15:00:00Z",
@@ -1637,6 +2176,2790 @@
         ],
         "nextCursor": null
       }
+    },
+    {
+      "name": "samples of heart rate with series: each series is one sample, with its count and summary, and the one without its values too",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "range": "D",
+        "date": "2026-04-14"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-04-14T00:00:00+00:00",
+        "end": "2026-04-15T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "samples": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:58:00+00:00",
+            "end": "2026-04-15T00:01:55+00:00",
+            "value": 83.5,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "minimum": 60,
+              "maximum": 107,
+              "mostRecent": 107,
+              "mostRecentStart": "2026-04-15T00:01:55+00:00",
+              "mostRecentEnd": "2026-04-15T00:01:55+00:00"
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000206",
+            "start": "2026-04-14T14:00:00+00:00",
+            "end": "2026-04-14T20:56:39+00:00",
+            "value": 98,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 25000,
+              "minimum": 55,
+              "maximum": 190,
+              "mostRecent": 120,
+              "mostRecentStart": "2026-04-14T20:56:39+00:00",
+              "mostRecentEnd": "2026-04-14T20:56:39+00:00"
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000205",
+            "start": "2026-04-14T10:10:00+00:00",
+            "end": "2026-04-14T10:10:00+00:00",
+            "value": 88,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000204",
+            "start": "2026-04-14T10:02:00+00:00",
+            "end": "2026-04-14T10:03:00+00:00",
+            "value": 95,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Chest Strap",
+            "sourceIndex": 1
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000203",
+            "start": "2026-04-14T09:58:00+00:00",
+            "end": "2026-04-14T09:59:00+00:00",
+            "value": 90,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Chest Strap",
+            "sourceIndex": 1
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:55:00+00:00",
+            "end": "2026-04-14T10:04:55+00:00",
+            "value": 130.5,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "minimum": 100,
+              "maximum": 160,
+              "mostRecent": 101,
+              "mostRecentStart": "2026-04-14T10:04:55+00:00",
+              "mostRecentEnd": "2026-04-14T10:04:55+00:00"
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000202",
+            "start": "2026-04-14T09:50:00+00:00",
+            "end": "2026-04-14T09:51:00+00:00",
+            "value": 85,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Chest Strap",
+            "sourceIndex": 1
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch"
+          },
+          {
+            "name": "Test Chest Strap",
+            "bundleId": "org.example.strap",
+            "device": {
+              "name": "Test Chest Strap",
+              "manufacturer": "Example",
+              "model": "Strap"
+            }
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "samples with seriesValues: a series' values, newest first, each an item, a page of five ending inside the series",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "range": "D",
+        "date": "2026-04-14",
+        "limit": 5,
+        "seriesValues": true
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-04-14T00:00:00+00:00",
+        "end": "2026-04-15T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "samples": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:01:55+00:00",
+            "end": "2026-04-15T00:01:55+00:00",
+            "value": 107,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 47
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:01:50+00:00",
+            "end": "2026-04-15T00:01:50+00:00",
+            "value": 106,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 46
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:01:45+00:00",
+            "end": "2026-04-15T00:01:45+00:00",
+            "value": 105,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 45
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:01:40+00:00",
+            "end": "2026-04-15T00:01:40+00:00",
+            "value": 104,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 44
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:01:35+00:00",
+            "end": "2026-04-15T00:01:35+00:00",
+            "value": 103,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 43
+            }
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch"
+          }
+        ],
+        "nextCursor": "1776211080000_0c0f0000-0000-4000-8000-000000000207_43"
+      }
+    },
+    {
+      "name": "samples with seriesValues: the next page goes on inside the series, then lists the series without its values as one sample, and ends inside the workout's",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "range": "D",
+        "date": "2026-04-14",
+        "limit": 50,
+        "seriesValues": true,
+        "cursor": "1776211080000_0c0f0000-0000-4000-8000-000000000207_43"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-04-14T00:00:00+00:00",
+        "end": "2026-04-15T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "samples": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:01:30+00:00",
+            "end": "2026-04-15T00:01:30+00:00",
+            "value": 102,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 42
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:01:25+00:00",
+            "end": "2026-04-15T00:01:25+00:00",
+            "value": 101,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 41
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:01:20+00:00",
+            "end": "2026-04-15T00:01:20+00:00",
+            "value": 100,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 40
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:01:15+00:00",
+            "end": "2026-04-15T00:01:15+00:00",
+            "value": 99,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 39
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:01:10+00:00",
+            "end": "2026-04-15T00:01:10+00:00",
+            "value": 98,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 38
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:01:05+00:00",
+            "end": "2026-04-15T00:01:05+00:00",
+            "value": 97,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 37
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:01:00+00:00",
+            "end": "2026-04-15T00:01:00+00:00",
+            "value": 96,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 36
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:00:55+00:00",
+            "end": "2026-04-15T00:00:55+00:00",
+            "value": 95,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 35
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:00:50+00:00",
+            "end": "2026-04-15T00:00:50+00:00",
+            "value": 94,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 34
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:00:45+00:00",
+            "end": "2026-04-15T00:00:45+00:00",
+            "value": 93,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 33
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:00:40+00:00",
+            "end": "2026-04-15T00:00:40+00:00",
+            "value": 92,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 32
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:00:35+00:00",
+            "end": "2026-04-15T00:00:35+00:00",
+            "value": 91,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 31
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:00:30+00:00",
+            "end": "2026-04-15T00:00:30+00:00",
+            "value": 90,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 30
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:00:25+00:00",
+            "end": "2026-04-15T00:00:25+00:00",
+            "value": 89,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 29
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:00:20+00:00",
+            "end": "2026-04-15T00:00:20+00:00",
+            "value": 88,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 28
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:00:15+00:00",
+            "end": "2026-04-15T00:00:15+00:00",
+            "value": 87,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 27
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:00:10+00:00",
+            "end": "2026-04-15T00:00:10+00:00",
+            "value": 86,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 26
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:00:05+00:00",
+            "end": "2026-04-15T00:00:05+00:00",
+            "value": 85,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 25
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-15T00:00:00+00:00",
+            "end": "2026-04-15T00:00:00+00:00",
+            "value": 84,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 24
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:59:55+00:00",
+            "end": "2026-04-14T23:59:55+00:00",
+            "value": 83,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 23
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:59:50+00:00",
+            "end": "2026-04-14T23:59:50+00:00",
+            "value": 82,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 22
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:59:45+00:00",
+            "end": "2026-04-14T23:59:45+00:00",
+            "value": 81,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 21
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:59:40+00:00",
+            "end": "2026-04-14T23:59:40+00:00",
+            "value": 80,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 20
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:59:35+00:00",
+            "end": "2026-04-14T23:59:35+00:00",
+            "value": 79,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 19
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:59:30+00:00",
+            "end": "2026-04-14T23:59:30+00:00",
+            "value": 78,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 18
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:59:25+00:00",
+            "end": "2026-04-14T23:59:25+00:00",
+            "value": 77,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 17
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:59:20+00:00",
+            "end": "2026-04-14T23:59:20+00:00",
+            "value": 76,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 16
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:59:15+00:00",
+            "end": "2026-04-14T23:59:15+00:00",
+            "value": 75,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 15
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:59:10+00:00",
+            "end": "2026-04-14T23:59:10+00:00",
+            "value": 74,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 14
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:59:05+00:00",
+            "end": "2026-04-14T23:59:05+00:00",
+            "value": 73,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 13
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:59:00+00:00",
+            "end": "2026-04-14T23:59:00+00:00",
+            "value": 72,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 12
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:58:55+00:00",
+            "end": "2026-04-14T23:58:55+00:00",
+            "value": 71,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 11
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:58:50+00:00",
+            "end": "2026-04-14T23:58:50+00:00",
+            "value": 70,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 10
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:58:45+00:00",
+            "end": "2026-04-14T23:58:45+00:00",
+            "value": 69,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 9
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:58:40+00:00",
+            "end": "2026-04-14T23:58:40+00:00",
+            "value": 68,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 8
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:58:35+00:00",
+            "end": "2026-04-14T23:58:35+00:00",
+            "value": 67,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 7
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:58:30+00:00",
+            "end": "2026-04-14T23:58:30+00:00",
+            "value": 66,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 6
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:58:25+00:00",
+            "end": "2026-04-14T23:58:25+00:00",
+            "value": 65,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 5
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:58:20+00:00",
+            "end": "2026-04-14T23:58:20+00:00",
+            "value": 64,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 4
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:58:15+00:00",
+            "end": "2026-04-14T23:58:15+00:00",
+            "value": 63,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 3
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:58:10+00:00",
+            "end": "2026-04-14T23:58:10+00:00",
+            "value": 62,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 2
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:58:05+00:00",
+            "end": "2026-04-14T23:58:05+00:00",
+            "value": 61,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 1
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000207",
+            "start": "2026-04-14T23:58:00+00:00",
+            "end": "2026-04-14T23:58:00+00:00",
+            "value": 60,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 48,
+              "index": 0
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000206",
+            "start": "2026-04-14T14:00:00+00:00",
+            "end": "2026-04-14T20:56:39+00:00",
+            "value": 98,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 25000,
+              "minimum": 55,
+              "maximum": 190,
+              "mostRecent": 120,
+              "mostRecentStart": "2026-04-14T20:56:39+00:00",
+              "mostRecentEnd": "2026-04-14T20:56:39+00:00"
+            }
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000205",
+            "start": "2026-04-14T10:10:00+00:00",
+            "end": "2026-04-14T10:10:00+00:00",
+            "value": 88,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000204",
+            "start": "2026-04-14T10:02:00+00:00",
+            "end": "2026-04-14T10:03:00+00:00",
+            "value": 95,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Chest Strap",
+            "sourceIndex": 1
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000203",
+            "start": "2026-04-14T09:58:00+00:00",
+            "end": "2026-04-14T09:59:00+00:00",
+            "value": 90,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Chest Strap",
+            "sourceIndex": 1
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:04:55+00:00",
+            "end": "2026-04-14T10:04:55+00:00",
+            "value": 101,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 119
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:04:50+00:00",
+            "end": "2026-04-14T10:04:50+00:00",
+            "value": 102,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 118
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:04:45+00:00",
+            "end": "2026-04-14T10:04:45+00:00",
+            "value": 103,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 117
+            },
+            "motionContext": "active"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch"
+          },
+          {
+            "name": "Test Chest Strap",
+            "bundleId": "org.example.strap",
+            "device": {
+              "name": "Test Chest Strap",
+              "manufacturer": "Example",
+              "model": "Strap"
+            }
+          }
+        ],
+        "nextCursor": "1776160500000_0c0f0000-0000-4000-8000-000000000201_117"
+      }
+    },
+    {
+      "name": "samples with seriesValues: the last page ends the workout's values, then the reading before it",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "range": "D",
+        "date": "2026-04-14",
+        "limit": 200,
+        "seriesValues": true,
+        "cursor": "1776160500000_0c0f0000-0000-4000-8000-000000000201_117"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-04-14T00:00:00+00:00",
+        "end": "2026-04-15T00:00:00+00:00",
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "samples": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:04:40+00:00",
+            "end": "2026-04-14T10:04:40+00:00",
+            "value": 104,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 116
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:04:35+00:00",
+            "end": "2026-04-14T10:04:35+00:00",
+            "value": 105,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 115
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:04:30+00:00",
+            "end": "2026-04-14T10:04:30+00:00",
+            "value": 106,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 114
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:04:25+00:00",
+            "end": "2026-04-14T10:04:25+00:00",
+            "value": 107,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 113
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:04:20+00:00",
+            "end": "2026-04-14T10:04:20+00:00",
+            "value": 108,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 112
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:04:15+00:00",
+            "end": "2026-04-14T10:04:15+00:00",
+            "value": 109,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 111
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:04:10+00:00",
+            "end": "2026-04-14T10:04:10+00:00",
+            "value": 110,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 110
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:04:05+00:00",
+            "end": "2026-04-14T10:04:05+00:00",
+            "value": 111,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 109
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:04:00+00:00",
+            "end": "2026-04-14T10:04:00+00:00",
+            "value": 112,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 108
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:03:55+00:00",
+            "end": "2026-04-14T10:03:55+00:00",
+            "value": 113,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 107
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:03:50+00:00",
+            "end": "2026-04-14T10:03:50+00:00",
+            "value": 114,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 106
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:03:45+00:00",
+            "end": "2026-04-14T10:03:45+00:00",
+            "value": 115,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 105
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:03:40+00:00",
+            "end": "2026-04-14T10:03:40+00:00",
+            "value": 116,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 104
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:03:35+00:00",
+            "end": "2026-04-14T10:03:35+00:00",
+            "value": 117,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 103
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:03:30+00:00",
+            "end": "2026-04-14T10:03:30+00:00",
+            "value": 118,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 102
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:03:25+00:00",
+            "end": "2026-04-14T10:03:25+00:00",
+            "value": 119,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 101
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:03:20+00:00",
+            "end": "2026-04-14T10:03:20+00:00",
+            "value": 120,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 100
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:03:15+00:00",
+            "end": "2026-04-14T10:03:15+00:00",
+            "value": 121,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 99
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:03:10+00:00",
+            "end": "2026-04-14T10:03:10+00:00",
+            "value": 122,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 98
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:03:05+00:00",
+            "end": "2026-04-14T10:03:05+00:00",
+            "value": 123,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 97
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:03:00+00:00",
+            "end": "2026-04-14T10:03:00+00:00",
+            "value": 124,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 96
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:02:55+00:00",
+            "end": "2026-04-14T10:02:55+00:00",
+            "value": 125,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 95
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:02:50+00:00",
+            "end": "2026-04-14T10:02:50+00:00",
+            "value": 126,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 94
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:02:45+00:00",
+            "end": "2026-04-14T10:02:45+00:00",
+            "value": 127,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 93
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:02:40+00:00",
+            "end": "2026-04-14T10:02:40+00:00",
+            "value": 128,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 92
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:02:35+00:00",
+            "end": "2026-04-14T10:02:35+00:00",
+            "value": 129,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 91
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:02:30+00:00",
+            "end": "2026-04-14T10:02:30+00:00",
+            "value": 130,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 90
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:02:25+00:00",
+            "end": "2026-04-14T10:02:25+00:00",
+            "value": 131,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 89
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:02:20+00:00",
+            "end": "2026-04-14T10:02:20+00:00",
+            "value": 132,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 88
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:02:15+00:00",
+            "end": "2026-04-14T10:02:15+00:00",
+            "value": 133,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 87
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:02:10+00:00",
+            "end": "2026-04-14T10:02:10+00:00",
+            "value": 134,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 86
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:02:05+00:00",
+            "end": "2026-04-14T10:02:05+00:00",
+            "value": 135,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 85
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:02:00+00:00",
+            "end": "2026-04-14T10:02:00+00:00",
+            "value": 136,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 84
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:01:55+00:00",
+            "end": "2026-04-14T10:01:55+00:00",
+            "value": 137,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 83
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:01:50+00:00",
+            "end": "2026-04-14T10:01:50+00:00",
+            "value": 138,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 82
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:01:45+00:00",
+            "end": "2026-04-14T10:01:45+00:00",
+            "value": 139,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 81
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:01:40+00:00",
+            "end": "2026-04-14T10:01:40+00:00",
+            "value": 140,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 80
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:01:35+00:00",
+            "end": "2026-04-14T10:01:35+00:00",
+            "value": 141,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 79
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:01:30+00:00",
+            "end": "2026-04-14T10:01:30+00:00",
+            "value": 142,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 78
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:01:25+00:00",
+            "end": "2026-04-14T10:01:25+00:00",
+            "value": 143,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 77
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:01:20+00:00",
+            "end": "2026-04-14T10:01:20+00:00",
+            "value": 144,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 76
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:01:15+00:00",
+            "end": "2026-04-14T10:01:15+00:00",
+            "value": 145,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 75
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:01:10+00:00",
+            "end": "2026-04-14T10:01:10+00:00",
+            "value": 146,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 74
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:01:05+00:00",
+            "end": "2026-04-14T10:01:05+00:00",
+            "value": 147,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 73
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:01:00+00:00",
+            "end": "2026-04-14T10:01:00+00:00",
+            "value": 148,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 72
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:00:55+00:00",
+            "end": "2026-04-14T10:00:55+00:00",
+            "value": 149,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 71
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:00:50+00:00",
+            "end": "2026-04-14T10:00:50+00:00",
+            "value": 150,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 70
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:00:45+00:00",
+            "end": "2026-04-14T10:00:45+00:00",
+            "value": 151,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 69
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:00:40+00:00",
+            "end": "2026-04-14T10:00:40+00:00",
+            "value": 152,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 68
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:00:35+00:00",
+            "end": "2026-04-14T10:00:35+00:00",
+            "value": 153,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 67
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:00:30+00:00",
+            "end": "2026-04-14T10:00:30+00:00",
+            "value": 154,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 66
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:00:25+00:00",
+            "end": "2026-04-14T10:00:25+00:00",
+            "value": 155,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 65
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:00:20+00:00",
+            "end": "2026-04-14T10:00:20+00:00",
+            "value": 156,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 64
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:00:15+00:00",
+            "end": "2026-04-14T10:00:15+00:00",
+            "value": 157,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 63
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:00:10+00:00",
+            "end": "2026-04-14T10:00:10+00:00",
+            "value": 158,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 62
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:00:05+00:00",
+            "end": "2026-04-14T10:00:05+00:00",
+            "value": 159,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 61
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T10:00:00+00:00",
+            "end": "2026-04-14T10:00:00+00:00",
+            "value": 160,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 60
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:59:55+00:00",
+            "end": "2026-04-14T09:59:55+00:00",
+            "value": 159,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 59
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:59:50+00:00",
+            "end": "2026-04-14T09:59:50+00:00",
+            "value": 158,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 58
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:59:45+00:00",
+            "end": "2026-04-14T09:59:45+00:00",
+            "value": 157,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 57
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:59:40+00:00",
+            "end": "2026-04-14T09:59:40+00:00",
+            "value": 156,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 56
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:59:35+00:00",
+            "end": "2026-04-14T09:59:35+00:00",
+            "value": 155,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 55
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:59:30+00:00",
+            "end": "2026-04-14T09:59:30+00:00",
+            "value": 154,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 54
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:59:25+00:00",
+            "end": "2026-04-14T09:59:25+00:00",
+            "value": 153,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 53
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:59:20+00:00",
+            "end": "2026-04-14T09:59:20+00:00",
+            "value": 152,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 52
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:59:15+00:00",
+            "end": "2026-04-14T09:59:15+00:00",
+            "value": 151,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 51
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:59:10+00:00",
+            "end": "2026-04-14T09:59:10+00:00",
+            "value": 150,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 50
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:59:05+00:00",
+            "end": "2026-04-14T09:59:05+00:00",
+            "value": 149,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 49
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:59:00+00:00",
+            "end": "2026-04-14T09:59:00+00:00",
+            "value": 148,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 48
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:58:55+00:00",
+            "end": "2026-04-14T09:58:55+00:00",
+            "value": 147,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 47
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:58:50+00:00",
+            "end": "2026-04-14T09:58:50+00:00",
+            "value": 146,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 46
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:58:45+00:00",
+            "end": "2026-04-14T09:58:45+00:00",
+            "value": 145,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 45
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:58:40+00:00",
+            "end": "2026-04-14T09:58:40+00:00",
+            "value": 144,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 44
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:58:35+00:00",
+            "end": "2026-04-14T09:58:35+00:00",
+            "value": 143,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 43
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:58:30+00:00",
+            "end": "2026-04-14T09:58:30+00:00",
+            "value": 142,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 42
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:58:25+00:00",
+            "end": "2026-04-14T09:58:25+00:00",
+            "value": 141,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 41
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:58:20+00:00",
+            "end": "2026-04-14T09:58:20+00:00",
+            "value": 140,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 40
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:58:15+00:00",
+            "end": "2026-04-14T09:58:15+00:00",
+            "value": 139,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 39
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:58:10+00:00",
+            "end": "2026-04-14T09:58:10+00:00",
+            "value": 138,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 38
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:58:05+00:00",
+            "end": "2026-04-14T09:58:05+00:00",
+            "value": 137,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 37
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:58:00+00:00",
+            "end": "2026-04-14T09:58:00+00:00",
+            "value": 136,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 36
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:57:55+00:00",
+            "end": "2026-04-14T09:57:55+00:00",
+            "value": 135,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 35
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:57:50+00:00",
+            "end": "2026-04-14T09:57:50+00:00",
+            "value": 134,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 34
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:57:45+00:00",
+            "end": "2026-04-14T09:57:45+00:00",
+            "value": 133,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 33
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:57:40+00:00",
+            "end": "2026-04-14T09:57:40+00:00",
+            "value": 132,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 32
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:57:35+00:00",
+            "end": "2026-04-14T09:57:35+00:00",
+            "value": 131,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 31
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:57:30+00:00",
+            "end": "2026-04-14T09:57:30+00:00",
+            "value": 130,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 30
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:57:25+00:00",
+            "end": "2026-04-14T09:57:25+00:00",
+            "value": 129,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 29
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:57:20+00:00",
+            "end": "2026-04-14T09:57:20+00:00",
+            "value": 128,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 28
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:57:15+00:00",
+            "end": "2026-04-14T09:57:15+00:00",
+            "value": 127,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 27
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:57:10+00:00",
+            "end": "2026-04-14T09:57:10+00:00",
+            "value": 126,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 26
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:57:05+00:00",
+            "end": "2026-04-14T09:57:05+00:00",
+            "value": 125,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 25
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:57:00+00:00",
+            "end": "2026-04-14T09:57:00+00:00",
+            "value": 124,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 24
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:56:55+00:00",
+            "end": "2026-04-14T09:56:55+00:00",
+            "value": 123,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 23
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:56:50+00:00",
+            "end": "2026-04-14T09:56:50+00:00",
+            "value": 122,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 22
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:56:45+00:00",
+            "end": "2026-04-14T09:56:45+00:00",
+            "value": 121,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 21
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:56:40+00:00",
+            "end": "2026-04-14T09:56:40+00:00",
+            "value": 120,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 20
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:56:35+00:00",
+            "end": "2026-04-14T09:56:35+00:00",
+            "value": 119,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 19
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:56:30+00:00",
+            "end": "2026-04-14T09:56:30+00:00",
+            "value": 118,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 18
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:56:25+00:00",
+            "end": "2026-04-14T09:56:25+00:00",
+            "value": 117,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 17
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:56:20+00:00",
+            "end": "2026-04-14T09:56:20+00:00",
+            "value": 116,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 16
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:56:15+00:00",
+            "end": "2026-04-14T09:56:15+00:00",
+            "value": 115,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 15
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:56:10+00:00",
+            "end": "2026-04-14T09:56:10+00:00",
+            "value": 114,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 14
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:56:05+00:00",
+            "end": "2026-04-14T09:56:05+00:00",
+            "value": 113,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 13
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:56:00+00:00",
+            "end": "2026-04-14T09:56:00+00:00",
+            "value": 112,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 12
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:55:55+00:00",
+            "end": "2026-04-14T09:55:55+00:00",
+            "value": 111,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 11
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:55:50+00:00",
+            "end": "2026-04-14T09:55:50+00:00",
+            "value": 110,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 10
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:55:45+00:00",
+            "end": "2026-04-14T09:55:45+00:00",
+            "value": 109,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 9
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:55:40+00:00",
+            "end": "2026-04-14T09:55:40+00:00",
+            "value": 108,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 8
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:55:35+00:00",
+            "end": "2026-04-14T09:55:35+00:00",
+            "value": 107,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 7
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:55:30+00:00",
+            "end": "2026-04-14T09:55:30+00:00",
+            "value": 106,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 6
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:55:25+00:00",
+            "end": "2026-04-14T09:55:25+00:00",
+            "value": 105,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 5
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:55:20+00:00",
+            "end": "2026-04-14T09:55:20+00:00",
+            "value": 104,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 4
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:55:15+00:00",
+            "end": "2026-04-14T09:55:15+00:00",
+            "value": 103,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 3
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:55:10+00:00",
+            "end": "2026-04-14T09:55:10+00:00",
+            "value": 102,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 2
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:55:05+00:00",
+            "end": "2026-04-14T09:55:05+00:00",
+            "value": 101,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 1
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000201",
+            "start": "2026-04-14T09:55:00+00:00",
+            "end": "2026-04-14T09:55:00+00:00",
+            "value": 100,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Apple Watch",
+            "sourceIndex": 0,
+            "series": {
+              "count": 120,
+              "index": 0
+            },
+            "motionContext": "active"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000202",
+            "start": "2026-04-14T09:50:00+00:00",
+            "end": "2026-04-14T09:51:00+00:00",
+            "value": 85,
+            "unit": "count/min",
+            "categoryValue": null,
+            "source": "Test Chest Strap",
+            "sourceIndex": 1
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch"
+          },
+          {
+            "name": "Test Chest Strap",
+            "bundleId": "org.example.strap",
+            "device": {
+              "name": "Test Chest Strap",
+              "manufacturer": "Example",
+              "model": "Strap"
+            }
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "samples with seriesValues that isn't a boolean fails",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "range": "D",
+        "seriesValues": "yes"
+      },
+      "expectedError": "Invalid parameters for tool 'samples': Expected boolean\n  at [\"seriesValues\"]"
+    },
+    {
+      "name": "samples with a cursor whose value index is 0 fails: a page that ends on a series' first value has the sample's cursor",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKQuantityTypeIdentifierHeartRate",
+        "range": "D",
+        "date": "2026-04-14",
+        "seriesValues": true,
+        "cursor": "1776211080000_0c0f0000-0000-4000-8000-000000000207_0"
+      },
+      "expectedError": "Invalid cursor: 1776211080000_0c0f0000-0000-4000-8000-000000000207_0. Pass the previous page's nextCursor."
     },
     {
       "name": "samples of blood pressure: each reading with its systolic and diastolic values",

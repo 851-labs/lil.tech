@@ -133,11 +133,16 @@ extension HealthDatabase {
   /// Up to `limit` of a type's samples, newest first, after `cursor` (the previous page's end),
   /// and only those that start in `range` if given.
   public static func samplePage(
-    of type: String, in range: Range<Date>? = nil, after cursor: SampleCursor?, limit: Int,
-    _ db: Database
+    of type: String, in range: Range<Date>? = nil, after cursor: SampleCursor?,
+    includingCursor: Bool = false, limit: Int, _ db: Database
   ) throws -> [HealthSample] {
     var page = HealthSample.where { sample in
-      if let cursor {
+      if let cursor, includingCursor {
+        // The cursor's own sample first, whose series' values a page of them (851-4171) ended
+        // inside.
+        sample.type.eq(type) && sample.startDate <= cursor.startDate
+          && (sample.startDate < cursor.startDate || sample.id <= cursor.id)
+      } else if let cursor {
         // The plain bound first, so SQLite can seek the (type, startDate) index to it.
         sample.type.eq(type) && sample.startDate <= cursor.startDate
           && (sample.startDate < cursor.startDate || sample.id < cursor.id)
@@ -155,6 +160,17 @@ extension HealthDatabase {
       .limit(limit)
       .fetchAll(db)
       .withProvenance(db)
+  }
+
+  /// The quantity series of `samples` that are series (851-4149), by ID.
+  public static func quantitySeries(
+    ofSamples samples: some Collection<String>, _ db: Database
+  ) throws -> [String: HealthQuantitySeries] {
+    guard !samples.isEmpty else { return [:] }
+    let ids = Array(samples)
+    return Dictionary(
+      try HealthQuantitySeries.where { $0.id.in(ids) }.fetchAll(db).map { ($0.id, $0) },
+      uniquingKeysWith: { first, _ in first })
   }
 
   /// `samplePage` for a correlation type's correlations (blood pressure, food), with their

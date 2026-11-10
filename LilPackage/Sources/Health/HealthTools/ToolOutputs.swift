@@ -144,12 +144,16 @@ public struct HealthSampleItem: Codable, Equatable, Sendable {
   public var source: String
   /// Its entry in the page's `sources` (851-4166).
   public var sourceIndex: Int
+  /// A quantity series' count and summary, or which of its values this is (851-4171); `nil`
+  /// for a sample of one value.
+  public var series: HealthSampleSeries?
   /// What its metadata says, each field only when the sample has it (851-4166).
   public var details: HealthSampleDetails
 
   public init(
     id: String, start: String, end: String, value: Double?, unit: String?, categoryValue: Int?,
-    source: String, sourceIndex: Int, details: HealthSampleDetails = HealthSampleDetails()
+    source: String, sourceIndex: Int, series: HealthSampleSeries? = nil,
+    details: HealthSampleDetails = HealthSampleDetails()
   ) {
     self.id = id
     self.start = start
@@ -159,11 +163,12 @@ public struct HealthSampleItem: Codable, Equatable, Sendable {
     self.categoryValue = categoryValue
     self.source = source
     self.sourceIndex = sourceIndex
+    self.series = series
     self.details = details
   }
 
   private enum CodingKeys: String, CodingKey {
-    case id, start, end, value, unit, categoryValue, source, sourceIndex
+    case id, start, end, value, unit, categoryValue, source, sourceIndex, series
   }
 
   public init(from decoder: any Decoder) throws {
@@ -176,6 +181,7 @@ public struct HealthSampleItem: Codable, Equatable, Sendable {
     categoryValue = try container.decodeIfPresent(Int.self, forKey: .categoryValue)
     source = try container.decode(String.self, forKey: .source)
     sourceIndex = try container.decode(Int.self, forKey: .sourceIndex)
+    series = try container.decodeIfPresent(HealthSampleSeries.self, forKey: .series)
     details = try HealthSampleDetails(from: decoder)
   }
 
@@ -189,8 +195,35 @@ public struct HealthSampleItem: Codable, Equatable, Sendable {
     try container.encode(categoryValue, .categoryValue)
     try container.encode(source, .source)
     try container.encode(sourceIndex, .sourceIndex)
+    try container.encodeIfPresent(series, forKey: .series)
     // Beside the fields above, in the same object.
     try details.encode(to: encoder)
+  }
+}
+
+/// A quantity series (851-4171), as `samples` shows a sample that is one (`HealthSampleSeries`
+/// in `HealthToolkit.ts`): its count and a discrete series' summary, or, listing its values
+/// (`seriesValues`), the count and which value an item is. Fields that are nil are left out.
+public struct HealthSampleSeries: Codable, Equatable, Sendable {
+  public var count: Int
+  public var index: Int?
+  public var minimum: Double?
+  public var maximum: Double?
+  public var mostRecent: Double?
+  public var mostRecentStart: String?
+  public var mostRecentEnd: String?
+
+  public init(
+    count: Int, index: Int? = nil, minimum: Double? = nil, maximum: Double? = nil,
+    mostRecent: Double? = nil, mostRecentStart: String? = nil, mostRecentEnd: String? = nil
+  ) {
+    self.count = count
+    self.index = index
+    self.minimum = minimum
+    self.maximum = maximum
+    self.mostRecent = mostRecent
+    self.mostRecentStart = mostRecentStart
+    self.mostRecentEnd = mostRecentEnd
   }
 }
 

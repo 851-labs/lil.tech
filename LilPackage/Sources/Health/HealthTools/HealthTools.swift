@@ -46,7 +46,8 @@ public struct HealthTools: Sendable {
     let tomorrow = time.startOfDay(now, adding: 1)
     let weekStart = time.startOfDay(now, adding: -6)
     let metrics = try HealthDatabase.summaryTypes.map { type in
-      let latest = try HealthDatabase.latestSample(of: type, startedBy: now, db)
+      // A series's most recent value, not its average (851-4171).
+      let latest = try HealthDatabase.latestReading(of: type, startedBy: now, db)
       let days = try HealthDatabase.cumulativeStatistics(
         of: type, in: weekStart..<tomorrow, by: .day, calendar: time.calendar, now: now, db)
       let todays = days.filter { $0.start >= today }
@@ -175,11 +176,14 @@ public struct HealthTools: Sendable {
   // MARK: - samples
 
   /// A quantity, category or correlation type's samples that start in the period, newest first,
-  /// a page at a time, each with its source, device and metadata (`SampleDetails`), and a
-  /// correlation with the samples it groups.
+  /// a page at a time, each with its source, device and metadata (`SampleDetails`), a
+  /// correlation with the samples it groups, and a quantity series (851-4171) with its count and
+  /// summary. With `seriesValues`, each series whose values were uploaded is its values instead,
+  /// newest first, in its sample's place, each an item of its own that the limit counts; a page
+  /// can end inside a series, and its cursor says where (`<start>_<id>_<index>`).
   public func samples(
     type: String, range: ToolRange, date: String? = nil, timeZone: String? = nil,
-    cursor: String? = nil, limit: Int? = nil, _ db: Database
+    cursor: String? = nil, limit: Int? = nil, seriesValues: Bool? = nil, _ db: Database
   ) throws -> HealthSamplesResult {
     let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
     let type = try Self.dataType(type)
@@ -197,12 +201,17 @@ public struct HealthTools: Sendable {
     }
     let period = try ToolPeriod(range, date: date, now: now, time: time)
     let after = try cursor.map(Self.sampleCursor)
-    // One more than asked for, to know whether there's another page.
+    let listsValues = seriesValues == true && type.kind == .quantity
+    // A page that ended inside a series' values goes on with the rest of them.
+    let within = listsValues ? after?.index : nil
+    // One more than asked for, to know whether there's another page: each sample is at least
+    // one item.
     let page: [ListedSample]
     var values: [String: [HealthCorrelatedValue]] = [:]
+    var series: [String: HealthQuantitySeries] = [:]
     if type.kind == .correlation {
       let correlations = try HealthDatabase.correlationPage(
-        of: type.id, in: period.interval, after: after, limit: limit + 1, db)
+        of: type.id, in: period.interval, after: after?.sample, limit: limit + 1, db)
       page = correlations.map(ListedSample.init)
       let members = try HealthDatabase.correlatedSamples(
         of: correlations.prefix(limit).map(\.id), db)
@@ -213,26 +222,83 @@ public struct HealthTools: Sendable {
       }
     } else {
       page = try HealthDatabase.samplePage(
-        of: type.id, in: period.interval, after: after, limit: limit + 1, db
+        of: type.id, in: period.interval, after: after?.sample, includingCursor: within != nil,
+        limit: limit + (within != nil ? 2 : 1), db
       ).map(ListedSample.init)
+      if type.kind == .quantity {
+        series = try HealthDatabase.quantitySeries(ofSamples: page.map(\.id), db)
+      }
     }
-    let samples = page.prefix(limit)
+    // Each sample's items: itself, or a series' values, newest first.
+    var listed: [ListedItem] = []
+    pages: for sample in page {
+      let isCursor = within != nil && sample.id == after?.sample.id
+      let quantitySeries = series[sample.id]
+      if listsValues, let quantitySeries,
+        let seriesValues = QuantitySeriesValues(
+          times: quantitySeries.times, durations: quantitySeries.durations,
+          values: quantitySeries.values)
+      {
+        let last = isCursor ? (within ?? 0) - 1 : seriesValues.values.count - 1
+        for index in stride(from: min(last, seriesValues.values.count - 1), through: 0, by: -1) {
+          guard listed.count <= limit else { break pages }
+          let interval = seriesValues.interval(at: index, sampleStart: sample.startDate)
+          listed.append(
+            ListedItem(
+              sample: sample, start: interval.start, end: interval.end,
+              value: seriesValues.values[index],
+              series: HealthSampleSeries(count: quantitySeries.count, index: index),
+              cursor: index > 0
+                ? "\(sample.startDate)_\(sample.id)_\(index)" : "\(sample.startDate)_\(sample.id)"))
+        }
+      } else if !isCursor {
+        guard listed.count <= limit else { break }
+        listed.append(
+          ListedItem(
+            sample: sample, start: sample.startDate, end: sample.endDate, value: sample.value,
+            series: quantitySeries.map { series in
+              HealthSampleSeries(
+                count: series.count, minimum: series.minimum, maximum: series.maximum,
+                mostRecent: series.mostRecent,
+                mostRecentStart: series.mostRecentStartDate.map {
+                  time.localTime(Date(unixMilliseconds: $0))
+                },
+                mostRecentEnd: series.mostRecentEndDate.map {
+                  time.localTime(Date(unixMilliseconds: $0))
+                })
+            },
+            cursor: "\(sample.startDate)_\(sample.id)"))
+      }
+    }
+    let items = listed.prefix(limit)
     var sources = SampleSources()
-    let items = samples.map { sample in
+    let samples = items.map { item in
+      let sample = item.sample
       let metadata = SampleDetails.object(sample.metadata)
       var details = SampleDetails.details(metadata, time: time)
       if type.kind == .correlation { details.values = values[sample.id] ?? [] }
       return HealthSampleItem(
-        id: sample.id, start: time.localTime(sample.start), end: time.localTime(sample.end),
-        value: sample.value, unit: sample.unit, categoryValue: sample.categoryValue,
-        source: sample.stored.sourceName,
-        sourceIndex: sources.index(of: sample.stored, metadata: metadata), details: details)
+        id: sample.id, start: time.localTime(Date(unixMilliseconds: item.start)),
+        end: time.localTime(Date(unixMilliseconds: item.end)), value: item.value,
+        unit: sample.unit, categoryValue: sample.categoryValue, source: sample.stored.sourceName,
+        sourceIndex: sources.index(of: sample.stored, metadata: metadata), series: item.series,
+        details: details)
     }
     return HealthSamplesResult(
       timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
-      end: time.localTime(period.end), type: type.id, samples: items, sources: sources.sources,
-      nextCursor: page.count > limit
-        ? samples.last.map { "\($0.startDate)_\($0.id)" } : nil)
+      end: time.localTime(period.end), type: type.id, samples: samples, sources: sources.sources,
+      nextCursor: listed.count > limit ? items.last?.cursor : nil)
+  }
+
+  /// One of `samples`' items: a sample, or one of a series' values (851-4171), with the cursor
+  /// of a page ending with it.
+  fileprivate struct ListedItem {
+    var sample: ListedSample
+    var start: Int
+    var end: Int
+    var value: Double?
+    var series: HealthSampleSeries?
+    var cursor: String
   }
 
   /// Whether `samples` lists a kind, or which tool reads it instead, or that none does yet (their
@@ -272,12 +338,21 @@ public struct HealthTools: Sendable {
     var end: Date { Date(unixMilliseconds: endDate) }
   }
 
-  private static func sampleCursor(_ text: String) throws -> SampleCursor {
-    let parts = text.split(separator: "_", maxSplits: 1)
-    guard parts.count == 2, let start = Int(parts[0]) else {
+  /// A page's cursor: its last sample's start and ID, and, if it ended inside a series' values,
+  /// the index of the last one listed (851-4171).
+  private static func sampleCursor(_ text: String) throws -> (sample: SampleCursor, index: Int?) {
+    let parts = text.split(separator: "_", omittingEmptySubsequences: false)
+    guard (2...3).contains(parts.count), let start = Int(parts[0]), !parts[1].isEmpty else {
       throw HealthToolError("Invalid cursor: \(text). Pass the previous page's nextCursor.")
     }
-    return SampleCursor(startDate: start, id: String(parts[1]))
+    var index: Int?
+    if parts.count == 3 {
+      guard let value = Int(parts[2]), value > 0, String(value) == parts[2] else {
+        throw HealthToolError("Invalid cursor: \(text). Pass the previous page's nextCursor.")
+      }
+      index = value
+    }
+    return (SampleCursor(startDate: start, id: String(parts[1])), index)
   }
 
   // MARK: - workouts

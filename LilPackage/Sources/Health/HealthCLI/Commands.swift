@@ -172,6 +172,8 @@ struct SamplesCommand: QueryCommand {
   @Option(help: "The previous page's next cursor.") var cursor: String?
   @Option(help: "Samples per page, at most \(HealthTools.samplesLimit). Defaults to 100.")
   var limit: Int?
+  @Flag(help: "List each series' values (a Watch's heart rate in a workout) one at a time.")
+  var seriesValues = false
   @Option(help: timeZoneHelp) var timeZone: String?
   @OptionGroup var output: OutputOptions
 
@@ -179,8 +181,7 @@ struct SamplesCommand: QueryCommand {
     Answer(
       try tools.samples(
         type: type, range: range.range, date: date, timeZone: timeZone, cursor: cursor,
-        limit: limit,
-        db))
+        limit: limit, seriesValues: seriesValues, db))
   }
 }
 

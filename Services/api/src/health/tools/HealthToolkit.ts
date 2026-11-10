@@ -251,7 +251,8 @@ export const Metric = readOnly(
       "A quantity type's statistic over a period, overall and per hour, day, week or month, " +
       "computed as Health does: totals of types that add up come from the iPhone's own " +
       "statistics (so iPhone and Watch steps aren't counted twice), and averages follow the " +
-      "type's style (heart rate is weighted by time). Prefer this to samples.",
+      "type's style (heart rate is weighted by time), with each value of a series (an Apple " +
+      "Watch's heart rate in a workout) counted at its own time. Prefer this to samples.",
     parameters: Schema.Struct({
       type: healthType,
       range,
@@ -473,12 +474,33 @@ export const sampleDetailFields = {
   ),
 };
 
+/**
+ * A quantity series (851-4171): a sample of many values, such as a Watch's heart rate every few
+ * seconds in a workout. `samples` shows its count and a discrete series' summary, or, with
+ * `seriesValues`, each value as an item of its own, saying which it is.
+ */
+export const HealthSampleSeries = Schema.Struct({
+  count: Schema.Int.annotate({ description: "How many values the series has." }),
+  index: when(
+    Schema.Int,
+    "With seriesValues: which of the series' values this item is, from 0, the earliest. Left out " +
+      "for a series whose values weren't uploaded (more than 20,000), listed as one sample.",
+  ),
+  minimum: when(Schema.Finite, "A discrete series' lowest value (heart rate), in `unit`."),
+  maximum: when(Schema.Finite, "Its highest value."),
+  mostRecent: when(Schema.Finite, "Its last value."),
+  mostRecentStart: when(LocalTime, "When its last value starts."),
+  mostRecentEnd: when(LocalTime, "When its last value ends."),
+}).annotate({ identifier: "HealthSampleSeries" });
+
 export const HealthSampleItem = Schema.Struct({
   id: Schema.String.annotate({ description: "HealthKit's UUID for the sample." }),
   start: LocalTime,
   end: LocalTime,
   value: Schema.NullOr(Schema.Finite).annotate({
-    description: "A quantity's value, in `unit`. Null for category types and correlations.",
+    description:
+      "A quantity's value, in `unit`: for a series, HealthKit's for all of it, its total or its " +
+      "time-weighted average. Null for category types and correlations.",
   }),
   unit: Schema.NullOr(Schema.String),
   categoryValue: Schema.NullOr(Schema.Int).annotate({
@@ -492,6 +514,11 @@ export const HealthSampleItem = Schema.Struct({
   sourceIndex: Schema.Int.annotate({
     description: "Its entry in `sources`: the app, its version and the device, from 0.",
   }),
+  series: when(
+    HealthSampleSeries,
+    "Only for a quantity series, a sample of many values: its count and summary, or which of its " +
+      "values this item is.",
+  ),
   ...sampleDetailFields,
 }).annotate({ identifier: "HealthSampleItem" });
 
@@ -518,7 +545,9 @@ export const Samples = readOnly(
       "in a period, newest first, a page at a time, each with its source app and device (listed " +
       "once a page, in sources) and what its metadata says (how and where it was measured, whether it was entered by hand), " +
       "fields only when HealthKit has them. A type can have many thousands of samples a day: " +
-      "use metric for totals and trends, and this only to look at particular readings. " +
+      "use metric for totals and trends, and this only to look at particular readings. A " +
+      "series (an Apple Watch's heart rate in a workout) is one sample with its count and " +
+      "summary, or its values with seriesValues. " +
       "Workouts, medications and health details have their own tools.",
     parameters: Schema.Struct({
       type: healthType,
@@ -531,6 +560,13 @@ export const Samples = readOnly(
       limit: Schema.optionalKey(
         Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: samplesLimit })).annotate({
           description: `Samples per page, at most ${samplesLimit}. Defaults to 100.`,
+        }),
+      ),
+      seriesValues: Schema.optionalKey(
+        Schema.Boolean.annotate({
+          description:
+            "List each quantity series' values, newest first, in place of the series, each " +
+            "counting toward the limit; a page can end inside a series. Defaults to false.",
         }),
       ),
     }),

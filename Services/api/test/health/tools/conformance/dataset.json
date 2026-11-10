@@ -7,7 +7,8 @@
     "Workouts: the 13 October run at 18:00Z has no metadata and a route HealthKit didn't link (found by its times); 14 October's is a treadmill run, indoor, with an empty route linked; 18 October's is outdoor, with its route, elevation and weather; 20 October's is a third-party app's, named, its indoor flag a number; the ride only says it's indoors on its one activity. September has a pool swim and a multisport race with an open-water swim, a route, a blank name and its elevation in feet. The week of 14 September has workouts as iPhones upload them since 851-4030: each activity's configured location (locationType, swimmingLocationType) and the WorkoutKit plan in the metadata (LilWorkoutPlan): a ride only its configuration calls indoor, a custom plan's run named by the plan, a third-party run whose brand name and metadata win, a goal plan's pool swim, a swim-bike-run plan's race, a blank plan name, and an unreadable location type and plan. 1 to 6 September has workouts for the workout tool (851-4165), in a week no other case reads: an outdoor run with every statistic the Watch records, its splits as segments, an auto-pause and a pause, a marker, and its metadata's elevation, speeds, METs and weather in other units (°F, feet, mph, humidity 100 times too large); a 25-yard pool swim with laps out of order, their strokes and SWOLF, a segment and a pause it never resumed from; a ride whose statistics and events can't be read, with metadata in units the tools don't read; and a triathlon whose legs have their own statistics and metadata, one leg's unreadable and one's missing.",
     "Heart rate on 20 October comes from the Watch and the iPhone, with gaps over an hour, so time-weighted averages depend on each source's next reading. Sleep has the Watch's stages and the iPhone's estimates; medications a schedule, as-needed doses and an archived one; Health Details one characteristic Not Set.",
     "Routes (851-4164): their points are blobs, in blobs.json by SHA-256. 16 October also has a cycling app's route with no workout (0c0f…175), which no workout's times overlap.",
-    "Samples' details (851-4166) are on 19 October, from ph2, which HealthKit syncs every app's samples to: blood glucose entered by hand in Health (before a meal, recorded in New York) and from a third-party health app, which records the rest too (after a meal, with a reference range, its meter in a provenance record, and keys lil health doesn't keep, which ingestion drops); insulin (basal with an empty device, bolus with its pump named only in its metadata and a motion context that isn't one); cardio fitness from an Apple Watch; a high heart rate notification with its threshold; a blood pressure reading, a correlation of a systolic and a diastolic sample; and the morning's heart rate says it was sedentary, on the wrist."
+    "Samples' details (851-4166) are on 19 October, from ph2, which HealthKit syncs every app's samples to: blood glucose entered by hand in Health (before a meal, recorded in New York) and from a third-party health app, which records the rest too (after a meal, with a reference range, its meter in a provenance record, and keys lil health doesn't keep, which ingestion drops); insulin (basal with an empty device, bolus with its pump named only in its metadata and a motion context that isn't one); cardio fitness from an Apple Watch; a high heart rate notification with its threshold; a blood pressure reading, a correlation of a systolic and a diastolic sample; and the morning's heart rate says it was sedentary, on the wrist.",
+    "Quantity series (851-4171) are on 14 April 2026, a day no cards case reads, so the iPhone's HealthKit run (which writes each series as one sample) gives the same cards: heart rate from the Watch, a workout's 120 values every 5 s from 09:55 (the sample's own value, 130.5, is HealthKit's for the whole series), crossing 10:00, beside a chest strap's readings and a Watch reading after it; a series of 25,000 values from 14:00 whose values weren't uploaded, only its count and summary (55 to 190); and a series from 23:58 that crosses midnight, so 15 April's values come from a series that started the day before."
   ],
   "batches": [
     {
@@ -1918,6 +1919,210 @@
               "HKWeatherTemperature": "18.5 degC",
               "HKWeatherHumidity": "55 %"
             }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000201",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1776160500000,
+            "endDate": 1776161095000,
+            "value": 130.5,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
+            "metadata": {
+              "HKMetadataKeyHeartRateMotionContext": 2
+            }
+          }
+        },
+        {
+          "entity": "health_quantity_series",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000201",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1776160500000,
+            "count": 120,
+            "times": [
+              0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100,
+              105, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155, 160, 165, 170, 175, 180, 185,
+              190, 195, 200, 205, 210, 215, 220, 225, 230, 235, 240, 245, 250, 255, 260, 265, 270,
+              275, 280, 285, 290, 295, 300, 305, 310, 315, 320, 325, 330, 335, 340, 345, 350, 355,
+              360, 365, 370, 375, 380, 385, 390, 395, 400, 405, 410, 415, 420, 425, 430, 435, 440,
+              445, 450, 455, 460, 465, 470, 475, 480, 485, 490, 495, 500, 505, 510, 515, 520, 525,
+              530, 535, 540, 545, 550, 555, 560, 565, 570, 575, 580, 585, 590, 595
+            ],
+            "durations": [
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0
+            ],
+            "values": [
+              100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116,
+              117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133,
+              134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150,
+              151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 159, 158, 157, 156, 155, 154, 153,
+              152, 151, 150, 149, 148, 147, 146, 145, 144, 143, 142, 141, 140, 139, 138, 137, 136,
+              135, 134, 133, 132, 131, 130, 129, 128, 127, 126, 125, 124, 123, 122, 121, 120, 119,
+              118, 117, 116, 115, 114, 113, 112, 111, 110, 109, 108, 107, 106, 105, 104, 103, 102,
+              101
+            ],
+            "minimum": 100,
+            "maximum": 160,
+            "mostRecent": 101,
+            "mostRecentStartDate": 1776161095000,
+            "mostRecentEndDate": 1776161095000
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000202",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1776160200000,
+            "endDate": 1776160260000,
+            "value": 85,
+            "unit": "count/min",
+            "sourceName": "Test Chest Strap",
+            "sourceBundleId": "org.example.strap",
+            "device": {
+              "name": "Test Chest Strap",
+              "manufacturer": "Example",
+              "model": "Strap"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000203",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1776160680000,
+            "endDate": 1776160740000,
+            "value": 90,
+            "unit": "count/min",
+            "sourceName": "Test Chest Strap",
+            "sourceBundleId": "org.example.strap",
+            "device": {
+              "name": "Test Chest Strap",
+              "manufacturer": "Example",
+              "model": "Strap"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000204",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1776160920000,
+            "endDate": 1776160980000,
+            "value": 95,
+            "unit": "count/min",
+            "sourceName": "Test Chest Strap",
+            "sourceBundleId": "org.example.strap",
+            "device": {
+              "name": "Test Chest Strap",
+              "manufacturer": "Example",
+              "model": "Strap"
+            }
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000205",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1776161400000,
+            "endDate": 1776161400000,
+            "value": 88,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000206",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1776175200000,
+            "endDate": 1776200199000,
+            "value": 98,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_quantity_series",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000206",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1776175200000,
+            "count": 25000,
+            "times": null,
+            "durations": null,
+            "values": null,
+            "minimum": 55,
+            "maximum": 190,
+            "mostRecent": 120,
+            "mostRecentStartDate": 1776200199000,
+            "mostRecentEndDate": 1776200199000
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000207",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1776211080000,
+            "endDate": 1776211315000,
+            "value": 83.5,
+            "unit": "count/min",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_quantity_series",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000207",
+          "row": {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1776211080000,
+            "count": 48,
+            "times": [
+              0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100,
+              105, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155, 160, 165, 170, 175, 180, 185,
+              190, 195, 200, 205, 210, 215, 220, 225, 230, 235
+            ],
+            "durations": [
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ],
+            "values": [
+              60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80,
+              81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101,
+              102, 103, 104, 105, 106, 107
+            ],
+            "minimum": 60,
+            "maximum": 107,
+            "mostRecent": 107,
+            "mostRecentStartDate": 1776211315000,
+            "mostRecentEndDate": 1776211315000
           }
         }
       ]
