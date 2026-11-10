@@ -39,7 +39,11 @@ permissions:
 
 defaults:
   run:
-    shell: bash
+    # `shell: bash`, with every process a step starts stopped when the runner cancels it (a newer
+    # push, a timeout, a run cancelled by hand), or when it ends: the runner itself only signals the
+    # step's shell, and its sweep for orphans can't see our scripts on macOS, so a cancelled
+    # `scripts/check` went on building beside the next job (`scripts/ci-shell`, 851-4062).
+    shell: bash scripts/ci-shell {0}
 
 jobs:
   check:
@@ -245,9 +249,9 @@ jobs:
           path: LilPackage/.build/healthkit-tests
           retention-days: 7
 
-      # The script deletes its simulator however it ends, unless the run is killed first
-      # (cancelled by a newer push, or past the timeout): then this does, so no booted simulator
-      # stays on the mini.
+      # The script deletes its simulator however it ends, unless it's killed first (cancelled by a
+      # newer push, or past the timeout, where `scripts/ci-shell` gives its trap 2 seconds): then
+      # this does, so no booted simulator stays on the mini.
       - name: delete the simulator
         if: always()
         run: |

@@ -1,0 +1,102 @@
+#!/bin/bash
+# The shell of the Swift check's steps on the Mac minis (`swift-check.yml`, 851-4062): runs a
+# step's script as `shell: bash` does, and stops every process the step started when the runner
+# cancels it (a newer push, a timeout, a run cancelled by hand), or when the step ends.
+# Usage, as a workflow's `shell:`: bash scripts/ci-shell {0}
+#
+# Cancelling a step, the runner signals only the step's shell, SIGINT and then SIGTERM, and the
+# shell exits at the SIGTERM, leaving what it started running, its parent now launchd. The runner's
+# sweep at the end of the job finds such orphans by `RUNNER_TRACKING_ID` in their environment,
+# which macOS hides for its own binaries (`/bin/sh`, `/bin/bash`, `perl`), so `scripts/check` and
+# the scripts it calls went on starting builds after the job was over, beside the next job.
+#
+# Here the step runs in a process group of its own. On the runner's signal, its processes (that
+# group, and every descendant of the step's shell, since some commands take a group of their own,
+# such as `swiftpm-testing-helper` and `scripts/snapshot`'s `limit`) get the same signal, so they
+# cancel as they would on Control-C, then SIGTERM, then SIGKILL, within the time the runner waits
+# (7.5 seconds after its SIGINT: 3 for SIGINT, 1.5 for SIGTERM; 2.5 after its SIGTERM: 1.5 for it).
+# When the step ends, what it left in its group is stopped the same way.
+set -u
+
+if [ $# -ne 1 ]; then
+  echo "usage: bash scripts/ci-shell <script>" >&2
+  exit 2
+fi
+
+# The step's processes still running, a line each, "<pid> <start time>": its group's, their
+# descendants, and those in `$known` (lines like these) that have left both since, a command that
+# took a group of its own whose parent has exited. A pid counts only with the start time it had, so
+# one reused by another process (the minis run Codevisor's jobs too) never does.
+processes() {
+  ps -axo pid=,ppid=,pgid=,stat=,lstart= | STEP=$step KNOWN=$known awk '
+    BEGIN {
+      step = ENVIRON["STEP"]
+      n = split(ENVIRON["KNOWN"], lines, "\n")
+      for (i = 1; i <= n; i++) if (lines[i] != "") seen[lines[i]] = 1
+    }
+    $4 ~ /^Z/ { next }
+    {
+      id = $1 " " $5 " " $6 " " $7 " " $8 " " $9
+      pid[NR] = $1; key[$1] = id; parent[$1] = $2
+      if ($3 == step || id in seen) found[$1] = 1
+    }
+    END {
+      do {
+        added = 0
+        for (i = 1; i <= NR; i++) {
+          if (!(pid[i] in found) && (parent[pid[i]] in found)) { found[pid[i]] = 1; added = 1 }
+        }
+      } while (added)
+      for (p in found) print key[p]
+    }'
+}
+
+# signal <signal> <tries>: sends it to the step's processes, then waits up to <tries> half-seconds
+# for them to end. Fails if some are still running.
+signal() {
+  known=$(processes)
+  [ -n "$known" ] || return 0
+  # shellcheck disable=SC2046 # A pid a word.
+  kill -"$1" $(echo "$known" | cut -d' ' -f1) 2>/dev/null
+  for _ in $(seq "$2"); do
+    sleep 0.5
+    known=$(processes)
+    [ -n "$known" ] || return 0
+  done
+  return 1
+}
+
+# stop <signal> <status> [<why>]: ends the step's processes, starting with <signal>, and exits with
+# <status>.
+stop() {
+  trap '' INT TERM
+  # A signal handled between starting the step and `step=$!`.
+  step=${step:-$!}
+  [ -n "$step" ] || exit "$2"
+  known=
+  if [ -n "$(processes)" ]; then
+    [ -z "${3:-}" ] || echo "$3" >&2
+    case "$1" in
+      INT) signal INT 6 || signal TERM 3 || signal KILL 1 ;;
+      *) signal TERM 3 || signal KILL 1 ;;
+    esac
+  fi
+  exit "$2"
+}
+
+# A trapped signal ends the `wait` below at once, where a foreground command would hold the trap
+# until it ended.
+step=
+trap 'stop INT 130 "Cancelled: stopping what the step started."' INT
+trap 'stop TERM 143 "Terminated: stopping what the step started."' TERM
+
+# Job control gives the step a process group of its own, and keeps SIGINT's default action in it
+# (a non-interactive shell's background commands would ignore SIGINT).
+set -m
+bash --noprofile --norc -eo pipefail "$1" &
+step=$!
+set +m
+wait "$step"
+status=$?
+# What the step left running in its group, such as a command it started in the background.
+stop TERM "$status" "Stopping what the step left running."
