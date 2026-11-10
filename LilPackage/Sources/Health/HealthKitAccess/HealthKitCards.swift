@@ -221,9 +221,9 @@ public struct HealthKitCardEngine: Sendable {
   /// agree; `nil` when nothing says.
   public static func indoor(_ workout: HKWorkout) -> Bool? {
     CardWorkout.indoor(
-      workout: CardWorkout.indoor(metadataValue: workout.metadata?[HKMetadataKeyIndoorWorkout]),
+      workout: HealthMetadataValues.value(HKMetadataKeyIndoorWorkout, in: workout.metadata)?.bool,
       activities: workout.workoutActivities.map { activity in
-        CardWorkout.indoor(metadataValue: activity.metadata?[HKMetadataKeyIndoorWorkout])
+        HealthMetadataValues.value(HKMetadataKeyIndoorWorkout, in: activity.metadata)?.bool
           ?? CardWorkout.indoor(
             locationType: Double(activity.workoutConfiguration.locationType.rawValue))
       })

@@ -42,14 +42,6 @@ public struct CardWorkout: Hashable, Sendable {
   public static func indoor(locationType: Double?) -> Bool? {
     locationType == 2 ? true : locationType == 3 ? false : nil
   }
-
-  /// `HKMetadataKeyIndoorWorkout`'s value: a Boolean, or 0 or 1 from apps that write it as a
-  /// number; `nil` for anything else.
-  public static func indoor(metadataValue value: Any?) -> Bool? {
-    guard let number = value as? NSNumber else { return nil }
-    if CFGetTypeID(number) == CFBooleanGetTypeID() { return number.boolValue }
-    return number.doubleValue == 1 ? true : number.doubleValue == 0 ? false : nil
-  }
 }
 
 /// What a run with sleep or workout windows fetches before their readings

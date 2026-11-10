@@ -1,4 +1,5 @@
 public import Foundation
+import HealthCatalog
 public import SQLiteData
 
 /// One quantity type's statistics over a workout, in the catalog's unit.
@@ -36,7 +37,7 @@ public struct WorkoutStatistic: Codable, Equatable, Sendable {
       func number(_ key: String) -> Double?? {
         switch fields[key] {
         case nil, is NSNull: .some(nil)
-        case let value: WorkoutMetadata.number(value).map(Optional.some)
+        case let value: HealthMetadataValues.number(value).map(Optional.some)
         }
       }
       guard let sum = number("sum"), let average = number("average"),

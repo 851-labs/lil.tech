@@ -1,4 +1,5 @@
-import { Option, Predicate, Schema } from "effect";
+import { Option, Schema } from "effect";
+import { metadataValue, named, swimmingLocations } from "./MetadataValues.ts";
 
 // A workout's `metadata` and `activities` columns as the Health tools and the cards' workout
 // windows read them (851-4015, 851-4030, 851-4031): where it was, indoors or not and in a pool or
@@ -39,19 +40,15 @@ export type WorkoutActivity = (typeof WorkoutActivities)["Type"][number];
 export const decodeActivities = Schema.decodeUnknownOption(WorkoutActivities);
 
 /** `HKMetadataKeyIndoorWorkout`: a Boolean, or 0 or 1 from apps that write it as a number. */
-export const indoor = (metadata: Metadata | null | undefined): boolean | null => {
-  const value = metadata?.["HKIndoorWorkout"];
-  if (Predicate.isBoolean(value)) return value;
-  return value === 1 ? true : value === 0 ? false : null;
-};
+export const indoor = (metadata: Metadata | null | undefined): boolean | null =>
+  metadataValue(metadata, "HKIndoorWorkout");
 
 /** An `HKWorkoutSwimmingLocationType`'s name: 1 pool, 2 open water, else (0, unknown) null. */
-export const swimmingLocationName = (value: unknown): string | null =>
-  value === 1 ? "pool" : value === 2 ? "openWater" : null;
+const swimmingLocationName = (value: unknown): string | null => named(swimmingLocations, value);
 
 /** `HKMetadataKeySwimmingLocationType`, an `HKWorkoutSwimmingLocationType`. */
 export const swimmingLocation = (metadata: Metadata | null | undefined): string | null =>
-  swimmingLocationName(metadata?.["HKSwimmingLocationType"]);
+  metadataValue(metadata, "HKSwimmingLocationType");
 
 /**
  * Whether an activity was indoors: as its metadata says, else as its configuration's
