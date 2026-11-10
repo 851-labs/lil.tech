@@ -25,7 +25,9 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
 
-# No run-wide concurrency: cancelling a run would stop a deploy halfway. Each job sets its own.
+# No run-wide concurrency: cancelling a run would stop a deploy halfway. Each job sets its own:
+# a new push cancels the previous one's Swift check (`changes` and `check`), never a deploy, a
+# teardown or a Pixelbook publish, and its `pr-ok` decides the PR's head.
 
 permissions:
   contents: read
@@ -42,6 +44,13 @@ jobs:
   changes:
     name: determine changes
     if: github.event.action != 'closed'
+    # In the Swift check's group, so a new push cancels the previous one's check on the minis as
+    # its run starts, running or queued, rather than once this job is done and `check` joins the
+    # group (851-4062). A push while this runs cancels it too, so its run deploys and checks
+    # nothing (the newer one does); its Pixelbook publish, which doesn't need it, still runs.
+    concurrency:
+      group: pr-swift-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     outputs:
       swift: ${{ steps.changes.outputs.swift }}
@@ -64,7 +73,7 @@ jobs:
     if: >-
       needs.changes.outputs.swift == 'true' &&
       github.event.pull_request.head.repo.full_name == github.repository
-    # A new push cancels the check of the one before.
+    # A new push cancels the check of the one before (and its `changes`, above, already has).
     concurrency:
       group: pr-swift-${{ github.event.pull_request.number }}
       cancel-in-progress: true

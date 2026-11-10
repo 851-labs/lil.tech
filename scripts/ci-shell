@@ -1,0 +1,96 @@
+#!/bin/bash
+# The shell of the Swift check's steps on the Mac minis (`swift-check.yml`, 851-4062): runs a
+# step's script as `shell: bash` does, and stops every process the step started when the runner
+# cancels it (a newer push, a timeout, a run cancelled by hand), or when the step ends.
+# Usage, as a workflow's `shell:`: bash scripts/ci-shell {0}
+#
+# Cancelling a step, the runner signals only the step's shell, SIGINT and then SIGTERM, and the
+# shell exits at the SIGTERM, leaving what it started running, its parent now launchd. The runner's
+# sweep at the end of the job finds such orphans by `RUNNER_TRACKING_ID` in their environment,
+# which macOS hides for its own binaries (`/bin/sh`, `/bin/bash`, `perl`), so `scripts/check` and
+# the scripts it calls went on starting builds after the job was over, beside the next job.
+#
+# Here the step runs in a process group of its own. On SIGINT or SIGTERM, every process in that
+# group, and every descendant of the step's shell (some commands take a group of their own, such
+# as `swiftpm-testing-helper`, `scripts/snapshot`'s `limit`), gets SIGTERM, then SIGKILL 2 seconds
+# later if it's still running, within the time the runner waits for the step (7.5 seconds after its
+# SIGINT, 2.5 after its SIGTERM). Ending normally, the step's group is stopped the same way, so
+# nothing it started in the background outlives it.
+set -u
+
+if [ $# -ne 1 ]; then
+  echo "usage: bash scripts/ci-shell <script>" >&2
+  exit 2
+fi
+
+# The step's processes, a pid a line: its group's, and their descendants, with the step's shell's
+# while it runs (`$running`). Once it's gone, its pid could be another process's.
+processes() {
+  ps -axo pid=,ppid=,pgid=,stat= | awk -v step="$step" -v running="$running" '
+    $4 ~ /^Z/ { next }
+    { pid[NR] = $1; parent[$1] = $2; if ($3 == step || (running && $1 == step)) found[$1] = 1 }
+    END {
+      do {
+        added = 0
+        for (i = 1; i <= NR; i++) {
+          if (!(pid[i] in found) && (parent[pid[i]] in found)) { found[pid[i]] = 1; added = 1 }
+        }
+      } while (added)
+      for (p in found) print p
+    }'
+}
+
+# Those of `$pids` and the step's processes still running, the ones that left the group and lost
+# their parent since included.
+left() {
+  processes
+  for pid in $pids; do
+    case " $(ps -o stat= -p "$pid" 2>/dev/null)" in
+      " " | " Z"*) ;;
+      *) echo "$pid" ;;
+    esac
+  done
+}
+
+# stop <status> [<why>]: ends the step's processes, and exits with <status>.
+stop() {
+  trap '' INT TERM
+  [ -n "$step" ] || exit "$1"
+  pids=$(processes)
+  if [ -n "$pids" ]; then
+    [ -z "${2:-}" ] || echo "$2" >&2
+    # shellcheck disable=SC2086 # A pid a word.
+    kill -TERM $pids 2>/dev/null
+    for try in 1 2 3 4 5; do
+      left=$(left)
+      [ -n "$left" ] || break
+      if [ "$try" = 5 ]; then
+        # shellcheck disable=SC2086
+        kill -KILL $left 2>/dev/null
+      else
+        sleep 0.5
+      fi
+    done
+  fi
+  exit "$1"
+}
+
+# A trapped signal ends the `wait` below at once, where a foreground command would hold the trap
+# until it ended.
+step=
+running=0
+trap 'stop 130 "Cancelled: stopping what the step started."' INT
+trap 'stop 143 "Terminated: stopping what the step started."' TERM
+
+# Job control gives the step a process group of its own, and keeps SIGINT's default action in it
+# (a non-interactive shell's background commands would ignore SIGINT).
+set -m
+bash --noprofile --norc -eo pipefail "$1" &
+step=$!
+running=1
+set +m
+wait "$step"
+status=$?
+running=0
+# What the step left running in its group, such as a command it started in the background.
+stop "$status" "Stopping what the step left running."
