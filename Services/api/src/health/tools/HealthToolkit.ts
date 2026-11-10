@@ -548,7 +548,8 @@ export const Samples = readOnly(
       "use metric for totals and trends, and this only to look at particular readings. A " +
       "series (an Apple Watch's heart rate in a workout) is one sample with its count and " +
       "summary, or its values with seriesValues. " +
-      "Workouts, Activity rings, medications and health details have their own tools.",
+      "Workouts, Activity rings, State of Mind, GAD-7 and PHQ-9 assessments, medications and " +
+      "health details have their own tools.",
     parameters: Schema.Struct({
       type: healthType,
       range,
@@ -1167,6 +1168,132 @@ export const ActivityRings = readOnly(
 );
 
 // -------------------------------------------------------------------------------------------------
+// state_of_mind
+// -------------------------------------------------------------------------------------------------
+
+/** The most State of Mind logs one call returns. */
+export const stateOfMindLimit = 500;
+
+export const HealthStateOfMindItem = Schema.Struct({
+  time: LocalTime.annotate({
+    description:
+      "When it was logged: a momentary emotion's moment, or for a daily mood, a time in the " +
+      "day it describes.",
+  }),
+  kind: Schema.String.annotate({
+    description:
+      "Momentary Emotion (how they felt right then) or Daily Mood (how they felt over the " +
+      "day), or Unknown for one a later iOS adds.",
+  }),
+  valence: Schema.Finite.annotate({
+    description: "How pleasant it felt, from -1 (very unpleasant) to 1 (very pleasant).",
+  }),
+  classification: Schema.String.annotate({
+    description:
+      "The valence as the person chose it: Very Unpleasant, Unpleasant, Slightly Unpleasant, " +
+      "Neutral, Slightly Pleasant, Pleasant or Very Pleasant (Unknown for one a later iOS adds).",
+  }),
+  labels: Schema.Array(Schema.String).annotate({
+    description:
+      "The feelings that described it, e.g. Calm, Grateful or Stressed, in the order they were " +
+      "logged. Empty if none.",
+  }),
+  associations: Schema.Array(Schema.String).annotate({
+    description:
+      "What it was about, e.g. Work, Family or Health, in the order they were logged. Empty if " +
+      "none.",
+  }),
+  source: Schema.String.annotate({
+    description: "The app or device it was logged in: Health, Mindfulness, or another app.",
+  }),
+}).annotate({ identifier: "HealthStateOfMindItem" });
+
+export const HealthStateOfMindResult = Schema.Struct({
+  ...periodFields,
+  count: Schema.Int.annotate({ description: "State of Mind logs in the period, all of them." }),
+  logs: Schema.Array(HealthStateOfMindItem).annotate({
+    description: `The logs, newest first, at most ${stateOfMindLimit}.`,
+  }),
+});
+
+export const StateOfMind = readOnly(
+  Tool.make("state_of_mind", {
+    description:
+      "State of Mind logs in a period, newest first, as Health and lil health's State of " +
+      "Mind show them: whether each was a momentary emotion or a daily mood, how pleasant it " +
+      "felt (valence from -1 to 1, and its classification, e.g. Slightly Pleasant), the " +
+      "feelings that described it (labels) and what it was about (associations), with the " +
+      "period's count. People log them in the Health app, or in Mindfulness on Apple Watch.",
+    parameters: Schema.Struct({ range, date, timeZone }),
+    success: HealthStateOfMindResult,
+    failure: HealthToolError,
+  }),
+  "Health State of Mind",
+);
+
+// -------------------------------------------------------------------------------------------------
+// assessments
+// -------------------------------------------------------------------------------------------------
+
+/** The most assessments one call returns. */
+export const assessmentsLimit = 100;
+
+export const HealthAssessmentItem = Schema.Struct({
+  type: Schema.String.annotate({
+    description:
+      "HKScoredAssessmentTypeIdentifierGAD7 (anxiety) or HKScoredAssessmentTypeIdentifierPHQ9 " +
+      "(depression).",
+  }),
+  name: Schema.String.annotate({
+    description: "Its name in Health: Anxiety Risk (GAD-7) or Depression Risk (PHQ-9).",
+  }),
+  time: LocalTime.annotate({ description: "When it was taken." }),
+  score: Schema.Int.annotate({
+    description: "The total of the answers' points, from 0 to maximumScore.",
+  }),
+  maximumScore: Schema.Int.annotate({
+    description: "The highest score: 21 for GAD-7, 27 for PHQ-9 (3 points a question).",
+  }),
+  risk: Schema.String.annotate({
+    description:
+      "The risk Health gave the score. GAD-7: None to Minimal (0 to 4), Mild (5 to 9), " +
+      "Moderate (10 to 14) or Severe (15 to 21). PHQ-9: None to Minimal (0 to 4), Mild (5 to " +
+      "9), Moderate (10 to 14), Moderately Severe (15 to 19) or Severe (20 to 27). Unknown for " +
+      "one a later iOS adds.",
+  }),
+  answers: Schema.Array(Schema.String).annotate({
+    description:
+      "Each question's answer, in the questionnaire's order (7 for GAD-7, 9 for PHQ-9), to " +
+      "how often over the last two weeks: Not at all (0 points), Several days (1), More than " +
+      "half the days (2) or Nearly every day (3). PHQ-9's 9th question, on thoughts of " +
+      "self-harm, can be Prefer not to answer. Unknown for an answer a later iOS adds.",
+  }),
+}).annotate({ identifier: "HealthAssessmentItem" });
+
+export const HealthAssessmentsResult = Schema.Struct({
+  ...periodFields,
+  count: Schema.Int.annotate({ description: "Assessments in the period, all of them." }),
+  assessments: Schema.Array(HealthAssessmentItem).annotate({
+    description: `The assessments, newest first, at most ${assessmentsLimit}.`,
+  }),
+});
+
+export const Assessments = readOnly(
+  Tool.make("assessments", {
+    description:
+      "GAD-7 (anxiety) and PHQ-9 (depression) questionnaires taken in a period, newest " +
+      "first, as Health and lil health's Anxiety Risk and Depression Risk show them: each " +
+      "one's score out of its maximum, the risk Health gave it, and every question's answer, " +
+      "with the period's count. They're screening questionnaires people take in the Health " +
+      "app, not diagnoses.",
+    parameters: Schema.Struct({ range, date, timeZone }),
+    success: HealthAssessmentsResult,
+    failure: HealthToolError,
+  }),
+  "Health Assessments",
+);
+
+// -------------------------------------------------------------------------------------------------
 // medications
 // -------------------------------------------------------------------------------------------------
 
@@ -1359,6 +1486,8 @@ export const HealthToolkit = Toolkit.make(
   WorkoutRoutePoints,
   Sleep,
   ActivityRings,
+  StateOfMind,
+  Assessments,
   Medications,
   HealthDetails,
   Search,
@@ -1382,6 +1511,8 @@ export const healthToolResultNames: Record<keyof typeof HealthToolkit.tools, str
   workout_route_points: "HealthWorkoutRoutePointsResult",
   sleep: "HealthSleepResult",
   activity_rings: "HealthActivityRingsResult",
+  state_of_mind: "HealthStateOfMindResult",
+  assessments: "HealthAssessmentsResult",
   medications: "HealthMedicationsResult",
   health_details: "HealthDetailsResult",
   search: "HealthSearchResult",

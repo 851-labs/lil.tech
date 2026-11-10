@@ -5,6 +5,7 @@ import type { Effect } from "effect";
 import type { HealthToolError, HealthToolkit } from "./HealthToolkit.ts";
 import { healthListTypes } from "./ListTypes.ts";
 import { healthMedications } from "./Medications.ts";
+import { healthAssessments, healthStateOfMind } from "./MentalWellbeing.ts";
 import { healthMetric } from "./Metric.ts";
 import { healthSamples } from "./Samples.ts";
 import { healthSearch } from "./Search.ts";
@@ -51,6 +52,8 @@ export const storeHealthTools = (
   workout_route_points: (params) => healthWorkoutRoutePoints(sql, blobs, params),
   sleep: (params) => healthSleep(sql, params),
   activity_rings: (params) => healthActivityRings(sql, params),
+  state_of_mind: (params) => healthStateOfMind(sql, params),
+  assessments: (params) => healthAssessments(sql, params),
   medications: (params) => healthMedications(sql, params),
   health_details: (params) => healthDetails(sql, params),
   search: (params) => healthSearch(sql, params),

@@ -713,6 +713,56 @@ public struct HealthActivityRingsResult: HealthToolOutput {
   public var days: [HealthActivityDay]
 }
 
+// MARK: - state_of_mind
+
+/// A State of Mind log, in the words of the Mac's State of Mind page.
+public struct HealthStateOfMindItem: Codable, Equatable, Sendable {
+  public var time: String
+  /// `Momentary Emotion` or `Daily Mood` (`Unknown` for one a later iOS adds).
+  public var kind: String
+  /// From -1 (very unpleasant) to 1 (very pleasant).
+  public var valence: Double
+  /// E.g. `Slightly Pleasant`, or `Unknown` for one a later iOS adds.
+  public var classification: String
+  public var labels: [String]
+  public var associations: [String]
+  public var source: String
+}
+
+public struct HealthStateOfMindResult: HealthToolOutput {
+  public var timeZone: String
+  public var range: String
+  public var start: String
+  public var end: String
+  public var count: Int
+  public var logs: [HealthStateOfMindItem]
+}
+
+// MARK: - assessments
+
+/// A GAD-7 or PHQ-9 assessment, in the words of the Mac's Anxiety Risk and Depression Risk pages.
+public struct HealthAssessmentItem: Codable, Equatable, Sendable {
+  public var type: String
+  /// The type's name, e.g. `Anxiety Risk (GAD-7)`.
+  public var name: String
+  public var time: String
+  public var score: Int
+  public var maximumScore: Int
+  /// E.g. `Mild`, or `Unknown` for one a later iOS adds.
+  public var risk: String
+  /// Each question's answer, in order, e.g. `Several days`.
+  public var answers: [String]
+}
+
+public struct HealthAssessmentsResult: HealthToolOutput {
+  public var timeZone: String
+  public var range: String
+  public var start: String
+  public var end: String
+  public var count: Int
+  public var assessments: [HealthAssessmentItem]
+}
+
 // MARK: - medications
 
 public struct HealthMedicationAdherence: Codable, Equatable, Sendable {

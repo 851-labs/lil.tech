@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 public import SQLiteData
 
 extension HealthDatabase {
@@ -8,6 +8,34 @@ extension HealthDatabase {
       .order { ($0.startDate.desc(), $0.id.desc()) }
       .limit(limit)
       .fetchAll(db)
+  }
+
+  /// The State of Mind logs that start in `range`, newest first (then by ID), at most `limit`,
+  /// and how many there are in all: the `state_of_mind` tool's (851-4160).
+  public static func stateOfMindLogs(in range: Range<Date>, limit: Int, _ db: Database) throws
+    -> (count: Int, logs: [HealthStateOfMind])
+  {
+    let (lower, upper) = (range.lowerBound.unixMilliseconds, range.upperBound.unixMilliseconds)
+    let inRange = HealthStateOfMind.where { $0.startDate >= lower && $0.startDate < upper }
+    let logs = try inRange.order { ($0.startDate.desc(), $0.id.desc()) }.limit(limit).fetchAll(db)
+    // Counted only when they don't all fit.
+    return (logs.count < limit ? logs.count : try inRange.fetchCount(db), logs)
+  }
+
+  /// The assessments of `kinds` that start in `range`, newest first (then by ID), at most
+  /// `limit`, and how many there are in all: the `assessments` tool's (851-4160).
+  public static func scoredAssessments(
+    of kinds: [AssessmentKind], in range: Range<Date>, limit: Int, _ db: Database
+  ) throws -> (count: Int, assessments: [HealthScoredAssessment]) {
+    let (lower, upper) = (range.lowerBound.unixMilliseconds, range.upperBound.unixMilliseconds)
+    let types = kinds.map(\.rawValue)
+    let inRange = HealthScoredAssessment.where {
+      $0.type.in(types) && $0.startDate >= lower && $0.startDate < upper
+    }
+    let assessments = try inRange.order { ($0.startDate.desc(), $0.id.desc()) }.limit(limit)
+      .fetchAll(db)
+    // Counted only when they don't all fit.
+    return (assessments.count < limit ? assessments.count : try inRange.fetchCount(db), assessments)
   }
 
   /// A type's assessments (e.g. `HKScoredAssessmentTypeIdentifierGAD7`), newest first, at most
@@ -60,8 +88,12 @@ public enum StateOfMindVocabulary {
 
   /// Names for raw values, skipping ones this app doesn't know (from a newer iOS).
   static func names(_ json: String, in names: [String]) -> [String] {
-    let values = (try? JSONDecoder().decode([Int].self, from: Data(json.utf8))) ?? []
-    return values.compactMap { names.indices.contains($0 - 1) ? names[$0 - 1] : nil }
+    rawValues(json).compactMap { names.indices.contains($0 - 1) ? names[$0 - 1] : nil }
+  }
+
+  /// A JSON array of HealthKit raw values, or none if it can't be read.
+  static func rawValues(_ json: String) -> [Int] {
+    (try? JSONDecoder().decode([Int].self, from: Data(json.utf8))) ?? []
   }
 }
 
@@ -70,6 +102,16 @@ extension HealthStateOfMind {
   public var isDailyMood: Bool { kind == 2 }
 
   public var kindName: String { isDailyMood ? "Daily Mood" : "Momentary Emotion" }
+
+  /// The kind's name as the tools give it (851-4160): `Unknown` for one a later iOS adds, where
+  /// the page shows it as a momentary emotion.
+  public var toolKindName: String {
+    switch kind {
+    case 1: "Momentary Emotion"
+    case 2: "Daily Mood"
+    default: "Unknown"
+    }
+  }
 
   public var decodedValenceClassification: ValenceClassification? {
     ValenceClassification(rawValue: valenceClassification)
@@ -108,7 +150,23 @@ public enum AssessmentKind: String, CaseIterable, Sendable {
     }
   }
 
+  /// An assessment's answers' names, in question order, or none if they can't be read.
+  public func answerNames(_ assessment: HealthScoredAssessment) -> [String] {
+    StateOfMindVocabulary.rawValues(assessment.answers).map(answerName)
+  }
+
   public func riskName(_ risk: Int) -> String {
     risks.indices.contains(risk - 1) ? risks[risk - 1] : "Unknown"
+  }
+
+  /// Answer names by raw value (`HKGAD7Assessment.Answer`, `HKPHQ9Assessment.Answer`), from 0:
+  /// how often over the last two weeks. Only PHQ-9's 9th question can be skipped.
+  public var answers: [String] {
+    let frequencies = ["Not at all", "Several days", "More than half the days", "Nearly every day"]
+    return self == .phq9 ? frequencies + ["Prefer not to answer"] : frequencies
+  }
+
+  public func answerName(_ answer: Int) -> String {
+    answers.indices.contains(answer) ? answers[answer] : "Unknown"
   }
 }

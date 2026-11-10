@@ -1063,3 +1063,108 @@ export const activitySummaries = (
       activityMoveMode: stringOrNull(row["activity_move_mode"]),
       paused: row["paused"] === 1,
     }));
+
+/** A State of Mind log as stored (`health_state_of_mind`), its labels and associations JSON. */
+export interface StateOfMindRow {
+  readonly id: string;
+  readonly startDate: number;
+  readonly kind: number;
+  readonly valence: number;
+  readonly valenceClassification: number;
+  readonly labels: string;
+  readonly associations: string;
+  readonly sourceName: string;
+}
+
+/**
+ * The State of Mind logs that start in `[from, to)`, newest first (then by ID), at most `limit`,
+ * as the Mac's `HealthDatabase.stateOfMindLogs(in:limit:)`, and how many there are in all,
+ * counted only when they don't all fit.
+ */
+export const stateOfMindLogs = (sql: StoreSql, from: number, to: number, limit: number) => {
+  const where = "start_date >= ? AND start_date < ?";
+  const logs = sql
+    .exec(
+      `SELECT id, start_date, kind, valence, valence_classification, labels, associations,
+        source_name
+      FROM health_state_of_mind WHERE ${where} ORDER BY start_date DESC, id DESC LIMIT ?`,
+      from,
+      to,
+      limit,
+    )
+    .map((row): StateOfMindRow => ({
+      id: row["id"] as string,
+      startDate: Number(row["start_date"]),
+      kind: Number(row["kind"]),
+      valence: Number(row["valence"]),
+      valenceClassification: Number(row["valence_classification"]),
+      labels: row["labels"] as string,
+      associations: row["associations"] as string,
+      sourceName: row["source_name"] as string,
+    }));
+  const count =
+    logs.length < limit
+      ? logs.length
+      : Number(
+          sql.exec(
+            `SELECT count(*) AS count FROM health_state_of_mind WHERE ${where}`,
+            from,
+            to,
+          )[0]?.["count"] ?? 0,
+        );
+  return { count, logs };
+};
+
+/** A GAD-7 or PHQ-9 assessment as stored (`health_scored_assessment`), its answers JSON. */
+export interface ScoredAssessmentRow {
+  readonly id: string;
+  readonly type: string;
+  readonly startDate: number;
+  readonly score: number;
+  readonly risk: number;
+  readonly answers: string;
+}
+
+/**
+ * The assessments of `types` that start in `[from, to)`, newest first (then by ID), at most
+ * `limit`, as the Mac's `HealthDatabase.scoredAssessments(of:in:limit:)`, and how many there are
+ * in all, counted only when they don't all fit.
+ */
+export const scoredAssessments = (
+  sql: StoreSql,
+  types: ReadonlyArray<string>,
+  from: number,
+  to: number,
+  limit: number,
+) => {
+  const where = `type IN (${types.map(() => "?").join(", ")}) AND start_date >= ? AND start_date < ?`;
+  const assessments = sql
+    .exec(
+      `SELECT id, type, start_date, score, risk, answers FROM health_scored_assessment
+      WHERE ${where} ORDER BY start_date DESC, id DESC LIMIT ?`,
+      ...types,
+      from,
+      to,
+      limit,
+    )
+    .map((row): ScoredAssessmentRow => ({
+      id: row["id"] as string,
+      type: row["type"] as string,
+      startDate: Number(row["start_date"]),
+      score: Number(row["score"]),
+      risk: Number(row["risk"]),
+      answers: row["answers"] as string,
+    }));
+  const count =
+    assessments.length < limit
+      ? assessments.length
+      : Number(
+          sql.exec(
+            `SELECT count(*) AS count FROM health_scored_assessment WHERE ${where}`,
+            ...types,
+            from,
+            to,
+          )[0]?.["count"] ?? 0,
+        );
+  return { count, assessments };
+};

@@ -147,7 +147,7 @@ describe("MCP sessions kept in the store", () => {
         assert.isTrue(id === null || id === session);
         const list = yield* postMcp(after, healthUrl, inSession("tools/list"), headers);
         assert.strictEqual(list.status, 200);
-        assert.lengthOf(result(list)?.["tools"] as Array<unknown>, 22);
+        assert.lengthOf(result(list)?.["tools"] as Array<unknown>, 24);
         // And again, at the object after that.
         const third = yield* healthServer(testStore);
         assert.strictEqual((yield* postMcp(third, healthUrl, summaryCall(), headers)).status, 200);
@@ -201,7 +201,7 @@ describe("MCP sessions kept in the store", () => {
       const call = yield* postMcp(after, combinedUrl, summaryCall("health.summary"), headers);
       assert.strictEqual(call.status, 200);
       const list = yield* postMcp(after, combinedUrl, inSession("tools/list"), headers);
-      assert.lengthOf(result(list)?.["tools"] as Array<unknown>, 24);
+      assert.lengthOf(result(list)?.["tools"] as Array<unknown>, 26);
       // Without lil mail, it's another server's session: the agent starts a new one.
       const narrowed = yield* postMcp(
         yield* combinedServer(testStore),

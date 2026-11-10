@@ -315,6 +315,8 @@ export const healthMcpApp = (options: {
     workout_route_points: wrap(tools.workout_route_points, handlers.workout_route_points),
     sleep: wrap(tools.sleep, handlers.sleep),
     activity_rings: wrap(tools.activity_rings, handlers.activity_rings),
+    state_of_mind: wrap(tools.state_of_mind, handlers.state_of_mind),
+    assessments: wrap(tools.assessments, handlers.assessments),
     medications: wrap(tools.medications, handlers.medications),
     health_details: wrap(tools.health_details, handlers.health_details),
     search: wrap(tools.search, handlers.search),

@@ -688,6 +688,36 @@
             "last": "2026-10-20T08:05:00+00:00"
           },
           {
+            "type": "HKScoredAssessmentTypeIdentifierGAD7",
+            "name": "Anxiety Risk (GAD-7)",
+            "category": "Mental Wellbeing",
+            "kind": "scoredAssessment",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-09-25T08:00:00+00:00",
+            "last": "2026-10-20T07:00:00+00:00"
+          },
+          {
+            "type": "HKScoredAssessmentTypeIdentifierPHQ9",
+            "name": "Depression Risk (PHQ-9)",
+            "category": "Mental Wellbeing",
+            "kind": "scoredAssessment",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-10-15T10:05:00+00:00",
+            "last": "2026-10-19T09:00:00+00:00"
+          },
+          {
+            "type": "HKDataTypeStateOfMind",
+            "name": "State of Mind",
+            "category": "Mental Wellbeing",
+            "kind": "stateOfMind",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-09-13T23:59:59+00:00",
+            "last": "2026-10-20T14:00:00+00:00"
+          },
+          {
             "type": "HKCategoryTypeIdentifierSleepAnalysis",
             "name": "Sleep",
             "category": "Sleep",
@@ -889,6 +919,36 @@
             "cumulative": false,
             "first": "2026-09-01T01:00:00-07:00",
             "last": "2026-10-20T01:05:00-07:00"
+          },
+          {
+            "type": "HKScoredAssessmentTypeIdentifierGAD7",
+            "name": "Anxiety Risk (GAD-7)",
+            "category": "Mental Wellbeing",
+            "kind": "scoredAssessment",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-09-25T01:00:00-07:00",
+            "last": "2026-10-20T00:00:00-07:00"
+          },
+          {
+            "type": "HKScoredAssessmentTypeIdentifierPHQ9",
+            "name": "Depression Risk (PHQ-9)",
+            "category": "Mental Wellbeing",
+            "kind": "scoredAssessment",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-10-15T03:05:00-07:00",
+            "last": "2026-10-19T02:00:00-07:00"
+          },
+          {
+            "type": "HKDataTypeStateOfMind",
+            "name": "State of Mind",
+            "category": "Mental Wellbeing",
+            "kind": "stateOfMind",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-09-13T16:59:59-07:00",
+            "last": "2026-10-20T07:00:00-07:00"
           },
           {
             "type": "HKCategoryTypeIdentifierSleepAnalysis",
@@ -1825,7 +1885,7 @@
         "type": "HKCategoryTypeIdentifierSleepAnalysis",
         "range": "W"
       },
-      "expectedError": "Sleep (HKCategoryTypeIdentifierSleepAnalysis) isn't a quantity type, so it has no statistics. Use samples, or the tool for its kind (sleep, activity_rings, workouts, medications)."
+      "expectedError": "Sleep (HKCategoryTypeIdentifierSleepAnalysis) isn't a quantity type, so it has no statistics. Use samples, or the tool for its kind (sleep, activity_rings, state_of_mind, assessments, workouts, medications)."
     },
     {
       "name": "metric of an unknown type fails",
@@ -5094,6 +5154,26 @@
       "expectedError": "samples doesn't list ECG (HKDataTypeIdentifierElectrocardiogram), and no other tool reads that kind yet."
     },
     {
+      "name": "samples of State of Mind fails: state_of_mind has them",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKDataTypeStateOfMind",
+        "range": "W"
+      },
+      "expectedError": "samples doesn't list State of Mind (HKDataTypeStateOfMind): use state_of_mind."
+    },
+    {
+      "name": "samples of PHQ-9 fails: assessments has them",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKScoredAssessmentTypeIdentifierPHQ9",
+        "range": "W"
+      },
+      "expectedError": "samples doesn't list Depression Risk (PHQ-9) (HKScoredAssessmentTypeIdentifierPHQ9): use assessments."
+    },
+    {
       "name": "samples of a characteristic fails: health_details has them",
       "tool": "samples",
       "now": "2026-10-20T15:00:00Z",
@@ -7591,6 +7671,484 @@
     {
       "name": "activity_rings with a day that doesn't exist fails",
       "tool": "activity_rings",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "date": "2026-02-30"
+      },
+      "expectedError": "Invalid date: 2026-02-30. Use a day that exists, as YYYY-MM-DD."
+    },
+    {
+      "name": "state_of_mind of a week in UTC, newest first: every label and association, none, and values a later iOS adds",
+      "tool": "state_of_mind",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "W",
+        "start": "2026-10-14T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "count": 6,
+        "logs": [
+          {
+            "time": "2026-10-20T14:00:00+00:00",
+            "kind": "Momentary Emotion",
+            "valence": 0,
+            "classification": "Neutral",
+            "labels": [
+              "Amazed",
+              "Amused",
+              "Angry",
+              "Anxious",
+              "Ashamed",
+              "Brave",
+              "Calm",
+              "Content",
+              "Disappointed",
+              "Discouraged",
+              "Disgusted",
+              "Embarrassed",
+              "Excited",
+              "Frustrated",
+              "Grateful",
+              "Guilty",
+              "Happy",
+              "Hopeless",
+              "Irritated",
+              "Jealous",
+              "Joyful",
+              "Lonely",
+              "Passionate",
+              "Peaceful",
+              "Proud",
+              "Relieved",
+              "Sad",
+              "Scared",
+              "Stressed",
+              "Surprised",
+              "Worried",
+              "Annoyed",
+              "Confident",
+              "Drained",
+              "Hopeful",
+              "Indifferent",
+              "Overwhelmed",
+              "Satisfied"
+            ],
+            "associations": [
+              "Community",
+              "Current Events",
+              "Dating",
+              "Education",
+              "Family",
+              "Fitness",
+              "Friends",
+              "Health",
+              "Hobbies",
+              "Identity",
+              "Money",
+              "Partner",
+              "Self Care",
+              "Spirituality",
+              "Tasks",
+              "Travel",
+              "Work",
+              "Weather"
+            ],
+            "source": "Health"
+          },
+          {
+            "time": "2026-10-19T23:30:00+00:00",
+            "kind": "Daily Mood",
+            "valence": 0.95,
+            "classification": "Very Pleasant",
+            "labels": ["Joyful", "Excited"],
+            "associations": ["Friends", "Travel"],
+            "source": "Health"
+          },
+          {
+            "time": "2026-10-18T12:15:00+00:00",
+            "kind": "Momentary Emotion",
+            "valence": -1,
+            "classification": "Very Unpleasant",
+            "labels": [],
+            "associations": [],
+            "source": "Test Apple Watch"
+          },
+          {
+            "time": "2026-10-16T21:00:00+00:00",
+            "kind": "Daily Mood",
+            "valence": -0.6,
+            "classification": "Unpleasant",
+            "labels": ["Anxious", "Stressed", "Overwhelmed"],
+            "associations": ["Work", "Money"],
+            "source": "Health"
+          },
+          {
+            "time": "2026-10-15T09:00:00+00:00",
+            "kind": "Unknown",
+            "valence": 0.2,
+            "classification": "Unknown",
+            "labels": ["Peaceful"],
+            "associations": ["Spirituality"],
+            "source": "Health"
+          },
+          {
+            "time": "2026-10-14T08:30:00+00:00",
+            "kind": "Momentary Emotion",
+            "valence": 0.45,
+            "classification": "Slightly Pleasant",
+            "labels": ["Calm", "Grateful"],
+            "associations": ["Family"],
+            "source": "Health"
+          }
+        ]
+      }
+    },
+    {
+      "name": "state_of_mind of a day in Auckland: a log of 13 October in UTC is the 14th's",
+      "tool": "state_of_mind",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "D",
+        "date": "2026-10-14",
+        "timeZone": "Pacific/Auckland"
+      },
+      "expected": {
+        "timeZone": "Pacific/Auckland",
+        "range": "D",
+        "start": "2026-10-14T00:00:00+13:00",
+        "end": "2026-10-15T00:00:00+13:00",
+        "count": 2,
+        "logs": [
+          {
+            "time": "2026-10-14T21:30:00+13:00",
+            "kind": "Momentary Emotion",
+            "valence": 0.45,
+            "classification": "Slightly Pleasant",
+            "labels": ["Calm", "Grateful"],
+            "associations": ["Family"],
+            "source": "Health"
+          },
+          {
+            "time": "2026-10-14T12:30:00+13:00",
+            "kind": "Momentary Emotion",
+            "valence": -0.25,
+            "classification": "Slightly Unpleasant",
+            "labels": ["Worried"],
+            "associations": ["Health"],
+            "source": "Test Apple Watch"
+          }
+        ]
+      }
+    },
+    {
+      "name": "state_of_mind of a day in Los Angeles: a daily mood logged that afternoon",
+      "tool": "state_of_mind",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "D",
+        "date": "2026-10-19",
+        "timeZone": "America/Los_Angeles"
+      },
+      "expected": {
+        "timeZone": "America/Los_Angeles",
+        "range": "D",
+        "start": "2026-10-19T00:00:00-07:00",
+        "end": "2026-10-20T00:00:00-07:00",
+        "count": 1,
+        "logs": [
+          {
+            "time": "2026-10-19T16:30:00-07:00",
+            "kind": "Daily Mood",
+            "valence": 0.95,
+            "classification": "Very Pleasant",
+            "labels": ["Joyful", "Excited"],
+            "associations": ["Friends", "Travel"],
+            "source": "Health"
+          }
+        ]
+      }
+    },
+    {
+      "name": "state_of_mind of 30 days ending 13 October: the period's first moment is in, the second before isn't",
+      "tool": "state_of_mind",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "M",
+        "date": "2026-10-13"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "M",
+        "start": "2026-09-14T00:00:00+00:00",
+        "end": "2026-10-14T00:00:00+00:00",
+        "count": 2,
+        "logs": [
+          {
+            "time": "2026-10-13T23:30:00+00:00",
+            "kind": "Momentary Emotion",
+            "valence": -0.25,
+            "classification": "Slightly Unpleasant",
+            "labels": ["Worried"],
+            "associations": ["Health"],
+            "source": "Test Apple Watch"
+          },
+          {
+            "time": "2026-09-14T00:00:00+00:00",
+            "kind": "Momentary Emotion",
+            "valence": 0.6,
+            "classification": "Pleasant",
+            "labels": ["Happy"],
+            "associations": ["Fitness"],
+            "source": "Test Apple Watch"
+          }
+        ]
+      }
+    },
+    {
+      "name": "state_of_mind of a day whose only log was deleted",
+      "tool": "state_of_mind",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "D",
+        "date": "2026-10-17"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-10-17T00:00:00+00:00",
+        "end": "2026-10-18T00:00:00+00:00",
+        "count": 0,
+        "logs": []
+      }
+    },
+    {
+      "name": "state_of_mind without a range fails",
+      "tool": "state_of_mind",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {},
+      "expectedError": "Invalid parameters for tool 'state_of_mind': Missing key\n  at [\"range\"]"
+    },
+    {
+      "name": "state_of_mind on a day that doesn't exist fails",
+      "tool": "state_of_mind",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "date": "2026-02-30"
+      },
+      "expectedError": "Invalid date: 2026-02-30. Use a day that exists, as YYYY-MM-DD."
+    },
+    {
+      "name": "assessments of 30 days in UTC, newest first: a skipped 9th question, and an answer and a risk a later iOS adds",
+      "tool": "assessments",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "M"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "M",
+        "start": "2026-09-21T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "count": 6,
+        "assessments": [
+          {
+            "type": "HKScoredAssessmentTypeIdentifierGAD7",
+            "name": "Anxiety Risk (GAD-7)",
+            "time": "2026-10-20T07:00:00+00:00",
+            "score": 3,
+            "maximumScore": 21,
+            "risk": "None to Minimal",
+            "answers": [
+              "Not at all",
+              "Not at all",
+              "Several days",
+              "Several days",
+              "Several days",
+              "Not at all",
+              "Unknown"
+            ]
+          },
+          {
+            "type": "HKScoredAssessmentTypeIdentifierPHQ9",
+            "name": "Depression Risk (PHQ-9)",
+            "time": "2026-10-19T09:00:00+00:00",
+            "score": 21,
+            "maximumScore": 27,
+            "risk": "Severe",
+            "answers": [
+              "Nearly every day",
+              "Nearly every day",
+              "More than half the days",
+              "Nearly every day",
+              "More than half the days",
+              "More than half the days",
+              "Nearly every day",
+              "Nearly every day",
+              "Prefer not to answer"
+            ]
+          },
+          {
+            "type": "HKScoredAssessmentTypeIdentifierPHQ9",
+            "name": "Depression Risk (PHQ-9)",
+            "time": "2026-10-17T12:00:00+00:00",
+            "score": 0,
+            "maximumScore": 27,
+            "risk": "Unknown",
+            "answers": [
+              "Not at all",
+              "Not at all",
+              "Not at all",
+              "Not at all",
+              "Not at all",
+              "Not at all",
+              "Not at all",
+              "Not at all",
+              "Not at all"
+            ]
+          },
+          {
+            "type": "HKScoredAssessmentTypeIdentifierPHQ9",
+            "name": "Depression Risk (PHQ-9)",
+            "time": "2026-10-15T10:05:00+00:00",
+            "score": 12,
+            "maximumScore": 27,
+            "risk": "Moderate",
+            "answers": [
+              "Several days",
+              "More than half the days",
+              "Several days",
+              "More than half the days",
+              "Several days",
+              "Several days",
+              "More than half the days",
+              "More than half the days",
+              "Not at all"
+            ]
+          },
+          {
+            "type": "HKScoredAssessmentTypeIdentifierGAD7",
+            "name": "Anxiety Risk (GAD-7)",
+            "time": "2026-10-15T10:00:00+00:00",
+            "score": 8,
+            "maximumScore": 21,
+            "risk": "Mild",
+            "answers": [
+              "Several days",
+              "Several days",
+              "More than half the days",
+              "Not at all",
+              "Several days",
+              "More than half the days",
+              "Several days"
+            ]
+          },
+          {
+            "type": "HKScoredAssessmentTypeIdentifierGAD7",
+            "name": "Anxiety Risk (GAD-7)",
+            "time": "2026-09-25T08:00:00+00:00",
+            "score": 16,
+            "maximumScore": 21,
+            "risk": "Severe",
+            "answers": [
+              "Nearly every day",
+              "More than half the days",
+              "More than half the days",
+              "More than half the days",
+              "Nearly every day",
+              "More than half the days",
+              "More than half the days"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "assessments of a week in Los Angeles ending 15 October",
+      "tool": "assessments",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "date": "2026-10-15",
+        "timeZone": "America/Los_Angeles"
+      },
+      "expected": {
+        "timeZone": "America/Los_Angeles",
+        "range": "W",
+        "start": "2026-10-09T00:00:00-07:00",
+        "end": "2026-10-16T00:00:00-07:00",
+        "count": 2,
+        "assessments": [
+          {
+            "type": "HKScoredAssessmentTypeIdentifierPHQ9",
+            "name": "Depression Risk (PHQ-9)",
+            "time": "2026-10-15T03:05:00-07:00",
+            "score": 12,
+            "maximumScore": 27,
+            "risk": "Moderate",
+            "answers": [
+              "Several days",
+              "More than half the days",
+              "Several days",
+              "More than half the days",
+              "Several days",
+              "Several days",
+              "More than half the days",
+              "More than half the days",
+              "Not at all"
+            ]
+          },
+          {
+            "type": "HKScoredAssessmentTypeIdentifierGAD7",
+            "name": "Anxiety Risk (GAD-7)",
+            "time": "2026-10-15T03:00:00-07:00",
+            "score": 8,
+            "maximumScore": 21,
+            "risk": "Mild",
+            "answers": [
+              "Several days",
+              "Several days",
+              "More than half the days",
+              "Not at all",
+              "Several days",
+              "More than half the days",
+              "Several days"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "assessments of a day whose only assessment was deleted",
+      "tool": "assessments",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "D",
+        "date": "2026-10-18"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-10-18T00:00:00+00:00",
+        "end": "2026-10-19T00:00:00+00:00",
+        "count": 0,
+        "assessments": []
+      }
+    },
+    {
+      "name": "assessments without a range fails",
+      "tool": "assessments",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {},
+      "expectedError": "Invalid parameters for tool 'assessments': Missing key\n  at [\"range\"]"
+    },
+    {
+      "name": "assessments on a day that doesn't exist fails",
+      "tool": "assessments",
       "now": "2026-10-20T15:00:00Z",
       "arguments": {
         "range": "W",

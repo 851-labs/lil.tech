@@ -438,7 +438,7 @@
   },
   {
     "name": "samples",
-    "description": "Individual samples of a quantity, category or correlation type (blood pressure, food) in a period, newest first, a page at a time, each with its source app and device (listed once a page, in sources) and what its metadata says (how and where it was measured, whether it was entered by hand), fields only when HealthKit has them. A type can have many thousands of samples a day: use metric for totals and trends, and this only to look at particular readings. A series (an Apple Watch's heart rate in a workout) is one sample with its count and summary, or its values with seriesValues. Workouts, Activity rings, medications and health details have their own tools.",
+    "description": "Individual samples of a quantity, category or correlation type (blood pressure, food) in a period, newest first, a page at a time, each with its source app and device (listed once a page, in sources) and what its metadata says (how and where it was measured, whether it was entered by hand), fields only when HealthKit has them. A type can have many thousands of samples a day: use metric for totals and trends, and this only to look at particular readings. A series (an Apple Watch's heart rate in a workout) is one sample with its count and summary, or its values with seriesValues. Workouts, Activity rings, State of Mind, GAD-7 and PHQ-9 assessments, medications and health details have their own tools.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2828,6 +2828,275 @@
       "openWorldHint": false
     },
     "title": "Health Activity Rings"
+  },
+  {
+    "name": "state_of_mind",
+    "description": "State of Mind logs in a period, newest first, as Health and lil health's State of Mind show them: whether each was a momentary emotion or a daily mood, how pleasant it felt (valence from -1 to 1, and its classification, e.g. Slightly Pleasant), the feelings that described it (labels) and what it was about (associations), with the period's count. People log them in the Health app, or in Mindfulness on Apple Watch.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "range": {
+          "type": "string",
+          "enum": [
+            "D",
+            "W",
+            "M",
+            "6M",
+            "Y"
+          ],
+          "description": "The period, ending on `date`: D is that day, in hours; W the 7 days ending that day, in days; M the 30 days ending that day, in days; 6M the 26 weeks ending that day, in 7-day weeks; Y the 12 calendar months ending with that day's month, in months (the last one ends with `date`)."
+        },
+        "date": {
+          "type": "string",
+          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`, from 2000 to 2999. Defaults to today."
+        },
+        "timeZone": {
+          "type": "string",
+          "description": "An IANA time zone, e.g. Europe/London, for days and local times. Defaults to UTC on the remote server and to the Mac's time zone locally. Every output says which it used."
+        }
+      },
+      "required": [
+        "range"
+      ],
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "timeZone": {
+          "type": "string",
+          "description": "The IANA time zone of the output's days and local times."
+        },
+        "range": {
+          "type": "string",
+          "description": "The range asked for: D, W, M, 6M or Y."
+        },
+        "start": {
+          "type": "string",
+          "description": "When the period starts."
+        },
+        "end": {
+          "type": "string",
+          "description": "When the period ends (exclusive)."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "State of Mind logs in the period, all of them."
+        },
+        "logs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HealthStateOfMindItem"
+          },
+          "description": "The logs, newest first, at most 500."
+        }
+      },
+      "required": [
+        "timeZone",
+        "range",
+        "start",
+        "end",
+        "count",
+        "logs"
+      ],
+      "additionalProperties": true,
+      "$defs": {
+        "HealthStateOfMindItem": {
+          "type": "object",
+          "properties": {
+            "time": {
+              "type": "string",
+              "description": "When it was logged: a momentary emotion's moment, or for a daily mood, a time in the day it describes."
+            },
+            "kind": {
+              "type": "string",
+              "description": "Momentary Emotion (how they felt right then) or Daily Mood (how they felt over the day), or Unknown for one a later iOS adds."
+            },
+            "valence": {
+              "type": "number",
+              "description": "How pleasant it felt, from -1 (very unpleasant) to 1 (very pleasant)."
+            },
+            "classification": {
+              "type": "string",
+              "description": "The valence as the person chose it: Very Unpleasant, Unpleasant, Slightly Unpleasant, Neutral, Slightly Pleasant, Pleasant or Very Pleasant (Unknown for one a later iOS adds)."
+            },
+            "labels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The feelings that described it, e.g. Calm, Grateful or Stressed, in the order they were logged. Empty if none."
+            },
+            "associations": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "What it was about, e.g. Work, Family or Health, in the order they were logged. Empty if none."
+            },
+            "source": {
+              "type": "string",
+              "description": "The app or device it was logged in: Health, Mindfulness, or another app."
+            }
+          },
+          "required": [
+            "time",
+            "kind",
+            "valence",
+            "classification",
+            "labels",
+            "associations",
+            "source"
+          ],
+          "additionalProperties": true
+        }
+      }
+    },
+    "annotations": {
+      "title": "Health State of Mind",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "title": "Health State of Mind"
+  },
+  {
+    "name": "assessments",
+    "description": "GAD-7 (anxiety) and PHQ-9 (depression) questionnaires taken in a period, newest first, as Health and lil health's Anxiety Risk and Depression Risk show them: each one's score out of its maximum, the risk Health gave it, and every question's answer, with the period's count. They're screening questionnaires people take in the Health app, not diagnoses.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "range": {
+          "type": "string",
+          "enum": [
+            "D",
+            "W",
+            "M",
+            "6M",
+            "Y"
+          ],
+          "description": "The period, ending on `date`: D is that day, in hours; W the 7 days ending that day, in days; M the 30 days ending that day, in days; 6M the 26 weeks ending that day, in 7-day weeks; Y the 12 calendar months ending with that day's month, in months (the last one ends with `date`)."
+        },
+        "date": {
+          "type": "string",
+          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`, from 2000 to 2999. Defaults to today."
+        },
+        "timeZone": {
+          "type": "string",
+          "description": "An IANA time zone, e.g. Europe/London, for days and local times. Defaults to UTC on the remote server and to the Mac's time zone locally. Every output says which it used."
+        }
+      },
+      "required": [
+        "range"
+      ],
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "timeZone": {
+          "type": "string",
+          "description": "The IANA time zone of the output's days and local times."
+        },
+        "range": {
+          "type": "string",
+          "description": "The range asked for: D, W, M, 6M or Y."
+        },
+        "start": {
+          "type": "string",
+          "description": "When the period starts."
+        },
+        "end": {
+          "type": "string",
+          "description": "When the period ends (exclusive)."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Assessments in the period, all of them."
+        },
+        "assessments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HealthAssessmentItem"
+          },
+          "description": "The assessments, newest first, at most 100."
+        }
+      },
+      "required": [
+        "timeZone",
+        "range",
+        "start",
+        "end",
+        "count",
+        "assessments"
+      ],
+      "additionalProperties": true,
+      "$defs": {
+        "HealthAssessmentItem": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "HKScoredAssessmentTypeIdentifierGAD7 (anxiety) or HKScoredAssessmentTypeIdentifierPHQ9 (depression)."
+            },
+            "name": {
+              "type": "string",
+              "description": "Its name in Health: Anxiety Risk (GAD-7) or Depression Risk (PHQ-9)."
+            },
+            "time": {
+              "type": "string",
+              "description": "When it was taken."
+            },
+            "score": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "The total of the answers' points, from 0 to maximumScore."
+            },
+            "maximumScore": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "The highest score: 21 for GAD-7, 27 for PHQ-9 (3 points a question)."
+            },
+            "risk": {
+              "type": "string",
+              "description": "The risk Health gave the score. GAD-7: None to Minimal (0 to 4), Mild (5 to 9), Moderate (10 to 14) or Severe (15 to 21). PHQ-9: None to Minimal (0 to 4), Mild (5 to 9), Moderate (10 to 14), Moderately Severe (15 to 19) or Severe (20 to 27). Unknown for one a later iOS adds."
+            },
+            "answers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Each question's answer, in the questionnaire's order (7 for GAD-7, 9 for PHQ-9), to how often over the last two weeks: Not at all (0 points), Several days (1), More than half the days (2) or Nearly every day (3). PHQ-9's 9th question, on thoughts of self-harm, can be Prefer not to answer. Unknown for an answer a later iOS adds."
+            }
+          },
+          "required": [
+            "type",
+            "name",
+            "time",
+            "score",
+            "maximumScore",
+            "risk",
+            "answers"
+          ],
+          "additionalProperties": true
+        }
+      }
+    },
+    "annotations": {
+      "title": "Health Assessments",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "title": "Health Assessments"
   },
   {
     "name": "medications",

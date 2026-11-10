@@ -34,6 +34,9 @@ public struct HealthTools: Sendable {
   public static let samplesDefaultLimit = 100
   /// The most workouts one call lists.
   public static let workoutsLimit = 100
+  /// The most State of Mind logs, and assessments, one call lists.
+  public static let stateOfMindLimit = 500
+  public static let assessmentsLimit = 100
 
   // MARK: - summary
 
@@ -114,7 +117,8 @@ public struct HealthTools: Sendable {
     guard type.kind == .quantity, let aggregation = type.aggregation else {
       throw HealthToolError(
         "\(type.name) (\(type.id)) isn't a quantity type, so it has no statistics. Use samples, "
-          + "or the tool for its kind (sleep, activity_rings, workouts, medications).")
+          + "or the tool for its kind (sleep, activity_rings, state_of_mind, assessments, "
+          + "workouts, medications).")
     }
     let period = try ToolPeriod(range, date: date, now: now, time: time)
     let cumulative = aggregation.isCumulative
@@ -317,8 +321,9 @@ public struct HealthTools: Sendable {
     case .medication, .medicationDoseEvent: .elsewhere("medications")
     case .characteristic, .visionPrescription: .elsewhere("health_details")
     case .activitySummary: .elsewhere("activity_rings")
-    case .heartbeatSeries, .electrocardiogram, .audiogram,
-      .stateOfMind, .scoredAssessment, .document:
+    case .stateOfMind: .elsewhere("state_of_mind")
+    case .scoredAssessment: .elsewhere("assessments")
+    case .heartbeatSeries, .electrocardiogram, .audiogram, .document:
       .unread
     }
   }
@@ -552,6 +557,57 @@ public struct HealthTools: Sendable {
           date: day.id, move: ring(day.move, day.movesInMinutes ? "min" : "kcal"),
           exercise: day.exercise.map { ring($0, "min") }, stand: day.stand.map { ring($0, "hr") },
           paused: day.isPaused)
+      })
+  }
+
+  // MARK: - state_of_mind
+
+  /// The State of Mind logs that start in the period, newest first, at most `stateOfMindLimit`,
+  /// with the period's count, in the words of the app's State of Mind page.
+  public func stateOfMind(
+    range: ToolRange, date: String? = nil, timeZone: String? = nil, _ db: Database
+  ) throws -> HealthStateOfMindResult {
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
+    let period = try ToolPeriod(range, date: date, now: now, time: time)
+    let (count, logs) = try HealthDatabase.stateOfMindLogs(
+      in: period.interval, limit: Self.stateOfMindLimit, db)
+    return HealthStateOfMindResult(
+      timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
+      end: time.localTime(period.end), count: count,
+      logs: logs.map { log in
+        HealthStateOfMindItem(
+          time: time.localTime(Date(unixMilliseconds: log.startDate)), kind: log.toolKindName,
+          valence: log.valence,
+          classification: log.decodedValenceClassification?.name ?? "Unknown",
+          labels: log.labelNames, associations: log.associationNames, source: log.sourceName)
+      })
+  }
+
+  // MARK: - assessments
+
+  /// The GAD-7 and PHQ-9 assessments taken in the period, newest first, at most
+  /// `assessmentsLimit`, with the period's count, in the words of the app's Anxiety Risk and
+  /// Depression Risk pages.
+  public func assessments(
+    range: ToolRange, date: String? = nil, timeZone: String? = nil, _ db: Database
+  ) throws -> HealthAssessmentsResult {
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
+    let period = try ToolPeriod(range, date: date, now: now, time: time)
+    let (count, assessments) = try HealthDatabase.scoredAssessments(
+      of: AssessmentKind.allCases, in: period.interval, limit: Self.assessmentsLimit, db)
+    return HealthAssessmentsResult(
+      timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
+      end: time.localTime(period.end), count: count,
+      // Only those of `AssessmentKind` were read.
+      assessments: assessments.compactMap { assessment in
+        guard let kind = AssessmentKind(rawValue: assessment.type) else { return nil }
+        return HealthAssessmentItem(
+          type: assessment.type,
+          name: HealthCatalog.type(id: assessment.type)?.name ?? assessment.type,
+          time: time.localTime(Date(unixMilliseconds: assessment.startDate)),
+          score: assessment.score, maximumScore: kind.maximumScore,
+          risk: kind.riskName(assessment.risk),
+          answers: kind.answerNames(assessment))
       })
   }
 

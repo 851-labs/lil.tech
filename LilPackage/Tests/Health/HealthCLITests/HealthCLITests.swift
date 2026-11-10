@@ -185,8 +185,8 @@ struct HealthCLITests {
     try folder.access.setEnabled(true)
     for command in [
       ["summary"], ["types"], ["metric", "Steps", "-r", "6m"], ["samples", "Heart Rate"],
-      ["workouts", "-r", "Y"], ["sleep"], ["activity", "-r", "M"], ["medications"], ["details"],
-      ["search", "steps"],
+      ["workouts", "-r", "Y"], ["sleep"], ["activity", "-r", "M"], ["state-of-mind"],
+      ["assessments"], ["medications"], ["details"], ["search", "steps"],
       ["sync", "status"],
     ] {
       for json in [false, true] {
@@ -355,7 +355,7 @@ struct LilHealthExecutableTests {
     let listed = try request(2, "tools/list")
     let tools = (listed["result"] as? [String: Any])?["tools"] as? [[String: Any]] ?? []
     #expect(tools.compactMap { $0["name"] as? String }.first == "summary")
-    #expect(tools.count == 22)
+    #expect(tools.count == 24)
 
     // Access is off: the call fails with what to do, and isn't logged.
     let refused = try request(

@@ -6414,6 +6414,191 @@
         ],
         "additionalProperties": true
       },
+      "HealthStateOfMindItem": {
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "string",
+            "description": "When it was logged: a momentary emotion's moment, or for a daily mood, a time in the day it describes."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Momentary Emotion (how they felt right then) or Daily Mood (how they felt over the day), or Unknown for one a later iOS adds."
+          },
+          "valence": {
+            "type": "number",
+            "description": "How pleasant it felt, from -1 (very unpleasant) to 1 (very pleasant)."
+          },
+          "classification": {
+            "type": "string",
+            "description": "The valence as the person chose it: Very Unpleasant, Unpleasant, Slightly Unpleasant, Neutral, Slightly Pleasant, Pleasant or Very Pleasant (Unknown for one a later iOS adds)."
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The feelings that described it, e.g. Calm, Grateful or Stressed, in the order they were logged. Empty if none."
+          },
+          "associations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What it was about, e.g. Work, Family or Health, in the order they were logged. Empty if none."
+          },
+          "source": {
+            "type": "string",
+            "description": "The app or device it was logged in: Health, Mindfulness, or another app."
+          }
+        },
+        "required": [
+          "time",
+          "kind",
+          "valence",
+          "classification",
+          "labels",
+          "associations",
+          "source"
+        ],
+        "additionalProperties": true
+      },
+      "HealthStateOfMindResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "range": {
+            "type": "string",
+            "description": "The range asked for: D, W, M, 6M or Y."
+          },
+          "start": {
+            "type": "string",
+            "description": "When the period starts."
+          },
+          "end": {
+            "type": "string",
+            "description": "When the period ends (exclusive)."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "State of Mind logs in the period, all of them."
+          },
+          "logs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthStateOfMindItem"
+            },
+            "description": "The logs, newest first, at most 500."
+          }
+        },
+        "required": [
+          "timeZone",
+          "range",
+          "start",
+          "end",
+          "count",
+          "logs"
+        ],
+        "additionalProperties": true
+      },
+      "HealthAssessmentItem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "HKScoredAssessmentTypeIdentifierGAD7 (anxiety) or HKScoredAssessmentTypeIdentifierPHQ9 (depression)."
+          },
+          "name": {
+            "type": "string",
+            "description": "Its name in Health: Anxiety Risk (GAD-7) or Depression Risk (PHQ-9)."
+          },
+          "time": {
+            "type": "string",
+            "description": "When it was taken."
+          },
+          "score": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "The total of the answers' points, from 0 to maximumScore."
+          },
+          "maximumScore": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "The highest score: 21 for GAD-7, 27 for PHQ-9 (3 points a question)."
+          },
+          "risk": {
+            "type": "string",
+            "description": "The risk Health gave the score. GAD-7: None to Minimal (0 to 4), Mild (5 to 9), Moderate (10 to 14) or Severe (15 to 21). PHQ-9: None to Minimal (0 to 4), Mild (5 to 9), Moderate (10 to 14), Moderately Severe (15 to 19) or Severe (20 to 27). Unknown for one a later iOS adds."
+          },
+          "answers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Each question's answer, in the questionnaire's order (7 for GAD-7, 9 for PHQ-9), to how often over the last two weeks: Not at all (0 points), Several days (1), More than half the days (2) or Nearly every day (3). PHQ-9's 9th question, on thoughts of self-harm, can be Prefer not to answer. Unknown for an answer a later iOS adds."
+          }
+        },
+        "required": [
+          "type",
+          "name",
+          "time",
+          "score",
+          "maximumScore",
+          "risk",
+          "answers"
+        ],
+        "additionalProperties": true
+      },
+      "HealthAssessmentsResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "range": {
+            "type": "string",
+            "description": "The range asked for: D, W, M, 6M or Y."
+          },
+          "start": {
+            "type": "string",
+            "description": "When the period starts."
+          },
+          "end": {
+            "type": "string",
+            "description": "When the period ends (exclusive)."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Assessments in the period, all of them."
+          },
+          "assessments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthAssessmentItem"
+            },
+            "description": "The assessments, newest first, at most 100."
+          }
+        },
+        "required": [
+          "timeZone",
+          "range",
+          "start",
+          "end",
+          "count",
+          "assessments"
+        ],
+        "additionalProperties": true
+      },
       "HealthMedicationItem": {
         "type": "object",
         "properties": {
