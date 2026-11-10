@@ -4,7 +4,8 @@
     "`spec` is an input, as apps and tools write it: each engine canonicalizes it first, and it must be valid.",
     "Outputs match as JSON, except that numbers may differ by a relative 1e-9 (sums added in another order).",
     "Write expected outputs by hand, from the dataset and docs/decisions/cards.md, not by copying what an engine returns. `note` says how a case's values come about where it isn't obvious.",
-    "`iphone.skip` says why the iPhone's engine (851-3201), which reads HealthKit, can't match a case: it runs every other one."
+    "`iphone.skip` says why the iPhone's engine (851-3201), which reads HealthKit, can't match a case: it runs every other one.",
+    "`pending` names, for each engine that doesn't pass a case yet, the ticket that makes it pass (851-4155's recorded time zones: 851-4174 the Mac, 851-4175 the server, 851-4176 the iPhone). Each harness runs its pending cases and fails when one matches, so the mark goes with the change that makes it pass."
   ],
   "cases": [
     {
@@ -4373,6 +4374,475 @@
         "summary": {
           "kind": "average",
           "value": 70.25,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-07-01T12:00:00Z",
+      "name": "body temperature recorded in Tokyo, by the day over a week in London: each reading on its Tokyo day",
+      "note": "A reading counts in the day of the zone it was recorded in (851-4155). 07:00 JST on 10 June is 23:00 BST on the 9th, and 23:30 JST on the 10th is 15:30 BST on the 10th: both are Tokyo's 10 June. 12:00Z on the 11th has no zone, so it's London's 11 June. 07:00 JST on Monday 16 June (23:00 BST on Sunday the 15th) is outside the week. Without zones, the 9th, 10th, 11th and 15th would each have one.",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2025-06-10",
+      "pending": {
+        "mac": "851-4174",
+        "server": "851-4175",
+        "iphone": "851-4176"
+      },
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Body Temperature"
+        },
+        "series": [
+          {
+            "type": "BodyTemperature"
+          }
+        ],
+        "range": "W"
+      },
+      "expected": {
+        "range": "W",
+        "start": "2025-06-09",
+        "end": "2025-06-15",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Body Temperature",
+            "type": "HKQuantityTypeIdentifierBodyTemperature",
+            "aggregation": "avg",
+            "unit": "degC",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-06-10T00:00:00+01:00",
+                "value": 36.6,
+                "minimum": 36.4,
+                "maximum": 36.8,
+                "readings": 2
+              },
+              {
+                "start": "2025-06-11T00:00:00+01:00",
+                "value": 37.0,
+                "minimum": 37.0,
+                "maximum": 37.0,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 36.73333333333333,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-07-01T12:00:00Z",
+      "name": "body temperature recorded in Tokyo, by the hour on its Tokyo day: each reading at its Tokyo clock time",
+      "note": "Hours are clock hours of the zone a reading was recorded in, placed at the same clock hour of the period's day: 07:00 JST is the 07:00 hour (not 23:00 BST the day before), and 23:30 JST the 23:00 hour (not 15:00 BST).",
+      "timeZone": "Europe/London",
+      "range": "D",
+      "date": "2025-06-10",
+      "pending": {
+        "mac": "851-4174",
+        "server": "851-4175",
+        "iphone": "851-4176"
+      },
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Body Temperature"
+        },
+        "series": [
+          {
+            "type": "BodyTemperature"
+          }
+        ],
+        "range": "D"
+      },
+      "expected": {
+        "range": "D",
+        "start": "2025-06-10",
+        "end": "2025-06-10",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "hour",
+        "series": [
+          {
+            "id": "a",
+            "label": "Body Temperature",
+            "type": "HKQuantityTypeIdentifierBodyTemperature",
+            "aggregation": "avg",
+            "unit": "degC",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-06-10T07:00:00+01:00",
+                "value": 36.4,
+                "minimum": 36.4,
+                "maximum": 36.4,
+                "readings": 1
+              },
+              {
+                "start": "2025-06-10T23:00:00+01:00",
+                "value": 36.8,
+                "minimum": 36.8,
+                "maximum": 36.8,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 36.6,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-07-01T12:00:00Z",
+      "name": "body temperature from 06:00 to 09:00 on the clock where it was recorded",
+      "note": "07:00 JST is in the window (23:00 BST wouldn't be); 23:30 JST and 13:00 BST aren't. Without zones the week has no data.",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2025-06-10",
+      "pending": {
+        "mac": "851-4174",
+        "server": "851-4175",
+        "iphone": "851-4176"
+      },
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Morning Temperature"
+        },
+        "series": [
+          {
+            "type": "BodyTemperature",
+            "window": {
+              "kind": "timeOfDay",
+              "from": "06:00",
+              "to": "09:00"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2025-06-09",
+        "end": "2025-06-15",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Body Temperature",
+            "type": "HKQuantityTypeIdentifierBodyTemperature",
+            "aggregation": "avg",
+            "unit": "degC",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-06-10T00:00:00+01:00",
+                "value": 36.4,
+                "minimum": 36.4,
+                "maximum": 36.4,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 36.4,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-07-01T12:00:00Z",
+      "name": "body temperature by the week over June: a reading in the week of its Tokyo day",
+      "note": "07:00 JST on Monday 16 June is 23:00 BST on Sunday the 15th: it's in the week of the 16th, its own day's. The week of the 9th has Tokyo's two on the 10th and London's on the 11th.",
+      "timeZone": "Europe/London",
+      "range": "M",
+      "date": "2025-06-10",
+      "pending": {
+        "mac": "851-4174",
+        "server": "851-4175",
+        "iphone": "851-4176"
+      },
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Weekly Temperature"
+        },
+        "series": [
+          {
+            "type": "BodyTemperature"
+          }
+        ],
+        "bucket": "week",
+        "range": "M"
+      },
+      "expected": {
+        "range": "M",
+        "start": "2025-06-01",
+        "end": "2025-06-30",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "week",
+        "grain": "week",
+        "series": [
+          {
+            "id": "a",
+            "label": "Body Temperature",
+            "type": "HKQuantityTypeIdentifierBodyTemperature",
+            "aggregation": "avg",
+            "unit": "degC",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-06-09T00:00:00+01:00",
+                "value": 36.73333333333333,
+                "minimum": 36.4,
+                "maximum": 37.0,
+                "readings": 3
+              },
+              {
+                "start": "2025-06-16T00:00:00+01:00",
+                "value": 36.6,
+                "minimum": 36.6,
+                "maximum": 36.6,
+                "readings": 1
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 36.699999999999996,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-07-01T12:00:00Z",
+      "name": "heart rate asleep per night over a week in London: a night slept in Tokyo is that night, on Tokyo's clock",
+      "note": "The night's records were recorded in Tokyo, so it's Tokyo's night: 23:00 JST on 11 June to 06:30 JST on the 12th, named by the 12th, its bedtime before noon. On London's clock it would be 15:00 to 22:30 BST, a day's sleep, and no night. Asleep from 14:00Z to 21:30Z: 15:00Z's 52 counts until 20:00Z's 48 (capped: 3600 s), and 48 until the stretch ends (capped: 3600 s).",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2025-06-10",
+      "pending": {
+        "mac": "851-4174",
+        "server": "851-4175",
+        "iphone": "851-4176"
+      },
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Sleeping Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "asleep"
+            }
+          }
+        ],
+        "bucket": "night",
+        "chart": {
+          "style": "line"
+        }
+      },
+      "expected": {
+        "range": "W",
+        "start": "2025-06-09",
+        "end": "2025-06-15",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "night",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-06-12T00:00:00+01:00",
+                "value": 50,
+                "minimum": 48,
+                "maximum": 52,
+                "readings": 2
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 50,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-07-01T12:00:00Z",
+      "name": "heart rate asleep per night, asked from Auckland: a night across a change of zone is the zone's it ended in",
+      "note": "Flying from New York to London: the night's first record was recorded in New York (21:00 EDT on 15 June), its last in London (09:00 BST on the 16th). A night takes the zone of its record that ends last, as Health draws it, so it's London's: 02:00 to 09:00 BST, the night of the 16th, before noon. On Auckland's clock it would start at 13:00 NZST, a day's sleep, and no night. Asleep from 01:00Z to 08:00Z: 03:00Z's 55 and 07:00Z's 51 count an hour each.",
+      "timeZone": "Pacific/Auckland",
+      "range": "W",
+      "date": "2025-06-16",
+      "pending": {
+        "mac": "851-4174",
+        "server": "851-4175",
+        "iphone": "851-4176"
+      },
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Sleeping Heart Rate"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "window": {
+              "kind": "asleep"
+            }
+          }
+        ],
+        "bucket": "night",
+        "chart": {
+          "style": "line"
+        }
+      },
+      "expected": {
+        "range": "W",
+        "start": "2025-06-16",
+        "end": "2025-06-22",
+        "timeZone": "Pacific/Auckland",
+        "firstWeekday": "monday",
+        "bucket": "night",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "avg",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-06-16T00:00:00+12:00",
+                "value": 53,
+                "minimum": 51,
+                "maximum": 55,
+                "readings": 2
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "average",
+          "value": 53,
+          "minimum": null,
+          "maximum": null
+        },
+        "goal": null
+      }
+    },
+    {
+      "now": "2025-07-01T12:00:00Z",
+      "name": "the highest heart rate during runs by the day: readings without a zone take their workout's",
+      "note": "The run was recorded in Tokyo, 07:00 to 07:30 JST on Friday 13 June (23:00 BST on Thursday the 12th). Its heart rate has no zone of its own, so it's placed in the workout's: Friday's.",
+      "timeZone": "Europe/London",
+      "range": "W",
+      "date": "2025-06-10",
+      "pending": {
+        "mac": "851-4174",
+        "server": "851-4175",
+        "iphone": "851-4176"
+      },
+      "spec": {
+        "version": 1,
+        "display": {
+          "name": "Running HR"
+        },
+        "series": [
+          {
+            "type": "HeartRate",
+            "aggregation": "max",
+            "window": {
+              "kind": "workout",
+              "activities": ["Running"]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "range": "W",
+        "start": "2025-06-09",
+        "end": "2025-06-15",
+        "timeZone": "Europe/London",
+        "firstWeekday": "monday",
+        "bucket": "auto",
+        "grain": "day",
+        "series": [
+          {
+            "id": "a",
+            "label": "Heart Rate",
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "aggregation": "max",
+            "unit": "count/min",
+            "hidden": false,
+            "points": [
+              {
+                "start": "2025-06-13T00:00:00+01:00",
+                "value": 150,
+                "minimum": 140,
+                "maximum": 150,
+                "readings": 2
+              }
+            ]
+          }
+        ],
+        "formulas": [],
+        "summary": {
+          "kind": "highest",
+          "value": 150,
           "minimum": null,
           "maximum": null
         },

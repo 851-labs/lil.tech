@@ -16,7 +16,8 @@ import { matches, millis, readDataset, readJson, storeWithBatches } from "../Hea
 // ingests uploads and runs the server's engine directly (`runCard`). The Mac's
 // (`CardConformanceTests`) runs the same cases after syncing the dataset with its sync engine,
 // and the iPhone's (851-3201) after writing it into HealthKit, but for the cases marked
-// `iphone.skip`.
+// `iphone.skip`. A case `pending` for an engine (851-4155) is one it doesn't pass yet: that engine
+// runs it and fails when it matches, so the mark goes with the change that makes it pass.
 
 const Case = Schema.Struct({
   name: Schema.String,
@@ -28,6 +29,13 @@ const Case = Schema.Struct({
   firstWeekday: Schema.optionalKey(Schema.Literals(cardWeekdays)),
   now: Schema.String,
   iphone: Schema.optionalKey(Schema.Struct({ skip: Schema.String })),
+  pending: Schema.optionalKey(
+    Schema.Struct({
+      server: Schema.optionalKey(Schema.String),
+      mac: Schema.optionalKey(Schema.String),
+      iphone: Schema.optionalKey(Schema.String),
+    }),
+  ),
   expected: Schema.Unknown,
 });
 
@@ -72,7 +80,13 @@ describe("card conformance cases", () => {
           calendar,
           millis(testCase.now),
         );
-        if (!matches(output, testCase.expected)) {
+        const pending = testCase.pending?.server;
+        if (pending !== undefined) {
+          assert.isFalse(
+            matches(output, testCase.expected),
+            `The server matches it: remove its pending mark (${pending}).`,
+          );
+        } else if (!matches(output, testCase.expected)) {
           // Shows the difference.
           assert.deepStrictEqual(output, testCase.expected);
         }
