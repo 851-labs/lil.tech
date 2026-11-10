@@ -284,7 +284,7 @@ describe("the card tools", () => {
         assert.isTrue(refused.isError);
         assert.strictEqual(
           refused.text,
-          `Unknown date: ${date}. Use a day that exists, as YYYY-MM-DD.`,
+          `Invalid date: ${date}. Use a day that exists, as YYYY-MM-DD.`,
         );
       }
       // The input schema takes any string (851-3217), so the run refuses it, as on the Mac.

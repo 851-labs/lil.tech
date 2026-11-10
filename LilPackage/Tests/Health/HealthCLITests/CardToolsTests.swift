@@ -118,7 +118,7 @@ struct CardToolsTests {
       ),
       (
         ["id": "card_seed_steps", "date": "2026-02-31"],
-        "Unknown date: 2026-02-31. Use a day that exists, as YYYY-MM-DD."
+        "Invalid date: 2026-02-31. Use a day that exists, as YYYY-MM-DD."
       ),
       (
         ["id": "card_seed_steps", "timeZone": "europe/london"],

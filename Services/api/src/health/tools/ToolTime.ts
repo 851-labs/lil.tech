@@ -1,5 +1,5 @@
 import { DateTime, Effect, Option } from "effect";
-import { HealthToolError, isDay } from "./HealthToolkit.ts";
+import { HealthToolError } from "./HealthToolkit.ts";
 
 // Days and local times for the Health tools, in the time zone a call asks for. Outputs give times
 // as `LocalTime` (`2026-10-20T08:15:00+01:00`: to the second, rounded down, with the offset,
@@ -103,22 +103,51 @@ export const startOfLocalDay = (day: string, zone: DateTime.TimeZone): number =>
   return startOfDay(DateTime.toEpochMillis(noon), zone);
 };
 
-/** Whether `text` is a day that exists, written `YYYY-MM-DD` (not 2026-02-31 or 2026-2-3). */
-export const isLocalDay = (text: string) => /^\d{4}-\d{2}-\d{2}$/.test(text) && isDay(text);
+/**
+ * The years the tools take a `date` in (851-4044). No Health data is older than 2000, and the
+ * servers' time zones only agree since the 1970s: before then, Node's and Foundation's time zone
+ * data can disagree on a zone's offset (zones merged in the database, offsets with seconds). Before
+ * 1583 Foundation's Gregorian calendar is Julian, and it has no year 0, so the Mac and this server
+ * would answer differently. Up to 2999, so a period's end never has a fifth digit.
+ */
+export const toolYears = { first: 2000, last: 2999 } as const;
 
 /**
- * A call's `date`, which must be a day that exists, written `YYYY-MM-DD`, or the tool's error, in
- * the Mac's words (`ToolTime.day`). The input schema takes any string, so both servers refuse one
- * alike (851-4034). `toolPeriod` checks its date with it.
+ * What's wrong with a `date`, in the Mac's words (`ToolTime.day`), or undefined for a day the tools
+ * take: one that exists, written `YYYY-MM-DD` (not 2026-02-31 or 2026-2-3), in `toolYears`. The
+ * year is checked first, so both servers give the same message for 1900-02-29.
  */
-export const toolDate = (date: string | undefined) =>
-  date === undefined || isLocalDay(date)
+const dateProblem = (text: string): string | undefined => {
+  const invalid = `Invalid date: ${text}. Use a day that exists, as YYYY-MM-DD.`;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return invalid;
+  const year = Number(text.slice(0, 4));
+  if (year < toolYears.first || year > toolYears.last) {
+    return `Invalid date: ${text}. Use a day from ${toolYears.first}-01-01 to ${toolYears.last}-12-31.`;
+  }
+  // A day that doesn't exist (2026-02-31) is refused, or rolls over into another, which reads back
+  // as another day.
+  const day = DateTime.make(`${text}T00:00:00Z`);
+  return Option.exists(day, (day) => DateTime.formatIsoDate(day) === text) ? undefined : invalid;
+};
+
+/**
+ * Whether `text` is a day the tools take (`toolDate`): the access logs keep a call's `date` only
+ * when it is, so they never keep text an agent sent in its place.
+ */
+export const isLocalDay = (text: string) => dateProblem(text) === undefined;
+
+/**
+ * A call's `date`, which must be a day the tools take (`dateProblem`), or the tool's error, in the
+ * Mac's words (`ToolTime.day`). The input schemas take any string, so both servers refuse one
+ * alike, for the Health tools (851-4034) and the card tools (851-4044). `toolPeriod` and
+ * `cardData` check their date with it.
+ */
+export const toolDate = (date: string | undefined) => {
+  const problem = date === undefined ? undefined : dateProblem(date);
+  return problem === undefined
     ? Effect.succeed(date)
-    : Effect.fail(
-        new HealthToolError({
-          message: `Invalid date: ${date}. Use a day that exists, as YYYY-MM-DD.`,
-        }),
-      );
+    : Effect.fail(new HealthToolError({ message: problem }));
+};
 
 /** A tool's range: Health's D, W, M, 6M or Y. */
 export type ToolRange = "D" | "W" | "M" | "6M" | "Y";
