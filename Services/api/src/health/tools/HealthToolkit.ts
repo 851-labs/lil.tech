@@ -1344,6 +1344,167 @@ export const Assessments = readOnly(
 );
 
 // -------------------------------------------------------------------------------------------------
+// electrocardiograms and electrocardiogram_voltages
+// -------------------------------------------------------------------------------------------------
+
+/** The most ECGs `electrocardiograms` lists. */
+export const electrocardiogramsLimit = 100;
+/** The seconds of a recording `electrocardiogram_voltages` gives a page by default, and at most. */
+export const voltagesDefaultSeconds = 10;
+export const voltagesMaxSeconds = 30;
+/**
+ * The most values a page of voltages has: Apple Watch's whole recording, 30 seconds at 512 Hz,
+ * about 150 KB at its longest. A page that would have more, from a device that measures faster,
+ * is downsampled, so it stays under the 256 KB ceiling.
+ */
+export const voltagesValueLimit = 15_360;
+
+const electrocardiogramIdParameter = Schema.String.annotate({
+  description: "An ECG's ID, from electrocardiograms.",
+});
+
+export const HealthElectrocardiogramItem = Schema.Struct({
+  id: Schema.String.annotate({ description: "HealthKit's UUID for the recording." }),
+  start: LocalTime,
+  end: LocalTime,
+  ...recordedTimeFields,
+  duration: Schema.Finite.annotate({
+    description: "Seconds, from start to end: 30 for Apple Watch's ECG app.",
+  }),
+  classification: Schema.String.annotate({
+    description:
+      "What the ECG app classified the rhythm as, as Health names it: Sinus Rhythm (no signs " +
+      "of atrial fibrillation), Atrial Fibrillation, Low Heart Rate (under 50 BPM, too slow to " +
+      "check), High Heart Rate (too fast to check: over 120 BPM, or 150 BPM from algorithm " +
+      "version 2), Poor Recording, Inconclusive, Unrecognized, or Not Classified. A screening " +
+      "result from the person's watch, not a diagnosis.",
+  }),
+  averageHeartRate: Schema.NullOr(Schema.Finite).annotate({
+    description: "The average heart rate during the recording, in beats per minute, or null.",
+  }),
+  samplingFrequency: Schema.NullOr(Schema.Finite).annotate({
+    description:
+      "Voltage measurements per second (Hz), as recorded: 512 for Apple Watch. Null if the " +
+      "recording doesn't say.",
+  }),
+  voltageCount: Schema.Int.annotate({
+    description:
+      "How many voltage measurements it has: 15,360 for 30 seconds at 512 Hz. " +
+      "electrocardiogram_voltages reads them; 0 for a recording without any.",
+  }),
+  symptoms: Schema.String.annotate({
+    description:
+      "Whether symptoms were logged with it, as lil health shows it: Symptoms Logged, No " +
+      "Symptoms, or Not Logged (they weren't asked about). lil health doesn't link a recording " +
+      "to its symptoms yet: they're symptom samples (e.g. " +
+      "HKCategoryTypeIdentifierRapidPoundingOrFlutteringHeartbeat, " +
+      "HKCategoryTypeIdentifierChestTightnessOrPain), logged around its time, which samples " +
+      "lists by type.",
+  }),
+  algorithmVersion: Schema.optionalKey(
+    Schema.Finite.annotate({
+      description:
+        "The version of the ECG app's algorithm that classified it " +
+        "(HKMetadataKeyAppleECGAlgorithmVersion): 1, or 2, which classifies heart rates up to " +
+        "150 BPM. Left out when it doesn't say.",
+    }),
+  ),
+  source: Schema.String.annotate({
+    description: "The app or device that recorded it, e.g. ECG on Apple Watch.",
+  }),
+}).annotate({ identifier: "HealthElectrocardiogramItem" });
+
+export const HealthElectrocardiogramsResult = Schema.Struct({
+  ...periodFields,
+  count: Schema.Int.annotate({ description: "ECGs that start in the period, all of them." }),
+  recordings: Schema.Array(HealthElectrocardiogramItem).annotate({
+    description: `The recordings, newest first, at most ${electrocardiogramsLimit}.`,
+  }),
+});
+
+export const Electrocardiograms = readOnly(
+  Tool.make("electrocardiograms", {
+    description:
+      "ECG recordings (from the ECG app on Apple Watch, or another app) that started in a " +
+      "period, newest first, as lil health's ECG page lists them: each one's classification " +
+      "(e.g. Sinus Rhythm or Atrial Fibrillation), average heart rate, sampling frequency, " +
+      "how many voltage measurements it has and whether symptoms were logged, with the " +
+      "period's count. Its voltages come from electrocardiogram_voltages, a page at a time: " +
+      "ask for them only when the classification and heart rate aren't enough.",
+    parameters: Schema.Struct({ range, date, timeZone }),
+    success: HealthElectrocardiogramsResult,
+    failure: HealthToolError,
+  }),
+  "Health ECGs",
+);
+
+export const HealthElectrocardiogramVoltagesResult = Schema.Struct({
+  timeZone: usedTimeZone,
+  id: Schema.String.annotate({ description: "The recording's ID." }),
+  start: LocalTime.annotate({ description: "When the recording starts." }),
+  samplingFrequency: Schema.Finite.annotate({
+    description:
+      "The recording's measurements per second (Hz): as recorded, or if it doesn't say, its " +
+      "measurements over its duration (512 if that can't tell either).",
+  }),
+  voltageCount: Schema.Int.annotate({
+    description: "How many measurements the recording has, all of them.",
+  }),
+  offset: Schema.Finite.annotate({
+    description: "Seconds from the recording's start to this page's first value.",
+  }),
+  rate: Schema.Finite.annotate({
+    description:
+      "This page's values per second: samplingFrequency, or less when the page is downsampled.",
+  }),
+  measurementsPerValue: Schema.Int.annotate({
+    description:
+      "How many measurements each value stands for: 1, or when the page is downsampled to " +
+      `stay under ${voltagesValueLimit.toLocaleString("en-US")} values, the average of that ` +
+      "many in a row (the last value may average fewer).",
+  }),
+  values: Schema.Array(Schema.NullOr(Schema.Finite)).annotate({
+    description:
+      "The voltages, in microvolts (µV), in order, `rate` a second from `offset`: Apple " +
+      "Watch's lead I, as on ECG paper (1 mV is 1,000 µV). Stored as 32-bit floats, so " +
+      "rounded to 2 decimal places. Null where the recording has no value.",
+  }),
+  nextCursor: Schema.NullOr(Schema.String).annotate({
+    description: "Pass it as `cursor` for the next page; null on the last page.",
+  }),
+});
+
+export const ElectrocardiogramVoltages = readOnly(
+  Tool.make("electrocardiogram_voltages", {
+    description:
+      "One ECG recording's voltages, in microvolts, a page of seconds at a time, in order: " +
+      `${voltagesDefaultSeconds} seconds a page by default, at its own rate (Apple Watch's is ` +
+      "512 a second, so 5,120 values). Each page says its rate, and is downsampled (each value " +
+      `the average of a few measurements) only if it would have more than ` +
+      `${voltagesValueLimit.toLocaleString("en-US")} values. By its ID, from ` +
+      "electrocardiograms, whose classification and heart rate usually answer what's asked: " +
+      "call this only to look at the trace itself.",
+    parameters: Schema.Struct({
+      id: electrocardiogramIdParameter,
+      timeZone,
+      cursor: Schema.optionalKey(
+        Schema.String.annotate({ description: "The previous page's nextCursor." }),
+      ),
+      seconds: Schema.optionalKey(
+        Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: voltagesMaxSeconds })).annotate({
+          description:
+            `Seconds of the recording per page, at most ${voltagesMaxSeconds} (a whole Apple ` +
+            `Watch recording). Defaults to ${voltagesDefaultSeconds}.`,
+        }),
+      ),
+    }),
+    success: HealthElectrocardiogramVoltagesResult,
+    failure: HealthToolError,
+  }),
+  "Health ECG Voltages",
+);
+
+// -------------------------------------------------------------------------------------------------
 // medications
 // -------------------------------------------------------------------------------------------------
 
@@ -1538,6 +1699,8 @@ export const HealthToolkit = Toolkit.make(
   ActivityRings,
   StateOfMind,
   Assessments,
+  Electrocardiograms,
+  ElectrocardiogramVoltages,
   Medications,
   HealthDetails,
   Search,
@@ -1563,6 +1726,8 @@ export const healthToolResultNames: Record<keyof typeof HealthToolkit.tools, str
   activity_rings: "HealthActivityRingsResult",
   state_of_mind: "HealthStateOfMindResult",
   assessments: "HealthAssessmentsResult",
+  electrocardiograms: "HealthElectrocardiogramsResult",
+  electrocardiogram_voltages: "HealthElectrocardiogramVoltagesResult",
   medications: "HealthMedicationsResult",
   health_details: "HealthDetailsResult",
   search: "HealthSearchResult",

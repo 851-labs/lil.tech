@@ -23,7 +23,7 @@ struct LilHealthCommand: ParsableCommand {
       open, sync and export ask lil health to do it, under the same setting, launching it if \
       it isn't running.
 
-      Exit statuses: 64 for a usage error, 65 for an unknown type, workout, route, time zone, date, \
+      Exit statuses: 64 for a usage error, 65 for an unknown type, workout, route, ECG, time zone, date, \
       page or folder, 69 if there's no lil health data to read, or lil health isn't installed, didn't answer or \
       isn't signed in, 75 if its sync or export failed, 77 while access is off.
       """,
@@ -31,7 +31,7 @@ struct LilHealthCommand: ParsableCommand {
       SummaryCommand.self, TypesCommand.self, MetricCommand.self, SamplesCommand.self,
       WorkoutsCommand.self, WorkoutCommand.self, RoutesCommand.self, RouteCommand.self,
       SleepCommand.self, ActivityCommand.self, StateOfMindCommand.self,
-      AssessmentsCommand.self, MedicationsCommand.self,
+      AssessmentsCommand.self, ECGsCommand.self, ECGCommand.self, MedicationsCommand.self,
       DetailsCommand.self,
       SearchCommand.self, SyncCommand.self, OpenCommand.self, ExportCommand.self,
       MCPCommand.self,
@@ -315,6 +315,49 @@ struct AssessmentsCommand: QueryCommand {
 
   func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
     Answer(try tools.assessments(range: range.range, date: date, timeZone: timeZone, db))
+  }
+}
+
+struct ECGsCommand: QueryCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "ecgs",
+    abstract: "ECG recordings in a range: classification, average heart rate and symptoms.")
+
+  @Option(name: .shortAndLong, help: rangeHelp) var range = RangeArgument(.year)
+  @Option(help: dateHelp) var date: String?
+  @Option(help: timeZoneHelp) var timeZone: String?
+  @OptionGroup var output: OutputOptions
+
+  func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
+    Answer(try tools.electrocardiograms(range: range.range, date: date, timeZone: timeZone, db))
+  }
+}
+
+struct ECGCommand: QueryCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "ecg",
+    abstract: "An ECG recording's voltages, in microvolts, a page of seconds at a time.",
+    discussion: """
+      Each page is the recording at its own rate, or averaged down when it would have more than \
+      \(HealthTools.voltagesValueLimit) values (electrocardiogram_voltages). lil \
+      health downloads a recording's voltages the first time they're read, as its pages do.
+      """)
+
+  @Argument(help: "An ECG's ID, from `ecgs --json`.") var id: String
+  @Option(help: "The previous page's next cursor.") var cursor: String?
+  @Option(
+    help: """
+      Seconds per page, at most \(HealthTools.voltagesMaxSeconds). Defaults to \
+      \(HealthTools.voltagesDefaultSeconds).
+      """)
+  var seconds: Int?
+  @Option(help: timeZoneHelp) var timeZone: String?
+  @OptionGroup var output: OutputOptions
+
+  func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
+    Answer(
+      try tools.electrocardiogramVoltages(
+        id: id, timeZone: timeZone, cursor: cursor, seconds: seconds, db))
   }
 }
 

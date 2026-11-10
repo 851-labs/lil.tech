@@ -36,7 +36,7 @@ const samplesElsewhere: Readonly<
   visionPrescription: "health_details",
   activitySummary: "activity_rings",
   heartbeatSeries: null,
-  electrocardiogram: null,
+  electrocardiogram: "electrocardiograms",
   audiogram: null,
   stateOfMind: "state_of_mind",
   scoredAssessment: "assessments",

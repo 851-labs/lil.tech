@@ -63,8 +63,8 @@ extension HealthCLI {
     /// For a card write from `lil-health mcp` to answer once claimed (851-4014): the app's wait
     /// for sign-in after a launch, then a little more, as for `open`. 15 s.
     public var cardWait: Duration
-    /// For a route's points the route tools asked the app to download (851-4164), once claimed:
-    /// a long route is a few megabytes. 30 s.
+    /// For a route's points or an ECG's voltages the tools asked the app to download (851-4164,
+    /// 851-4159), once claimed: a long route is a few megabytes. 30 s.
     public var blobWait: Duration
     /// Between looks at the request.
     public var pollInterval: Duration

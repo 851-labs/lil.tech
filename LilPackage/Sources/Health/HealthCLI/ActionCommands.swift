@@ -161,9 +161,10 @@ extension HealthCLI {
     static let notAnswered = Self(
       "lil health didn't answer. Is it installed and signed in?", status: Status.unavailable)
 
-    /// A blob the app is still downloading for the route tools (851-4164).
+    /// A blob the app is still downloading for the route tools (851-4164) or the ECG's (851-4159).
     static let stillDownloading = Self(
-      "lil health is still downloading the route's points. Try again in a moment.",
+      "lil health is still downloading what this reads (a route's points or an ECG's voltages). "
+        + "Try again in a moment.",
       status: Status.tempFail)
 
     /// A card write the app took but hasn't answered (851-4014): it may still be saved.

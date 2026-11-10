@@ -10,7 +10,8 @@
     "Samples' details (851-4166) are on 19 October, from ph2, which HealthKit syncs every app's samples to: blood glucose entered by hand in Health (before a meal, recorded in New York) and from a third-party health app, which records the rest too (after a meal, with a reference range, its meter in a provenance record, and keys lil health doesn't keep, which ingestion drops); insulin (basal with an empty device, bolus with its pump named only in its metadata and a motion context that isn't one); cardio fitness from an Apple Watch (its estimate's earliest data a date as iPhones write it since 851-4150, { date } in ISO 8601); a high heart rate notification with its threshold (whole, { value, unit }); a blood pressure reading, a correlation of a systolic and a diastolic sample; and the morning's heart rate says it was sedentary, on the wrist.",
     "Quantity series (851-4171) are on 14 April 2026, a day no cards case reads, so the iPhone's HealthKit run (which writes each series as one sample) gives the same cards: heart rate from the Watch, a workout's 120 values every 5 s from 09:55 (the sample's own value, 130.5, is HealthKit's for the whole series), crossing 10:00, beside a chest strap's readings and a Watch reading after it; a series of 25,000 values from 14:00 whose values weren't uploaded, only its count and summary (55 to 190); and a series from 23:58 that crosses midnight, so 15 April's values come from a series that started the day before.",
     "Activity rings (851-4158) are on 20 September and 14 to 20 October, from ph1, keyed by the iPhone's day: 14 October has no move value, no exercise goal (0) and no stand value or pause flag; 15 October is in Move time, with active energy beside it the tools don't read; 16 October has no Exercise or Stand goal (no Watch that day); 17 October is paused; 18 October has none; 20 October is today, unfinished.",
-    "Mental Wellbeing (851-4160): State of Mind logs from 13 September to 20 October, momentary emotions and daily moods logged in Health and on the Watch: one with every label and association, one with none, raw values a later iOS might add (a kind of 3, a classification of 9, a label of 39, 0s), one at the start of 14 September and one a second before, and one ph2 deleted. GAD-7 and PHQ-9 assessments from 25 September to 20 October: PHQ-9's 9th question skipped (Prefer not to answer), an answer of 5 and a risk of 6 a later iOS might add, and a GAD-7 ph2 deleted."
+    "Mental Wellbeing (851-4160): State of Mind logs from 13 September to 20 October, momentary emotions and daily moods logged in Health and on the Watch: one with every label and association, one with none, raw values a later iOS might add (a kind of 3, a classification of 9, a label of 39, 0s), one at the start of 14 September and one a second before, and one ph2 deleted. GAD-7 and PHQ-9 assessments from 25 September to 20 October: PHQ-9's 9th question skipped (Prefer not to answer), an answer of 5 and a risk of 6 a later iOS might add, and a GAD-7 ph2 deleted.",
+    "ECGs (851-4159), in health_electrocardiogram: their voltages are blobs in blobs.json, one little-endian 32-bit float per measurement, in microvolts. 0c0f\u2026181 (19 October, recorded in London, algorithm version 2) has 60 measurements at 2 Hz, with a NaN (5), an infinity (12) and values that round on their halves; 0c0f\u2026182 (18 October, a third-party app's, at 600 Hz) has 15,362, so a 30-second page has more than 15,360 and is downsampled; 0c0f\u2026183 has no measurements, a zone that isn't a name and an algorithm version that's a Boolean; 0c0f\u2026184 to 189 have every classification (7, a later iOS's, reads Not Classified), 189 just before 14 October in UTC; 0c0f\u2026190 was deleted by ph2; 0c0f\u2026191 doesn't say its sampling frequency (4 measurements in 2 s) and 0c0f\u2026192 says 0 and lasts no time (so 512 Hz)."
   ],
   "batches": [
     {
@@ -2572,6 +2573,224 @@
             "sourceName": "Health",
             "sourceBundleId": "com.apple.Health"
           }
+        },
+        {
+          "entity": "health_electrocardiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000181",
+          "row": {
+            "startDate": 1792398600000,
+            "endDate": 1792398630000,
+            "classification": 1,
+            "symptomsStatus": 1,
+            "averageHeartRate": 68,
+            "samplingFrequency": 2,
+            "voltageCount": 60,
+            "voltages": "5d7866ab43f947d0f2797da67f1c82338f21b5924f0bc700973d89ceaf5442f5",
+            "sourceName": "ECG",
+            "sourceBundleId": "com.apple.NanoHeartRhythm",
+            "metadata": {
+              "HKTimeZone": "Europe/London",
+              "HKMetadataKeyAppleECGAlgorithmVersion": 2
+            }
+          }
+        },
+        {
+          "entity": "health_electrocardiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000182",
+          "row": {
+            "startDate": 1792357200000,
+            "endDate": 1792357230000,
+            "classification": 2,
+            "symptomsStatus": 2,
+            "averageHeartRate": 112.4,
+            "samplingFrequency": 600,
+            "voltageCount": 15362,
+            "voltages": "c5a08224a8f11f7f246e13b979477371c5437946060af93d512a809323fe8a68",
+            "sourceName": "Test ECG App",
+            "sourceBundleId": "com.example.ecg",
+            "metadata": {
+              "HKMetadataKeyAppleECGAlgorithmVersion": 1
+            }
+          }
+        },
+        {
+          "entity": "health_electrocardiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000183",
+          "row": {
+            "startDate": 1792216800000,
+            "endDate": 1792216830000,
+            "classification": 3,
+            "symptomsStatus": 0,
+            "averageHeartRate": null,
+            "samplingFrequency": null,
+            "voltageCount": 0,
+            "voltages": null,
+            "sourceName": "ECG",
+            "sourceBundleId": "com.apple.NanoHeartRhythm",
+            "metadata": {
+              "HKTimeZone": "+09:00",
+              "HKMetadataKeyAppleECGAlgorithmVersion": true
+            }
+          }
+        },
+        {
+          "entity": "health_electrocardiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000184",
+          "row": {
+            "startDate": 1792152000000,
+            "endDate": 1792152030000,
+            "classification": 4,
+            "symptomsStatus": 1,
+            "averageHeartRate": 131,
+            "samplingFrequency": 512,
+            "voltageCount": 0,
+            "voltages": null,
+            "sourceName": "ECG",
+            "sourceBundleId": "com.apple.NanoHeartRhythm"
+          }
+        },
+        {
+          "entity": "health_electrocardiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000185",
+          "row": {
+            "startDate": 1792065600000,
+            "endDate": 1792065630000,
+            "classification": 5,
+            "symptomsStatus": 1,
+            "averageHeartRate": 74,
+            "samplingFrequency": 512,
+            "voltageCount": 0,
+            "voltages": null,
+            "sourceName": "ECG",
+            "sourceBundleId": "com.apple.NanoHeartRhythm"
+          }
+        },
+        {
+          "entity": "health_electrocardiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000186",
+          "row": {
+            "startDate": 1792054800000,
+            "endDate": 1792054830000,
+            "classification": 6,
+            "symptomsStatus": 2,
+            "averageHeartRate": 96,
+            "samplingFrequency": 512,
+            "voltageCount": 0,
+            "voltages": null,
+            "sourceName": "ECG",
+            "sourceBundleId": "com.apple.NanoHeartRhythm"
+          }
+        },
+        {
+          "entity": "health_electrocardiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000187",
+          "row": {
+            "startDate": 1791979200000,
+            "endDate": 1791979230000,
+            "classification": 100,
+            "symptomsStatus": 1,
+            "averageHeartRate": 80,
+            "samplingFrequency": 512,
+            "voltageCount": 0,
+            "voltages": null,
+            "sourceName": "ECG",
+            "sourceBundleId": "com.apple.NanoHeartRhythm"
+          }
+        },
+        {
+          "entity": "health_electrocardiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000188",
+          "row": {
+            "startDate": 1791937800000,
+            "endDate": 1791937830000,
+            "classification": 0,
+            "symptomsStatus": 1,
+            "averageHeartRate": 70,
+            "samplingFrequency": 512,
+            "voltageCount": 0,
+            "voltages": null,
+            "sourceName": "ECG",
+            "sourceBundleId": "com.apple.NanoHeartRhythm",
+            "metadata": {
+              "HKTimeZone": "America/New_York"
+            }
+          }
+        },
+        {
+          "entity": "health_electrocardiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000189",
+          "row": {
+            "startDate": 1791934200000,
+            "endDate": 1791934230000,
+            "classification": 7,
+            "symptomsStatus": 1,
+            "averageHeartRate": 66,
+            "samplingFrequency": 512,
+            "voltageCount": 0,
+            "voltages": null,
+            "sourceName": "ECG",
+            "sourceBundleId": "com.apple.NanoHeartRhythm"
+          }
+        },
+        {
+          "entity": "health_electrocardiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000190",
+          "row": {
+            "startDate": 1792231200000,
+            "endDate": 1792231230000,
+            "classification": 1,
+            "symptomsStatus": 1,
+            "averageHeartRate": 64,
+            "samplingFrequency": 512,
+            "voltageCount": 0,
+            "voltages": null,
+            "sourceName": "ECG",
+            "sourceBundleId": "com.apple.NanoHeartRhythm"
+          }
+        },
+        {
+          "entity": "health_electrocardiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000191",
+          "row": {
+            "startDate": 1792134900000,
+            "endDate": 1792134902000,
+            "classification": 1,
+            "symptomsStatus": 1,
+            "averageHeartRate": 61,
+            "samplingFrequency": null,
+            "voltageCount": 4,
+            "voltages": "a88ef1a8d16b3682983c2354eaf1d8d84c57252de77087a311c8dbde2b84420e",
+            "sourceName": "ECG",
+            "sourceBundleId": "com.apple.NanoHeartRhythm"
+          }
+        },
+        {
+          "entity": "health_electrocardiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000192",
+          "row": {
+            "startDate": 1791626400000,
+            "endDate": 1791626400000,
+            "classification": 1,
+            "symptomsStatus": 1,
+            "averageHeartRate": 62,
+            "samplingFrequency": 0,
+            "voltageCount": 3,
+            "voltages": "8e628779e6a74ee0b36991c10158f63cafec7d340ad4e075592502c8708524dd",
+            "sourceName": "ECG",
+            "sourceBundleId": "com.apple.NanoHeartRhythm"
+          }
         }
       ]
     },
@@ -2834,6 +3053,11 @@
           "entity": "health_scored_assessment",
           "op": "delete",
           "id": "0c0f0000-0000-4000-8000-000000000608"
+        },
+        {
+          "entity": "health_electrocardiogram",
+          "op": "delete",
+          "id": "0c0f0000-0000-4000-8000-000000000190"
         }
       ]
     }

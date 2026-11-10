@@ -5,7 +5,8 @@
     "Write expected outputs by hand, from the dataset and the tools' descriptions, not by copying what an implementation returns.",
     "Arguments outside a tool's input schema (a range not in its list, a missing type, a limit out of bounds) are the tool's error on both servers, in the remote's words: `Invalid parameters for tool '<tool>': ` and each issue with where it is, in the schema's order (851-4034). A `date` is any string in the schema, and the tool refuses one that isn't a day from 2000-01-01 to 2999-12-31: `Invalid date: …` (851-4044), as the card tools do.",
     "The route tools (851-4164) read routes' points from blobs.json, as the server reads them from R2 and the Mac from the app's blob cache. Their simplified shapes' expected points come from a reference implementation written apart from both servers, since hundreds of points can't be worked out by hand; the rest is by hand.",
-    "Quantity series (851-4171): the heart rate statistics and the pages of a series' values are worked out by a reference implementation written apart from both servers, from the rules in docs/decisions/health.md, since 120 values every 5 s can't be weighted by hand; the rest is by hand."
+    "Quantity series (851-4171): the heart rate statistics and the pages of a series' values are worked out by a reference implementation written apart from both servers, from the rules in docs/decisions/health.md, since 120 values every 5 s can't be weighted by hand; the rest is by hand.",
+    "ECGs (851-4159): the pages of voltages are worked out by a reference implementation written apart from both servers (a 32-bit float per measurement, halves away from zero), since 20 values can't be read off base64 by hand; the rest is by hand."
   ],
   "cases": [
     {
@@ -628,6 +629,16 @@
             "last": "2026-10-19T08:00:00+00:00"
           },
           {
+            "type": "HKDataTypeIdentifierElectrocardiogram",
+            "name": "ECG",
+            "category": "Heart",
+            "kind": "electrocardiogram",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-10-10T10:00:00+00:00",
+            "last": "2026-10-19T08:30:00+00:00"
+          },
+          {
             "type": "HKQuantityTypeIdentifierHeartRate",
             "name": "Heart Rate",
             "category": "Heart",
@@ -859,6 +870,16 @@
             "cumulative": false,
             "first": "2026-10-19T01:00:00-07:00",
             "last": "2026-10-19T01:00:00-07:00"
+          },
+          {
+            "type": "HKDataTypeIdentifierElectrocardiogram",
+            "name": "ECG",
+            "category": "Heart",
+            "kind": "electrocardiogram",
+            "unit": null,
+            "cumulative": false,
+            "first": "2026-10-10T03:00:00-07:00",
+            "last": "2026-10-19T01:30:00-07:00"
           },
           {
             "type": "HKQuantityTypeIdentifierHeartRate",
@@ -1885,7 +1906,7 @@
         "type": "HKCategoryTypeIdentifierSleepAnalysis",
         "range": "W"
       },
-      "expectedError": "Sleep (HKCategoryTypeIdentifierSleepAnalysis) isn't a quantity type, so it has no statistics. Use samples, or the tool for its kind (sleep, activity_rings, state_of_mind, assessments, workouts, medications)."
+      "expectedError": "Sleep (HKCategoryTypeIdentifierSleepAnalysis) isn't a quantity type, so it has no statistics. Use samples, or the tool for its kind (sleep, activity_rings, state_of_mind, assessments, electrocardiograms, workouts, medications)."
     },
     {
       "name": "metric of an unknown type fails",
@@ -5213,14 +5234,24 @@
       }
     },
     {
-      "name": "samples of ECGs fails: no tool reads them yet",
+      "name": "samples of ECGs fails: electrocardiograms has them",
       "tool": "samples",
       "now": "2026-10-20T15:00:00Z",
       "arguments": {
         "type": "HKDataTypeIdentifierElectrocardiogram",
         "range": "W"
       },
-      "expectedError": "samples doesn't list ECG (HKDataTypeIdentifierElectrocardiogram), and no other tool reads that kind yet."
+      "expectedError": "samples doesn't list ECG (HKDataTypeIdentifierElectrocardiogram): use electrocardiograms."
+    },
+    {
+      "name": "samples of audiograms fails: no tool reads them yet",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKDataTypeIdentifierAudiogram",
+        "range": "W"
+      },
+      "expectedError": "samples doesn't list Audiograms (HKDataTypeIdentifierAudiogram), and no other tool reads that kind yet."
     },
     {
       "name": "samples of State of Mind fails: state_of_mind has them",
@@ -8344,6 +8375,401 @@
         "date": "2026-02-30"
       },
       "expectedError": "Invalid date: 2026-02-30. Use a day that exists, as YYYY-MM-DD."
+    },
+    {
+      "name": "electrocardiograms of a week in UTC, newest first: every classification and symptoms status, a recorded zone, a third-party app's, none without voltages, an algorithm version that isn't a number left out; a deleted one and one a minute before the week aren't listed",
+      "tool": "electrocardiograms",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "W",
+        "start": "2026-10-14T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "count": 9,
+        "recordings": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000181",
+            "start": "2026-10-19T08:30:00+00:00",
+            "end": "2026-10-19T08:30:30+00:00",
+            "recordedTimeZone": "Europe/London",
+            "recordedStart": "2026-10-19T09:30:00+01:00",
+            "recordedEnd": "2026-10-19T09:30:30+01:00",
+            "duration": 30,
+            "classification": "Sinus Rhythm",
+            "averageHeartRate": 68,
+            "samplingFrequency": 2,
+            "voltageCount": 60,
+            "symptoms": "No Symptoms",
+            "algorithmVersion": 2,
+            "source": "ECG"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000182",
+            "start": "2026-10-18T21:00:00+00:00",
+            "end": "2026-10-18T21:00:30+00:00",
+            "duration": 30,
+            "classification": "Atrial Fibrillation",
+            "averageHeartRate": 112.4,
+            "samplingFrequency": 600,
+            "voltageCount": 15362,
+            "symptoms": "Symptoms Logged",
+            "algorithmVersion": 1,
+            "source": "Test ECG App"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000183",
+            "start": "2026-10-17T06:00:00+00:00",
+            "end": "2026-10-17T06:00:30+00:00",
+            "duration": 30,
+            "classification": "Low Heart Rate",
+            "averageHeartRate": null,
+            "samplingFrequency": null,
+            "voltageCount": 0,
+            "symptoms": "Not Logged",
+            "source": "ECG"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000184",
+            "start": "2026-10-16T12:00:00+00:00",
+            "end": "2026-10-16T12:00:30+00:00",
+            "duration": 30,
+            "classification": "High Heart Rate",
+            "averageHeartRate": 131,
+            "samplingFrequency": 512,
+            "voltageCount": 0,
+            "symptoms": "No Symptoms",
+            "source": "ECG"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000191",
+            "start": "2026-10-16T07:15:00+00:00",
+            "end": "2026-10-16T07:15:02+00:00",
+            "duration": 2,
+            "classification": "Sinus Rhythm",
+            "averageHeartRate": 61,
+            "samplingFrequency": null,
+            "voltageCount": 4,
+            "symptoms": "No Symptoms",
+            "source": "ECG"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000185",
+            "start": "2026-10-15T12:00:00+00:00",
+            "end": "2026-10-15T12:00:30+00:00",
+            "duration": 30,
+            "classification": "Poor Recording",
+            "averageHeartRate": 74,
+            "samplingFrequency": 512,
+            "voltageCount": 0,
+            "symptoms": "No Symptoms",
+            "source": "ECG"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000186",
+            "start": "2026-10-15T09:00:00+00:00",
+            "end": "2026-10-15T09:00:30+00:00",
+            "duration": 30,
+            "classification": "Inconclusive",
+            "averageHeartRate": 96,
+            "samplingFrequency": 512,
+            "voltageCount": 0,
+            "symptoms": "Symptoms Logged",
+            "source": "ECG"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000187",
+            "start": "2026-10-14T12:00:00+00:00",
+            "end": "2026-10-14T12:00:30+00:00",
+            "duration": 30,
+            "classification": "Unrecognized",
+            "averageHeartRate": 80,
+            "samplingFrequency": 512,
+            "voltageCount": 0,
+            "symptoms": "No Symptoms",
+            "source": "ECG"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000188",
+            "start": "2026-10-14T00:30:00+00:00",
+            "end": "2026-10-14T00:30:30+00:00",
+            "recordedTimeZone": "America/New_York",
+            "recordedStart": "2026-10-13T20:30:00-04:00",
+            "recordedEnd": "2026-10-13T20:30:30-04:00",
+            "duration": 30,
+            "classification": "Not Classified",
+            "averageHeartRate": 70,
+            "samplingFrequency": 512,
+            "voltageCount": 0,
+            "symptoms": "No Symptoms",
+            "source": "ECG"
+          }
+        ]
+      }
+    },
+    {
+      "name": "electrocardiograms of a day in Los Angeles: a later iOS's classification reads Not Classified, and times in the call's zone with the recorded zone's beside them",
+      "tool": "electrocardiograms",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "D",
+        "date": "2026-10-13",
+        "timeZone": "America/Los_Angeles"
+      },
+      "expected": {
+        "timeZone": "America/Los_Angeles",
+        "range": "D",
+        "start": "2026-10-13T00:00:00-07:00",
+        "end": "2026-10-14T00:00:00-07:00",
+        "count": 2,
+        "recordings": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000188",
+            "start": "2026-10-13T17:30:00-07:00",
+            "end": "2026-10-13T17:30:30-07:00",
+            "recordedTimeZone": "America/New_York",
+            "recordedStart": "2026-10-13T20:30:00-04:00",
+            "recordedEnd": "2026-10-13T20:30:30-04:00",
+            "duration": 30,
+            "classification": "Not Classified",
+            "averageHeartRate": 70,
+            "samplingFrequency": 512,
+            "voltageCount": 0,
+            "symptoms": "No Symptoms",
+            "source": "ECG"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000189",
+            "start": "2026-10-13T16:30:00-07:00",
+            "end": "2026-10-13T16:30:30-07:00",
+            "duration": 30,
+            "classification": "Not Classified",
+            "averageHeartRate": 66,
+            "samplingFrequency": 512,
+            "voltageCount": 0,
+            "symptoms": "No Symptoms",
+            "source": "ECG"
+          }
+        ]
+      }
+    },
+    {
+      "name": "electrocardiograms of a day without any",
+      "tool": "electrocardiograms",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "D"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-10-20T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "count": 0,
+        "recordings": []
+      }
+    },
+    {
+      "name": "electrocardiogram_voltages: the first 10 seconds at 2 Hz, in London: halves round away from zero, NaN and infinity are null, -0.001 is 0",
+      "tool": "electrocardiogram_voltages",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000181",
+        "timeZone": "Europe/London"
+      },
+      "expected": {
+        "timeZone": "Europe/London",
+        "id": "0c0f0000-0000-4000-8000-000000000181",
+        "start": "2026-10-19T09:30:00+01:00",
+        "samplingFrequency": 2,
+        "voltageCount": 60,
+        "offset": 0,
+        "rate": 2,
+        "measurementsPerValue": 1,
+        "values": [
+          0,
+          125.5,
+          1000,
+          -220.25,
+          280.13,
+          null,
+          -0.13,
+          1234.56,
+          2.67,
+          0,
+          0.1,
+          -1250.75,
+          null,
+          15.5,
+          -15.5,
+          999.99,
+          42,
+          -42,
+          7.25,
+          -7.25
+        ],
+        "nextCursor": "20"
+      }
+    },
+    {
+      "name": "electrocardiogram_voltages: the last page, from a cursor, 30 seconds asked for but only 20 left",
+      "tool": "electrocardiogram_voltages",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000181",
+        "cursor": "40",
+        "seconds": 30
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "0c0f0000-0000-4000-8000-000000000181",
+        "start": "2026-10-19T08:30:00+00:00",
+        "samplingFrequency": 2,
+        "voltageCount": 60,
+        "offset": 20,
+        "rate": 2,
+        "measurementsPerValue": 1,
+        "values": [
+          100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155, 160, 165, 170, 175, 180, 185,
+          190, 195
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "electrocardiogram_voltages: 30 seconds at 600 Hz would be 15,362 values, so the page is downsampled to the average of 2 at 300 Hz; its last page",
+      "tool": "electrocardiogram_voltages",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000182",
+        "cursor": "15360",
+        "seconds": 30
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "0c0f0000-0000-4000-8000-000000000182",
+        "start": "2026-10-18T21:00:00+00:00",
+        "samplingFrequency": 600,
+        "voltageCount": 15362,
+        "offset": 25.6,
+        "rate": 300,
+        "measurementsPerValue": 2,
+        "values": [10.5],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "electrocardiogram_voltages: a cursor at the end gives an empty page",
+      "tool": "electrocardiogram_voltages",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000182",
+        "cursor": "15362",
+        "seconds": 30
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "0c0f0000-0000-4000-8000-000000000182",
+        "start": "2026-10-18T21:00:00+00:00",
+        "samplingFrequency": 600,
+        "voltageCount": 15362,
+        "offset": 25.60333333333333,
+        "rate": 300,
+        "measurementsPerValue": 2,
+        "values": [],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "electrocardiogram_voltages: a recording that doesn't say its sampling frequency is read at its measurements over its duration",
+      "tool": "electrocardiogram_voltages",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000191",
+        "seconds": 1
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "0c0f0000-0000-4000-8000-000000000191",
+        "start": "2026-10-16T07:15:00+00:00",
+        "samplingFrequency": 2,
+        "voltageCount": 4,
+        "offset": 0,
+        "rate": 2,
+        "measurementsPerValue": 1,
+        "values": [10.5, null],
+        "nextCursor": "2"
+      }
+    },
+    {
+      "name": "electrocardiogram_voltages: one that says 0 Hz and lasts no time is read at 512 Hz",
+      "tool": "electrocardiogram_voltages",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000192"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "0c0f0000-0000-4000-8000-000000000192",
+        "start": "2026-10-10T10:00:00+00:00",
+        "samplingFrequency": 512,
+        "voltageCount": 3,
+        "offset": 0,
+        "rate": 512,
+        "measurementsPerValue": 1,
+        "values": [1, 2, 3],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "electrocardiogram_voltages: a recording without measurements",
+      "tool": "electrocardiogram_voltages",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000183"
+      },
+      "expectedError": "The ECG 0c0f0000-0000-4000-8000-000000000183 has no voltage measurements (its voltageCount is 0)."
+    },
+    {
+      "name": "electrocardiogram_voltages: a deleted recording isn't there",
+      "tool": "electrocardiogram_voltages",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000190"
+      },
+      "expectedError": "No ECG with ID 0c0f0000-0000-4000-8000-000000000190. electrocardiograms lists them, with their IDs."
+    },
+    {
+      "name": "electrocardiogram_voltages: a cursor past the end",
+      "tool": "electrocardiogram_voltages",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000182",
+        "cursor": "15363"
+      },
+      "expectedError": "Invalid cursor: 15363. Pass the previous page's nextCursor."
+    },
+    {
+      "name": "electrocardiogram_voltages: a cursor that isn't one is refused before the recording is looked up",
+      "tool": "electrocardiogram_voltages",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "nope",
+        "cursor": "-1"
+      },
+      "expectedError": "Invalid cursor: -1. Pass the previous page's nextCursor."
+    },
+    {
+      "name": "electrocardiogram_voltages: more than 30 seconds",
+      "tool": "electrocardiogram_voltages",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000181",
+        "seconds": 31
+      },
+      "expectedError": "Invalid parameters for tool 'electrocardiogram_voltages': Expected a value between 1 and 30\n  at [\"seconds\"]"
     },
     {
       "name": "samples on a day that doesn't exist before 2000 fails for the year",

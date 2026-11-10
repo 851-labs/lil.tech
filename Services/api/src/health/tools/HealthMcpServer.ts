@@ -317,6 +317,11 @@ export const healthMcpApp = (options: {
     activity_rings: wrap(tools.activity_rings, handlers.activity_rings),
     state_of_mind: wrap(tools.state_of_mind, handlers.state_of_mind),
     assessments: wrap(tools.assessments, handlers.assessments),
+    electrocardiograms: wrap(tools.electrocardiograms, handlers.electrocardiograms),
+    electrocardiogram_voltages: wrap(
+      tools.electrocardiogram_voltages,
+      handlers.electrocardiogram_voltages,
+    ),
     medications: wrap(tools.medications, handlers.medications),
     health_details: wrap(tools.health_details, handlers.health_details),
     search: wrap(tools.search, handlers.search),

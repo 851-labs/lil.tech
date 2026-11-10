@@ -5,9 +5,9 @@ import HealthTools
 import LilAPI
 import LilSync
 
-// Routes' points for the route tools (851-4164). They're blobs the app downloads when a page
-// needs them, into its cache (`BlobCache`), which `lil-health` reads: it has no session of its own,
-// and reads only what the app has synced. A blob that isn't cached is asked of the app, as a
+// Routes' points for the route tools (851-4164), and ECGs' voltages (851-4159). They're blobs the
+// app downloads when a page needs them, into its cache (`BlobCache`), which `lil-health` reads: it
+// has no session of its own, and reads only what the app has synced. A blob that isn't cached is asked of the app, as a
 // card write is (`HealthCLI.askApp`), which downloads it into the cache as its pages do.
 
 extension HealthCLI.Context {
@@ -41,11 +41,11 @@ struct BlobMissing: Error {
   var sha256: String
 }
 
-/// A route's points couldn't be had: the app didn't keep them where this tool reads.
+/// A blob couldn't be had: the app didn't keep it where this tool reads.
 struct BlobUnavailable: LocalizedError {
   var errorDescription: String? {
-    "lil health downloaded the route's points, but they aren't where lil-health reads them. "
-      + "Try again in a moment."
+    "lil health downloaded what this reads (a route's points or an ECG's voltages), but it isn't "
+      + "where lil-health reads it. Try again in a moment."
   }
 }
 

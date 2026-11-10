@@ -300,6 +300,8 @@ export const metadataKinds = {
   HKMetadataKeyDevicePlacementSide: enumKind([null, "left", "right", "central"]),
   HKMetadataKeyAppleDeviceCalibrated: booleanKind,
   HKAlgorithmVersion: numberKind,
+  // An ECG's (`HKAppleECGAlgorithmVersion`: 1 or 2), which `electrocardiograms` gives (851-4159).
+  HKMetadataKeyAppleECGAlgorithmVersion: numberKind,
   HKDateOfEarliestDataUsedForEstimate: dateKind,
   HKMetadataKeyQuantityClampedToLowerBound: booleanKind,
   HKMetadataKeyQuantityClampedToUpperBound: booleanKind,

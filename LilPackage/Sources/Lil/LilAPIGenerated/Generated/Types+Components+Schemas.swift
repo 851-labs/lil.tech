@@ -12646,6 +12646,591 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem`.
+        public struct HealthElectrocardiogramItem: Codable, Hashable, Sendable {
+            /// HealthKit's UUID for the recording.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/id`.
+            public var id: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/start`.
+            public var start: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/end`.
+            public var end: Swift.String
+            /// The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/recordedTimeZone`.
+            public var recordedTimeZone: Swift.String?
+            /// When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/recordedStart`.
+            public var recordedStart: Swift.String?
+            /// When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/recordedEnd`.
+            public var recordedEnd: Swift.String?
+            /// Seconds, from start to end: 30 for Apple Watch's ECG app.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/duration`.
+            public var duration: Swift.Double
+            /// What the ECG app classified the rhythm as, as Health names it: Sinus Rhythm (no signs of atrial fibrillation), Atrial Fibrillation, Low Heart Rate (under 50 BPM, too slow to check), High Heart Rate (too fast to check: over 120 BPM, or 150 BPM from algorithm version 2), Poor Recording, Inconclusive, Unrecognized, or Not Classified. A screening result from the person's watch, not a diagnosis.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/classification`.
+            public var classification: Swift.String
+            /// The average heart rate during the recording, in beats per minute, or null.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/averageHeartRate`.
+            public var averageHeartRate: Swift.Double?
+            /// Voltage measurements per second (Hz), as recorded: 512 for Apple Watch. Null if the recording doesn't say.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/samplingFrequency`.
+            public var samplingFrequency: Swift.Double?
+            /// How many voltage measurements it has: 15,360 for 30 seconds at 512 Hz. electrocardiogram_voltages reads them; 0 for a recording without any.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/voltageCount`.
+            public var voltageCount: Swift.Int
+            /// Whether symptoms were logged with it, as lil health shows it: Symptoms Logged, No Symptoms, or Not Logged (they weren't asked about). lil health doesn't link a recording to its symptoms yet: they're symptom samples (e.g. HKCategoryTypeIdentifierRapidPoundingOrFlutteringHeartbeat, HKCategoryTypeIdentifierChestTightnessOrPain), logged around its time, which samples lists by type.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/symptoms`.
+            public var symptoms: Swift.String
+            /// The version of the ECG app's algorithm that classified it (HKMetadataKeyAppleECGAlgorithmVersion): 1, or 2, which classifies heart rates up to 150 BPM. Left out when it doesn't say.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/algorithmVersion`.
+            public var algorithmVersion: Swift.Double?
+            /// The app or device that recorded it, e.g. ECG on Apple Watch.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/source`.
+            public var source: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthElectrocardiogramItem`.
+            ///
+            /// - Parameters:
+            ///   - id: HealthKit's UUID for the recording.
+            ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - recordedTimeZone: The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///   - recordedStart: When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///   - recordedEnd: When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///   - duration: Seconds, from start to end: 30 for Apple Watch's ECG app.
+            ///   - classification: What the ECG app classified the rhythm as, as Health names it: Sinus Rhythm (no signs of atrial fibrillation), Atrial Fibrillation, Low Heart Rate (under 50 BPM, too slow to check), High Heart Rate (too fast to check: over 120 BPM, or 150 BPM from algorithm version 2), Poor Recording, Inconclusive, Unrecognized, or Not Classified. A screening result from the person's watch, not a diagnosis.
+            ///   - averageHeartRate: The average heart rate during the recording, in beats per minute, or null.
+            ///   - samplingFrequency: Voltage measurements per second (Hz), as recorded: 512 for Apple Watch. Null if the recording doesn't say.
+            ///   - voltageCount: How many voltage measurements it has: 15,360 for 30 seconds at 512 Hz. electrocardiogram_voltages reads them; 0 for a recording without any.
+            ///   - symptoms: Whether symptoms were logged with it, as lil health shows it: Symptoms Logged, No Symptoms, or Not Logged (they weren't asked about). lil health doesn't link a recording to its symptoms yet: they're symptom samples (e.g. HKCategoryTypeIdentifierRapidPoundingOrFlutteringHeartbeat, HKCategoryTypeIdentifierChestTightnessOrPain), logged around its time, which samples lists by type.
+            ///   - algorithmVersion: The version of the ECG app's algorithm that classified it (HKMetadataKeyAppleECGAlgorithmVersion): 1, or 2, which classifies heart rates up to 150 BPM. Left out when it doesn't say.
+            ///   - source: The app or device that recorded it, e.g. ECG on Apple Watch.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                recordedTimeZone: Swift.String? = nil,
+                recordedStart: Swift.String? = nil,
+                recordedEnd: Swift.String? = nil,
+                duration: Swift.Double,
+                classification: Swift.String,
+                averageHeartRate: Swift.Double? = nil,
+                samplingFrequency: Swift.Double? = nil,
+                voltageCount: Swift.Int,
+                symptoms: Swift.String,
+                algorithmVersion: Swift.Double? = nil,
+                source: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.start = start
+                self.end = end
+                self.recordedTimeZone = recordedTimeZone
+                self.recordedStart = recordedStart
+                self.recordedEnd = recordedEnd
+                self.duration = duration
+                self.classification = classification
+                self.averageHeartRate = averageHeartRate
+                self.samplingFrequency = samplingFrequency
+                self.voltageCount = voltageCount
+                self.symptoms = symptoms
+                self.algorithmVersion = algorithmVersion
+                self.source = source
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case start
+                case end
+                case recordedTimeZone
+                case recordedStart
+                case recordedEnd
+                case duration
+                case classification
+                case averageHeartRate
+                case samplingFrequency
+                case voltageCount
+                case symptoms
+                case algorithmVersion
+                case source
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.recordedTimeZone = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTimeZone
+                )
+                self.recordedStart = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedStart
+                )
+                self.recordedEnd = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedEnd
+                )
+                self.duration = try container.decode(
+                    Swift.Double.self,
+                    forKey: .duration
+                )
+                self.classification = try container.decode(
+                    Swift.String.self,
+                    forKey: .classification
+                )
+                self.averageHeartRate = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .averageHeartRate
+                )
+                self.samplingFrequency = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .samplingFrequency
+                )
+                self.voltageCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .voltageCount
+                )
+                self.symptoms = try container.decode(
+                    Swift.String.self,
+                    forKey: .symptoms
+                )
+                self.algorithmVersion = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .algorithmVersion
+                )
+                self.source = try container.decode(
+                    Swift.String.self,
+                    forKey: .source
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "start",
+                    "end",
+                    "recordedTimeZone",
+                    "recordedStart",
+                    "recordedEnd",
+                    "duration",
+                    "classification",
+                    "averageHeartRate",
+                    "samplingFrequency",
+                    "voltageCount",
+                    "symptoms",
+                    "algorithmVersion",
+                    "source"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encodeIfPresent(
+                    self.recordedTimeZone,
+                    forKey: .recordedTimeZone
+                )
+                try container.encodeIfPresent(
+                    self.recordedStart,
+                    forKey: .recordedStart
+                )
+                try container.encodeIfPresent(
+                    self.recordedEnd,
+                    forKey: .recordedEnd
+                )
+                try container.encode(
+                    self.duration,
+                    forKey: .duration
+                )
+                try container.encode(
+                    self.classification,
+                    forKey: .classification
+                )
+                try container.encodeIfPresent(
+                    self.averageHeartRate,
+                    forKey: .averageHeartRate
+                )
+                try container.encodeIfPresent(
+                    self.samplingFrequency,
+                    forKey: .samplingFrequency
+                )
+                try container.encode(
+                    self.voltageCount,
+                    forKey: .voltageCount
+                )
+                try container.encode(
+                    self.symptoms,
+                    forKey: .symptoms
+                )
+                try container.encodeIfPresent(
+                    self.algorithmVersion,
+                    forKey: .algorithmVersion
+                )
+                try container.encode(
+                    self.source,
+                    forKey: .source
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramsResult`.
+        public struct HealthElectrocardiogramsResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramsResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The range asked for: D, W, M, 6M or Y.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramsResult/range`.
+            public var range: Swift.String
+            /// When the period starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramsResult/start`.
+            public var start: Swift.String
+            /// When the period ends (exclusive).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramsResult/end`.
+            public var end: Swift.String
+            /// ECGs that start in the period, all of them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramsResult/count`.
+            public var count: Swift.Int
+            /// The recordings, newest first, at most 100.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramsResult/recordings`.
+            public var recordings: [Components.Schemas.HealthElectrocardiogramItem]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthElectrocardiogramsResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - range: The range asked for: D, W, M, 6M or Y.
+            ///   - start: When the period starts.
+            ///   - end: When the period ends (exclusive).
+            ///   - count: ECGs that start in the period, all of them.
+            ///   - recordings: The recordings, newest first, at most 100.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                range: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                count: Swift.Int,
+                recordings: [Components.Schemas.HealthElectrocardiogramItem],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.range = range
+                self.start = start
+                self.end = end
+                self.count = count
+                self.recordings = recordings
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case range
+                case start
+                case end
+                case count
+                case recordings
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.range = try container.decode(
+                    Swift.String.self,
+                    forKey: .range
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.recordings = try container.decode(
+                    [Components.Schemas.HealthElectrocardiogramItem].self,
+                    forKey: .recordings
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "range",
+                    "start",
+                    "end",
+                    "count",
+                    "recordings"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.range,
+                    forKey: .range
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.count,
+                    forKey: .count
+                )
+                try container.encode(
+                    self.recordings,
+                    forKey: .recordings
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramVoltagesResult`.
+        public struct HealthElectrocardiogramVoltagesResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramVoltagesResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The recording's ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramVoltagesResult/id`.
+            public var id: Swift.String
+            /// When the recording starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramVoltagesResult/start`.
+            public var start: Swift.String
+            /// The recording's measurements per second (Hz): as recorded, or if it doesn't say, its measurements over its duration (512 if that can't tell either).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramVoltagesResult/samplingFrequency`.
+            public var samplingFrequency: Swift.Double
+            /// How many measurements the recording has, all of them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramVoltagesResult/voltageCount`.
+            public var voltageCount: Swift.Int
+            /// Seconds from the recording's start to this page's first value.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramVoltagesResult/offset`.
+            public var offset: Swift.Double
+            /// This page's values per second: samplingFrequency, or less when the page is downsampled.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramVoltagesResult/rate`.
+            public var rate: Swift.Double
+            /// How many measurements each value stands for: 1, or when the page is downsampled to stay under 15,360 values, the average of that many in a row (the last value may average fewer).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramVoltagesResult/measurementsPerValue`.
+            public var measurementsPerValue: Swift.Int
+            /// The voltages, in microvolts (µV), in order, `rate` a second from `offset`: Apple Watch's lead I, as on ECG paper (1 mV is 1,000 µV). Stored as 32-bit floats, so rounded to 2 decimal places. Null where the recording has no value.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramVoltagesResult/values`.
+            public var values: [Swift.Double?]
+            /// Pass it as `cursor` for the next page; null on the last page.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramVoltagesResult/nextCursor`.
+            public var nextCursor: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthElectrocardiogramVoltagesResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - id: The recording's ID.
+            ///   - start: When the recording starts.
+            ///   - samplingFrequency: The recording's measurements per second (Hz): as recorded, or if it doesn't say, its measurements over its duration (512 if that can't tell either).
+            ///   - voltageCount: How many measurements the recording has, all of them.
+            ///   - offset: Seconds from the recording's start to this page's first value.
+            ///   - rate: This page's values per second: samplingFrequency, or less when the page is downsampled.
+            ///   - measurementsPerValue: How many measurements each value stands for: 1, or when the page is downsampled to stay under 15,360 values, the average of that many in a row (the last value may average fewer).
+            ///   - values: The voltages, in microvolts (µV), in order, `rate` a second from `offset`: Apple Watch's lead I, as on ECG paper (1 mV is 1,000 µV). Stored as 32-bit floats, so rounded to 2 decimal places. Null where the recording has no value.
+            ///   - nextCursor: Pass it as `cursor` for the next page; null on the last page.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                id: Swift.String,
+                start: Swift.String,
+                samplingFrequency: Swift.Double,
+                voltageCount: Swift.Int,
+                offset: Swift.Double,
+                rate: Swift.Double,
+                measurementsPerValue: Swift.Int,
+                values: [Swift.Double?],
+                nextCursor: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.id = id
+                self.start = start
+                self.samplingFrequency = samplingFrequency
+                self.voltageCount = voltageCount
+                self.offset = offset
+                self.rate = rate
+                self.measurementsPerValue = measurementsPerValue
+                self.values = values
+                self.nextCursor = nextCursor
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case id
+                case start
+                case samplingFrequency
+                case voltageCount
+                case offset
+                case rate
+                case measurementsPerValue
+                case values
+                case nextCursor
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.samplingFrequency = try container.decode(
+                    Swift.Double.self,
+                    forKey: .samplingFrequency
+                )
+                self.voltageCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .voltageCount
+                )
+                self.offset = try container.decode(
+                    Swift.Double.self,
+                    forKey: .offset
+                )
+                self.rate = try container.decode(
+                    Swift.Double.self,
+                    forKey: .rate
+                )
+                self.measurementsPerValue = try container.decode(
+                    Swift.Int.self,
+                    forKey: .measurementsPerValue
+                )
+                self.values = try container.decode(
+                    [Swift.Double?].self,
+                    forKey: .values
+                )
+                self.nextCursor = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .nextCursor
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "id",
+                    "start",
+                    "samplingFrequency",
+                    "voltageCount",
+                    "offset",
+                    "rate",
+                    "measurementsPerValue",
+                    "values",
+                    "nextCursor"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.samplingFrequency,
+                    forKey: .samplingFrequency
+                )
+                try container.encode(
+                    self.voltageCount,
+                    forKey: .voltageCount
+                )
+                try container.encode(
+                    self.offset,
+                    forKey: .offset
+                )
+                try container.encode(
+                    self.rate,
+                    forKey: .rate
+                )
+                try container.encode(
+                    self.measurementsPerValue,
+                    forKey: .measurementsPerValue
+                )
+                try container.encode(
+                    self.values,
+                    forKey: .values
+                )
+                try container.encodeIfPresent(
+                    self.nextCursor,
+                    forKey: .nextCursor
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthMedicationItem`.
         public struct HealthMedicationItem: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/id`.

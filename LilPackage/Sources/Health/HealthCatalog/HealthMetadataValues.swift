@@ -153,6 +153,9 @@ public enum HealthMetadataValues {
     "HKMetadataKeyDevicePlacementSide": .named([nil, "left", "right", "central"]),
     "HKMetadataKeyAppleDeviceCalibrated": .boolean,
     "HKAlgorithmVersion": .number,
+    // An ECG's (`HKAppleECGAlgorithmVersion`: 1 or 2), which `electrocardiograms` gives
+    // (851-4159).
+    "HKMetadataKeyAppleECGAlgorithmVersion": .number,
     "HKDateOfEarliestDataUsedForEstimate": .date,
     "HKMetadataKeyQuantityClampedToLowerBound": .boolean,
     "HKMetadataKeyQuantityClampedToUpperBound": .boolean,

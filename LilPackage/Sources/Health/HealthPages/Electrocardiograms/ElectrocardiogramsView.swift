@@ -353,10 +353,6 @@ enum ECGFormat {
   }
 
   static func symptoms(_ recording: HealthElectrocardiogram) -> String {
-    switch recording.hadSymptoms {
-    case false: "No Symptoms"
-    case true: "Symptoms Logged"
-    case nil: "Not Logged"
-    }
+    recording.symptomsName
   }
 }

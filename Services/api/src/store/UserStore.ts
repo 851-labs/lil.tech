@@ -865,9 +865,9 @@ export const UserStoreLive = UserStore.make(
         sql,
         record: store.recordAgentAccess,
         write: store.applyMutations,
-        // The route tools' locations (851-4164), under the prefix the store recorded with its
-        // first blob: a store without one has none.
-        blobs: (sha256) => {
+        // The route tools' locations (851-4164) and ECGs' voltages (851-4159), under the prefix
+        // the store recorded with its first blob: a store without one has none.
+        blobs: (sha256, what) => {
           const prefix = readBlobPrefix(sql);
           if (prefix === null) return Effect.succeed(null);
           return blobBucket.get(`${prefix}${sha256}`).pipe(
@@ -878,7 +878,7 @@ export const UserStoreLive = UserStore.make(
                 Effect.andThen(
                   Effect.fail(
                     new HealthToolError({
-                      message: "Couldn't read the route's points. Try again in a moment.",
+                      message: `Couldn't read ${what}. Try again in a moment.`,
                     }),
                   ),
                 ),
