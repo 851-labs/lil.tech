@@ -1,6 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
 import { DateTime } from "effect";
-import { sampleDetails } from "../../../src/health/tools/SampleDetails.ts";
+import { SampleSources, sampleDetails } from "../../../src/health/tools/SampleDetails.ts";
 
 // What `samples` reads of a sample's metadata at its edges (851-4166): units it converts and
 // those it doesn't, enums' cases out of range or not set, Booleans written as numbers, and
@@ -16,7 +16,6 @@ const metadata = {
   HKMetadataKeyHeadphoneGain: "3 dB",
   HKBodyTemperatureSensorLocation: 11,
   HKMetadataKeyHeartRateRecoveryTestType: 4,
-  HKMetadataKeyHeartRateRecoveryActivityType: 37,
   HKMetadataKeyHeartRateRecoveryActivityDuration: "12 min",
   HKMetadataKeyHeartRateRecoveryMaxObservedRecoveryHeartRate: "162 count/min",
   HKVO2MaxValue: "28.4 mL/min·kg",
@@ -26,6 +25,7 @@ const metadata = {
   HKMetadataKeyMaximumLightIntensity: "12.5 klx",
   HKPhysicalEffortEstimationType: 1.5,
   HKActivityType: 52,
+  HKMetadataKeyHeartRateRecoveryActivityType: 1e16,
   HKMetadataKeyQuantityClampedToLowerBound: true,
   HKWasTakenInLab: 1,
   HKMenstrualCycleStart: true,
@@ -41,23 +41,12 @@ const metadata = {
 
 describe("sampleDetails", () => {
   it("reads each key it knows, and leaves out what it can't read", () => {
-    const details = sampleDetails(
-      {
-        // An Apple device's own bundle ID, in capitals: it names the device, so it's left out.
-        sourceBundleId: "com.apple.health.ABCDEF01-2345-4678-9ABC-DEF012345678",
-        sourceRevision: '"not an object"',
-        device: '["not an object"]',
-        metadata: JSON.stringify(metadata),
-      },
-      utc,
-    );
-    assert.deepStrictEqual(details, {
+    assert.deepStrictEqual(sampleDetails(metadata, utc), {
       heartRateEventThreshold: 120,
       audioExposureLevel: 85.5,
       audioExposureDuration: 5400,
       sensorLocation: "forehead",
       heartRateRecoveryTestType: "stepTest",
-      heartRateRecoveryActivity: "Running",
       heartRateRecoveryActivityDuration: 720,
       maxObservedRecoveryHeartRate: 162,
       vo2Max: 28.4,
@@ -74,18 +63,47 @@ describe("sampleDetails", () => {
     });
   });
 
-  it("is empty for a sample with nothing to say", () => {
+  it("is empty without metadata", () => {
+    assert.deepStrictEqual(sampleDetails(null, utc), {});
+  });
+});
+
+describe("SampleSources", () => {
+  it("lists each source once, in the order they first appear", () => {
+    const sources = new SampleSources();
+    const watch = {
+      sourceName: "Test Apple Watch",
+      // An Apple device's own bundle ID, in capitals: it names the device, so it's left out.
+      sourceBundleId: "com.apple.health.ABCDEF01-2345-4678-9ABC-DEF012345678",
+      sourceRevision: '{"version":"26.1","productType":"Watch7,1"}',
+      device: '{"name":"Apple Watch","model":"Watch","localIdentifier":""}',
+      metadata: null,
+    };
+    const app = {
+      sourceName: "Test App",
+      sourceBundleId: "com.example.app",
+      sourceRevision: '"not an object"',
+      device: '["not an object"]',
+      metadata: null,
+    };
     assert.deepStrictEqual(
-      sampleDetails(
-        {
-          sourceBundleId: "com.apple.health.00000000-0000-4000-8000-000000000001",
-          sourceRevision: null,
-          device: null,
-          metadata: null,
-        },
-        utc,
-      ),
-      {},
+      [
+        sources.indexOf(watch, null),
+        sources.indexOf(app, null),
+        sources.indexOf(watch, null),
+        sources.indexOf(app, { HKDeviceName: "Test Meter", HKDeviceManufacturerName: " " }),
+      ],
+      [0, 1, 0, 2],
     );
+    assert.deepStrictEqual(sources.sources, [
+      {
+        name: "Test Apple Watch",
+        version: "26.1",
+        productType: "Watch7,1",
+        device: { name: "Apple Watch", model: "Watch" },
+      },
+      { name: "Test App", bundleId: "com.example.app" },
+      { name: "Test App", bundleId: "com.example.app", device: { name: "Test Meter" } },
+    ]);
   });
 });

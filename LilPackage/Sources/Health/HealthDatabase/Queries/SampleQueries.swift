@@ -158,7 +158,8 @@ extension HealthDatabase {
   }
 
   /// `samplePage` for a correlation type's correlations (blood pressure, food), with their
-  /// provenance's source revision and device filled in (851-4166).
+  /// provenance's source revision and device filled in (851-4166). The server's `samplePage`
+  /// reads them alike.
   public static func correlationPage(
     of type: String, in range: Range<Date>, after cursor: SampleCursor?, limit: Int,
     _ db: Database
@@ -173,33 +174,29 @@ extension HealthDatabase {
           && ($0.startDate < cursor.startDate || $0.id < cursor.id)
       }
     }
-    let correlations =
+    return
       try page
       .order { ($0.startDate.desc(), $0.id.desc()) }
       .limit(limit)
       .fetchAll(db)
-    let provenances = try provenances(correlations.compactMap(\.provenance), db)
-    return correlations.map { correlation in
-      guard let provenance = correlation.provenance.flatMap({ provenances[$0] }) else {
-        return correlation
-      }
-      var correlation = correlation
-      correlation.sourceRevision = correlation.sourceRevision ?? provenance.sourceRevision
-      correlation.device = correlation.device ?? provenance.device
-      return correlation
-    }
+      .withProvenance(db)
   }
 
-  /// The samples in each of `correlations`, by correlation, then type, then ID.
+  /// The samples in each of `correlations`, by correlation, then systolic before diastolic (blood
+  /// pressure reads 118/76), then by type and ID, as the server's `correlatedValues`.
   public static func correlatedSamples(
     of correlations: [String], _ db: Database
   ) throws -> [HealthSample] {
     guard !correlations.isEmpty else { return [] }
+    let systolic = "HKQuantityTypeIdentifierBloodPressureSystolic"
     return
       try HealthSample
       .where { $0.correlationID.in(correlations.map(Optional.some)) }
-      .order { ($0.correlationID, $0.type, $0.id) }
       .fetchAll(db)
+      .sorted {
+        ($0.correlationID ?? "", $0.type == systolic ? 0 : 1, $0.type, $0.id)
+          < ($1.correlationID ?? "", $1.type == systolic ? 0 : 1, $1.type, $1.id)
+      }
   }
 
   /// The apps and devices a type's samples came from, most samples first. Read-only: which
@@ -248,18 +245,29 @@ extension HealthDatabase {
   }
 }
 
-extension [HealthSample] {
-  /// The samples with the source revision and device of their provenance records filled in
+/// A record with a source revision and device, or the `HealthProvenance` that has them
+/// (851-2674): samples and correlations.
+protocol HasProvenance {
+  var provenance: String? { get }
+  var sourceRevision: String? { get set }
+  var device: String? { get set }
+}
+
+extension HealthSample: HasProvenance {}
+extension HealthCorrelation: HasProvenance {}
+
+extension Array where Element: HasProvenance {
+  /// The records with the source revision and device of their provenance records filled in
   /// (851-2674), so they read as if uploaded with them.
   func withProvenance(_ db: Database) throws -> Self {
     let provenances = try HealthDatabase.provenances(compactMap(\.provenance), db)
     guard !provenances.isEmpty else { return self }
-    return map { sample in
-      guard let provenance = sample.provenance.flatMap({ provenances[$0] }) else { return sample }
-      var sample = sample
-      sample.sourceRevision = sample.sourceRevision ?? provenance.sourceRevision
-      sample.device = sample.device ?? provenance.device
-      return sample
+    return map { record in
+      guard let provenance = record.provenance.flatMap({ provenances[$0] }) else { return record }
+      var record = record
+      record.sourceRevision = record.sourceRevision ?? provenance.sourceRevision
+      record.device = record.device ?? provenance.device
+      return record
     }
   }
 }

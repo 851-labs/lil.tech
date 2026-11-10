@@ -6459,135 +6459,6 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
-        /// The device that measured it (HKDevice, else the HKMetadataKeyDeviceName and …ManufacturerName metadata), with only the properties it has.
-        ///
-        /// - Remark: Generated from `#/components/schemas/HealthSampleDevice`.
-        public struct HealthSampleDevice: Codable, Hashable, Sendable {
-            /// The device's name, e.g. Apple Watch.
-            ///
-            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/name`.
-            public var name: Swift.String?
-            /// Who made it, e.g. Apple Inc.
-            ///
-            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/manufacturer`.
-            public var manufacturer: Swift.String?
-            /// Its model, e.g. Watch.
-            ///
-            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/model`.
-            public var model: Swift.String?
-            /// Its hardware version, e.g. Watch7,1.
-            ///
-            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/hardwareVersion`.
-            public var hardwareVersion: Swift.String?
-            /// Its firmware version.
-            ///
-            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/firmwareVersion`.
-            public var firmwareVersion: Swift.String?
-            /// Its software version, e.g. 26.1.
-            ///
-            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/softwareVersion`.
-            public var softwareVersion: Swift.String?
-            /// A container of undocumented properties.
-            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
-            /// Creates a new `HealthSampleDevice`.
-            ///
-            /// - Parameters:
-            ///   - name: The device's name, e.g. Apple Watch.
-            ///   - manufacturer: Who made it, e.g. Apple Inc.
-            ///   - model: Its model, e.g. Watch.
-            ///   - hardwareVersion: Its hardware version, e.g. Watch7,1.
-            ///   - firmwareVersion: Its firmware version.
-            ///   - softwareVersion: Its software version, e.g. 26.1.
-            ///   - additionalProperties: A container of undocumented properties.
-            public init(
-                name: Swift.String? = nil,
-                manufacturer: Swift.String? = nil,
-                model: Swift.String? = nil,
-                hardwareVersion: Swift.String? = nil,
-                firmwareVersion: Swift.String? = nil,
-                softwareVersion: Swift.String? = nil,
-                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
-            ) {
-                self.name = name
-                self.manufacturer = manufacturer
-                self.model = model
-                self.hardwareVersion = hardwareVersion
-                self.firmwareVersion = firmwareVersion
-                self.softwareVersion = softwareVersion
-                self.additionalProperties = additionalProperties
-            }
-            public enum CodingKeys: String, CodingKey {
-                case name
-                case manufacturer
-                case model
-                case hardwareVersion
-                case firmwareVersion
-                case softwareVersion
-            }
-            public init(from decoder: any Swift.Decoder) throws {
-                let container = try decoder.container(keyedBy: CodingKeys.self)
-                self.name = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .name
-                )
-                self.manufacturer = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .manufacturer
-                )
-                self.model = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .model
-                )
-                self.hardwareVersion = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .hardwareVersion
-                )
-                self.firmwareVersion = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .firmwareVersion
-                )
-                self.softwareVersion = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .softwareVersion
-                )
-                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
-                    "name",
-                    "manufacturer",
-                    "model",
-                    "hardwareVersion",
-                    "firmwareVersion",
-                    "softwareVersion"
-                ])
-            }
-            public func encode(to encoder: any Swift.Encoder) throws {
-                var container = encoder.container(keyedBy: CodingKeys.self)
-                try container.encodeIfPresent(
-                    self.name,
-                    forKey: .name
-                )
-                try container.encodeIfPresent(
-                    self.manufacturer,
-                    forKey: .manufacturer
-                )
-                try container.encodeIfPresent(
-                    self.model,
-                    forKey: .model
-                )
-                try container.encodeIfPresent(
-                    self.hardwareVersion,
-                    forKey: .hardwareVersion
-                )
-                try container.encodeIfPresent(
-                    self.firmwareVersion,
-                    forKey: .firmwareVersion
-                )
-                try container.encodeIfPresent(
-                    self.softwareVersion,
-                    forKey: .softwareVersion
-                )
-                try encoder.encodeAdditionalProperties(additionalProperties)
-            }
-        }
         /// - Remark: Generated from `#/components/schemas/HealthCorrelatedValue`.
         public struct HealthCorrelatedValue: Codable, Hashable, Sendable {
             /// A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.
@@ -6690,24 +6561,10 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSampleItem/source`.
             public var source: Swift.String
-            /// The bundle ID of the app that saved it, e.g. com.dexcom.G7. Left out for Apple devices' own (com.apple.health.<UUID>), whose UUID identifies the device.
+            /// Its entry in `sources`: the app, its version and the device, from 0.
             ///
-            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/sourceBundleId`.
-            public var sourceBundleId: Swift.String?
-            /// The version of the app or OS that saved it.
-            ///
-            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/sourceVersion`.
-            public var sourceVersion: Swift.String?
-            /// The hardware the app that saved it ran on, e.g. iPhone17,1 or Watch7,1.
-            ///
-            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/sourceProductType`.
-            public var sourceProductType: Swift.String?
-            /// The OS version it ran on, e.g. 26.1.0.
-            ///
-            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/sourceOperatingSystemVersion`.
-            public var sourceOperatingSystemVersion: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/device`.
-            public var device: Components.Schemas.HealthSampleDevice?
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/sourceIndex`.
+            public var sourceIndex: Swift.Int
             /// True if someone entered it by hand, e.g. in the Health app (HKMetadataKeyWasUserEntered).
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSampleItem/userEntered`.
@@ -6860,11 +6717,7 @@ extension Components {
             ///   - unit:
             ///   - categoryValue: A category sample's HealthKit value (HKCategoryValue…). Null for quantities and correlations.
             ///   - source: The app or device that recorded it, e.g. an Apple Watch's name.
-            ///   - sourceBundleId: The bundle ID of the app that saved it, e.g. com.dexcom.G7. Left out for Apple devices' own (com.apple.health.<UUID>), whose UUID identifies the device.
-            ///   - sourceVersion: The version of the app or OS that saved it.
-            ///   - sourceProductType: The hardware the app that saved it ran on, e.g. iPhone17,1 or Watch7,1.
-            ///   - sourceOperatingSystemVersion: The OS version it ran on, e.g. 26.1.0.
-            ///   - device:
+            ///   - sourceIndex: Its entry in `sources`: the app, its version and the device, from 0.
             ///   - userEntered: True if someone entered it by hand, e.g. in the Health app (HKMetadataKeyWasUserEntered).
             ///   - recordedTimeZone: The time zone where it was recorded (HKMetadataKeyTimeZone), e.g. America/New_York. Times here are still in the output's `timeZone`.
             ///   - values: For a correlation (blood pressure, food): the samples it groups, by type, e.g. systolic and diastolic, or each nutrient of a food.
@@ -6909,11 +6762,7 @@ extension Components {
                 unit: Swift.String? = nil,
                 categoryValue: Swift.Int? = nil,
                 source: Swift.String,
-                sourceBundleId: Swift.String? = nil,
-                sourceVersion: Swift.String? = nil,
-                sourceProductType: Swift.String? = nil,
-                sourceOperatingSystemVersion: Swift.String? = nil,
-                device: Components.Schemas.HealthSampleDevice? = nil,
+                sourceIndex: Swift.Int,
                 userEntered: Swift.Bool? = nil,
                 recordedTimeZone: Swift.String? = nil,
                 values: [Components.Schemas.HealthCorrelatedValue]? = nil,
@@ -6958,11 +6807,7 @@ extension Components {
                 self.unit = unit
                 self.categoryValue = categoryValue
                 self.source = source
-                self.sourceBundleId = sourceBundleId
-                self.sourceVersion = sourceVersion
-                self.sourceProductType = sourceProductType
-                self.sourceOperatingSystemVersion = sourceOperatingSystemVersion
-                self.device = device
+                self.sourceIndex = sourceIndex
                 self.userEntered = userEntered
                 self.recordedTimeZone = recordedTimeZone
                 self.values = values
@@ -7008,11 +6853,7 @@ extension Components {
                 case unit
                 case categoryValue
                 case source
-                case sourceBundleId
-                case sourceVersion
-                case sourceProductType
-                case sourceOperatingSystemVersion
-                case device
+                case sourceIndex
                 case userEntered
                 case recordedTimeZone
                 case values
@@ -7079,25 +6920,9 @@ extension Components {
                     Swift.String.self,
                     forKey: .source
                 )
-                self.sourceBundleId = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .sourceBundleId
-                )
-                self.sourceVersion = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .sourceVersion
-                )
-                self.sourceProductType = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .sourceProductType
-                )
-                self.sourceOperatingSystemVersion = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .sourceOperatingSystemVersion
-                )
-                self.device = try container.decodeIfPresent(
-                    Components.Schemas.HealthSampleDevice.self,
-                    forKey: .device
+                self.sourceIndex = try container.decode(
+                    Swift.Int.self,
+                    forKey: .sourceIndex
                 )
                 self.userEntered = try container.decodeIfPresent(
                     Swift.Bool.self,
@@ -7247,11 +7072,7 @@ extension Components {
                     "unit",
                     "categoryValue",
                     "source",
-                    "sourceBundleId",
-                    "sourceVersion",
-                    "sourceProductType",
-                    "sourceOperatingSystemVersion",
-                    "device",
+                    "sourceIndex",
                     "userEntered",
                     "recordedTimeZone",
                     "values",
@@ -7319,25 +7140,9 @@ extension Components {
                     self.source,
                     forKey: .source
                 )
-                try container.encodeIfPresent(
-                    self.sourceBundleId,
-                    forKey: .sourceBundleId
-                )
-                try container.encodeIfPresent(
-                    self.sourceVersion,
-                    forKey: .sourceVersion
-                )
-                try container.encodeIfPresent(
-                    self.sourceProductType,
-                    forKey: .sourceProductType
-                )
-                try container.encodeIfPresent(
-                    self.sourceOperatingSystemVersion,
-                    forKey: .sourceOperatingSystemVersion
-                )
-                try container.encodeIfPresent(
-                    self.device,
-                    forKey: .device
+                try container.encode(
+                    self.sourceIndex,
+                    forKey: .sourceIndex
                 )
                 try container.encodeIfPresent(
                     self.userEntered,
@@ -7482,6 +7287,260 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// The device that measured it (HKDevice, else the HKMetadataKeyDeviceName and …ManufacturerName metadata), with only the properties it has.
+        ///
+        /// - Remark: Generated from `#/components/schemas/HealthSampleDevice`.
+        public struct HealthSampleDevice: Codable, Hashable, Sendable {
+            /// The device's name, e.g. Apple Watch.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/name`.
+            public var name: Swift.String?
+            /// Who made it, e.g. Apple Inc.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/manufacturer`.
+            public var manufacturer: Swift.String?
+            /// Its model, e.g. Watch.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/model`.
+            public var model: Swift.String?
+            /// Its hardware version, e.g. Watch7,1.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/hardwareVersion`.
+            public var hardwareVersion: Swift.String?
+            /// Its firmware version.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/firmwareVersion`.
+            public var firmwareVersion: Swift.String?
+            /// Its software version, e.g. 26.1.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleDevice/softwareVersion`.
+            public var softwareVersion: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthSampleDevice`.
+            ///
+            /// - Parameters:
+            ///   - name: The device's name, e.g. Apple Watch.
+            ///   - manufacturer: Who made it, e.g. Apple Inc.
+            ///   - model: Its model, e.g. Watch.
+            ///   - hardwareVersion: Its hardware version, e.g. Watch7,1.
+            ///   - firmwareVersion: Its firmware version.
+            ///   - softwareVersion: Its software version, e.g. 26.1.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                name: Swift.String? = nil,
+                manufacturer: Swift.String? = nil,
+                model: Swift.String? = nil,
+                hardwareVersion: Swift.String? = nil,
+                firmwareVersion: Swift.String? = nil,
+                softwareVersion: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.name = name
+                self.manufacturer = manufacturer
+                self.model = model
+                self.hardwareVersion = hardwareVersion
+                self.firmwareVersion = firmwareVersion
+                self.softwareVersion = softwareVersion
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case name
+                case manufacturer
+                case model
+                case hardwareVersion
+                case firmwareVersion
+                case softwareVersion
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.name = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .name
+                )
+                self.manufacturer = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .manufacturer
+                )
+                self.model = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .model
+                )
+                self.hardwareVersion = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .hardwareVersion
+                )
+                self.firmwareVersion = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .firmwareVersion
+                )
+                self.softwareVersion = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .softwareVersion
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "name",
+                    "manufacturer",
+                    "model",
+                    "hardwareVersion",
+                    "firmwareVersion",
+                    "softwareVersion"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encodeIfPresent(
+                    self.name,
+                    forKey: .name
+                )
+                try container.encodeIfPresent(
+                    self.manufacturer,
+                    forKey: .manufacturer
+                )
+                try container.encodeIfPresent(
+                    self.model,
+                    forKey: .model
+                )
+                try container.encodeIfPresent(
+                    self.hardwareVersion,
+                    forKey: .hardwareVersion
+                )
+                try container.encodeIfPresent(
+                    self.firmwareVersion,
+                    forKey: .firmwareVersion
+                )
+                try container.encodeIfPresent(
+                    self.softwareVersion,
+                    forKey: .softwareVersion
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthSampleSource`.
+        public struct HealthSampleSource: Codable, Hashable, Sendable {
+            /// The app or device that saved it, as the sample's `source`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSource/name`.
+            public var name: Swift.String
+            /// The bundle ID of the app that saved it, e.g. com.dexcom.G7. Left out for Apple devices' own (com.apple.health.<UUID>), whose UUID identifies the device.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSource/bundleId`.
+            public var bundleId: Swift.String?
+            /// The version of the app, or the OS, that saved it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSource/version`.
+            public var version: Swift.String?
+            /// The hardware the app that saved it ran on, e.g. iPhone17,1 or Watch7,1.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSource/productType`.
+            public var productType: Swift.String?
+            /// The OS version it ran on, e.g. 26.1.0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSource/operatingSystemVersion`.
+            public var operatingSystemVersion: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSource/device`.
+            public var device: Components.Schemas.HealthSampleDevice?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthSampleSource`.
+            ///
+            /// - Parameters:
+            ///   - name: The app or device that saved it, as the sample's `source`.
+            ///   - bundleId: The bundle ID of the app that saved it, e.g. com.dexcom.G7. Left out for Apple devices' own (com.apple.health.<UUID>), whose UUID identifies the device.
+            ///   - version: The version of the app, or the OS, that saved it.
+            ///   - productType: The hardware the app that saved it ran on, e.g. iPhone17,1 or Watch7,1.
+            ///   - operatingSystemVersion: The OS version it ran on, e.g. 26.1.0.
+            ///   - device:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                name: Swift.String,
+                bundleId: Swift.String? = nil,
+                version: Swift.String? = nil,
+                productType: Swift.String? = nil,
+                operatingSystemVersion: Swift.String? = nil,
+                device: Components.Schemas.HealthSampleDevice? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.name = name
+                self.bundleId = bundleId
+                self.version = version
+                self.productType = productType
+                self.operatingSystemVersion = operatingSystemVersion
+                self.device = device
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case name
+                case bundleId
+                case version
+                case productType
+                case operatingSystemVersion
+                case device
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.name = try container.decode(
+                    Swift.String.self,
+                    forKey: .name
+                )
+                self.bundleId = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .bundleId
+                )
+                self.version = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .version
+                )
+                self.productType = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .productType
+                )
+                self.operatingSystemVersion = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .operatingSystemVersion
+                )
+                self.device = try container.decodeIfPresent(
+                    Components.Schemas.HealthSampleDevice.self,
+                    forKey: .device
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "name",
+                    "bundleId",
+                    "version",
+                    "productType",
+                    "operatingSystemVersion",
+                    "device"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.name,
+                    forKey: .name
+                )
+                try container.encodeIfPresent(
+                    self.bundleId,
+                    forKey: .bundleId
+                )
+                try container.encodeIfPresent(
+                    self.version,
+                    forKey: .version
+                )
+                try container.encodeIfPresent(
+                    self.productType,
+                    forKey: .productType
+                )
+                try container.encodeIfPresent(
+                    self.operatingSystemVersion,
+                    forKey: .operatingSystemVersion
+                )
+                try container.encodeIfPresent(
+                    self.device,
+                    forKey: .device
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthSamplesResult`.
         public struct HealthSamplesResult: Codable, Hashable, Sendable {
             /// The IANA time zone of the output's days and local times.
@@ -7508,6 +7567,10 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSamplesResult/samples`.
             public var samples: [Components.Schemas.HealthSampleItem]
+            /// Where this page's samples came from, each app and device once, in the order they first appear: a sample's sourceIndex is its entry.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSamplesResult/sources`.
+            public var sources: [Components.Schemas.HealthSampleSource]
             /// Pass it as `cursor` for the next, older page; null on the last page.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSamplesResult/nextCursor`.
@@ -7523,6 +7586,7 @@ extension Components {
             ///   - end: When the period ends (exclusive).
             ///   - _type: A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.
             ///   - samples: Samples that start in the period, newest first.
+            ///   - sources: Where this page's samples came from, each app and device once, in the order they first appear: a sample's sourceIndex is its entry.
             ///   - nextCursor: Pass it as `cursor` for the next, older page; null on the last page.
             ///   - additionalProperties: A container of undocumented properties.
             public init(
@@ -7532,6 +7596,7 @@ extension Components {
                 end: Swift.String,
                 _type: Swift.String,
                 samples: [Components.Schemas.HealthSampleItem],
+                sources: [Components.Schemas.HealthSampleSource],
                 nextCursor: Swift.String? = nil,
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
@@ -7541,6 +7606,7 @@ extension Components {
                 self.end = end
                 self._type = _type
                 self.samples = samples
+                self.sources = sources
                 self.nextCursor = nextCursor
                 self.additionalProperties = additionalProperties
             }
@@ -7551,6 +7617,7 @@ extension Components {
                 case end
                 case _type = "type"
                 case samples
+                case sources
                 case nextCursor
             }
             public init(from decoder: any Swift.Decoder) throws {
@@ -7579,6 +7646,10 @@ extension Components {
                     [Components.Schemas.HealthSampleItem].self,
                     forKey: .samples
                 )
+                self.sources = try container.decode(
+                    [Components.Schemas.HealthSampleSource].self,
+                    forKey: .sources
+                )
                 self.nextCursor = try container.decodeIfPresent(
                     Swift.String.self,
                     forKey: .nextCursor
@@ -7590,6 +7661,7 @@ extension Components {
                     "end",
                     "type",
                     "samples",
+                    "sources",
                     "nextCursor"
                 ])
             }
@@ -7618,6 +7690,10 @@ extension Components {
                 try container.encode(
                     self.samples,
                     forKey: .samples
+                )
+                try container.encode(
+                    self.sources,
+                    forKey: .sources
                 )
                 try container.encodeIfPresent(
                     self.nextCursor,

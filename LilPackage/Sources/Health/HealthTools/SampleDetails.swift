@@ -1,9 +1,10 @@
 import Foundation
 import HealthCatalog
 
-/// What the `samples` tool says of a sample beyond its value (851-4166): its source app and
-/// version, its device, and its metadata (only the keys lil health keeps, 851-4152), each key it
-/// reads turned into a plain field, read as the server reads them
+/// What the `samples` tool says of a sample beyond its value (851-4166): where it came from (its
+/// app and version, and its device, which a page lists once each, `SampleSources`), and its
+/// metadata (only the keys lil health keeps, 851-4152), each key it reads turned into a plain
+/// field (`details`), read as the server reads them
 /// (`Services/api/src/health/tools/SampleDetails.ts`), so the two `samples` tools agree (the
 /// conformance cases). Every field is left out when the sample doesn't have it.
 ///
@@ -13,27 +14,17 @@ import HealthCatalog
 enum SampleDetails {
   /// Where a sample or correlation came from, as stored, its provenance's filled in.
   struct Stored {
+    var sourceName: String
     var sourceBundleID: String
     /// JSON, or nil.
     var sourceRevision: String? = nil
     /// JSON, or nil.
     var device: String? = nil
-    /// JSON, or nil.
-    var metadata: String? = nil
   }
 
-  /// What a sample's or correlation's source, device and metadata say, in `time`'s local times.
-  static func details(_ stored: Stored, time: ToolTime) -> HealthSampleDetails {
+  /// What a sample's or correlation's metadata says, in `time`'s local times.
+  static func details(_ metadata: [String: Any]?, time: ToolTime) -> HealthSampleDetails {
     var details = HealthSampleDetails()
-    if stored.sourceBundleID.wholeMatch(of: appleDeviceBundleID) == nil {
-      details.sourceBundleId = stored.sourceBundleID
-    }
-    let revision = object(stored.sourceRevision)
-    details.sourceVersion = text(revision?["version"])
-    details.sourceProductType = text(revision?["productType"])
-    details.sourceOperatingSystemVersion = text(revision?["operatingSystemVersion"])
-    let metadata = object(stored.metadata)
-    details.device = device(object(stored.device), metadata: metadata)
     guard let metadata else { return details }
     for (key, set) in metadataFields { set(&details, metadata[key]) }
     if let earliest = number(metadata["HKDateOfEarliestDataUsedForEstimate"]),
@@ -185,6 +176,7 @@ enum SampleDetails {
 
   /// A workout activity's name, by its `HKWorkoutActivityType` raw value.
   static func activityName(_ value: Any?) -> String? {
+    // Whole and below 10^15, so it makes an `Int`, as on the server.
     guard let raw = number(value), raw.rounded() == raw, abs(raw) < 1e15 else { return nil }
     return HealthCatalog.workoutActivityName(Int(raw))
   }
@@ -229,5 +221,39 @@ enum SampleDetails {
   static func object(_ json: String?) -> [String: Any]? {
     guard let json else { return nil }
     return (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any]
+  }
+}
+
+/// A page's sources: each sample's app, version and device, listed once each in the order they
+/// first appear, so a page of a Watch's readings doesn't repeat them, as the server's
+/// `SampleSources`. Source revisions and devices repeat across a page, so each is read once.
+struct SampleSources {
+  private(set) var sources: [HealthSampleSource] = []
+  private var indexes: [HealthSampleSource: Int] = [:]
+  private var parsed: [String: [String: Any]?] = [:]
+
+  /// The index in `sources` of where `stored` came from, `metadata` its metadata.
+  mutating func index(of stored: SampleDetails.Stored, metadata: [String: Any]?) -> Int {
+    let revision = object(stored.sourceRevision)
+    let source = HealthSampleSource(
+      name: stored.sourceName,
+      bundleId: stored.sourceBundleID.wholeMatch(of: SampleDetails.appleDeviceBundleID) == nil
+        ? stored.sourceBundleID : nil,
+      version: SampleDetails.text(revision?["version"]),
+      productType: SampleDetails.text(revision?["productType"]),
+      operatingSystemVersion: SampleDetails.text(revision?["operatingSystemVersion"]),
+      device: SampleDetails.device(object(stored.device), metadata: metadata))
+    if let index = indexes[source] { return index }
+    sources.append(source)
+    indexes[source] = sources.count - 1
+    return sources.count - 1
+  }
+
+  private mutating func object(_ json: String?) -> [String: Any]? {
+    guard let json else { return nil }
+    if let object = parsed[json] { return object }
+    let object = SampleDetails.object(json)
+    parsed[json] = .some(object)
+    return object
   }
 }

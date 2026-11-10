@@ -4629,37 +4629,6 @@
         ],
         "additionalProperties": true
       },
-      "HealthSampleDevice": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "The device's name, e.g. Apple Watch."
-          },
-          "manufacturer": {
-            "type": "string",
-            "description": "Who made it, e.g. Apple Inc."
-          },
-          "model": {
-            "type": "string",
-            "description": "Its model, e.g. Watch."
-          },
-          "hardwareVersion": {
-            "type": "string",
-            "description": "Its hardware version, e.g. Watch7,1."
-          },
-          "firmwareVersion": {
-            "type": "string",
-            "description": "Its firmware version."
-          },
-          "softwareVersion": {
-            "type": "string",
-            "description": "Its software version, e.g. 26.1."
-          }
-        },
-        "additionalProperties": true,
-        "description": "The device that measured it (HKDevice, else the HKMetadataKeyDeviceName and …ManufacturerName metadata), with only the properties it has."
-      },
       "HealthCorrelatedValue": {
         "type": "object",
         "properties": {
@@ -4729,24 +4698,11 @@
             "type": "string",
             "description": "The app or device that recorded it, e.g. an Apple Watch's name."
           },
-          "sourceBundleId": {
-            "type": "string",
-            "description": "The bundle ID of the app that saved it, e.g. com.dexcom.G7. Left out for Apple devices' own (com.apple.health.<UUID>), whose UUID identifies the device."
-          },
-          "sourceVersion": {
-            "type": "string",
-            "description": "The version of the app or OS that saved it."
-          },
-          "sourceProductType": {
-            "type": "string",
-            "description": "The hardware the app that saved it ran on, e.g. iPhone17,1 or Watch7,1."
-          },
-          "sourceOperatingSystemVersion": {
-            "type": "string",
-            "description": "The OS version it ran on, e.g. 26.1.0."
-          },
-          "device": {
-            "$ref": "#/components/schemas/HealthSampleDevice"
+          "sourceIndex": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Its entry in `sources`: the app, its version and the device, from 0."
           },
           "userEntered": {
             "type": "boolean",
@@ -4899,7 +4855,71 @@
           "value",
           "unit",
           "categoryValue",
-          "source"
+          "source",
+          "sourceIndex"
+        ],
+        "additionalProperties": true
+      },
+      "HealthSampleDevice": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The device's name, e.g. Apple Watch."
+          },
+          "manufacturer": {
+            "type": "string",
+            "description": "Who made it, e.g. Apple Inc."
+          },
+          "model": {
+            "type": "string",
+            "description": "Its model, e.g. Watch."
+          },
+          "hardwareVersion": {
+            "type": "string",
+            "description": "Its hardware version, e.g. Watch7,1."
+          },
+          "firmwareVersion": {
+            "type": "string",
+            "description": "Its firmware version."
+          },
+          "softwareVersion": {
+            "type": "string",
+            "description": "Its software version, e.g. 26.1."
+          }
+        },
+        "additionalProperties": true,
+        "description": "The device that measured it (HKDevice, else the HKMetadataKeyDeviceName and …ManufacturerName metadata), with only the properties it has."
+      },
+      "HealthSampleSource": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The app or device that saved it, as the sample's `source`."
+          },
+          "bundleId": {
+            "type": "string",
+            "description": "The bundle ID of the app that saved it, e.g. com.dexcom.G7. Left out for Apple devices' own (com.apple.health.<UUID>), whose UUID identifies the device."
+          },
+          "version": {
+            "type": "string",
+            "description": "The version of the app, or the OS, that saved it."
+          },
+          "productType": {
+            "type": "string",
+            "description": "The hardware the app that saved it ran on, e.g. iPhone17,1 or Watch7,1."
+          },
+          "operatingSystemVersion": {
+            "type": "string",
+            "description": "The OS version it ran on, e.g. 26.1.0."
+          },
+          "device": {
+            "$ref": "#/components/schemas/HealthSampleDevice"
+          }
+        },
+        "required": [
+          "name"
         ],
         "additionalProperties": true
       },
@@ -4933,6 +4953,13 @@
             },
             "description": "Samples that start in the period, newest first."
           },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthSampleSource"
+            },
+            "description": "Where this page's samples came from, each app and device once, in the order they first appear: a sample's sourceIndex is its entry."
+          },
           "nextCursor": {
             "type": [
               "string",
@@ -4948,6 +4975,7 @@
           "end",
           "type",
           "samples",
+          "sources",
           "nextCursor"
         ],
         "additionalProperties": true

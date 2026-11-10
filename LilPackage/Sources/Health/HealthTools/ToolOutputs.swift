@@ -142,12 +142,14 @@ public struct HealthSampleItem: Codable, Equatable, Sendable {
   public var unit: String?
   public var categoryValue: Int?
   public var source: String
-  /// Its source, device and metadata, each field only when the sample has it (851-4166).
+  /// Its entry in the page's `sources` (851-4166).
+  public var sourceIndex: Int
+  /// What its metadata says, each field only when the sample has it (851-4166).
   public var details: HealthSampleDetails
 
   public init(
     id: String, start: String, end: String, value: Double?, unit: String?, categoryValue: Int?,
-    source: String, details: HealthSampleDetails = HealthSampleDetails()
+    source: String, sourceIndex: Int, details: HealthSampleDetails = HealthSampleDetails()
   ) {
     self.id = id
     self.start = start
@@ -156,11 +158,12 @@ public struct HealthSampleItem: Codable, Equatable, Sendable {
     self.unit = unit
     self.categoryValue = categoryValue
     self.source = source
+    self.sourceIndex = sourceIndex
     self.details = details
   }
 
   private enum CodingKeys: String, CodingKey {
-    case id, start, end, value, unit, categoryValue, source
+    case id, start, end, value, unit, categoryValue, source, sourceIndex
   }
 
   public init(from decoder: any Decoder) throws {
@@ -172,6 +175,7 @@ public struct HealthSampleItem: Codable, Equatable, Sendable {
     unit = try container.decodeIfPresent(String.self, forKey: .unit)
     categoryValue = try container.decodeIfPresent(Int.self, forKey: .categoryValue)
     source = try container.decode(String.self, forKey: .source)
+    sourceIndex = try container.decode(Int.self, forKey: .sourceIndex)
     details = try HealthSampleDetails(from: decoder)
   }
 
@@ -184,20 +188,16 @@ public struct HealthSampleItem: Codable, Equatable, Sendable {
     try container.encode(unit, .unit)
     try container.encode(categoryValue, .categoryValue)
     try container.encode(source, .source)
+    try container.encode(sourceIndex, .sourceIndex)
     // Beside the fields above, in the same object.
     try details.encode(to: encoder)
   }
 }
 
-/// What a sample says beyond its value (`sampleDetailFields` in `HealthToolkit.ts`, 851-4166),
-/// read by `SampleDetails`. Every field is left out of the JSON when it's nil, as the toolkit's
-/// optional keys are: synthesized `Codable` does that.
+/// What a sample's metadata says (`sampleDetailFields` in `HealthToolkit.ts`, 851-4166), read
+/// by `SampleDetails`. Every field is left out of the JSON when it's nil, as the toolkit's optional
+/// keys are: synthesized `Codable` does that.
 public struct HealthSampleDetails: Codable, Equatable, Sendable {
-  public var sourceBundleId: String?
-  public var sourceVersion: String?
-  public var sourceProductType: String?
-  public var sourceOperatingSystemVersion: String?
-  public var device: HealthSampleDevice?
   public var userEntered: Bool?
   public var recordedTimeZone: String?
   /// A correlation's samples, by type.
@@ -238,8 +238,32 @@ public struct HealthSampleDetails: Codable, Equatable, Sendable {
   public init() {}
 }
 
+/// Where a page's samples came from (`HealthSampleSource` in `HealthToolkit.ts`, 851-4166): the
+/// app or device, its version and the device that measured them, listed once a page. Optional
+/// fields are left out of the JSON when they're nil.
+public struct HealthSampleSource: Codable, Hashable, Sendable {
+  public var name: String
+  public var bundleId: String?
+  public var version: String?
+  public var productType: String?
+  public var operatingSystemVersion: String?
+  public var device: HealthSampleDevice?
+
+  public init(
+    name: String, bundleId: String? = nil, version: String? = nil, productType: String? = nil,
+    operatingSystemVersion: String? = nil, device: HealthSampleDevice? = nil
+  ) {
+    self.name = name
+    self.bundleId = bundleId
+    self.version = version
+    self.productType = productType
+    self.operatingSystemVersion = operatingSystemVersion
+    self.device = device
+  }
+}
+
 /// The device that measured a sample: `HKDevice`'s properties lil health keeps, those it has.
-public struct HealthSampleDevice: Codable, Equatable, Sendable {
+public struct HealthSampleDevice: Codable, Hashable, Sendable {
   public var name: String?
   public var manufacturer: String?
   public var model: String?
@@ -289,6 +313,7 @@ public struct HealthSamplesResult: HealthToolOutput {
   public var end: String
   public var type: String
   public var samples: [HealthSampleItem]
+  public var sources: [HealthSampleSource]
   public var nextCursor: String?
 
   public func encode(to encoder: any Encoder) throws {
@@ -299,6 +324,7 @@ public struct HealthSamplesResult: HealthToolOutput {
     try container.encode(end, .end)
     try container.encode(type, .type)
     try container.encode(samples, .samples)
+    try container.encode(sources, .sources)
     try container.encode(nextCursor, .nextCursor)
   }
 }

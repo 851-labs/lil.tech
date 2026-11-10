@@ -183,13 +183,13 @@ public struct HealthTools: Sendable {
   ) throws -> HealthSamplesResult {
     let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
     let type = try Self.dataType(type)
-    guard type.kind == .quantity || type.kind == .category || type.kind == .correlation else {
+    switch Self.samplesKind(type.kind) {
+    case .listed: break
+    case .elsewhere(let tool):
+      throw HealthToolError("samples doesn't list \(type.name) (\(type.id)): use \(tool).")
+    case .unread:
       throw HealthToolError(
-        Self.samplesElsewhere(type.kind).map {
-          "samples doesn't list \(type.name) (\(type.id)): use \($0)."
-        }
-          ?? "samples doesn't list \(type.name) (\(type.id)), and no other tool reads that kind yet."
-      )
+        "samples doesn't list \(type.name) (\(type.id)), and no other tool reads that kind yet.")
     }
     let limit = limit ?? Self.samplesDefaultLimit
     guard (1...Self.samplesLimit).contains(limit) else {
@@ -217,79 +217,58 @@ public struct HealthTools: Sendable {
       ).map(ListedSample.init)
     }
     let samples = page.prefix(limit)
+    var sources = SampleSources()
+    let items = samples.map { sample in
+      let metadata = SampleDetails.object(sample.metadata)
+      var details = SampleDetails.details(metadata, time: time)
+      if type.kind == .correlation { details.values = values[sample.id] ?? [] }
+      return HealthSampleItem(
+        id: sample.id, start: time.localTime(sample.start), end: time.localTime(sample.end),
+        value: sample.value, unit: sample.unit, categoryValue: sample.categoryValue,
+        source: sample.stored.sourceName,
+        sourceIndex: sources.index(of: sample.stored, metadata: metadata), details: details)
+    }
     return HealthSamplesResult(
       timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
-      end: time.localTime(period.end), type: type.id,
-      samples: samples.map { sample in
-        var details = SampleDetails.details(sample.stored, time: time)
-        if type.kind == .correlation { details.values = values[sample.id] ?? [] }
-        return HealthSampleItem(
-          id: sample.id, start: time.localTime(sample.start), end: time.localTime(sample.end),
-          value: sample.value, unit: sample.unit, categoryValue: sample.categoryValue,
-          source: sample.sourceName, details: details)
-      },
+      end: time.localTime(period.end), type: type.id, samples: items, sources: sources.sources,
       nextCursor: page.count > limit
         ? samples.last.map { "\($0.startDate)_\($0.id)" } : nil)
   }
 
-  /// The kinds `samples` doesn't list, and the tool that reads each instead, or nil for those
-  /// no tool reads yet (their tools come under 851-4156), as the server's `samplesElsewhere`.
-  static func samplesElsewhere(_ kind: HealthDataType.Kind) -> String? {
+  /// Whether `samples` lists a kind, or which tool reads it instead, or that none does yet (their
+  /// tools come under 851-4156), as the server's `samplesElsewhere`.
+  enum SamplesKind: Equatable {
+    case listed
+    case elsewhere(String)
+    case unread
+  }
+
+  static func samplesKind(_ kind: HealthDataType.Kind) -> SamplesKind {
     switch kind {
-    case .workout: "workouts"
-    case .medication, .medicationDoseEvent: "medications"
-    case .characteristic, .visionPrescription: "health_details"
-    case .quantity, .category, .correlation, .workoutRoute, .activitySummary, .heartbeatSeries,
-      .electrocardiogram, .audiogram, .stateOfMind, .scoredAssessment, .document:
-      nil
+    case .quantity, .category, .correlation: .listed
+    case .workout: .elsewhere("workouts")
+    case .medication, .medicationDoseEvent: .elsewhere("medications")
+    case .characteristic, .visionPrescription: .elsewhere("health_details")
+    case .workoutRoute, .activitySummary, .heartbeatSeries, .electrocardiogram, .audiogram,
+      .stateOfMind, .scoredAssessment, .document:
+      .unread
     }
   }
 
   /// A sample or a correlation, as `samples` lists them.
-  private struct ListedSample {
+  fileprivate struct ListedSample {
     var id: String
     var startDate: Int
     var endDate: Int
     var value: Double?
     var unit: String?
     var categoryValue: Int?
-    var sourceName: String
     var stored: SampleDetails.Stored
+    /// JSON, or nil.
+    var metadata: String?
 
     var start: Date { Date(unixMilliseconds: startDate) }
     var end: Date { Date(unixMilliseconds: endDate) }
-
-    init(_ sample: HealthSample) {
-      self.init(
-        id: sample.id, startDate: sample.startDate, endDate: sample.endDate, value: sample.value,
-        unit: sample.unit, categoryValue: sample.categoryValue, sourceName: sample.sourceName,
-        stored: SampleDetails.Stored(
-          sourceBundleID: sample.sourceBundleID, sourceRevision: sample.sourceRevision,
-          device: sample.device, metadata: sample.metadata))
-    }
-
-    init(_ correlation: HealthCorrelation) {
-      self.init(
-        id: correlation.id, startDate: correlation.startDate, endDate: correlation.endDate,
-        value: nil, unit: nil, categoryValue: nil, sourceName: correlation.sourceName,
-        stored: SampleDetails.Stored(
-          sourceBundleID: correlation.sourceBundleID, sourceRevision: correlation.sourceRevision,
-          device: correlation.device, metadata: correlation.metadata))
-    }
-
-    private init(
-      id: String, startDate: Int, endDate: Int, value: Double?, unit: String?,
-      categoryValue: Int?, sourceName: String, stored: SampleDetails.Stored
-    ) {
-      self.id = id
-      self.startDate = startDate
-      self.endDate = endDate
-      self.value = value
-      self.unit = unit
-      self.categoryValue = categoryValue
-      self.sourceName = sourceName
-      self.stored = stored
-    }
   }
 
   private static func sampleCursor(_ text: String) throws -> SampleCursor {
@@ -619,4 +598,26 @@ public struct HealthTools: Sendable {
 extension Date {
   /// The next millisecond, so a range up to it includes this one.
   fileprivate var nextMillisecond: Date { addingTimeInterval(0.001) }
+}
+
+extension HealthTools.ListedSample {
+  init(_ sample: HealthSample) {
+    self.init(
+      id: sample.id, startDate: sample.startDate, endDate: sample.endDate, value: sample.value,
+      unit: sample.unit, categoryValue: sample.categoryValue,
+      stored: SampleDetails.Stored(
+        sourceName: sample.sourceName, sourceBundleID: sample.sourceBundleID,
+        sourceRevision: sample.sourceRevision, device: sample.device),
+      metadata: sample.metadata)
+  }
+
+  init(_ correlation: HealthCorrelation) {
+    self.init(
+      id: correlation.id, startDate: correlation.startDate, endDate: correlation.endDate,
+      value: nil, unit: nil, categoryValue: nil,
+      stored: SampleDetails.Stored(
+        sourceName: correlation.sourceName, sourceBundleID: correlation.sourceBundleID,
+        sourceRevision: correlation.sourceRevision, device: correlation.device),
+      metadata: correlation.metadata)
+  }
 }

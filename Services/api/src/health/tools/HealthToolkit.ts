@@ -300,27 +300,37 @@ export const HealthCorrelatedValue = Schema.Struct({
 }).annotate({ identifier: "HealthCorrelatedValue" });
 
 /**
- * What a sample says beyond its value (851-4166): where it came from, the device, and its
- * metadata, only the keys lil health keeps (851-4152), each read into a plain field. Every one is
- * left out when HealthKit doesn't have it, so most samples have only a few.
+ * Where samples came from (851-4166): the app or device, its version, and the device that
+ * measured them. A page lists each once, in `sources`, and each sample says which is its.
  */
-export const sampleDetailFields = {
-  sourceBundleId: when(
+export const HealthSampleSource = Schema.Struct({
+  name: Schema.String.annotate({
+    description: "The app or device that saved it, as the sample's `source`.",
+  }),
+  bundleId: when(
     Schema.String,
     "The bundle ID of the app that saved it, e.g. com.dexcom.G7. Left out for Apple devices' " +
       "own (com.apple.health.<UUID>), whose UUID identifies the device.",
   ),
-  sourceVersion: when(Schema.String, "The version of the app or OS that saved it."),
-  sourceProductType: when(
+  version: when(Schema.String, "The version of the app, or the OS, that saved it."),
+  productType: when(
     Schema.String,
     "The hardware the app that saved it ran on, e.g. iPhone17,1 or Watch7,1.",
   ),
-  sourceOperatingSystemVersion: when(Schema.String, "The OS version it ran on, e.g. 26.1.0."),
+  operatingSystemVersion: when(Schema.String, "The OS version it ran on, e.g. 26.1.0."),
   device: when(
     HealthSampleDevice,
     "The device that measured it (HKDevice, else the HKMetadataKeyDeviceName and " +
       "…ManufacturerName metadata), with only the properties it has.",
   ),
+}).annotate({ identifier: "HealthSampleSource" });
+
+/**
+ * What a sample's metadata says (851-4166): only the keys lil health keeps (851-4152), each read
+ * into a plain field. Every one is left out when HealthKit doesn't have it, so most samples have
+ * only a few.
+ */
+export const sampleDetailFields = {
   userEntered: when(
     Schema.Boolean,
     "True if someone entered it by hand, e.g. in the Health app (HKMetadataKeyWasUserEntered).",
@@ -479,6 +489,9 @@ export const HealthSampleItem = Schema.Struct({
   source: Schema.String.annotate({
     description: "The app or device that recorded it, e.g. an Apple Watch's name.",
   }),
+  sourceIndex: Schema.Int.annotate({
+    description: "Its entry in `sources`: the app, its version and the device, from 0.",
+  }),
   ...sampleDetailFields,
 }).annotate({ identifier: "HealthSampleItem" });
 
@@ -487,6 +500,11 @@ export const HealthSamplesResult = Schema.Struct({
   type: healthType,
   samples: Schema.Array(HealthSampleItem).annotate({
     description: "Samples that start in the period, newest first.",
+  }),
+  sources: Schema.Array(HealthSampleSource).annotate({
+    description:
+      "Where this page's samples came from, each app and device once, in the order they first " +
+      "appear: a sample's sourceIndex is its entry.",
   }),
   nextCursor: Schema.NullOr(Schema.String).annotate({
     description: "Pass it as `cursor` for the next, older page; null on the last page.",
@@ -497,8 +515,8 @@ export const Samples = readOnly(
   Tool.make("samples", {
     description:
       "Individual samples of a quantity, category or correlation type (blood pressure, food) " +
-      "in a period, newest first, a page at a time, each with its source, device and what " +
-      "its metadata says (how and where it was measured, whether it was entered by hand), " +
+      "in a period, newest first, a page at a time, each with its source app and device (listed " +
+      "once a page, in sources) and what its metadata says (how and where it was measured, whether it was entered by hand), " +
       "fields only when HealthKit has them. A type can have many thousands of samples a day: " +
       "use metric for totals and trends, and this only to look at particular readings. " +
       "Workouts, medications and health details have their own tools.",

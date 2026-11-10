@@ -1258,7 +1258,13 @@
             "value": 50,
             "unit": "count",
             "categoryValue": null,
-            "source": "Test Apple Watch"
+            "source": "Test Apple Watch",
+            "sourceIndex": 0
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch"
           }
         ],
         "nextCursor": "1792512000000_0c0f0000-0000-4000-8000-000000000003"
@@ -1289,7 +1295,13 @@
             "value": 412,
             "unit": "count",
             "categoryValue": null,
-            "source": "Test Apple Watch"
+            "source": "Test Apple Watch",
+            "sourceIndex": 0
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch"
           }
         ],
         "nextCursor": null
@@ -1319,7 +1331,8 @@
             "value": null,
             "unit": null,
             "categoryValue": 3,
-            "source": "Test Apple Watch"
+            "source": "Test Apple Watch",
+            "sourceIndex": 0
           },
           {
             "id": "0c0f0000-0000-4000-8000-000000000114",
@@ -1328,7 +1341,8 @@
             "value": null,
             "unit": null,
             "categoryValue": 2,
-            "source": "Test Apple Watch"
+            "source": "Test Apple Watch",
+            "sourceIndex": 0
           },
           {
             "id": "0c0f0000-0000-4000-8000-000000000113",
@@ -1337,7 +1351,13 @@
             "value": null,
             "unit": null,
             "categoryValue": 5,
-            "source": "Test Apple Watch"
+            "source": "Test Apple Watch",
+            "sourceIndex": 0
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch"
           }
         ],
         "nextCursor": "1792452600000_0c0f0000-0000-4000-8000-000000000113"
@@ -1388,17 +1408,7 @@
             "unit": "mg/dL",
             "categoryValue": null,
             "source": "Test Glucose",
-            "sourceBundleId": "com.example.glucose",
-            "sourceVersion": "2.4.1",
-            "sourceProductType": "iPhone17,1",
-            "sourceOperatingSystemVersion": "26.1.0",
-            "device": {
-              "name": "Test Meter",
-              "manufacturer": "Example Medical",
-              "model": "GM-1",
-              "firmwareVersion": "1.2",
-              "softwareVersion": "3.0"
-            },
+            "sourceIndex": 0,
             "userEntered": false,
             "mealTime": "postprandial",
             "referenceRangeLowerLimit": 70,
@@ -1412,13 +1422,33 @@
             "unit": "mg/dL",
             "categoryValue": null,
             "source": "Health",
-            "sourceBundleId": "com.apple.Health",
-            "sourceVersion": "26.1",
-            "sourceProductType": "iPhone17,1",
-            "sourceOperatingSystemVersion": "26.1.0",
+            "sourceIndex": 1,
             "userEntered": true,
             "recordedTimeZone": "America/New_York",
             "mealTime": "preprandial"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Glucose",
+            "bundleId": "com.example.glucose",
+            "version": "2.4.1",
+            "productType": "iPhone17,1",
+            "operatingSystemVersion": "26.1.0",
+            "device": {
+              "name": "Test Meter",
+              "manufacturer": "Example Medical",
+              "model": "GM-1",
+              "firmwareVersion": "1.2",
+              "softwareVersion": "3.0"
+            }
+          },
+          {
+            "name": "Health",
+            "bundleId": "com.apple.Health",
+            "version": "26.1",
+            "productType": "iPhone17,1",
+            "operatingSystemVersion": "26.1.0"
           }
         ],
         "nextCursor": null
@@ -1448,13 +1478,7 @@
             "unit": "IU",
             "categoryValue": null,
             "source": "Test Pump",
-            "sourceBundleId": "com.example.pump",
-            "sourceVersion": "1.0",
-            "sourceOperatingSystemVersion": "26.1.0",
-            "device": {
-              "name": "Test Pump",
-              "manufacturer": "Example Medical"
-            },
+            "sourceIndex": 0,
             "insulinDeliveryReason": "bolus"
           },
           {
@@ -1465,10 +1489,26 @@
             "unit": "IU",
             "categoryValue": null,
             "source": "Test Pump",
-            "sourceBundleId": "com.example.pump",
-            "sourceVersion": "1.0",
-            "sourceOperatingSystemVersion": "26.1.0",
+            "sourceIndex": 1,
             "insulinDeliveryReason": "basal"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Pump",
+            "bundleId": "com.example.pump",
+            "version": "1.0",
+            "operatingSystemVersion": "26.1.0",
+            "device": {
+              "name": "Test Pump",
+              "manufacturer": "Example Medical"
+            }
+          },
+          {
+            "name": "Test Pump",
+            "bundleId": "com.example.pump",
+            "version": "1.0",
+            "operatingSystemVersion": "26.1.0"
           }
         ],
         "nextCursor": null
@@ -1499,20 +1539,26 @@
             "unit": "ml/(kg*min)",
             "categoryValue": null,
             "source": "Test Apple Watch",
-            "sourceVersion": "26.1",
-            "sourceProductType": "Watch7,1",
-            "sourceOperatingSystemVersion": "26.1.0",
+            "sourceIndex": 0,
+            "vo2MaxTestType": "predictionSubMaxExercise",
+            "deviceCalibrated": true,
+            "algorithmVersion": 2,
+            "earliestDataUsedForEstimate": "2026-10-12T01:00:00+01:00"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch",
+            "version": "26.1",
+            "productType": "Watch7,1",
+            "operatingSystemVersion": "26.1.0",
             "device": {
               "name": "Apple Watch",
               "manufacturer": "Apple Inc.",
               "model": "Watch",
               "hardwareVersion": "Watch7,1",
               "softwareVersion": "26.1"
-            },
-            "vo2MaxTestType": "predictionSubMaxExercise",
-            "deviceCalibrated": true,
-            "algorithmVersion": 2,
-            "earliestDataUsedForEstimate": "2026-10-12T01:00:00+01:00"
+            }
           }
         ],
         "nextCursor": null
@@ -1542,8 +1588,14 @@
             "unit": null,
             "categoryValue": 0,
             "source": "Test Apple Watch",
+            "sourceIndex": 0,
             "motionContext": "sedentary",
             "heartRateEventThreshold": 120
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch"
           }
         ],
         "nextCursor": null
@@ -1573,8 +1625,14 @@
             "unit": "count/min",
             "categoryValue": null,
             "source": "Test Apple Watch",
+            "sourceIndex": 0,
             "motionContext": "sedentary",
             "sensorLocation": "wrist"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Apple Watch"
           }
         ],
         "nextCursor": null
@@ -1604,29 +1662,35 @@
             "unit": null,
             "categoryValue": null,
             "source": "Test Cuff",
-            "sourceBundleId": "com.example.cuff",
-            "sourceVersion": "5.2",
-            "sourceProductType": "iPhone17,1",
-            "sourceOperatingSystemVersion": "26.1.0",
-            "device": {
-              "name": "Test Cuff",
-              "manufacturer": "Example Medical",
-              "model": "BP-2"
-            },
+            "sourceIndex": 0,
             "userEntered": false,
             "recordedTimeZone": "Europe/London",
             "values": [
               {
-                "type": "HKQuantityTypeIdentifierBloodPressureDiastolic",
-                "value": 76,
-                "unit": "mmHg"
-              },
-              {
                 "type": "HKQuantityTypeIdentifierBloodPressureSystolic",
                 "value": 118,
                 "unit": "mmHg"
+              },
+              {
+                "type": "HKQuantityTypeIdentifierBloodPressureDiastolic",
+                "value": 76,
+                "unit": "mmHg"
               }
             ]
+          }
+        ],
+        "sources": [
+          {
+            "name": "Test Cuff",
+            "bundleId": "com.example.cuff",
+            "version": "5.2",
+            "productType": "iPhone17,1",
+            "operatingSystemVersion": "26.1.0",
+            "device": {
+              "name": "Test Cuff",
+              "manufacturer": "Example Medical",
+              "model": "BP-2"
+            }
           }
         ],
         "nextCursor": null
@@ -3660,6 +3724,7 @@
         "end": "2000-01-02T00:00:00+00:00",
         "type": "HKQuantityTypeIdentifierStepCount",
         "samples": [],
+        "sources": [],
         "nextCursor": null
       }
     },
@@ -3679,6 +3744,7 @@
         "end": "3000-01-01T00:00:00+00:00",
         "type": "HKQuantityTypeIdentifierStepCount",
         "samples": [],
+        "sources": [],
         "nextCursor": null
       }
     },
