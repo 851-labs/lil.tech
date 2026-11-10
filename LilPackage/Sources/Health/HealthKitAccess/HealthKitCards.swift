@@ -198,26 +198,20 @@ public struct HealthKitCardEngine: Sendable {
   public func sleepRecords(overlapping range: Range<Int>) async throws -> [CardSleepRecord] {
     let records = try await samples(of: HKCategoryType(.sleepAnalysis), overlapping: range) {
       sample in
-      (sample as? HKCategorySample).map {
-        (
-          record: CardSleepRecord(
-            start: $0.startDate.milliseconds, end: $0.endDate.milliseconds, value: $0.value,
-            source: $0.sourceRevision.source.bundleIdentifier),
-          zone: $0.metadata?[HKMetadataKeyTimeZone] as? String
-        )
-      }
+      (sample as? HKCategorySample).map { ($0, $0.metadata?[HKMetadataKeyTimeZone] as? String) }
     }
     // A few names among thousands of records: each checked once.
     var zones: [String: TimeZone?] = [:]
-    return records.map { record, zone in
-      var record = record
-      record.timeZone = zone.flatMap { name in
-        if let checked = zones[name] { return checked }
-        let checked = CardTimeZone.named(name)
-        zones[name] = checked
-        return checked
-      }
-      return record
+    return records.map { sample, zone in
+      CardSleepRecord(
+        start: sample.startDate.milliseconds, end: sample.endDate.milliseconds,
+        value: sample.value, source: sample.sourceRevision.source.bundleIdentifier,
+        timeZone: zone.flatMap { name in
+          if let checked = zones[name] { return checked }
+          let checked = CardTimeZone.named(name)
+          zones[name] = checked
+          return checked
+        })
     }
   }
 

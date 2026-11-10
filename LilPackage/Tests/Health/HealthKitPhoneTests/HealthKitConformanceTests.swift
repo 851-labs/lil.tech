@@ -25,6 +25,7 @@ struct HealthKitConformanceTests {
     let health = try await SyntheticHealthKit.empty(allowingOtherSources: true)
     let dataset = try ConformanceSamples.cards()
     var written: [String: Int] = [:]
+    // By source app and zone.
     var zoned: [String: Int] = [:]
     for type in TestHealthTypes.all {
       let samples = try await HKSampleQueryDescriptor(
@@ -33,8 +34,8 @@ struct HealthKitConformanceTests {
       .result(for: health.store)
       for sample in samples {
         written[sample.sourceRevision.source.bundleIdentifier, default: 0] += 1
-        if sample.metadata?[HKMetadataKeyTimeZone] != nil {
-          zoned[sample.sourceRevision.source.bundleIdentifier, default: 0] += 1
+        if let zone = sample.metadata?[HKMetadataKeyTimeZone] as? String {
+          zoned["\(sample.sourceRevision.source.bundleIdentifier) \(zone)", default: 0] += 1
         }
       }
     }
@@ -43,12 +44,11 @@ struct HealthKitConformanceTests {
     for (source, app) in ConformanceSourceApps.apps(for: dataset.sources) {
       let part = dataset.of(source: source).only(types: TestHealthTypes.identifiers)
       expected[app] = part.samples.count + part.workouts.count
-      expectedZoned[app] =
-        part.samples.count { $0.timeZone != nil } + part.workouts.count { $0.timeZone != nil }
+      for zone in part.samples.compactMap(\.timeZone) + part.workouts.compactMap(\.timeZone) {
+        expectedZoned["\(app) \(zone)", default: 0] += 1
+      }
     }
-    guard written == expected.filter({ $0.value > 0 }),
-      zoned == expectedZoned.filter({ $0.value > 0 })
-    else {
+    guard written == expected.filter({ $0.value > 0 }), zoned == expectedZoned else {
       throw NotWritten(
         written: written, expected: expected, zoned: zoned, expectedZoned: expectedZoned)
     }
@@ -105,8 +105,8 @@ struct HealthKitConformanceTests {
 
     var description: String {
       """
-      HealthKit holds \(written) samples and workouts by source app, \(zoned) with a time zone, \
-      not the dataset's \(expected), \(expectedZoned) with one: run scripts/test-iphone-healthkit \
+      HealthKit holds \(written) samples and workouts by source app, and \(zoned) by app and time zone, \
+      not the dataset's \(expected) and \(expectedZoned): run scripts/test-iphone-healthkit \
       HealthKitConformanceTests, whose source apps write them.
       """
     }

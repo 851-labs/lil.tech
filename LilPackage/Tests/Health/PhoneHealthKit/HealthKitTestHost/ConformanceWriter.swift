@@ -85,16 +85,16 @@ enum ConformanceWriter {
       }
       // Where it was, as the cards' workout windows read it (851-4031): its metadata's
       // `HKIndoorWorkout`, and its activities' configurations and metadata.
-      func metadata(_ indoor: NSNumber?) -> [String: Any]? {
-        indoor.map { [HKMetadataKeyIndoorWorkout: $0] }
+      func metadata(_ indoor: NSNumber?, timeZone: String? = nil) -> [String: Any]? {
+        let metadata = (indoor.map { [HKMetadataKeyIndoorWorkout: $0] } ?? [:])
+          .merging(Self.metadata(timeZone: timeZone) ?? [:]) { indoor, _ in indoor }
+        return metadata.isEmpty ? nil : metadata
       }
       let builder = HKWorkoutBuilder(
         healthStore: store, configuration: try configuration(workout.activityType), device: nil)
       try await builder.beginCollection(at: date(workout.start))
-      var workoutMetadata = metadata(workout.indoor) ?? [:]
-      workoutMetadata[HKMetadataKeyTimeZone] = workout.timeZone
-      if !workoutMetadata.isEmpty {
-        try await builder.addMetadata(workoutMetadata)
+      if let metadata = metadata(workout.indoor, timeZone: workout.timeZone) {
+        try await builder.addMetadata(metadata)
       }
       for activity in workout.activities {
         try await builder.addWorkoutActivity(
