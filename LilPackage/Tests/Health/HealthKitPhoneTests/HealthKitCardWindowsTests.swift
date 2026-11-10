@@ -294,6 +294,65 @@ extension HealthKitCardsTests {
     #expect(try await counts("null") == [30, 90])
   }
 
+  // MARK: - Recorded time zones
+
+  /// A night slept in Tokyo (851-4176), seen from London, is Tokyo's, as on the Mac
+  /// (`aNightFollowsTheZoneItWasRecordedIn`): 23:00 JST on Wednesday Oct 21 to 06:30 JST on the
+  /// 22nd is Thursday's night, its 450 minutes asleep. On London's clock (15:00 to 22:30 BST) it
+  /// would be a day's sleep on the 21st, and a night on the 22nd with only its 240 minutes of REM
+  /// from 18:30. The heart rate has no zone, as a Watch's readings haven't.
+  @Test
+  func aNightFollowsTheZoneItWasRecordedIn() async throws {
+    let health = try await SyntheticHealthKit.empty()
+    func sleep(_ value: HKCategoryValueSleepAnalysis, _ start: Date, _ end: Date)
+      -> HKCategorySample
+    {
+      SyntheticHealthKit.sleep(value, start, end, timeZone: "Asia/Tokyo")
+    }
+    var samples: [HKSample] = [
+      sleep(.inBed, date(10, 21, 14, 45), date(10, 21, 22, 40)),
+      sleep(.asleepCore, date(10, 21, 15), date(10, 21, 18, 30)),
+      sleep(.asleepREM, date(10, 21, 18, 30), date(10, 21, 22, 30)),
+    ]
+    samples += (0..<450).map { minute in
+      SyntheticHealthKit.sample(
+        heartRate, 50, at: date(10, 21, 15).addingTimeInterval(Double(minute) * 60))
+    }
+    try await health.save(samples)
+    let card = try CardSpec(
+      inputJSON: Data(
+        #"{"version": 1, "display": {"name": "Card"}, "series": [{"type": "Heart Rate", "aggregation": "count", "window": {"kind": "asleep"}}], "bucket": "night", "range": "W"}"#
+          .utf8))
+    let data = try await HealthKitCardEngine(store: health.store).data(
+      CardRun(spec: card, range: .week, date: date(10, 20), now: date(10, 26), calendar: london))
+    #expect(data.series[0].points.map(\.start) == [date(10, 22)])
+    #expect(data.series[0].points.map(\.value) == [450])
+  }
+
+  /// A sleep record's zone is its `HKMetadataKeyTimeZone` when that's a zone's name, old aliases
+  /// included, as the Mac reads it (`onlyAZonesNameIsAZone`): `GMT+9`, which HealthKit takes but
+  /// the tools don't, or no zone loses only the zone, and the record stays. HealthKit itself
+  /// refuses to make a sample whose zone is a UTC offset (`+09:00`), in the wrong case or blank.
+  /// The name stays as written (851-4177): Foundation's zone for `UTC` is `GMT`.
+  @Test
+  func onlyAZonesNameIsAZone() async throws {
+    let health = try await SyntheticHealthKit.empty()
+    let zones: [String?] = ["Europe/Kyiv", "Europe/Kiev", nil, "GMT+9", "US/Pacific", "UTC"]
+    try await health.save(
+      zones.enumerated().map { index, zone in
+        SyntheticHealthKit.sleep(
+          .asleepCore, date(10, 10, index), date(10, 10, index, 30), timeZone: zone)
+      })
+    let day = [date(10, 10), date(10, 11)].map { Int($0.timeIntervalSince1970 * 1000) }
+    let records = try await HealthKitCardEngine(store: health.store).sleepRecords(
+      overlapping: day[0]..<day[1])
+    #expect(
+      records.map(\.timeZone?.identifier)
+        == ["Europe/Kyiv", "Europe/Kiev", nil, nil, "US/Pacific", "GMT"])
+    #expect(
+      records.map(\.timeZoneName) == ["Europe/Kyiv", "Europe/Kiev", nil, nil, "US/Pacific", "UTC"])
+  }
+
   // MARK: - Support
 
   /// The points that differ, for a failure's message.

@@ -85,13 +85,15 @@ enum ConformanceWriter {
       }
       // Where it was, as the cards' workout windows read it (851-4031): its metadata's
       // `HKIndoorWorkout`, and its activities' configurations and metadata.
-      func metadata(_ indoor: NSNumber?) -> [String: Any]? {
-        indoor.map { [HKMetadataKeyIndoorWorkout: $0] }
+      func metadata(_ indoor: NSNumber?, timeZone: String? = nil) -> [String: Any]? {
+        let metadata = (indoor.map { [HKMetadataKeyIndoorWorkout: $0] } ?? [:])
+          .merging(Self.metadata(timeZone: timeZone) ?? [:]) { indoor, _ in indoor }
+        return metadata.isEmpty ? nil : metadata
       }
       let builder = HKWorkoutBuilder(
         healthStore: store, configuration: try configuration(workout.activityType), device: nil)
       try await builder.beginCollection(at: date(workout.start))
-      if let metadata = metadata(workout.indoor) {
+      if let metadata = metadata(workout.indoor, timeZone: workout.timeZone) {
         try await builder.addMetadata(metadata)
       }
       for activity in workout.activities {
@@ -150,7 +152,8 @@ enum ConformanceWriter {
         try builder.insert(quantity, at: date(value.start))
       }
     }
-    let saved = try await builder.finishSeries(metadata: nil, endDate: date(sample.end))
+    let saved = try await builder.finishSeries(
+      metadata: metadata(timeZone: sample.timeZone), endDate: date(sample.end))
     guard saved.count == 1, let first = saved.first, first.count == values.count else {
       throw Failure(
         description:
@@ -213,7 +216,8 @@ enum ConformanceWriter {
     if let categoryValue = sample.categoryValue {
       return HKCategorySample(
         type: HKCategoryType(HKCategoryTypeIdentifier(rawValue: sample.type)),
-        value: categoryValue, start: start, end: end, device: device, metadata: nil)
+        value: categoryValue, start: start, end: end, device: device,
+        metadata: metadata(timeZone: sample.timeZone))
     }
     guard let value = sample.value, let unit = sample.unit else {
       throw Failure(description: "Sample \(sample.id) has no value, or no unit.")
@@ -221,7 +225,14 @@ enum ConformanceWriter {
     return HKQuantitySample(
       type: HKQuantityType(HKQuantityTypeIdentifier(rawValue: sample.type)),
       quantity: HKQuantity(unit: HKUnit(from: unit), doubleValue: value), start: start, end: end,
-      device: device, metadata: nil)
+      device: device, metadata: metadata(timeZone: sample.timeZone))
+  }
+
+  /// Where a record was recorded, its `HKMetadataKeyTimeZone` as the dataset has it (851-4176):
+  /// HealthKit never adds one to an app's samples, and nights follow it (docs/decisions/cards.md ›
+  /// Recorded time zones).
+  private static func metadata(timeZone: String?) -> [String: Any]? {
+    timeZone.map { [HKMetadataKeyTimeZone: $0] }
   }
 
   private static func date(_ milliseconds: Int) -> Date {

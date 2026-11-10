@@ -82,12 +82,14 @@ struct SyntheticHealthKit {
       end: start.addingTimeInterval(minutes * 60), device: device, metadata: nil)
   }
 
-  /// A sleep analysis record: `HKCategoryValueSleepAnalysis`' raw value from `start` to `end`.
-  static func sleep(_ value: HKCategoryValueSleepAnalysis, _ start: Date, _ end: Date)
-    -> HKCategorySample
-  {
+  /// A sleep analysis record: `HKCategoryValueSleepAnalysis`' raw value from `start` to `end`,
+  /// recorded in `timeZone` (`HKMetadataKeyTimeZone`) if one is given.
+  static func sleep(
+    _ value: HKCategoryValueSleepAnalysis, _ start: Date, _ end: Date, timeZone: String? = nil
+  ) -> HKCategorySample {
     HKCategorySample(
-      type: HKCategoryType(.sleepAnalysis), value: value.rawValue, start: start, end: end)
+      type: HKCategoryType(.sleepAnalysis), value: value.rawValue, start: start, end: end,
+      metadata: timeZone.map { [HKMetadataKeyTimeZone: $0] })
   }
 
   /// Saves a workout of `activity` from `start` for `minutes`, as an app records one (with a

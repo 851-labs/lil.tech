@@ -192,14 +192,28 @@ public struct HealthKitCardEngine: Sendable {
 
   /// Sleep analysis records that end after `range` starts and start before it ends (Unix
   /// milliseconds), by start: every value (In Bed included) from every source, as `CardNights`
-  /// groups them. In Bed records can start well before a night.
+  /// groups them. In Bed records can start well before a night. Each with the zone it was
+  /// recorded in (`HKMetadataKeyTimeZone`, 851-4176), which its night follows, when that's a name
+  /// the tools take (`CardTimeZone.named`), as the Mac and the server read it.
   public func sleepRecords(overlapping range: Range<Int>) async throws -> [CardSleepRecord] {
-    try await samples(of: HKCategoryType(.sleepAnalysis), overlapping: range) { sample in
-      (sample as? HKCategorySample).map {
-        CardSleepRecord(
-          start: $0.startDate.milliseconds, end: $0.endDate.milliseconds, value: $0.value,
-          source: $0.sourceRevision.source.bundleIdentifier)
-      }
+    let records = try await samples(of: HKCategoryType(.sleepAnalysis), overlapping: range) {
+      sample in
+      (sample as? HKCategorySample).map { ($0, $0.metadata?[HKMetadataKeyTimeZone] as? String) }
+    }
+    // A few names among thousands of records: each checked once.
+    var zones: [String: TimeZone?] = [:]
+    return records.map { sample, zone in
+      CardSleepRecord(
+        start: sample.startDate.milliseconds, end: sample.endDate.milliseconds,
+        value: sample.value, source: sample.sourceRevision.source.bundleIdentifier,
+        timeZone: zone.flatMap { name in
+          if let checked = zones[name] { return checked }
+          let checked = CardTimeZone.named(name)
+          zones[name] = checked
+          return checked
+        },
+        // As written: Foundation names `UTC` `GMT`, and runs' ties compare the names (851-4177).
+        timeZoneName: zone)
     }
   }
 
