@@ -255,6 +255,22 @@ extension HealthSleepResult: TextOutput {
   }
 }
 
+extension HealthActivityRingsResult: TextOutput {
+  var text: String {
+    var lines = ["Activity rings, \(range): \(day(start)) to \(lastDay(end)) (\(timeZone))", ""]
+    if days.isEmpty { lines.append("No Activity rings recorded.") }
+    for day in days {
+      let rings = [("Move", day.move), ("Exercise", day.exercise), ("Stand", day.stand)]
+        .compactMap { name, ring in
+          ring.map { "\(name) \(numberText($0.value))/\(numberText($0.goal)) \($0.unit)" }
+        }
+      lines.append(
+        "  \(day.date)   " + (rings + (day.paused ? ["paused"] : [])).joined(separator: " · "))
+    }
+    return lines.joined(separator: "\n") + "\n"
+  }
+}
+
 extension HealthMedicationsResult: TextOutput {
   var text: String {
     guard !medications.isEmpty else { return "No medications.\n" }

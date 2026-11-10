@@ -316,7 +316,8 @@ public struct HealthTools: Sendable {
     case .workoutRoute: .elsewhere("workout_routes")
     case .medication, .medicationDoseEvent: .elsewhere("medications")
     case .characteristic, .visionPrescription: .elsewhere("health_details")
-    case .activitySummary, .heartbeatSeries, .electrocardiogram, .audiogram,
+    case .activitySummary: .elsewhere("activity_rings")
+    case .heartbeatSeries, .electrocardiogram, .audiogram,
       .stateOfMind, .scoredAssessment, .document:
       .unread
     }
@@ -526,6 +527,31 @@ public struct HealthTools: Sendable {
           awake: durations[.awake] ?? 0, core: durations[.core] ?? 0,
           deep: durations[.deep] ?? 0, rem: durations[.rem] ?? 0,
           unspecified: durations[.asleep] ?? 0)
+      })
+  }
+
+  // MARK: - activity_rings
+
+  /// Each day of the period with Activity rings, oldest first, as the app's Activity Rings page
+  /// reads them (`HealthDatabase.activityDays`): by the iPhone's day, picked by date.
+  public func activityRings(
+    range: ToolRange, date: String? = nil, timeZone: String? = nil, _ db: Database
+  ) throws -> HealthActivityRingsResult {
+    let time = try ToolTime(timeZone: timeZone ?? defaultTimeZone)
+    let period = try ToolPeriod(range, date: date, now: now, time: time)
+    let days = try HealthDatabase.activityDays(
+      in: DateInterval(start: period.start, end: period.end), calendar: time.calendar, db)
+    func ring(_ ring: ActivityRing, _ unit: String) -> HealthActivityRing {
+      HealthActivityRing(value: ring.value, goal: ring.goal, unit: unit)
+    }
+    return HealthActivityRingsResult(
+      timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
+      end: time.localTime(period.end),
+      days: days.values.sorted { $0.id < $1.id }.map { day in
+        HealthActivityDay(
+          date: day.id, move: ring(day.move, day.movesInMinutes ? "min" : "kcal"),
+          exercise: day.exercise.map { ring($0, "min") }, stand: day.stand.map { ring($0, "hr") },
+          paused: day.isPaused)
       })
   }
 

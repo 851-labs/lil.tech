@@ -1,4 +1,5 @@
 import type { StoreSql } from "../../store/StoreSql.ts";
+import { healthActivityRings } from "./ActivityRings.ts";
 import { healthDetails } from "./Details.ts";
 import type { Effect } from "effect";
 import type { HealthToolError, HealthToolkit } from "./HealthToolkit.ts";
@@ -49,6 +50,7 @@ export const storeHealthTools = (
   workout_route: (params) => healthWorkoutRoute(sql, blobs, params),
   workout_route_points: (params) => healthWorkoutRoutePoints(sql, blobs, params),
   sleep: (params) => healthSleep(sql, params),
+  activity_rings: (params) => healthActivityRings(sql, params),
   medications: (params) => healthMedications(sql, params),
   health_details: (params) => healthDetails(sql, params),
   search: (params) => healthSearch(sql, params),

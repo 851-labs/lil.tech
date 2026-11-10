@@ -2650,6 +2650,191 @@ let mcpToolsJSON = #"""
     "title": "Health Sleep"
   },
   {
+    "name": "activity_rings",
+    "description": "Activity rings per day in a period, as Fitness and lil health's Activity Rings show them: Move (active kilocalories, or minutes in Move time), Exercise (minutes) and Stand (hours), each with the day's value and goal, and whether the rings were paused. Exercise and Stand are null without an Apple Watch. Days are the iPhone's own: the period's days pick them by date, not shifted to `timeZone`.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "range": {
+          "type": "string",
+          "enum": [
+            "D",
+            "W",
+            "M",
+            "6M",
+            "Y"
+          ],
+          "description": "The period, ending on `date`: D is that day, in hours; W the 7 days ending that day, in days; M the 30 days ending that day, in days; 6M the 26 weeks ending that day, in 7-day weeks; Y the 12 calendar months ending with that day's month, in months (the last one ends with `date`)."
+        },
+        "date": {
+          "type": "string",
+          "description": "The last day of the period, as YYYY-MM-DD in `timeZone`, from 2000 to 2999. Defaults to today."
+        },
+        "timeZone": {
+          "type": "string",
+          "description": "An IANA time zone, e.g. Europe/London, for days and local times. Defaults to UTC on the remote server and to the Mac's time zone locally. Every output says which it used."
+        }
+      },
+      "required": [
+        "range"
+      ],
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "timeZone": {
+          "type": "string",
+          "description": "The IANA time zone of the output's days and local times."
+        },
+        "range": {
+          "type": "string",
+          "description": "The range asked for: D, W, M, 6M or Y."
+        },
+        "start": {
+          "type": "string",
+          "description": "When the period starts."
+        },
+        "end": {
+          "type": "string",
+          "description": "When the period ends (exclusive)."
+        },
+        "days": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HealthActivityDay"
+          },
+          "description": "Each day of the period with rings, oldest first. Days without are left out."
+        }
+      },
+      "required": [
+        "timeZone",
+        "range",
+        "start",
+        "end",
+        "days"
+      ],
+      "additionalProperties": true,
+      "$defs": {
+        "HealthActivityDay": {
+          "type": "object",
+          "properties": {
+            "date": {
+              "type": "string",
+              "description": "The day, as the iPhone recorded it: a day in the iPhone's own time zone, whatever `timeZone` is."
+            },
+            "move": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number",
+                  "description": "How far it got, in `unit`."
+                },
+                "goal": {
+                  "type": "number",
+                  "description": "The day's goal, in `unit`."
+                },
+                "unit": {
+                  "type": "string",
+                  "description": "kcal, or min for Move time."
+                }
+              },
+              "required": [
+                "value",
+                "goal",
+                "unit"
+              ],
+              "additionalProperties": true,
+              "description": "The Move ring: active energy, or minutes of movement for those who move by time (children, or anyone who chose Move time)."
+            },
+            "exercise": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "number",
+                      "description": "How far it got, in `unit`."
+                    },
+                    "goal": {
+                      "type": "number",
+                      "description": "The day's goal, in `unit`."
+                    },
+                    "unit": {
+                      "type": "string",
+                      "description": "Always min."
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "goal",
+                    "unit"
+                  ],
+                  "additionalProperties": true,
+                  "description": "The Exercise ring, in minutes of brisk activity, or null without an Exercise goal (no Apple Watch)."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "stand": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "number",
+                      "description": "How far it got, in `unit`."
+                    },
+                    "goal": {
+                      "type": "number",
+                      "description": "The day's goal, in `unit`."
+                    },
+                    "unit": {
+                      "type": "string",
+                      "description": "Always hr."
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "goal",
+                    "unit"
+                  ],
+                  "additionalProperties": true,
+                  "description": "The Stand ring, in hours with at least a minute of standing, or null without a Stand goal (no Apple Watch)."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "paused": {
+              "type": "boolean",
+              "description": "Whether the person paused their rings that day, so its goals didn't count."
+            }
+          },
+          "required": [
+            "date",
+            "move",
+            "exercise",
+            "stand",
+            "paused"
+          ],
+          "additionalProperties": true
+        }
+      }
+    },
+    "annotations": {
+      "title": "Health Activity Rings",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "title": "Health Activity Rings"
+  },
+  {
     "name": "medications",
     "description": "The medications the person shares with lil health, with their form and schedule, how many scheduled doses they took over the last 7 and 30 days, and when they last took each.",
     "inputSchema": {

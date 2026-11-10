@@ -30,7 +30,7 @@ struct LilHealthCommand: ParsableCommand {
     subcommands: [
       SummaryCommand.self, TypesCommand.self, MetricCommand.self, SamplesCommand.self,
       WorkoutsCommand.self, WorkoutCommand.self, RoutesCommand.self, RouteCommand.self,
-      SleepCommand.self, MedicationsCommand.self,
+      SleepCommand.self, ActivityCommand.self, MedicationsCommand.self,
       DetailsCommand.self,
       SearchCommand.self, SyncCommand.self, OpenCommand.self, ExportCommand.self,
       MCPCommand.self,
@@ -269,6 +269,21 @@ struct SleepCommand: QueryCommand {
 
   func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
     Answer(try tools.sleep(range: range.range, date: date, timeZone: timeZone, db))
+  }
+}
+
+struct ActivityCommand: QueryCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "activity",
+    abstract: "Activity rings per day in a range: Move, Exercise and Stand, with their goals.")
+
+  @Option(name: .shortAndLong, help: rangeHelp) var range = RangeArgument(.week)
+  @Option(help: dateHelp) var date: String?
+  @Option(help: timeZoneHelp) var timeZone: String?
+  @OptionGroup var output: OutputOptions
+
+  func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
+    Answer(try tools.activityRings(range: range.range, date: date, timeZone: timeZone, db))
   }
 }
 

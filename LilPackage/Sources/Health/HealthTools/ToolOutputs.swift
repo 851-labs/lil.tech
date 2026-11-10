@@ -676,6 +676,43 @@ public struct HealthSleepResult: HealthToolOutput {
   public var nights: [HealthSleepNight]
 }
 
+// MARK: - activity_rings
+
+/// One Activity ring's day: its value and goal, in `unit`.
+public struct HealthActivityRing: Codable, Equatable, Sendable {
+  public var value: Double
+  public var goal: Double
+  /// `kcal` or `min` for Move, `min` for Exercise, `hr` for Stand.
+  public var unit: String
+}
+
+public struct HealthActivityDay: Codable, Equatable, Sendable {
+  /// The iPhone's day, `YYYY-MM-DD`.
+  public var date: String
+  public var move: HealthActivityRing
+  /// Nil without a goal, as without an Apple Watch.
+  public var exercise: HealthActivityRing?
+  public var stand: HealthActivityRing?
+  public var paused: Bool
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(date, .date)
+    try container.encode(move, .move)
+    try container.encode(exercise, .exercise)
+    try container.encode(stand, .stand)
+    try container.encode(paused, .paused)
+  }
+}
+
+public struct HealthActivityRingsResult: HealthToolOutput {
+  public var timeZone: String
+  public var range: String
+  public var start: String
+  public var end: String
+  public var days: [HealthActivityDay]
+}
+
 // MARK: - medications
 
 public struct HealthMedicationAdherence: Codable, Equatable, Sendable {

@@ -80,8 +80,8 @@ struct HealthMCPServerTests {
       return
     }
     #expect(roundTrip == fileJSON)
-    #expect(listed.map(\.name).count == 21)
-    #expect(fileTools.count == 21)
+    #expect(listed.map(\.name).count == 22)
+    #expect(fileTools.count == 22)
     await connection.close()
   }
 

@@ -1103,6 +1103,69 @@ export const Sleep = readOnly(
 );
 
 // -------------------------------------------------------------------------------------------------
+// activity_rings
+// -------------------------------------------------------------------------------------------------
+
+const activityRing = (description: string, unit: string) =>
+  Schema.Struct({
+    value: Schema.Finite.annotate({ description: "How far it got, in `unit`." }),
+    goal: Schema.Finite.annotate({ description: "The day's goal, in `unit`." }),
+    unit: Schema.String.annotate({ description: unit }),
+  }).annotate({ description });
+
+export const HealthActivityDay = Schema.Struct({
+  date: LocalDate.annotate({
+    description:
+      "The day, as the iPhone recorded it: a day in the iPhone's own time zone, whatever " +
+      "`timeZone` is.",
+  }),
+  move: activityRing(
+    "The Move ring: active energy, or minutes of movement for those who move by time " +
+      "(children, or anyone who chose Move time).",
+    "kcal, or min for Move time.",
+  ),
+  exercise: Schema.NullOr(
+    activityRing(
+      "The Exercise ring, in minutes of brisk activity, or null without an Exercise goal (no " +
+        "Apple Watch).",
+      "Always min.",
+    ),
+  ),
+  stand: Schema.NullOr(
+    activityRing(
+      "The Stand ring, in hours with at least a minute of standing, or null without a Stand " +
+        "goal (no Apple Watch).",
+      "Always hr.",
+    ),
+  ),
+  paused: Schema.Boolean.annotate({
+    description: "Whether the person paused their rings that day, so its goals didn't count.",
+  }),
+}).annotate({ identifier: "HealthActivityDay" });
+
+export const HealthActivityRingsResult = Schema.Struct({
+  ...periodFields,
+  days: Schema.Array(HealthActivityDay).annotate({
+    description: "Each day of the period with rings, oldest first. Days without are left out.",
+  }),
+});
+
+export const ActivityRings = readOnly(
+  Tool.make("activity_rings", {
+    description:
+      "Activity rings per day in a period, as Fitness and lil health's Activity Rings show " +
+      "them: Move (active kilocalories, or minutes in Move time), Exercise (minutes) and Stand " +
+      "(hours), each with the day's value and goal, and whether the rings were paused. Exercise " +
+      "and Stand are null without an Apple Watch. Days are the iPhone's own: the period's days " +
+      "pick them by date, not shifted to `timeZone`.",
+    parameters: Schema.Struct({ range, date, timeZone }),
+    success: HealthActivityRingsResult,
+    failure: HealthToolError,
+  }),
+  "Health Activity Rings",
+);
+
+// -------------------------------------------------------------------------------------------------
 // medications
 // -------------------------------------------------------------------------------------------------
 
@@ -1294,6 +1357,7 @@ export const HealthToolkit = Toolkit.make(
   WorkoutRoute,
   WorkoutRoutePoints,
   Sleep,
+  ActivityRings,
   Medications,
   HealthDetails,
   Search,
@@ -1316,6 +1380,7 @@ export const healthToolResultNames: Record<keyof typeof HealthToolkit.tools, str
   workout_route: "HealthWorkoutRouteResult",
   workout_route_points: "HealthWorkoutRoutePointsResult",
   sleep: "HealthSleepResult",
+  activity_rings: "HealthActivityRingsResult",
   medications: "HealthMedicationsResult",
   health_details: "HealthDetailsResult",
   search: "HealthSearchResult",

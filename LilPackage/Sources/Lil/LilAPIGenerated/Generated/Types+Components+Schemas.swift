@@ -11293,6 +11293,460 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthActivityDay`.
+        public struct HealthActivityDay: Codable, Hashable, Sendable {
+            /// The day, as the iPhone recorded it: a day in the iPhone's own time zone, whatever `timeZone` is.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthActivityDay/date`.
+            public var date: Swift.String
+            /// The Move ring: active energy, or minutes of movement for those who move by time (children, or anyone who chose Move time).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthActivityDay/move`.
+            public struct MovePayload: Codable, Hashable, Sendable {
+                /// How far it got, in `unit`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthActivityDay/move/value`.
+                public var value: Swift.Double
+                /// The day's goal, in `unit`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthActivityDay/move/goal`.
+                public var goal: Swift.Double
+                /// kcal, or min for Move time.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthActivityDay/move/unit`.
+                public var unit: Swift.String
+                /// A container of undocumented properties.
+                public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+                /// Creates a new `MovePayload`.
+                ///
+                /// - Parameters:
+                ///   - value: How far it got, in `unit`.
+                ///   - goal: The day's goal, in `unit`.
+                ///   - unit: kcal, or min for Move time.
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(
+                    value: Swift.Double,
+                    goal: Swift.Double,
+                    unit: Swift.String,
+                    additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+                ) {
+                    self.value = value
+                    self.goal = goal
+                    self.unit = unit
+                    self.additionalProperties = additionalProperties
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case value
+                    case goal
+                    case unit
+                }
+                public init(from decoder: any Swift.Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.value = try container.decode(
+                        Swift.Double.self,
+                        forKey: .value
+                    )
+                    self.goal = try container.decode(
+                        Swift.Double.self,
+                        forKey: .goal
+                    )
+                    self.unit = try container.decode(
+                        Swift.String.self,
+                        forKey: .unit
+                    )
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                        "value",
+                        "goal",
+                        "unit"
+                    ])
+                }
+                public func encode(to encoder: any Swift.Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(
+                        self.value,
+                        forKey: .value
+                    )
+                    try container.encode(
+                        self.goal,
+                        forKey: .goal
+                    )
+                    try container.encode(
+                        self.unit,
+                        forKey: .unit
+                    )
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// The Move ring: active energy, or minutes of movement for those who move by time (children, or anyone who chose Move time).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthActivityDay/move`.
+            public var move: Components.Schemas.HealthActivityDay.MovePayload
+            /// The Exercise ring, in minutes of brisk activity, or null without an Exercise goal (no Apple Watch).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthActivityDay/exercise`.
+            public struct ExercisePayload: Codable, Hashable, Sendable {
+                /// How far it got, in `unit`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthActivityDay/exercise/value`.
+                public var value: Swift.Double
+                /// The day's goal, in `unit`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthActivityDay/exercise/goal`.
+                public var goal: Swift.Double
+                /// Always min.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthActivityDay/exercise/unit`.
+                public var unit: Swift.String
+                /// A container of undocumented properties.
+                public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+                /// Creates a new `ExercisePayload`.
+                ///
+                /// - Parameters:
+                ///   - value: How far it got, in `unit`.
+                ///   - goal: The day's goal, in `unit`.
+                ///   - unit: Always min.
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(
+                    value: Swift.Double,
+                    goal: Swift.Double,
+                    unit: Swift.String,
+                    additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+                ) {
+                    self.value = value
+                    self.goal = goal
+                    self.unit = unit
+                    self.additionalProperties = additionalProperties
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case value
+                    case goal
+                    case unit
+                }
+                public init(from decoder: any Swift.Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.value = try container.decode(
+                        Swift.Double.self,
+                        forKey: .value
+                    )
+                    self.goal = try container.decode(
+                        Swift.Double.self,
+                        forKey: .goal
+                    )
+                    self.unit = try container.decode(
+                        Swift.String.self,
+                        forKey: .unit
+                    )
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                        "value",
+                        "goal",
+                        "unit"
+                    ])
+                }
+                public func encode(to encoder: any Swift.Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(
+                        self.value,
+                        forKey: .value
+                    )
+                    try container.encode(
+                        self.goal,
+                        forKey: .goal
+                    )
+                    try container.encode(
+                        self.unit,
+                        forKey: .unit
+                    )
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// The Exercise ring, in minutes of brisk activity, or null without an Exercise goal (no Apple Watch).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthActivityDay/exercise`.
+            public var exercise: Components.Schemas.HealthActivityDay.ExercisePayload?
+            /// The Stand ring, in hours with at least a minute of standing, or null without a Stand goal (no Apple Watch).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthActivityDay/stand`.
+            public struct StandPayload: Codable, Hashable, Sendable {
+                /// How far it got, in `unit`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthActivityDay/stand/value`.
+                public var value: Swift.Double
+                /// The day's goal, in `unit`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthActivityDay/stand/goal`.
+                public var goal: Swift.Double
+                /// Always hr.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthActivityDay/stand/unit`.
+                public var unit: Swift.String
+                /// A container of undocumented properties.
+                public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+                /// Creates a new `StandPayload`.
+                ///
+                /// - Parameters:
+                ///   - value: How far it got, in `unit`.
+                ///   - goal: The day's goal, in `unit`.
+                ///   - unit: Always hr.
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(
+                    value: Swift.Double,
+                    goal: Swift.Double,
+                    unit: Swift.String,
+                    additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+                ) {
+                    self.value = value
+                    self.goal = goal
+                    self.unit = unit
+                    self.additionalProperties = additionalProperties
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case value
+                    case goal
+                    case unit
+                }
+                public init(from decoder: any Swift.Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.value = try container.decode(
+                        Swift.Double.self,
+                        forKey: .value
+                    )
+                    self.goal = try container.decode(
+                        Swift.Double.self,
+                        forKey: .goal
+                    )
+                    self.unit = try container.decode(
+                        Swift.String.self,
+                        forKey: .unit
+                    )
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                        "value",
+                        "goal",
+                        "unit"
+                    ])
+                }
+                public func encode(to encoder: any Swift.Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(
+                        self.value,
+                        forKey: .value
+                    )
+                    try container.encode(
+                        self.goal,
+                        forKey: .goal
+                    )
+                    try container.encode(
+                        self.unit,
+                        forKey: .unit
+                    )
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// The Stand ring, in hours with at least a minute of standing, or null without a Stand goal (no Apple Watch).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthActivityDay/stand`.
+            public var stand: Components.Schemas.HealthActivityDay.StandPayload?
+            /// Whether the person paused their rings that day, so its goals didn't count.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthActivityDay/paused`.
+            public var paused: Swift.Bool
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthActivityDay`.
+            ///
+            /// - Parameters:
+            ///   - date: The day, as the iPhone recorded it: a day in the iPhone's own time zone, whatever `timeZone` is.
+            ///   - move: The Move ring: active energy, or minutes of movement for those who move by time (children, or anyone who chose Move time).
+            ///   - exercise: The Exercise ring, in minutes of brisk activity, or null without an Exercise goal (no Apple Watch).
+            ///   - stand: The Stand ring, in hours with at least a minute of standing, or null without a Stand goal (no Apple Watch).
+            ///   - paused: Whether the person paused their rings that day, so its goals didn't count.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                date: Swift.String,
+                move: Components.Schemas.HealthActivityDay.MovePayload,
+                exercise: Components.Schemas.HealthActivityDay.ExercisePayload? = nil,
+                stand: Components.Schemas.HealthActivityDay.StandPayload? = nil,
+                paused: Swift.Bool,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.date = date
+                self.move = move
+                self.exercise = exercise
+                self.stand = stand
+                self.paused = paused
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case date
+                case move
+                case exercise
+                case stand
+                case paused
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.date = try container.decode(
+                    Swift.String.self,
+                    forKey: .date
+                )
+                self.move = try container.decode(
+                    Components.Schemas.HealthActivityDay.MovePayload.self,
+                    forKey: .move
+                )
+                self.exercise = try container.decodeIfPresent(
+                    Components.Schemas.HealthActivityDay.ExercisePayload.self,
+                    forKey: .exercise
+                )
+                self.stand = try container.decodeIfPresent(
+                    Components.Schemas.HealthActivityDay.StandPayload.self,
+                    forKey: .stand
+                )
+                self.paused = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .paused
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "date",
+                    "move",
+                    "exercise",
+                    "stand",
+                    "paused"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.date,
+                    forKey: .date
+                )
+                try container.encode(
+                    self.move,
+                    forKey: .move
+                )
+                try container.encodeIfPresent(
+                    self.exercise,
+                    forKey: .exercise
+                )
+                try container.encodeIfPresent(
+                    self.stand,
+                    forKey: .stand
+                )
+                try container.encode(
+                    self.paused,
+                    forKey: .paused
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthActivityRingsResult`.
+        public struct HealthActivityRingsResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthActivityRingsResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The range asked for: D, W, M, 6M or Y.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthActivityRingsResult/range`.
+            public var range: Swift.String
+            /// When the period starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthActivityRingsResult/start`.
+            public var start: Swift.String
+            /// When the period ends (exclusive).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthActivityRingsResult/end`.
+            public var end: Swift.String
+            /// Each day of the period with rings, oldest first. Days without are left out.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthActivityRingsResult/days`.
+            public var days: [Components.Schemas.HealthActivityDay]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthActivityRingsResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - range: The range asked for: D, W, M, 6M or Y.
+            ///   - start: When the period starts.
+            ///   - end: When the period ends (exclusive).
+            ///   - days: Each day of the period with rings, oldest first. Days without are left out.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                range: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                days: [Components.Schemas.HealthActivityDay],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.range = range
+                self.start = start
+                self.end = end
+                self.days = days
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case range
+                case start
+                case end
+                case days
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.range = try container.decode(
+                    Swift.String.self,
+                    forKey: .range
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.days = try container.decode(
+                    [Components.Schemas.HealthActivityDay].self,
+                    forKey: .days
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "range",
+                    "start",
+                    "end",
+                    "days"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.range,
+                    forKey: .range
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.days,
+                    forKey: .days
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthMedicationItem`.
         public struct HealthMedicationItem: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/id`.

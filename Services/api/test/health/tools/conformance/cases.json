@@ -544,8 +544,8 @@
             "kind": "activitySummary",
             "unit": null,
             "cumulative": false,
-            "first": "2026-10-19T00:00:00+00:00",
-            "last": "2026-10-19T00:00:00+00:00"
+            "first": "2026-09-20T00:00:00+00:00",
+            "last": "2026-10-20T00:00:00+00:00"
           },
           {
             "type": "HKQuantityTypeIdentifierStepCount",
@@ -747,8 +747,8 @@
             "kind": "activitySummary",
             "unit": null,
             "cumulative": false,
-            "first": "2026-10-19T00:00:00-07:00",
-            "last": "2026-10-19T00:00:00-07:00"
+            "first": "2026-09-20T00:00:00-07:00",
+            "last": "2026-10-20T00:00:00-07:00"
           },
           {
             "type": "HKQuantityTypeIdentifierStepCount",
@@ -5114,6 +5114,16 @@
       "expectedError": "samples doesn't list Workout Routes (HKWorkoutRouteTypeIdentifier): use workout_routes."
     },
     {
+      "name": "samples of Activity Rings fails: activity_rings has them",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKActivitySummaryTypeIdentifier",
+        "range": "W"
+      },
+      "expectedError": "samples doesn't list Activity Rings (HKActivitySummaryTypeIdentifier): use activity_rings."
+    },
+    {
       "name": "workouts of a week in UTC, newest first, with their statistics",
       "tool": "workouts",
       "now": "2026-10-20T15:00:00Z",
@@ -7081,6 +7091,512 @@
         "date": "1999-12-31"
       },
       "expectedError": "Invalid date: 1999-12-31. Use a day from 2000-01-01 to 2999-12-31."
+    },
+    {
+      "name": "activity_rings of a week in UTC: Move time, no Watch goals, a pause, a missing day and today's unfinished rings",
+      "tool": "activity_rings",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "W",
+        "start": "2026-10-14T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "days": [
+          {
+            "date": "2026-10-14",
+            "move": {
+              "value": 0,
+              "goal": 500,
+              "unit": "kcal"
+            },
+            "exercise": null,
+            "stand": {
+              "value": 0,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": false
+          },
+          {
+            "date": "2026-10-15",
+            "move": {
+              "value": 42,
+              "goal": 30,
+              "unit": "min"
+            },
+            "exercise": {
+              "value": 18,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 9,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": false
+          },
+          {
+            "date": "2026-10-16",
+            "move": {
+              "value": 210.5,
+              "goal": 400,
+              "unit": "kcal"
+            },
+            "exercise": null,
+            "stand": null,
+            "paused": false
+          },
+          {
+            "date": "2026-10-17",
+            "move": {
+              "value": 95,
+              "goal": 500,
+              "unit": "kcal"
+            },
+            "exercise": {
+              "value": 0,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 4,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": true
+          },
+          {
+            "date": "2026-10-19",
+            "move": {
+              "value": 420.75,
+              "goal": 500,
+              "unit": "kcal"
+            },
+            "exercise": {
+              "value": 40,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 10,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": false
+          },
+          {
+            "date": "2026-10-20",
+            "move": {
+              "value": 120.5,
+              "goal": 500,
+              "unit": "kcal"
+            },
+            "exercise": {
+              "value": 5,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 3,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "activity_rings of 30 days ending 19 October in London: the period's first day is in, the day after its last isn't",
+      "tool": "activity_rings",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "M",
+        "date": "2026-10-19",
+        "timeZone": "Europe/London"
+      },
+      "expected": {
+        "timeZone": "Europe/London",
+        "range": "M",
+        "start": "2026-09-20T00:00:00+01:00",
+        "end": "2026-10-20T00:00:00+01:00",
+        "days": [
+          {
+            "date": "2026-09-20",
+            "move": {
+              "value": 380.25,
+              "goal": 450,
+              "unit": "kcal"
+            },
+            "exercise": {
+              "value": 25,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 11,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": false
+          },
+          {
+            "date": "2026-10-14",
+            "move": {
+              "value": 0,
+              "goal": 500,
+              "unit": "kcal"
+            },
+            "exercise": null,
+            "stand": {
+              "value": 0,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": false
+          },
+          {
+            "date": "2026-10-15",
+            "move": {
+              "value": 42,
+              "goal": 30,
+              "unit": "min"
+            },
+            "exercise": {
+              "value": 18,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 9,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": false
+          },
+          {
+            "date": "2026-10-16",
+            "move": {
+              "value": 210.5,
+              "goal": 400,
+              "unit": "kcal"
+            },
+            "exercise": null,
+            "stand": null,
+            "paused": false
+          },
+          {
+            "date": "2026-10-17",
+            "move": {
+              "value": 95,
+              "goal": 500,
+              "unit": "kcal"
+            },
+            "exercise": {
+              "value": 0,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 4,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": true
+          },
+          {
+            "date": "2026-10-19",
+            "move": {
+              "value": 420.75,
+              "goal": 500,
+              "unit": "kcal"
+            },
+            "exercise": {
+              "value": 40,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 10,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "activity_rings of this week in Auckland, where it's already 21 October: days are the iPhone's, picked by date, not shifted",
+      "tool": "activity_rings",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "timeZone": "Pacific/Auckland"
+      },
+      "expected": {
+        "timeZone": "Pacific/Auckland",
+        "range": "W",
+        "start": "2026-10-15T00:00:00+13:00",
+        "end": "2026-10-22T00:00:00+13:00",
+        "days": [
+          {
+            "date": "2026-10-15",
+            "move": {
+              "value": 42,
+              "goal": 30,
+              "unit": "min"
+            },
+            "exercise": {
+              "value": 18,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 9,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": false
+          },
+          {
+            "date": "2026-10-16",
+            "move": {
+              "value": 210.5,
+              "goal": 400,
+              "unit": "kcal"
+            },
+            "exercise": null,
+            "stand": null,
+            "paused": false
+          },
+          {
+            "date": "2026-10-17",
+            "move": {
+              "value": 95,
+              "goal": 500,
+              "unit": "kcal"
+            },
+            "exercise": {
+              "value": 0,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 4,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": true
+          },
+          {
+            "date": "2026-10-19",
+            "move": {
+              "value": 420.75,
+              "goal": 500,
+              "unit": "kcal"
+            },
+            "exercise": {
+              "value": 40,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 10,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": false
+          },
+          {
+            "date": "2026-10-20",
+            "move": {
+              "value": 120.5,
+              "goal": 500,
+              "unit": "kcal"
+            },
+            "exercise": {
+              "value": 5,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 3,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "activity_rings of a day without rings",
+      "tool": "activity_rings",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "D",
+        "date": "2026-10-18"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-10-18T00:00:00+00:00",
+        "end": "2026-10-19T00:00:00+00:00",
+        "days": []
+      }
+    },
+    {
+      "name": "activity_rings of a year in Los Angeles",
+      "tool": "activity_rings",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "Y",
+        "timeZone": "America/Los_Angeles"
+      },
+      "expected": {
+        "timeZone": "America/Los_Angeles",
+        "range": "Y",
+        "start": "2025-11-01T00:00:00-07:00",
+        "end": "2026-10-21T00:00:00-07:00",
+        "days": [
+          {
+            "date": "2026-09-20",
+            "move": {
+              "value": 380.25,
+              "goal": 450,
+              "unit": "kcal"
+            },
+            "exercise": {
+              "value": 25,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 11,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": false
+          },
+          {
+            "date": "2026-10-14",
+            "move": {
+              "value": 0,
+              "goal": 500,
+              "unit": "kcal"
+            },
+            "exercise": null,
+            "stand": {
+              "value": 0,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": false
+          },
+          {
+            "date": "2026-10-15",
+            "move": {
+              "value": 42,
+              "goal": 30,
+              "unit": "min"
+            },
+            "exercise": {
+              "value": 18,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 9,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": false
+          },
+          {
+            "date": "2026-10-16",
+            "move": {
+              "value": 210.5,
+              "goal": 400,
+              "unit": "kcal"
+            },
+            "exercise": null,
+            "stand": null,
+            "paused": false
+          },
+          {
+            "date": "2026-10-17",
+            "move": {
+              "value": 95,
+              "goal": 500,
+              "unit": "kcal"
+            },
+            "exercise": {
+              "value": 0,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 4,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": true
+          },
+          {
+            "date": "2026-10-19",
+            "move": {
+              "value": 420.75,
+              "goal": 500,
+              "unit": "kcal"
+            },
+            "exercise": {
+              "value": 40,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 10,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": false
+          },
+          {
+            "date": "2026-10-20",
+            "move": {
+              "value": 120.5,
+              "goal": 500,
+              "unit": "kcal"
+            },
+            "exercise": {
+              "value": 5,
+              "goal": 30,
+              "unit": "min"
+            },
+            "stand": {
+              "value": 3,
+              "goal": 12,
+              "unit": "hr"
+            },
+            "paused": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "activity_rings with a day that doesn't exist fails",
+      "tool": "activity_rings",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "date": "2026-02-30"
+      },
+      "expectedError": "Invalid date: 2026-02-30. Use a day that exists, as YYYY-MM-DD."
     },
     {
       "name": "samples on a day that doesn't exist before 2000 fails for the year",
