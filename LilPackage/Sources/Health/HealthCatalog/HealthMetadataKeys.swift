@@ -7,6 +7,21 @@ public struct HealthMetadataKey: Sendable, Equatable {
   /// Its value, the key HealthKit puts in an object's `metadata`, e.g. `HKTimeZone`.
   public let key: String
   public let kept: Bool
+  /// The unit its value is uploaded in, when HealthKit's value is an `HKQuantity` (851-4150).
+  public let quantityUnit: QuantityUnit?
+
+  /// The unit a metadata quantity is uploaded in: `{ "value": 84.6, "unit": "m" }`.
+  public enum QuantityUnit: Sendable, Equatable {
+    /// One unit for the key, as `HKUnit`'s `unitString` writes it (`"m"`, `"kcal/hr·kg"`).
+    case unit(String)
+    /// The unit it was recorded in if it's one of these, else the first, for a key whose unit
+    /// says something: a pool measured in yards or meters (`HKMetadataKeyLapLength`), which the
+    /// Mac's swim page shows its swims in.
+    case recorded([String])
+    /// The unit of the sample it's on (the catalog's unit for the sample's type), for a key
+    /// whose quantity is the sample's own kind (`HKMetadataKeySessionEstimate`).
+    case sample
+  }
 }
 
 extension HealthCatalog {
@@ -41,39 +56,41 @@ extension HealthCatalog {
     kept("HKMetadataKeyAppleECGAlgorithmVersion", "HKMetadataKeyAppleECGAlgorithmVersion"),
     kept(
       "HKMetadataKeyDateOfEarliestDataUsedForEstimate", "HKDateOfEarliestDataUsedForEstimate"),
-    kept("HKMetadataKeySessionEstimate", "HKMetadataKeySessionEstimate"),
+    kept("HKMetadataKeySessionEstimate", "HKMetadataKeySessionEstimate", .sample),
     kept("HKMetadataKeyQuantityClampedToLowerBound", "HKMetadataKeyQuantityClampedToLowerBound"),
     kept("HKMetadataKeyQuantityClampedToUpperBound", "HKMetadataKeyQuantityClampedToUpperBound"),
     kept("HKMetadataKeyReferenceRangeLowerLimit", "HKReferenceRangeLowerLimit"),
     kept("HKMetadataKeyReferenceRangeUpperLimit", "HKReferenceRangeUpperLimit"),
     kept("HKMetadataKeyWasTakenInLab", "HKWasTakenInLab"),
     kept("HKMetadataKeyUserMotionContext", "HKMetadataKeyUserMotionContext"),
-    kept("HKMetadataKeyBarometricPressure", "HKMetadataKeyBarometricPressure"),
+    kept("HKMetadataKeyBarometricPressure", "HKMetadataKeyBarometricPressure", .unit("kPa")),
     kept("HKMetadataKeyWaterSalinity", "HKMetadataKeyWaterSalinity"),
-    kept("HKMetadataKeyMaximumLightIntensity", "HKMetadataKeyMaximumLightIntensity"),
+    kept("HKMetadataKeyMaximumLightIntensity", "HKMetadataKeyMaximumLightIntensity", .unit("lx")),
     kept("HKMetadataKeyPhysicalEffortEstimationType", "HKPhysicalEffortEstimationType"),
     kept("HKMetadataKeyActivityType", "HKActivityType"),
     // Heart
     kept("HKMetadataKeyHeartRateMotionContext", "HKMetadataKeyHeartRateMotionContext"),
     kept("HKMetadataKeyHeartRateSensorLocation", "HKHeartRateSensorLocation"),
-    kept("HKMetadataKeyHeartRateEventThreshold", "HKHeartRateEventThreshold"),
+    kept("HKMetadataKeyHeartRateEventThreshold", "HKHeartRateEventThreshold", .unit("count/min")),
     kept(
       "HKMetadataKeyHeartRateRecoveryTestType", "HKMetadataKeyHeartRateRecoveryTestType"),
     kept(
       "HKMetadataKeyHeartRateRecoveryActivityType", "HKMetadataKeyHeartRateRecoveryActivityType"),
     kept(
       "HKMetadataKeyHeartRateRecoveryActivityDuration",
-      "HKMetadataKeyHeartRateRecoveryActivityDuration"),
+      "HKMetadataKeyHeartRateRecoveryActivityDuration", .unit("s")),
     kept(
       "HKMetadataKeyHeartRateRecoveryMaxObservedRecoveryHeartRate",
-      "HKMetadataKeyHeartRateRecoveryMaxObservedRecoveryHeartRate"),
+      "HKMetadataKeyHeartRateRecoveryMaxObservedRecoveryHeartRate", .unit("count/min")),
     kept("HKMetadataKeyVO2MaxTestType", "HKVO2MaxTestType"),
-    kept("HKMetadataKeyVO2MaxValue", "HKVO2MaxValue"),
-    kept("HKMetadataKeyLowCardioFitnessEventThreshold", "HKLowCardioFitnessEventThreshold"),
+    kept("HKMetadataKeyVO2MaxValue", "HKVO2MaxValue", .unit("mL/min·kg")),
+    kept(
+      "HKMetadataKeyLowCardioFitnessEventThreshold", "HKLowCardioFitnessEventThreshold",
+      .unit("mL/min·kg")),
     // Hearing
-    kept("HKMetadataKeyAudioExposureLevel", "HKMetadataKeyAudioExposureLevel"),
-    kept("HKMetadataKeyAudioExposureDuration", "HKMetadataKeyAudioExposureDuration"),
-    kept("HKMetadataKeyHeadphoneGain", "HKMetadataKeyHeadphoneGain"),
+    kept("HKMetadataKeyAudioExposureLevel", "HKMetadataKeyAudioExposureLevel", .unit("dBASPL")),
+    kept("HKMetadataKeyAudioExposureDuration", "HKMetadataKeyAudioExposureDuration", .unit("s")),
+    kept("HKMetadataKeyHeadphoneGain", "HKMetadataKeyHeadphoneGain", .unit("dBASPL")),
     // Clinical, cycle tracking and nutrition
     kept("HKMetadataKeyBloodGlucoseMealTime", "HKBloodGlucoseMealTime"),
     kept("HKMetadataKeyInsulinDeliveryReason", "HKInsulinDeliveryReason"),
@@ -87,27 +104,27 @@ extension HealthCatalog {
     kept("HKMetadataKeyIndoorWorkout", "HKIndoorWorkout"),
     kept("HKMetadataKeySwimmingLocationType", "HKSwimmingLocationType"),
     kept("HKMetadataKeyWorkoutBrandName", "HKWorkoutBrandName"),
-    kept("HKMetadataKeyElevationAscended", "HKElevationAscended"),
-    kept("HKMetadataKeyElevationDescended", "HKElevationDescended"),
-    kept("HKMetadataKeyAverageSpeed", "HKAverageSpeed"),
-    kept("HKMetadataKeyMaximumSpeed", "HKMaximumSpeed"),
-    kept("HKMetadataKeyAverageMETs", "HKAverageMETs"),
-    kept("HKMetadataKeyLapLength", "HKLapLength"),
+    kept("HKMetadataKeyElevationAscended", "HKElevationAscended", .unit("m")),
+    kept("HKMetadataKeyElevationDescended", "HKElevationDescended", .unit("m")),
+    kept("HKMetadataKeyAverageSpeed", "HKAverageSpeed", .unit("m/s")),
+    kept("HKMetadataKeyMaximumSpeed", "HKMaximumSpeed", .unit("m/s")),
+    kept("HKMetadataKeyAverageMETs", "HKAverageMETs", .unit("kcal/hr·kg")),
+    kept("HKMetadataKeyLapLength", "HKLapLength", .recorded(["m", "yd"])),
     kept("HKMetadataKeySwimmingStrokeStyle", "HKSwimmingStrokeStyle"),
     kept("HKMetadataKeySWOLFScore", "HKSWOLFScore"),
-    kept("HKMetadataKeyAlpineSlopeGrade", "HKAlpineSlopeGrade"),
+    kept("HKMetadataKeyAlpineSlopeGrade", "HKAlpineSlopeGrade", .unit("%")),
     kept("HKMetadataKeyWeatherCondition", "HKWeatherCondition"),
-    kept("HKMetadataKeyWeatherTemperature", "HKWeatherTemperature"),
-    kept("HKMetadataKeyWeatherHumidity", "HKWeatherHumidity"),
+    kept("HKMetadataKeyWeatherTemperature", "HKWeatherTemperature", .unit("degC")),
+    kept("HKMetadataKeyWeatherHumidity", "HKWeatherHumidity", .unit("%")),
     kept("HKMetadataKeyCoachedWorkout", "HKCoachedWorkout"),
     kept("HKMetadataKeyGroupFitness", "HKGroupFitness"),
     kept("HKMetadataKeyAppleFitnessPlusSession", "HKMetadataKeyAppleFitnessPlusSession"),
     dropped(
       "HKMetadataKeyAppleFitnessPlusCatalogIdentifier",
       "HKMetadataKeyAppleFitnessPlusCatalogIdentifier"),
-    kept("HKMetadataKeyCrossTrainerDistance", "HKCrossTrainerDistance"),
-    kept("HKMetadataKeyIndoorBikeDistance", "HKIndoorBikeDistance"),
-    kept("HKMetadataKeyFitnessMachineDuration", "HKFitnessMachineDuration"),
+    kept("HKMetadataKeyCrossTrainerDistance", "HKCrossTrainerDistance", .unit("m")),
+    kept("HKMetadataKeyIndoorBikeDistance", "HKIndoorBikeDistance", .unit("m")),
+    kept("HKMetadataKeyFitnessMachineDuration", "HKFitnessMachineDuration", .unit("s")),
     kept(
       "HKMetadataKeyCyclingFunctionalThresholdPowerTestType",
       "HKCyclingCyclingFunctionalThresholdPowerTestType"),
@@ -134,11 +151,21 @@ extension HealthCatalog {
     "name", "manufacturer", "model", "hardwareVersion", "firmwareVersion", "softwareVersion",
   ]
 
-  private static func kept(_ constant: String, _ key: String) -> HealthMetadataKey {
-    HealthMetadataKey(constant: constant, key: key, kept: true)
+  /// Each kept key whose value is an `HKQuantity`, and the unit it's uploaded in (851-4150):
+  /// the iPhone writes it as `{ value, unit }` in that unit, rather than its description.
+  public static let metadataQuantityUnits: [String: HealthMetadataKey.QuantityUnit] =
+    Dictionary(
+      uniqueKeysWithValues: healthKitMetadataKeys.compactMap { key in
+        key.quantityUnit.map { (key.key, $0) }
+      })
+
+  private static func kept(
+    _ constant: String, _ key: String, _ quantityUnit: HealthMetadataKey.QuantityUnit? = nil
+  ) -> HealthMetadataKey {
+    HealthMetadataKey(constant: constant, key: key, kept: true, quantityUnit: quantityUnit)
   }
 
   private static func dropped(_ constant: String, _ key: String) -> HealthMetadataKey {
-    HealthMetadataKey(constant: constant, key: key, kept: false)
+    HealthMetadataKey(constant: constant, key: key, kept: false, quantityUnit: nil)
   }
 }

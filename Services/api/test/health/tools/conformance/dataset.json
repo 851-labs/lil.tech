@@ -4,10 +4,10 @@
     "Each batch is applied as the server ingests an iPhone's upload (device-scoped records are stamped with the batch's device, and reportedAt with receivedAt), and as the Mac then syncs it.",
     "Times in lines are Unix milliseconds. The conformance cases are in cases.json.",
     "A workout dated later today (16:30, after the cases' 15:00) hasn't happened, so it doesn't count yet.",
-    "Workouts: the 13 October run at 18:00Z has no metadata and a route HealthKit didn't link (found by its times); 14 October's is a treadmill run, indoor, with an empty route linked; 18 October's is outdoor, with its route, elevation and weather; 20 October's is a third-party app's, named, its indoor flag a number; the ride only says it's indoors on its one activity. September has a pool swim and a multisport race with an open-water swim, a route, a blank name and its elevation in feet. The week of 14 September has workouts as iPhones upload them since 851-4030: each activity's configured location (locationType, swimmingLocationType) and the WorkoutKit plan in the metadata (LilWorkoutPlan): a ride only its configuration calls indoor, a custom plan's run named by the plan, a third-party run whose brand name and metadata win, a goal plan's pool swim, a swim-bike-run plan's race, a blank plan name, and an unreadable location type and plan. 1 to 6 September has workouts for the workout tool (851-4165), in a week no other case reads: an outdoor run with every statistic the Watch records, its splits as segments, an auto-pause and a pause, a marker, and its metadata's elevation, speeds, METs and weather in other units (°F, feet, mph, humidity 100 times too large); a 25-yard pool swim with laps out of order, their strokes and SWOLF, a segment and a pause it never resumed from; a ride whose statistics and events can't be read, with metadata in units the tools don't read; and a triathlon whose legs have their own statistics and metadata, one leg's unreadable and one's missing.",
+    "Workouts: the 13 October run at 18:00Z has no metadata and a route HealthKit didn't link (found by its times); 14 October's is a treadmill run, indoor, with an empty route linked; 18 October's is outdoor, with its route, elevation and weather; 20 October's is a third-party app's, named, its indoor flag a number; the ride only says it's indoors on its one activity. September has a pool swim and a multisport race with an open-water swim, a route, a blank name and its elevation in feet. The week of 14 September has workouts as iPhones upload them since 851-4030: each activity's configured location (locationType, swimmingLocationType) and the WorkoutKit plan in the metadata (LilWorkoutPlan): a ride only its configuration calls indoor, a custom plan's run named by the plan, a third-party run whose brand name and metadata win, a goal plan's pool swim, a swim-bike-run plan's race, a blank plan name, and an unreadable location type and plan. 1 to 6 September has workouts for the workout tool (851-4165), in a week no other case reads: an outdoor run with every statistic the Watch records, its splits as segments, an auto-pause and a pause, a marker, and its metadata's elevation, speeds, METs and weather in other units (°F, feet, mph, humidity 100 times too large); a 25-yard pool swim with laps out of order, their strokes and SWOLF, a segment and a pause it never resumed from; a ride whose statistics and events can't be read, with metadata in units the tools don't read; and a triathlon whose legs have their own statistics and metadata, one leg's unreadable and one's missing. Metadata quantities are in both forms the iPhone writes (851-4150): the run's, the swim's laps and the ride's mostly as descriptions, with 6 significant digits, as iPhones wrote them before; the triathlon's, the swim's own lap length and some of the ride's whole, { value, unit } in their key's unit, with more digits than a description keeps (humidity as a fraction, 0.5512345 for 55.12345%), and two of the ride's whole in a unit the tools don't read or with a value that isn't a number.",
     "Heart rate on 20 October comes from the Watch and the iPhone, with gaps over an hour, so time-weighted averages depend on each source's next reading. Sleep has the Watch's stages and the iPhone's estimates; medications a schedule, as-needed doses and an archived one; Health Details one characteristic Not Set.",
     "Routes (851-4164): their points are blobs, in blobs.json by SHA-256. 16 October also has a cycling app's route with no workout (0c0f…175), which no workout's times overlap.",
-    "Samples' details (851-4166) are on 19 October, from ph2, which HealthKit syncs every app's samples to: blood glucose entered by hand in Health (before a meal, recorded in New York) and from a third-party health app, which records the rest too (after a meal, with a reference range, its meter in a provenance record, and keys lil health doesn't keep, which ingestion drops); insulin (basal with an empty device, bolus with its pump named only in its metadata and a motion context that isn't one); cardio fitness from an Apple Watch; a high heart rate notification with its threshold; a blood pressure reading, a correlation of a systolic and a diastolic sample; and the morning's heart rate says it was sedentary, on the wrist.",
+    "Samples' details (851-4166) are on 19 October, from ph2, which HealthKit syncs every app's samples to: blood glucose entered by hand in Health (before a meal, recorded in New York) and from a third-party health app, which records the rest too (after a meal, with a reference range, its meter in a provenance record, and keys lil health doesn't keep, which ingestion drops); insulin (basal with an empty device, bolus with its pump named only in its metadata and a motion context that isn't one); cardio fitness from an Apple Watch (its estimate's earliest data a date as iPhones write it since 851-4150, { date } in ISO 8601); a high heart rate notification with its threshold (whole, { value, unit }); a blood pressure reading, a correlation of a systolic and a diastolic sample; and the morning's heart rate says it was sedentary, on the wrist.",
     "Quantity series (851-4171) are on 14 April 2026, a day no cards case reads, so the iPhone's HealthKit run (which writes each series as one sample) gives the same cards: heart rate from the Watch, a workout's 120 values every 5 s from 09:55 (the sample's own value, 130.5, is HealthKit's for the whole series), crossing 10:00, beside a chest strap's readings and a Watch reading after it; a series of 25,000 values from 14:00 whose values weren't uploaded, only its count and summary (55 to 190); and a series from 23:58 that crosses midnight, so 15 April's values come from a series that started the day before.",
     "Activity rings (851-4158) are on 20 September and 14 to 20 October, from ph1, keyed by the iPhone's day: 14 October has no move value, no exercise goal (0) and no stand value or pause flag; 15 October is in Move time, with active energy beside it the tools don't read; 16 October has no Exercise or Stand goal (no Watch that day); 17 October is paused; 18 October has none; 20 October is today, unfinished.",
     "Mental Wellbeing (851-4160): State of Mind logs from 13 September to 20 October, momentary emotions and daily moods logged in Health and on the Watch: one with every label and association, one with none, raw values a later iOS might add (a kind of 3, a classification of 9, a label of 39, 0s), one at the start of 14 September and one a second before, and one ph2 deleted. GAD-7 and PHQ-9 assessments from 25 September to 20 October: PHQ-9's 9th question skipped (Prefer not to answer), an answer of 5 and a risk of 6 a later iOS might add, and a GAD-7 ph2 deleted."
@@ -1773,7 +1773,7 @@
             "metadata": {
               "HKIndoorWorkout": true,
               "HKSwimmingLocationType": 1,
-              "HKLapLength": "25 yd",
+              "HKLapLength": { "value": 25, "unit": "yd" },
               "HKSWOLFScore": 45,
               "HKWeatherCondition": 99,
               "HKWeatherHumidity": "45.5 %",
@@ -1823,7 +1823,9 @@
             "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
             "metadata": {
               "HKElevationAscended": "3 furlong",
+              "HKElevationDescended": { "value": "12", "unit": "m" },
               "HKAverageSpeed": "30",
+              "HKMaximumSpeed": { "value": 30, "unit": "furlong/s" },
               "HKAverageMETs": "6.25 kcal",
               "HKWeatherCondition": 0,
               "HKWeatherTemperature": "12 degC",
@@ -1904,10 +1906,10 @@
                 "locationType": 3,
                 "swimmingLocationType": 0,
                 "metadata": {
-                  "HKElevationAscended": "210 m",
-                  "HKElevationDescended": "0.2 km",
-                  "HKAverageSpeed": "30.6 km/hr",
-                  "HKMaximumSpeed": "52 km/hr"
+                  "HKElevationAscended": { "value": 210.456789123, "unit": "m" },
+                  "HKElevationDescended": { "value": 199.987654321, "unit": "m" },
+                  "HKAverageSpeed": { "value": 8.50123456789, "unit": "m/s" },
+                  "HKMaximumSpeed": { "value": 14.4444444444, "unit": "m/s" }
                 },
                 "statistics": {
                   "HKQuantityTypeIdentifierDistanceCycling": {
@@ -1945,7 +1947,7 @@
                 "locationType": 3,
                 "swimmingLocationType": 0,
                 "metadata": {
-                  "HKAverageMETs": "10.5 kcal/(kg·hr)"
+                  "HKAverageMETs": { "value": 10.5432109876, "unit": "kcal/hr·kg" }
                 }
               }
             ],
@@ -2002,8 +2004,8 @@
                 "locationType": null
               },
               "HKWeatherCondition": 1,
-              "HKWeatherTemperature": "18.5 degC",
-              "HKWeatherHumidity": "55 %"
+              "HKWeatherTemperature": { "value": 18.56789, "unit": "degC" },
+              "HKWeatherHumidity": { "value": 0.5512345, "unit": "%" }
             }
           }
         },
@@ -2647,7 +2649,7 @@
             },
             "metadata": {
               "HKVO2MaxTestType": 2,
-              "HKDateOfEarliestDataUsedForEstimate": 1791763200000,
+              "HKDateOfEarliestDataUsedForEstimate": { "date": "2026-10-12T00:00:00.000Z" },
               "HKAlgorithmVersion": 2,
               "HKMetadataKeyAppleDeviceCalibrated": true
             }
@@ -2665,7 +2667,7 @@
             "sourceName": "Test Apple Watch",
             "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001",
             "metadata": {
-              "HKHeartRateEventThreshold": "120 count/min",
+              "HKHeartRateEventThreshold": { "value": 120, "unit": "count/min" },
               "HKMetadataKeyHeartRateMotionContext": 1
             }
           }

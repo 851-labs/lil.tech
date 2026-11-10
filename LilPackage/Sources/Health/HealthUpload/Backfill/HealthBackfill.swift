@@ -1268,7 +1268,8 @@ public actor HealthBackfill {
 
   /// Reads workouts again from the start, once they're caught up from their anchor, if they were
   /// read with an older encoding (`HealthBackfillState.workoutEncoding`), so every workout goes
-  /// up again with what's new: their activities' locations and their plans (851-4030). Workouts
+  /// up again with what's new: their activities' locations and their plans (851-4030), their
+  /// metadata's quantities whole (851-4150). Workouts
   /// are few (hundreds, a few thousand at most), and the server and the Mac take each again as a
   /// change. After the catch-up, since a read from the start finds no deletions. Workouts that
   /// had no anchor before it (`wasRead` false) were all just read with this encoding.

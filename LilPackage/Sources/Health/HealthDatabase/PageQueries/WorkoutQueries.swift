@@ -159,8 +159,9 @@ extension HealthWorkout {
     return nil
   }
 
-  /// The unit a swim's pool is measured in, from its lap length (`HKLapLength`, written as the
-  /// quantity's description: "25 yd", "50 m"), or nil without one.
+  /// The unit a swim's pool is measured in, from its lap length (`HKLapLength`, in the unit the
+  /// pool was set up in: `{ "value": 25, "unit": "yd" }`, or before 851-4150 its description,
+  /// "25 yd", "50 m"), or nil without one.
   public var lapLengthUnit: String? {
     guard let metadata,
       let object = try? JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [String: Any],

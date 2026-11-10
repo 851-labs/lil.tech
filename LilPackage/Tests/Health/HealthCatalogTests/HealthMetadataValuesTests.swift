@@ -4,8 +4,9 @@ import Testing
 @testable import HealthCatalog
 
 // How the Health tools read a metadata value at its edges (851-4170): blank text, Booleans
-// written as numbers, enums' raw values out of range or not whole, quantity descriptions in
-// units each quantity is or isn't read in, and humidity's ×100. The server's
+// written as numbers, enums' raw values out of range or not whole, quantities in both forms
+// (`{ value, unit }` and descriptions, 851-4150) in units each quantity is or isn't read in,
+// humidity's ×100, and dates in both forms. The server's
 // `MetadataValues.test.ts` reads the same inputs alike. Synthetic data only.
 @Suite struct HealthMetadataValuesTests {
   /// A value as `JSONSerialization` reads it from `json`, a JSON value.
@@ -23,6 +24,21 @@ import Testing
   @Test func readsOnlyKeysLilHealthKeeps() {
     for key in HealthMetadataValues.kinds.keys {
       #expect(HealthCatalog.keptMetadataKeys.contains(key), "\(key)")
+    }
+  }
+
+  /// Every quantity the tools read is uploaded whole, in a unit they read it from.
+  @Test func readsEveryQuantityInAUnitItsUploadedIn() {
+    for (key, kind) in HealthMetadataValues.kinds {
+      guard case .quantity(let quantity) = kind else { continue }
+      switch HealthCatalog.metadataQuantityUnits[key] {
+      case .unit(let unit):
+        #expect(quantity.conversions[unit] != nil, "\(key)")
+      case .recorded(let units):
+        for unit in units { #expect(quantity.conversions[unit] != nil, "\(key): \(unit)") }
+      case .sample, nil:
+        Issue.record("\(key) has no unit it's uploaded in")
+      }
     }
   }
 
@@ -111,6 +127,65 @@ import Testing
     }
     for other in ["120", "true", "null"] {
       #expect(read(.quantity(.heartRate), other) == nil)
+    }
+  }
+
+  @Test func readsAWholeQuantityInItsUnit() throws {
+    func quantity(_ quantity: HealthMetadataValues.Quantity, _ value: String) -> Double? {
+      HealthMetadataValues.quantity(quantity, json(value))
+    }
+    #expect(quantity(.length, #"{"value": 84.6012345, "unit": "m"}"#) == 84.6012345)
+    #expect(quantity(.length, #"{"value": 123456789, "unit": "m"}"#) == 123_456_789)
+    #expect(quantity(.heartRate, #"{"value": 120, "unit": "count/min"}"#) == 120)
+    #expect(quantity(.mets, #"{"value": 9.876543, "unit": "kcal/hr·kg"}"#) == 9.876543)
+    #expect(quantity(.vo2Max, #"{"value": 45.6789, "unit": "mL/min·kg"}"#) == 45.6789)
+    #expect(quantity(.temperature, #"{"value": 15, "unit": "degC"}"#) == 15)
+    // A percent is a fraction: 0.555 is 55.5%, and Apple's Workout app's 72 (7200%) is 72%.
+    #expect(quantity(.humidity, #"{"value": 0.555, "unit": "%"}"#) == 55.5)
+    #expect(quantity(.humidity, #"{"value": 72, "unit": "%"}"#) == 72)
+    // Converted from any unit the quantity reads, as a description is.
+    #expect(quantity(.length, #"{"value": 25, "unit": "yd"}"#) == 22.86)
+    for measures in HealthMetadataValues.Quantity.allCases where measures != .humidity {
+      #expect(
+        quantity(measures, #"{"value": 7, "unit": "\#(measures.unit)"}"#) == 7, "\(measures)")
+    }
+  }
+
+  @Test func leavesOutAWholeQuantityInAnotherUnitOrNotValueAndUnit() {
+    for other in [
+      #"{"value": 120, "unit": "bpm"}"#, #"{"value": "120", "unit": "count/min"}"#,
+      #"{"value": true, "unit": "count/min"}"#, #"{"value": null, "unit": "count/min"}"#,
+      #"{"value": 120}"#, #"{"unit": "count/min"}"#, #"{"value": 120, "unit": 1}"#,
+      #"[120, "count/min"]"#, "{}",
+    ] {
+      #expect(HealthMetadataValues.quantity(.heartRate, json(other)) == nil, "\(other)")
+    }
+  }
+
+  @Test func readsADateAsISO8601OrUnixMilliseconds() throws {
+    let date = try #require(HealthMetadataValues.kinds["HKDateOfEarliestDataUsedForEstimate"])
+    #expect(read(date, "1791763200000") == .number(1_791_763_200_000))
+    #expect(read(date, #"{"date": "2026-10-12T00:00:00.123Z"}"#) == .number(1_791_763_200_123))
+    #expect(read(date, #"{"date": "2026-10-12T00:00:00Z"}"#) == .number(1_791_763_200_000))
+    #expect(
+      read(date, #"{"date": "2026-10-12T01:00:00.5+01:00"}"#) == .number(1_791_763_200_500))
+    #expect(
+      read(date, #"{"date": "2026-10-11T19:30:00.12-04:30"}"#) == .number(1_791_763_200_120))
+    #expect(read(date, #"{"date": "2024-02-29T00:00:00Z"}"#) == .number(1_709_164_800_000))
+    #expect(read(date, #"{"date": "0001-01-01T00:00:00.000Z"}"#) == .number(-62_135_596_800_000))
+    #expect(read(date, #"{"date": "9999-12-31T23:59:59.999Z"}"#) == .number(253_402_300_799_999))
+    for other in [
+      // Fields out of their range, which a date parser might roll over.
+      #"{"date": "2026-10-12T00:00:60Z"}"#, #"{"date": "2026-02-29T00:00:00Z"}"#,
+      #"{"date": "2026-04-31T00:00:00Z"}"#, #"{"date": "2026-13-01T00:00:00Z"}"#,
+      #"{"date": "2026-00-10T00:00:00Z"}"#, #"{"date": "2026-10-00T00:00:00Z"}"#,
+      #"{"date": "2026-10-12T24:00:00Z"}"#, #"{"date": "2026-10-12T00:60:00Z"}"#,
+      #"{"date": "2026-10-12T00:00:00+24:00"}"#, #"{"date": "2026-10-12T00:00:00+01:60"}"#,
+      #"{"date": "2026-10-12"}"#, #"{"date": "2026-10-12T00:00:00"}"#,
+      #"{"date": "2026-10-12 00:00:00Z"}"#, #"{"date": "2026-10-12T00:00:00.1234Z"}"#,
+      #"{"date": 1791763200000}"#, #""2026-10-12T00:00:00Z""#, "{}", "true", "null",
+    ] {
+      #expect(read(date, other) == nil, "\(other)")
     }
   }
 
