@@ -1,7 +1,7 @@
 import type { Schema } from "effect";
 import { applyMutations, readHead, readMeta } from "../store/ChangeLog.ts";
-import type { Mutation } from "../store/Changes.ts";
-import { type Entity, fromColumnValue } from "../store/Entities.ts";
+import { InvalidMutation, type Mutation } from "../store/Changes.ts";
+import { comparedToKey, type Entity, fromColumnValue, keyList } from "../store/Entities.ts";
 import type { SqlValue, StoreSql } from "../store/StoreSql.ts";
 import { keptValue, metadataFields } from "./HealthMetadata.ts";
 
@@ -21,8 +21,11 @@ export const metadataPolicyVersion = 1;
 /** Records looked at per alarm, in one transaction. */
 export const metadataCleanupChunk = 5_000;
 
-/** The time between cleanup alarms, so a large store's cleanup doesn't monopolize it. */
-export const metadataCleanupInterval = 1_000;
+/**
+ * The time between cleanup alarms, so a large store's cleanup doesn't monopolize it, or keep its
+ * Macs pulling every second: as retiring a device does (`retireStepInterval`).
+ */
+export const metadataCleanupInterval = 5_000;
 
 const policyKey = "metadata_policy";
 const cursorKey = "metadata_cleanup";
@@ -32,6 +35,8 @@ interface Cursor {
   readonly entity: string;
   readonly after: ReadonlyArray<SqlValue> | null;
   readonly changed: number;
+  /** Records a check refused (`applyCleaned`), kept as they were. Missing from early cursors. */
+  readonly skipped?: number;
 }
 
 /** Whether the store's records still need cleaning for `metadataPolicyVersion`. */
@@ -61,14 +66,38 @@ const readCursor = (sql: StoreSql): Cursor | null => {
   return typeof value === "string" ? (JSON.parse(value) as Cursor) : null;
 };
 
-const quoted = (column: string) => `"${column}"`;
+/**
+ * Applies the cleanup's upserts, leaving out any a check refuses (a check made stricter since the
+ * record was written: `Entity.checkRow`), so one such record can't hold the pass up. Returns the
+ * changes appended and the records left out.
+ */
+const applyCleaned = (
+  sql: StoreSql,
+  entities: ReadonlyMap<string, Entity>,
+  mutations: ReadonlyArray<Mutation>,
+  at: number,
+) => {
+  let left = mutations;
+  let skipped = 0;
+  while (left.length > 0) {
+    try {
+      return { appended: applyMutations(sql, entities, left, at).appended, skipped };
+    } catch (error) {
+      if (!(error instanceof InvalidMutation)) throw error;
+      left = left.filter((_, index) => index !== error.index);
+      skipped += 1;
+    }
+  }
+  return { appended: 0, skipped };
+};
 
 /**
  * Looks at up to `limit` records from where the last step stopped, rewrites those holding a
  * metadata key or device property lil health doesn't keep, and moves the cursor on, in one
- * transaction. Tombstoned records are left alone, since an upsert would bring them back. Once
- * every record is done, marks the store clean. Returns what it did: records looked at and
- * changed, and whether it's finished, with the whole pass's count of changes.
+ * transaction. Tombstoned records are left alone, since an upsert would bring them back, and so
+ * is one a check refuses (`applyCleaned`). Once every record is done, marks the store clean.
+ * Returns what it did: records looked at, changed and left out, and whether it's finished, with
+ * the whole pass's counts.
  */
 export const metadataCleanupStep = (
   sql: StoreSql,
@@ -87,21 +116,25 @@ export const metadataCleanupStep = (
     let after = cursor === null || targets[index]?.name !== cursor.entity ? null : cursor.after;
     let looked = 0;
     let changed = 0;
+    let skipped = 0;
     while (index < targets.length && looked < limit) {
       const entity = targets[index]!;
       const fields = metadataFields(entity);
-      const keyColumns = entity.keyColumns.map(quoted).join(", ");
       const wanted = limit - looked;
+      const from = comparedToKey(entity, ">", after);
+      // Only entities with key fields have tombstones (`src/store/Tombstones.ts`).
+      const live =
+        entity.key.length > 0
+          ? "AND NOT EXISTS (SELECT 1 FROM tombstones WHERE entity = ? AND tombstones.id = record.id)"
+          : "";
       const rows = sql.rows(
-        `SELECT ${[...entity.keyColumns, ...fields.map(({ column }) => column)].map(quoted).join(", ")}
+        `SELECT ${keyList(entity)}, ${fields.map(({ column }) => `"${column}"`).join(", ")}
           FROM "${entity.name}" AS record
-          WHERE ${after === null ? "1" : `(${keyColumns}) > (${entity.keyColumns.map(() => "?").join(", ")})`}
-            AND NOT EXISTS (
-              SELECT 1 FROM tombstones WHERE entity = ? AND tombstones.id = record.id)
-          ORDER BY ${keyColumns}
+          WHERE ${from.where} ${live}
+          ORDER BY ${keyList(entity)}
           LIMIT ?`,
-        ...(after ?? []),
-        entity.name,
+        ...from.bindings,
+        ...(live === "" ? [] : [entity.name]),
         wanted,
       );
       looked += rows.length;
@@ -124,7 +157,9 @@ export const metadataCleanupStep = (
         mutations.push({ entity: entity.name, op: "upsert", id, row: set });
       }
       if (mutations.length > 0) {
-        changed += applyMutations(sql, entitiesByName, mutations, at).appended;
+        const applied = applyCleaned(sql, entitiesByName, mutations, at);
+        changed += applied.appended;
+        skipped += applied.skipped;
       }
       if (rows.length < wanted) {
         index += 1;
@@ -134,11 +169,17 @@ export const metadataCleanupStep = (
       }
     }
     const total = (cursor?.changed ?? 0) + changed;
+    const totalSkipped = (cursor?.skipped ?? 0) + skipped;
     const finished = index >= targets.length;
     if (finished) {
       markMetadataClean(sql);
     } else {
-      const next: Cursor = { entity: targets[index]!.name, after, changed: total };
+      const next: Cursor = {
+        entity: targets[index]!.name,
+        after,
+        changed: total,
+        skipped: totalSkipped,
+      };
       sql.exec(
         `INSERT INTO meta (key, value) VALUES (?, ?)
           ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
@@ -146,5 +187,5 @@ export const metadataCleanupStep = (
         JSON.stringify(next),
       );
     }
-    return { looked, changed, finished, total };
+    return { looked, changed, skipped, finished, total, totalSkipped };
   });

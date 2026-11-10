@@ -89,6 +89,10 @@ describe("keeping metadata (851-4152)", () => {
       HKWasUserEntered: true,
     });
     assert.isNull(keptMetadata({ HKExternalUUID: "x" }));
+    // Clean metadata stays as it is, empty included, so it isn't rewritten.
+    const clean = { HKTimeZone: "Europe/Bucharest" };
+    assert.strictEqual(keptMetadata(clean), clean);
+    assert.deepStrictEqual(keptMetadata({}), {});
     assert.isNull(keptMetadata(null));
     assert.deepStrictEqual(keptDevice(oldDevice), {
       name: "Blood Pressure Monitor",
@@ -181,7 +185,7 @@ describe("cleaning stored records (851-4152)", () => {
         // In the registry's order: the provenance record, which changes, then samples 1 and 2,
         // of which 1 changes (2 is clean already).
         let step = metadataCleanupStep(sql, entities, 10, 3);
-        assert.deepStrictEqual(step, { looked: 3, changed: 2, finished: false, total: 2 });
+        assert.deepInclude(step, { looked: 3, changed: 2, finished: false, total: 2 });
         while (!step.finished) step = metadataCleanupStep(sql, entities, 11, 3);
         // Samples 3 and 4 and the workout too. Sample 5's row, deleted, is left alone: an upsert
         // would bring it back.
@@ -246,8 +250,30 @@ describe("cleaning stored records (851-4152)", () => {
         // Going through again changes nothing.
         beforeCleanup(sql);
         step = metadataCleanupStep(sql, entities, 13);
-        assert.deepStrictEqual(step, { looked: 6, changed: 0, finished: true, total: 0 });
+        assert.deepInclude(step, { looked: 6, changed: 0, finished: true, total: 0 });
       }),
+  );
+
+  it.effect("leaves out a record a check made stricter since refuses, and carries on", () =>
+    Effect.gen(function* () {
+      const { sql, store } = makeTestStore();
+      yield* store.applyMutations([workout(1), sample(2, {}), sample(3)]);
+      // As if it had been stored before its entity's check refused it.
+      sql.exec("UPDATE health_workout SET activities = '{}'");
+      beforeCleanup(sql);
+
+      const step = metadataCleanupStep(sql, entities, 10);
+      assert.deepInclude(step, { finished: true, total: 1, totalSkipped: 1 });
+      // Sample 3 is cleaned; sample 2's empty metadata isn't rewritten; the workout stays.
+      assert.deepStrictEqual(sql.exec("SELECT id, metadata FROM health_sample ORDER BY id"), [
+        { id: uuid(2), metadata: "{}" },
+        { id: uuid(3), metadata: '{"HKTimeZone":"Europe/Bucharest","HKWasUserEntered":true}' },
+      ]);
+      assert.include(
+        sql.exec("SELECT metadata FROM health_workout")[0]?.["metadata"] as string,
+        "Custom",
+      );
+    }),
   );
 
   it.effect("runs from the alarm, which a store starting with records to clean sets", () =>

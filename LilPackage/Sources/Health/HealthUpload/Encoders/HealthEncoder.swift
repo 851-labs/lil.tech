@@ -181,13 +181,16 @@ public enum HealthEncoder {
     let revision = sample.sourceRevision
     let os = revision.operatingSystemVersion
     let device = sample.device.map { device -> JSONValue in
-      // Not `localIdentifier` or `udiDeviceIdentifier`, which identify one device.
+      // Every property, then only those kept: not `localIdentifier` or `udiDeviceIdentifier`,
+      // which identify one device.
       .object(
         [
           "name": device.name, "manufacturer": device.manufacturer, "model": device.model,
           "hardwareVersion": device.hardwareVersion, "firmwareVersion": device.firmwareVersion,
-          "softwareVersion": device.softwareVersion,
+          "softwareVersion": device.softwareVersion, "localIdentifier": device.localIdentifier,
+          "udiDeviceIdentifier": device.udiDeviceIdentifier,
         ]
+        .filter { HealthCatalog.keptDeviceProperties.contains($0.key) }
         .compactMapValues { $0.map(JSONValue.string) })
     }
     return [

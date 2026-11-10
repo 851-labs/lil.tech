@@ -8,12 +8,15 @@ import { keptDeviceProperties, keptMetadataKeys } from "./HealthCatalog.ts";
 // the server drops the rest from what older iPhones upload (`HealthIngestion`) and from the
 // records it stored before (`MetadataCleanup`).
 
-/** Metadata with only the keys lil health keeps, or null if none are left. */
+/**
+ * Metadata with only the keys lil health keeps, or null if none are left. Metadata that has no
+ * other key is returned as it is (`{}` included), so a record that's clean isn't rewritten.
+ */
 export const keptMetadata = (metadata: Schema.Json): Schema.Json => {
   if (!Predicate.isObject(metadata)) return metadata;
-  const kept = Object.entries(metadata as Record<string, Schema.Json>).filter(([key]) =>
-    keptMetadataKeys.has(key),
-  );
+  const entries = Object.entries(metadata as Record<string, Schema.Json>);
+  const kept = entries.filter(([key]) => keptMetadataKeys.has(key));
+  if (kept.length === entries.length) return metadata;
   return kept.length === 0 ? null : Object.fromEntries(kept);
 };
 

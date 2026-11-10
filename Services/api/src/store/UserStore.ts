@@ -637,7 +637,8 @@ export const makeUserStore = (
           if (step.finished) {
             cleaningMetadata = false;
             yield* Effect.logInfo(
-              `Dropped metadata lil health doesn't keep: ${step.total} records changed`,
+              `Dropped metadata lil health doesn't keep: ${step.total} records changed, ` +
+                `${step.totalSkipped} refused by their checks and left as they were`,
             );
           }
         }
