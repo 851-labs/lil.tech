@@ -228,18 +228,22 @@ public struct HealthTools: Sendable {
     return HealthWorkoutsResult(
       timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
       end: time.localTime(period.end), count: totals.count, duration: totals.duration,
-      workouts: workouts.map { Self.workoutItem($0, withRoutes: withRoutes, time: time) })
+      workouts: workouts.map { Self.readWorkout($0, withRoutes: withRoutes, time: time).item })
   }
 
-  /// What `workouts` says of a workout.
-  private static func workoutItem(
+  /// What `workouts` says of a workout, with the statistics, metadata and activities it read,
+  /// which `workout` adds to.
+  private static func readWorkout(
     _ workout: HealthWorkout, withRoutes: Set<String>, time: ToolTime
-  ) -> HealthWorkoutItem {
+  ) -> (
+    item: HealthWorkoutItem, statistics: [String: WorkoutStatistic], metadata: WorkoutMetadata,
+    activities: [WorkoutActivityRecord]
+  ) {
     let statistics = workout.decodedStatistics
     let metadata = workout.decodedMetadata
     let activities = workout.decodedActivities
     let location = HealthWorkout.location(metadata: metadata, activities: activities)
-    return HealthWorkoutItem(
+    let item = HealthWorkoutItem(
       id: workout.id, activityType: workout.activityType,
       activity: HealthCatalog.workoutActivityName(workout.activityType),
       name: metadata.name,
@@ -265,6 +269,7 @@ public struct HealthTools: Sendable {
             duration: activity.duration, indoor: activity.indoor,
             swimmingLocation: activity.swimmingLocation)
         })
+    return (item, statistics, metadata, activities)
   }
 
   // MARK: - workout
@@ -281,22 +286,16 @@ public struct HealthTools: Sendable {
     guard let workout = try HealthWorkout.where({ $0.id.eq(id) }).fetchOne(db) else {
       throw HealthToolError("No workout with ID \(id). workouts lists them, with their IDs.")
     }
-    let item = Self.workoutItem(
+    let (item, statistics, metadata, activities) = Self.readWorkout(
       workout, withRoutes: try HealthDatabase.workoutsWithRoutes([workout], db), time: time)
-    let metadata = workout.decodedMetadata
-    let activities = workout.decodedActivities
     let events = workout.decodedEventRecords
     let pauses = HealthWorkout.pauses(events.map(\.event), end: workout.endDate)
     func local(_ milliseconds: Int) -> String {
       time.localTime(Date(unixMilliseconds: milliseconds))
     }
     func intervals(_ type: Int) -> [HealthWorkoutInterval] {
-      events.enumerated()
-        .filter { $0.element.event.type == type }
-        .sorted {
-          ($0.element.event.startDate, $0.offset) < ($1.element.event.startDate, $1.offset)
-        }
-        .map { _, record in
+      HealthWorkout.stableSorted(events.filter { $0.event.type == type }, by: \.event.startDate)
+        .map { record in
           HealthWorkoutInterval(
             start: local(record.event.startDate), end: local(record.event.endDate),
             duration: Double(record.event.endDate - record.event.startDate) / 1000,
@@ -322,7 +321,7 @@ public struct HealthTools: Sendable {
         weatherCondition: metadata.weatherCondition,
         weatherTemperature: metadata.weatherTemperature,
         weatherHumidity: metadata.weatherHumidity,
-        statistics: Self.statisticsList(workout.decodedStatistics),
+        statistics: Self.statisticsList(statistics),
         pauseCount: pauses.count,
         pauses: pauses.prefix(limit).map {
           HealthWorkoutPause(

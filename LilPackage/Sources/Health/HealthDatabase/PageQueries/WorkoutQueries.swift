@@ -22,9 +22,9 @@ public struct WorkoutStatistic: Codable, Equatable, Sendable {
     self.mostRecent = mostRecent
   }
 
-  /// Statistics by type ID from JSON as `JSONSerialization` reads it, as `decodedStatistics`
-  /// decodes them: each an object with a `unit`, its values numbers, null or missing. Nil if
-  /// one isn't.
+  /// Statistics by type ID from JSON as `JSONSerialization` reads it, a workout's or an
+  /// activity's: each an object with a `unit`, its values numbers, null or missing, as the
+  /// server's `StatisticsByType` reads them. Nil if one isn't.
   static func statistics(_ value: Any?) -> [String: WorkoutStatistic]? {
     guard let object = value as? [String: Any] else { return nil }
     var statistics: [String: WorkoutStatistic] = [:]
@@ -76,8 +76,9 @@ public struct WorkoutEvent: Codable, Equatable, Sendable {
 
 extension HealthWorkout {
   /// Statistics by type ID, e.g. `HKQuantityTypeIdentifierActiveEnergyBurned`.
+  /// Read all or nothing, as an activity's are (`WorkoutStatistic.statistics(_:)`).
   public var decodedStatistics: [String: WorkoutStatistic] {
-    (try? JSONDecoder().decode([String: WorkoutStatistic].self, from: Data(statistics.utf8)))
+    WorkoutStatistic.statistics(try? JSONSerialization.jsonObject(with: Data(statistics.utf8)))
       ?? [:]
   }
 
@@ -99,7 +100,7 @@ extension HealthWorkout {
   public static func pauses(_ events: [WorkoutEvent], end: Int) -> [(start: Int, end: Int)] {
     var pauses: [(start: Int, end: Int)] = []
     var pausedAt: Int?
-    for event in stableSorted(events) {
+    for event in stableSorted(events, by: \.startDate) {
       switch event.type {
       case WorkoutEvent.pause, WorkoutEvent.motionPaused:
         pausedAt = pausedAt ?? event.startDate
@@ -116,10 +117,13 @@ extension HealthWorkout {
     return pauses
   }
 
-  /// Events by when they start, ties in the order given.
-  public static func stableSorted(_ events: [WorkoutEvent]) -> [WorkoutEvent] {
+  /// Events (or what holds them) by when they start, ties in the order given, as the server's
+  /// `toSorted` has them.
+  public static func stableSorted<Element>(_ events: [Element], by start: (Element) -> Int)
+    -> [Element]
+  {
     events.enumerated()
-      .sorted { ($0.element.startDate, $0.offset) < ($1.element.startDate, $1.offset) }
+      .sorted { (start($0.element), $0.offset) < (start($1.element), $1.offset) }
       .map(\.element)
   }
 

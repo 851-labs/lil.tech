@@ -63,8 +63,11 @@ import Testing
            "sum": null, "average": 131.5, "minimum": 104, "maximum": 152, "mostRecent": 140},
           {"type": "HKQuantityTypeIdentifierSwimmingStrokeCount", "name": "Swimming Strokes",
            "unit": "count", "sum": 96, "average": null, "minimum": null, "maximum": null,
-           "mostRecent": null}],
-        "pauseCount": 1,
+           "mostRecent": null},
+          {"type": "HKQuantityTypeIdentifierWaterTemperature", "name": "Water Temperature",
+           "unit": "degC", "sum": null, "average": null, "minimum": null, "maximum": null,
+           "mostRecent": 27.5}],
+        "pauseCount": 2,
         "pauses": [{"start": "2026-09-04T06:59:40+00:00", "end": "2026-09-04T07:00:00+00:00",
           "duration": 20}],
         "lapCount": 3,
@@ -83,16 +86,18 @@ import Testing
         2026-09-04 06:30   Swimming   indoor, pool   29m (UTC)
         From Synthetic Watch
 
-          Heart Rate         avg. 131.5 count/min · min. 104 count/min · max. 152 count/min
-          Swimming Strokes   96
+          Heart Rate          avg. 131.5 count/min · min. 104 count/min · max. 152 count/min
+          Swimming Strokes    96
+          Water Temperature   last 27.5 degC
 
           Avg. METs   7.5
           Pool        22.86 m
           SWOLF       45
           Weather     clear, 27 °C, 45.5% humidity
 
-        Pauses: 1
+        Pauses: 2
           2026-09-04 06:59   20s
+          … and 1 more
 
         Laps: 3
           2026-09-04 06:30   30s   freestyle   SWOLF 41

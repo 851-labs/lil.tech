@@ -155,6 +155,9 @@ extension HealthWorkoutResult: TextOutput {
     if !workout.pauses.isEmpty {
       lines += ["", "Pauses: \(workout.pauseCount)"]
       lines += workout.pauses.map { "  \(time($0.start))   \(durationText($0.duration))" }
+      if workout.pauses.count < workout.pauseCount {
+        lines.append("  … and \(workout.pauseCount - workout.pauses.count) more")
+      }
     }
     lines += intervalLines("Laps", workout.laps, count: workout.lapCount)
     lines += intervalLines("Segments", workout.segments, count: workout.segmentCount)
@@ -184,7 +187,11 @@ private func statisticsLines(_ statistics: [HealthWorkoutStatistic], indent: Str
         statistic.maximum.map { "max. " + quantity($0, statistic.unit) },
       ]
       .compactMap(\.self)
-      return indent + row(name, width, values.isEmpty ? "–" : values.joined(separator: " · "))
+      // A statistic with only its last reading shows that.
+      let shown =
+        values.isEmpty
+        ? statistic.mostRecent.map { ["last " + quantity($0, statistic.unit)] } ?? [] : values
+      return indent + row(name, width, shown.isEmpty ? "–" : shown.joined(separator: " · "))
     }
 }
 
