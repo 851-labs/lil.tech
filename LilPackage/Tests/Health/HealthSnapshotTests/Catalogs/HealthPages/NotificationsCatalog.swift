@@ -123,13 +123,17 @@
   private let noise = [
     notification(
       .noise, daysAgo: 1, hour: 21, minutes: 4,
-      metadata: #"{"HKAudioExposureLevel":"96.2 dBASPL","HKAudioExposureDuration":"240 s"}"#),
+      metadata:
+        #"{"HKMetadataKeyAudioExposureLevel":"96.2 dBASPL","HKMetadataKeyAudioExposureDuration":"240 s"}"#
+    ),
     notification(
       .noise, daysAgo: 5, hour: 13, minutes: 3,
-      metadata: #"{"HKAudioExposureLevel":"91.8 dBASPL","HKAudioExposureDuration":"180 s"}"#),
+      metadata:
+        #"{"HKMetadataKeyAudioExposureLevel":"91.8 dBASPL","HKMetadataKeyAudioExposureDuration":"180 s"}"#
+    ),
     notification(
       .noise, daysAgo: 33, hour: 19, minutes: 1,
-      metadata: #"{"HKAudioExposureLevel":"100 dBASPL"}"#),
+      metadata: #"{"HKMetadataKeyAudioExposureLevel":"100 dBASPL"}"#),
   ]
 
   /// One with what it measured, one without any metadata, and one with only another app's key.
