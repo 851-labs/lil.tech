@@ -277,7 +277,7 @@ struct HeldBackTests {
     try await backfill.run()
     // Read by an earlier release.
     var state = try #require(try storage.loadState())
-    state.quantitySeriesEncodings = [:]
+    state.dependentsEncodings = [:]
     try storage.saveState(state)
 
     server.failsWith.setValue(["series:b"])
@@ -293,7 +293,7 @@ struct HeldBackTests {
     state = try #require(try storage.loadState())
     #expect(state.heldBack == [:])
     #expect(state.uploadedRecords == 2)
-    #expect(state.quantitySeriesEncodings[temperature.id] == HealthEncoder.quantitySeriesEncoding)
+    #expect(state.dependentsEncodings[temperature.id] == HealthEncoder.quantitySeriesEncoding)
   }
 
   /// A record held back isn't let go by its series going up alone when series are read again.
@@ -307,7 +307,7 @@ struct HeldBackTests {
     try await makeBackfill(health: health, server: server, storage: storage).run()
     var state = try #require(try storage.loadState())
     #expect(state.heldBack[temperature.id]?.records["huge"]?.reason == .tooLarge)
-    state.quantitySeriesEncodings = [:]
+    state.dependentsEncodings = [:]
     try storage.saveState(state)
 
     try await makeBackfill(health: health, server: server, storage: storage).run()

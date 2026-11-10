@@ -513,6 +513,9 @@ export const HealthElectrocardiogram = defineEntity("health_electrocardiogram", 
 // of `health_workout` and `health_electrocardiogram`, which a Mac only gets for records it already
 // has by bootstrapping again; a new entity is caught up by itself (851-3222).
 
+/** The most linked samples the iPhone uploads by ID (`HealthEncoder.maxLinkedSamples`). */
+const maxLinkedSamples = 20_000;
+
 /** Lowercased `HKObject.uuid`s, in order. */
 const isUUIDs = (value: unknown): value is ReadonlyArray<string> =>
   Array.isArray(value) && value.every((id) => typeof id === "string" && healthKitUUID.test(id));
@@ -523,7 +526,12 @@ const checkLinkedSamples = (row: Record<string, unknown>): string | undefined =>
   if (!Number.isInteger(count) || (count as number) < 0) {
     return "count must be a non-negative integer";
   }
-  if (samples === null) return undefined;
+  // Only too many to list (`HealthEncoder.maxLinkedSamples`), not unread.
+  if (samples === null) {
+    return (count as number) > maxLinkedSamples
+      ? undefined
+      : `samples can only be null for more than ${maxLinkedSamples}`;
+  }
   if (typeof samples !== "object" || Array.isArray(samples)) {
     return "samples must be an object of types' sample IDs, or null";
   }

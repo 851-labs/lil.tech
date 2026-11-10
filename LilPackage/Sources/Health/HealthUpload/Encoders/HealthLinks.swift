@@ -33,10 +33,15 @@ public struct LinkedSamples: Equatable, Sendable {
     self.init(
       id: id,
       samples: samples.mapValues { samples in
-        samples.sorted {
-          ($0.startDate, $0.uuid.uuidString) < ($1.startDate, $1.uuid.uuidString)
-        }.map(\.uuid)
+        Self.ordered(samples)
       })
+  }
+
+  /// Samples' IDs in the order links keep them: by start, then ID.
+  static func ordered(_ samples: [HKSample]) -> [UUID] {
+    samples.sorted {
+      ($0.startDate, $0.uuid.uuidString) < ($1.startDate, $1.uuid.uuidString)
+    }.map(\.uuid)
   }
 }
 
@@ -90,17 +95,12 @@ public struct WorkoutEffortRecord: Equatable, Sendable {
       byWorkout[relationship.workout.uuid, default: (relationship.workout, [])]
         .relationships.append(relationship)
     }
-    func ordered(_ samples: [HKSample]) -> [UUID] {
-      samples.sorted {
-        ($0.startDate, $0.uuid.uuidString) < ($1.startDate, $1.uuid.uuidString)
-      }.map(\.uuid)
-    }
     return byWorkout.values.map { workout, relationships in
       var record = WorkoutEffortRecord(
         workout: workout.uuid, samples: [], mostRelevant: nil, activities: [])
       var activities: [(start: Date, activity: Activity)] = []
       for relationship in relationships {
-        let samples = ordered(relationship.samples ?? [])
+        let samples = LinkedSamples.ordered(relationship.samples ?? [])
         let mostRelevant = relevant[key(relationship)] ?? nil
         if let activity = relationship.activity {
           activities.append(
@@ -133,7 +133,7 @@ extension HealthEncoder {
   public static let maxLinkedSamples = 20_000
 
   /// How the iPhone reads a workout's and an ECG's links (`HealthBackfillState`'s
-  /// `quantitySeriesEncodings`, which keeps every type's dependent records' encoding).
+  /// `dependentsEncodings`, which keeps every type's dependent records' encoding).
   /// 1: they go up (851-4153).
   public static let linksEncoding = 1
 
@@ -235,6 +235,8 @@ extension HealthReader {
     } catch {
       let mapped = Locked.mapped(error)
       if mapped is Locked || mapped is CancellationError || Task.isCancelled { throw mapped }
+      // What failed, which `SeriesUnavailable` doesn't say.
+      BackfillLog.write("a query of linked samples failed: \(error)")
       throw SeriesUnavailable(expected: 0, read: 0)
     }
   }

@@ -2,6 +2,7 @@ import CryptoKit
 public import Dependencies
 public import Foundation
 import HealthCatalog
+import HealthKit
 import HealthKitAccess
 import IssueReporting
 import LilAPI
@@ -59,10 +60,13 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
   /// `dependentsEncoding`) they were read with: quantity types' series (851-4149), workouts'
   /// samples and ECGs' symptoms (851-4153). Missing for types read before it was kept. A type
   /// read with an older one has those read again, once (`HealthBackfill.readSeriesAgain`).
-  public var quantitySeriesEncodings: [String: Int] = [:]
+  public var dependentsEncodings: [String: Int] = [:]
   /// How far each type's series (or links) have been read again: the anchor of a query of them
   /// alone.
-  public var seriesAgainAnchors: [String: Data] = [:]
+  public var dependentsAgainAnchors: [String: Data] = [:]
+  /// When every workout's effort scores last went up, changed or not (851-4153), so a batch of
+  /// them the server failed or refused, which nothing checks, goes up again within a week.
+  public var effortsResentAt: Date?
   /// Each type's records that didn't go up (851-4151): Sync Status counts them, and runs of
   /// everything try them again.
   public var heldBack: [String: HeldBack] = [:]
@@ -70,6 +74,18 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
   public var uploaded: [UploadedPage] = []
 
   public init() {}
+
+  /// As each property is named, but for those renamed since (851-4153), which keep the names
+  /// they're saved under.
+  enum CodingKeys: String, CodingKey {
+    case anchors, finished, empty, pending, uploadedRecords, statisticsFrom, statisticsUploadedAt
+    case uploadedByType, lastUploadAt, characteristicsHash, characteristicIDs
+    case visionPrescriptionsHash, visionPrescriptionIDs, documentIDs, medicationsHash
+    case medicationIDs, activitySummariesUploadedAt, seriesFailures, workoutEncoding
+    case dependentsEncodings = "quantitySeriesEncodings"
+    case dependentsAgainAnchors = "seriesAgainAnchors"
+    case effortsResentAt, heldBack, uploaded
+  }
 
   /// Fields added later may be missing from saved state.
   public init(from decoder: any Decoder) throws {
@@ -102,10 +118,11 @@ public struct HealthBackfillState: Codable, Equatable, Sendable {
     seriesFailures =
       try container.decodeIfPresent([String: Int].self, forKey: .seriesFailures) ?? [:]
     workoutEncoding = try container.decodeIfPresent(Int.self, forKey: .workoutEncoding) ?? 0
-    quantitySeriesEncodings =
-      try container.decodeIfPresent([String: Int].self, forKey: .quantitySeriesEncodings) ?? [:]
-    seriesAgainAnchors =
-      try container.decodeIfPresent([String: Data].self, forKey: .seriesAgainAnchors) ?? [:]
+    dependentsEncodings =
+      try container.decodeIfPresent([String: Int].self, forKey: .dependentsEncodings) ?? [:]
+    dependentsAgainAnchors =
+      try container.decodeIfPresent([String: Data].self, forKey: .dependentsAgainAnchors) ?? [:]
+    effortsResentAt = try container.decodeIfPresent(Date.self, forKey: .effortsResentAt)
     heldBack = try container.decodeIfPresent([String: HeldBack].self, forKey: .heldBack) ?? [:]
     uploaded = try container.decodeIfPresent([UploadedPage].self, forKey: .uploaded) ?? []
   }
@@ -465,6 +482,7 @@ public actor HealthBackfill {
     state.activitySummariesUploadedAt = nil
     // Every workout's effort scores go up again too, should a batch of them have failed.
     try? storage.removeFile(Self.workoutEffortsFile)
+    state.effortsResentAt = nil
     // Read again with the rest: those that still don't go up are held back again, and pages
     // read before mustn't move an anchor back after the new pass has started.
     state.heldBack = [:]
@@ -541,9 +559,10 @@ public actor HealthBackfill {
     var unreached: Set<String> = []
     /// Whether a run of everything still has the characteristics and summaries to read.
     var extrasDue = false
-    /// Whether workouts' effort scores are read (851-4153): in a run of everything, or for
-    /// changes to workouts or effort scores.
+    /// Whether workouts' effort scores are read (851-4153), and whether all of them: recent ones
+    /// for changes to workouts or effort scores, all in a run of everything.
     var effortsDue = false
+    var allEffortsDue = false
     do {
       guard var state = try loadState(startingBackfill: syncAllRequested) else {
         // No backfill yet (or signed out): changes wait for one.
@@ -571,6 +590,7 @@ public actor HealthBackfill {
             extrasDue = true
             medicationsDue = true
             heldBackDue = true
+            allEffortsDue = true
             wanted = Set(types.map(\.id))
           } else {
             wanted = requestedTypes
@@ -616,9 +636,11 @@ public actor HealthBackfill {
           }
         }
         // After the workouts they link to.
-        if effortsDue {
+        if effortsDue || allEffortsDue {
+          try await uploadEfforts(all: allEffortsDue, &state)
+          // Only once they're up: a run that ends first asks for them again.
           effortsDue = false
-          try await uploadEfforts(&state)
+          allEffortsDue = false
         }
         // Sums for every type that has some due, including ones from a resumed page.
         try await uploadAllStatistics(&state, skipping: Set(failures.keys))
@@ -635,6 +657,11 @@ public actor HealthBackfill {
       let rateLimit = error as? HealthBatchUploader.RateLimited
       let paused = cancelled || error is HealthReader.Locked || rateLimit != nil
       requestedTypes.formUnion(unreached.union(failures.keys))
+      // Effort scores not read yet are read with the types' changes (a run of everything carries
+      // on as one, below).
+      if effortsDue || allEffortsDue {
+        requestedTypes.formUnion(Self.effortTypes.intersection(types.map(\.id)))
+      }
       if error is HealthBatchUploader.StorageFull { storageFullAt = now() }
       if let rateLimit {
         rateLimitedUntil = now().addingTimeInterval(rateLimit.retryAfter)
@@ -1156,38 +1183,66 @@ public actor HealthBackfill {
   /// The types whose changes may change workouts' effort scores (851-4153): workouts, and the
   /// scores, which are samples of their own.
   static let effortTypes: Set<String> = [
-    "HKWorkoutTypeIdentifier", "HKQuantityTypeIdentifierWorkoutEffortScore",
-    "HKQuantityTypeIdentifierEstimatedWorkoutEffortScore",
+    HKObjectType.workoutType().identifier, HKQuantityTypeIdentifier.workoutEffortScore.rawValue,
+    HKQuantityTypeIdentifier.estimatedWorkoutEffortScore.rawValue,
   ]
+
+  /// How far back a run for changes reads workouts' effort scores: a person rates a workout's
+  /// effort, and the Watch estimates it, soon after it ends.
+  static let recentEffortsWindow: TimeInterval = 7 * 86_400
+
+  /// How often every workout's effort scores go up again, changed or not.
+  static let effortsResendInterval: TimeInterval = 7 * 86_400
 
   /// Each workout's effort scores uploaded, by workout: a hash of its record, so only those that
   /// changed go up again, and one whose scores are gone is deleted. A file rather than part of
   /// the state, which is saved after every step, since there may be thousands.
   static let workoutEffortsFile = "workout-efforts.json"
 
-  /// Uploads the workouts' effort scores that changed since they last went up, and deletes those
-  /// of workouts left without any (851-4153). They're read whole (`HealthWorkoutEffortsReader`):
-  /// HealthKit's anchor misses a score unrelated or deleted. A workout deleted from Health takes
-  /// its scores with it on the server (`deletedWith`). Failing, it's tried again next time.
-  private func uploadEfforts(_ state: inout HealthBackfillState) async throws {
+  /// Uploads the workouts' effort scores that changed since they last went up (851-4153), read
+  /// from HealthKit (`HealthWorkoutEffortsReader`), whose anchor misses a score unrelated or
+  /// deleted:
+  /// - `all`, in a run of everything: every workout's, deleting the record of one left without
+  ///   any, and once a week (`effortsResendInterval`) sending every one again, since a batch of
+  ///   them the server failed or refused isn't checked.
+  /// - Otherwise, for changes to workouts or scores: those of the last week's workouts
+  ///   (`recentEffortsWindow`), so a long history isn't read every time; one whose scores are gone
+  ///   waits for a run of everything to be deleted.
+  ///
+  /// A workout deleted from Health takes its scores with it on the server (`deletedWith`).
+  /// Failing, it's tried again next time.
+  private func uploadEfforts(all: Bool, _ state: inout HealthBackfillState) async throws {
     do {
-      let records = try await effortsReader.read()
+      let records = try await effortsReader.read(
+        all ? nil : now().addingTimeInterval(-Self.recentEffortsWindow))
       var uploaded =
         try storage.loadFile(Self.workoutEffortsFile).map {
           try JSONDecoder().decode([String: String].self, from: $0)
         } ?? [:]
       var read: [String: String] = [:]
       for record in records { read[record.id] = try Self.hash([record]) }
-      let changed = records.filter { uploaded[$0.id] != read[$0.id] }
-      let removed = Set(uploaded.keys).subtracting(read.keys).sorted()
-      guard !changed.isEmpty || !removed.isEmpty else { return }
-      try await uploadMutations(
-        changed + removed.map { HealthMutation.delete(HealthEncoder.workoutEffortEntity, id: $0) })
-      uploaded = read
-      try storage.saveFile(Self.workoutEffortsFile, try JSONEncoder().encode(uploaded))
-      BackfillLog.write(
-        "uploaded \(changed.count) workouts' effort scores, deleted \(removed.count)")
-      state.lastUploadAt = now()
+      let resend =
+        all
+        && state.effortsResentAt.map {
+          now().timeIntervalSince($0) >= Self.effortsResendInterval
+        } ?? true
+      let changed = resend ? records : records.filter { uploaded[$0.id] != read[$0.id] }
+      let removed = all ? Set(uploaded.keys).subtracting(read.keys).sorted() : []
+      if !changed.isEmpty || !removed.isEmpty {
+        try await uploadMutations(
+          changed + removed.map { HealthMutation.delete(HealthEncoder.workoutEffortEntity, id: $0) }
+        )
+        if all {
+          uploaded = read
+        } else {
+          uploaded.merge(read) { $1 }
+        }
+        try storage.saveFile(Self.workoutEffortsFile, try JSONEncoder().encode(uploaded))
+        BackfillLog.write(
+          "uploaded \(changed.count) workouts' effort scores, deleted \(removed.count)")
+        state.lastUploadAt = now()
+      }
+      if resend { state.effortsResentAt = now() }
       try storage.saveState(state)
       updateCounts(state)
     } catch {
@@ -1358,14 +1413,14 @@ public actor HealthBackfill {
     of type: HealthBackfillType, _ state: inout HealthBackfillState
   ) {
     guard let encoding = type.dependentsEncoding, state.anchors[type.id] == nil,
-      state.quantitySeriesEncodings[type.id] != encoding
+      state.dependentsEncodings[type.id] != encoding
     else { return }
-    state.quantitySeriesEncodings[type.id] = encoding
-    state.seriesAgainAnchors[type.id] = nil
+    state.dependentsEncodings[type.id] = encoding
+    state.dependentsAgainAnchors[type.id] = nil
   }
 
   /// Reads a quantity type's series again (samples with `count` over 1), if its samples were read
-  /// with an older encoding (`HealthBackfillState.quantitySeriesEncodings`), so the series
+  /// with an older encoding (`HealthBackfillState.dependentsEncodings`), so the series
   /// uploaded before their values were go up with them (851-4149). Only the series, through an
   /// anchored query of their count, and only their values' records: their samples haven't
   /// changed. In runs of everything, once the type has caught up from its anchor, a page at a
@@ -1377,10 +1432,10 @@ public actor HealthBackfill {
     _ type: HealthBackfillType, _ state: inout HealthBackfillState
   ) async throws {
     guard let encoding = type.dependentsEncoding,
-      state.quantitySeriesEncodings[type.id, default: 0] < encoding
+      state.dependentsEncodings[type.id, default: 0] < encoding
     else { return }
     if let anchor = state.anchors[type.id] {
-      if state.seriesAgainAnchors[type.id] == nil {
+      if state.dependentsAgainAnchors[type.id] == nil {
         BackfillLog.write(
           "reading \(BackfillLog.name(type.id))'s \(type.isQuantity ? "series" : "links") again")
       }
@@ -1391,7 +1446,7 @@ public actor HealthBackfill {
         reading.skipsUnreadableSeries =
           state.seriesFailures[type.id, default: 0] >= Self.seriesAttempts
         var page = try await reader.series(
-          reading, state.seriesAgainAnchors[type.id], type.pageSize ?? Self.pageSize)
+          reading, state.dependentsAgainAnchors[type.id], type.pageSize ?? Self.pageSize)
         state.seriesFailures[type.id] = nil
         let read = page.anchor
         isLast = !page.hasMore
@@ -1407,12 +1462,12 @@ public actor HealthBackfill {
           _ = try await uploadPage(
             page, of: type, from: nil, retried: page.mutations.map(\.id), &state)
         }
-        state.seriesAgainAnchors[type.id] = read
+        state.dependentsAgainAnchors[type.id] = read
         try storage.saveState(state)
       }
     }
-    state.seriesAgainAnchors[type.id] = nil
-    state.quantitySeriesEncodings[type.id] = encoding
+    state.dependentsAgainAnchors[type.id] = nil
+    state.dependentsEncodings[type.id] = encoding
     try storage.saveState(state)
   }
 

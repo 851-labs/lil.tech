@@ -88,7 +88,12 @@ struct HealthKitLinksTests {
     try await relate(later, workout, health.store)
     try await relate(leg, workout, health.store, activity: swim)
 
-    let read = try await HealthWorkoutEffortsReader.liveValue.read()
+    let read = try await HealthWorkoutEffortsReader.liveValue.read(nil)
+    // A run for changes reads only workouts that started since a date: not this one, a minute
+    // after it started.
+    #expect(
+      try await HealthWorkoutEffortsReader.liveValue.read(start.addingTimeInterval(60)).isEmpty)
+    #expect(try await HealthWorkoutEffortsReader.liveValue.read(start).map(\.id) == read.map(\.id))
     let id = { (sample: HKSample) in JSONValue.string(sample.uuid.uuidString.lowercased()) }
     #expect(read.map(\.id) == [workout.uuid.uuidString.lowercased()])
     let row = try #require(read.first?.row)
@@ -108,7 +113,7 @@ struct HealthKitLinksTests {
     try await unrelate(later, workout, health.store)
     try await unrelate(first, workout, health.store)
     try await unrelate(leg, workout, health.store, activity: swim)
-    #expect(try await HealthWorkoutEffortsReader.liveValue.read().isEmpty)
+    #expect(try await HealthWorkoutEffortsReader.liveValue.read(nil).isEmpty)
   }
 
   /// Why effort scores are read whole every time (`HealthWorkoutEffortsReader`): relating one

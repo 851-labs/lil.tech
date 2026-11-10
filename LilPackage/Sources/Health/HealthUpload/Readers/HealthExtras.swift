@@ -325,13 +325,14 @@ extension DependencyValues {
 /// Reads every workout's effort scores (`HKWorkoutEffortRelationship`, 851-4153), a record per
 /// workout that has any. Relating a score to a workout doesn't change the workout's anchor, and the
 /// relationships' own anchor reports scores related since, but not one unrelated or deleted
-/// (measured in the iOS 27.2 simulator), so they're all read whole, every run of everything and
-/// whenever workouts or effort scores change (`HealthBackfill.uploadEfforts`). The query is cheap:
-/// 100 workouts' in 0.18 s.
+/// (measured in the iOS 27.2 simulator), so they're read whole (`HealthBackfill.uploadEfforts`):
+/// every workout's in a run of everything (100 workouts' in 0.18 s), the last week's whenever
+/// workouts or effort scores change.
 public struct HealthWorkoutEffortsReader: Sendable {
-  public var read: @Sendable () async throws -> [HealthMutation]
+  /// The records of the workouts that started since `since` (every workout if `nil`).
+  public var read: @Sendable (_ since: Date?) async throws -> [HealthMutation]
 
-  public init(read: @escaping @Sendable () async throws -> [HealthMutation]) {
+  public init(read: @escaping @Sendable (_ since: Date?) async throws -> [HealthMutation]) {
     self.read = read
   }
 }
@@ -339,13 +340,17 @@ public struct HealthWorkoutEffortsReader: Sendable {
 extension HealthWorkoutEffortsReader: DependencyKey {
   public static var liveValue: Self {
     let store = HKHealthStore()
-    return Self {
+    return Self { since in
+      // On the workouts: those that started since, not those that overlap it.
+      let predicate = since.map {
+        HKQuery.predicateForSamples(withStart: $0, end: nil, options: .strictStartDate)
+      }
       do {
         let all = try await HKWorkoutEffortRelationshipQueryDescriptor(
-          predicate: nil, anchor: nil, option: .default
+          predicate: predicate, anchor: nil, option: .default
         ).result(for: store)
         let relevant = try await HKWorkoutEffortRelationshipQueryDescriptor(
-          predicate: nil, anchor: nil, option: .mostRelevant
+          predicate: predicate, anchor: nil, option: .mostRelevant
         ).result(for: store)
         return WorkoutEffortRecord.records(
           all.relationships, mostRelevant: relevant.relationships
@@ -357,5 +362,5 @@ extension HealthWorkoutEffortsReader: DependencyKey {
   }
 
   /// None, unless a test says otherwise: most tests aren't about them.
-  public static var testValue: Self { Self { [] } }
+  public static var testValue: Self { Self { _ in [] } }
 }

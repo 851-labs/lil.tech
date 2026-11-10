@@ -83,8 +83,9 @@ extension HealthBackfillType {
     switch HealthCatalog.type(id: id)?.kind {
     case .electrocardiogram: 50
     case .heartbeatSeries: 200
-    // Each has a query for its samples (851-4153), whose IDs may be thousands.
-    case .workout: 500
+    // Each has a query for its samples (851-4153), whose IDs may be thousands (an hour's run on
+    // a Watch, its energy and distance every few seconds), all held until the page goes up.
+    case .workout: 100
     // An hour's route is ~160 KB.
     case .workoutRoute: 10
     default: nil

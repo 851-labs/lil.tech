@@ -471,6 +471,7 @@ describe("health entities", () => {
       const heartRates = workoutSamples.samples.HKQuantityTypeIdentifierHeartRate;
       const invalid: ReadonlyArray<readonly [string, Record<string, unknown>, string]> = [
         ["health_workout_samples", { ...workoutSamples, count: -1 }, "non-negative"],
+        ["health_workout_samples", { count: 3, samples: null }, "more than 20000"],
         ["health_workout_samples", { ...workoutSamples, count: 2 }, "number of samples"],
         ["health_workout_samples", { ...workoutSamples, samples: heartRates }, "an object"],
         [
