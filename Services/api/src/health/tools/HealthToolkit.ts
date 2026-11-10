@@ -548,7 +548,7 @@ export const Samples = readOnly(
       "use metric for totals and trends, and this only to look at particular readings. A " +
       "series (an Apple Watch's heart rate in a workout) is one sample with its count and " +
       "summary, or its values with seriesValues. " +
-      "Workouts, medications and health details have their own tools.",
+      "Workouts, Activity rings, medications and health details have their own tools.",
     parameters: Schema.Struct({
       type: healthType,
       range,
@@ -1157,7 +1157,8 @@ export const ActivityRings = readOnly(
       "them: Move (active kilocalories, or minutes in Move time), Exercise (minutes) and Stand " +
       "(hours), each with the day's value and goal, and whether the rings were paused. Exercise " +
       "and Stand are null without an Apple Watch. Days are the iPhone's own: the period's days " +
-      "pick them by date, not shifted to `timeZone`.",
+      "pick them by date, not shifted to `timeZone`. Without a `date`, the period ends today in " +
+      "`timeZone`, so pass the person's time zone for their today.",
     parameters: Schema.Struct({ range, date, timeZone }),
     success: HealthActivityRingsResult,
     failure: HealthToolError,

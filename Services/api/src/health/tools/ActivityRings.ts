@@ -20,7 +20,7 @@ export const activityDay = (summary: ActivitySummaryRow): ActivityDay => {
     unit,
   });
   const withGoal = (value: number | null, goal: number | null, unit: string) =>
-    goal === null || !(goal > 0) ? null : ring(value, goal, unit);
+    goal === null || goal <= 0 ? null : ring(value, goal, unit);
   return {
     date: summary.id,
     move: minutes

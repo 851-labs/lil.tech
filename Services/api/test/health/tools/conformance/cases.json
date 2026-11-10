@@ -1825,7 +1825,7 @@
         "type": "HKCategoryTypeIdentifierSleepAnalysis",
         "range": "W"
       },
-      "expectedError": "Sleep (HKCategoryTypeIdentifierSleepAnalysis) isn't a quantity type, so it has no statistics. Use samples, or the tool for its kind (sleep, workouts, medications)."
+      "expectedError": "Sleep (HKCategoryTypeIdentifierSleepAnalysis) isn't a quantity type, so it has no statistics. Use samples, or the tool for its kind (sleep, activity_rings, workouts, medications)."
     },
     {
       "name": "metric of an unknown type fails",

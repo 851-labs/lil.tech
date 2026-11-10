@@ -438,7 +438,7 @@
   },
   {
     "name": "samples",
-    "description": "Individual samples of a quantity, category or correlation type (blood pressure, food) in a period, newest first, a page at a time, each with its source app and device (listed once a page, in sources) and what its metadata says (how and where it was measured, whether it was entered by hand), fields only when HealthKit has them. A type can have many thousands of samples a day: use metric for totals and trends, and this only to look at particular readings. A series (an Apple Watch's heart rate in a workout) is one sample with its count and summary, or its values with seriesValues. Workouts, medications and health details have their own tools.",
+    "description": "Individual samples of a quantity, category or correlation type (blood pressure, food) in a period, newest first, a page at a time, each with its source app and device (listed once a page, in sources) and what its metadata says (how and where it was measured, whether it was entered by hand), fields only when HealthKit has them. A type can have many thousands of samples a day: use metric for totals and trends, and this only to look at particular readings. A series (an Apple Watch's heart rate in a workout) is one sample with its count and summary, or its values with seriesValues. Workouts, Activity rings, medications and health details have their own tools.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2646,7 +2646,7 @@
   },
   {
     "name": "activity_rings",
-    "description": "Activity rings per day in a period, as Fitness and lil health's Activity Rings show them: Move (active kilocalories, or minutes in Move time), Exercise (minutes) and Stand (hours), each with the day's value and goal, and whether the rings were paused. Exercise and Stand are null without an Apple Watch. Days are the iPhone's own: the period's days pick them by date, not shifted to `timeZone`.",
+    "description": "Activity rings per day in a period, as Fitness and lil health's Activity Rings show them: Move (active kilocalories, or minutes in Move time), Exercise (minutes) and Stand (hours), each with the day's value and goal, and whether the rings were paused. Exercise and Stand are null without an Apple Watch. Days are the iPhone's own: the period's days pick them by date, not shifted to `timeZone`. Without a `date`, the period ends today in `timeZone`, so pass the person's time zone for their today.",
     "inputSchema": {
       "type": "object",
       "properties": {

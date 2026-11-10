@@ -185,7 +185,8 @@ struct HealthCLITests {
     try folder.access.setEnabled(true)
     for command in [
       ["summary"], ["types"], ["metric", "Steps", "-r", "6m"], ["samples", "Heart Rate"],
-      ["workouts", "-r", "Y"], ["sleep"], ["medications"], ["details"], ["search", "steps"],
+      ["workouts", "-r", "Y"], ["sleep"], ["activity", "-r", "M"], ["medications"], ["details"],
+      ["search", "steps"],
       ["sync", "status"],
     ] {
       for json in [false, true] {

@@ -114,7 +114,7 @@ public struct HealthTools: Sendable {
     guard type.kind == .quantity, let aggregation = type.aggregation else {
       throw HealthToolError(
         "\(type.name) (\(type.id)) isn't a quantity type, so it has no statistics. Use samples, "
-          + "or the tool for its kind (sleep, workouts, medications).")
+          + "or the tool for its kind (sleep, activity_rings, workouts, medications).")
     }
     let period = try ToolPeriod(range, date: date, now: now, time: time)
     let cumulative = aggregation.isCumulative
