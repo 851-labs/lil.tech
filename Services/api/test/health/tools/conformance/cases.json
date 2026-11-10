@@ -1717,6 +1717,16 @@
       "expectedError": "samples doesn't list Blood Type (HKCharacteristicTypeIdentifierBloodType): use health_details."
     },
     {
+      "name": "samples of workout routes fails: workout_routes has them",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKWorkoutRouteTypeIdentifier",
+        "range": "W"
+      },
+      "expectedError": "samples doesn't list Workout Routes (HKWorkoutRouteTypeIdentifier): use workout_routes."
+    },
+    {
       "name": "workouts of a week in UTC, newest first, with their statistics",
       "tool": "workouts",
       "now": "2026-10-20T15:00:00Z",

@@ -247,9 +247,10 @@ public struct HealthTools: Sendable {
     switch kind {
     case .quantity, .category, .correlation: .listed
     case .workout: .elsewhere("workouts")
+    case .workoutRoute: .elsewhere("workout_routes")
     case .medication, .medicationDoseEvent: .elsewhere("medications")
     case .characteristic, .visionPrescription: .elsewhere("health_details")
-    case .workoutRoute, .activitySummary, .heartbeatSeries, .electrocardiogram, .audiogram,
+    case .activitySummary, .heartbeatSeries, .electrocardiogram, .audiogram,
       .stateOfMind, .scoredAssessment, .document:
       .unread
     }

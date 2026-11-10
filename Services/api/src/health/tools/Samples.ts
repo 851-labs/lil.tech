@@ -21,11 +21,11 @@ const samplesElsewhere: Readonly<
   Record<Exclude<HealthCatalogType["kind"], "quantity" | "category" | "correlation">, string | null>
 > = {
   workout: "workouts",
+  workoutRoute: "workout_routes",
   medication: "medications",
   medicationDoseEvent: "medications",
   characteristic: "health_details",
   visionPrescription: "health_details",
-  workoutRoute: null,
   activitySummary: null,
   heartbeatSeries: null,
   electrocardiogram: null,
