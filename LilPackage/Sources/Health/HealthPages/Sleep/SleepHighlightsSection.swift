@@ -111,7 +111,7 @@ enum SleepHighlightStyle {
   /// Room for a chart's hours under it.
   static let hourAxisHeight: CGFloat = 20
 
-  /// A clock time in hours from a day's midnight (`HealthDatabase.clockHours`), "10:54 PM", in
+  /// A clock time in hours from a day's midnight (`SleepNight.clockHours`), "10:54 PM", in
   /// the calendar's locale.
   static func clockTime(_ hours: Double, calendar: Calendar) -> String {
     let total = (Int((hours * 60).rounded()) % 1440 + 1440) % 1440

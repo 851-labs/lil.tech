@@ -6,8 +6,9 @@ public struct BedtimeConsistency: Equatable, Sendable {
   public struct Night: Equatable, Sendable {
     /// The start of the night's day.
     public var day: Date
-    /// When its sleep started, in hours from `day`'s midnight by the clock
-    /// (`HealthDatabase.clockHours`): 10:30 PM the evening before is -1.5.
+    /// When its sleep started, in hours from its day's midnight on the night's own clock
+    /// (`SleepNight.clockHours`, its recorded zone's, 851-4178): 10:30 PM the evening before is
+    /// -1.5.
     public var bedtime: Double
 
     public init(day: Date, bedtime: Double) {

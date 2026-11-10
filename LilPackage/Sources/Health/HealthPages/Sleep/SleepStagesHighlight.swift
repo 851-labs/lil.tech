@@ -4,7 +4,8 @@ import HealthDatabase
 import SwiftUI
 
 /// Sleep: Stages (851-3112): last night's stages, a small hypnogram, a lane a stage, as Health's
-/// highlight has it: D's chart (`SleepStagesChart`), shorter, with thinner bars.
+/// highlight has it: D's chart (`SleepStagesChart`), shorter, with thinner bars, on the night's
+/// own clock.
 struct SleepStagesHighlight: View {
   let night: SleepNight
   @Dependency(\.calendar) private var calendar
@@ -16,7 +17,8 @@ struct SleepStagesHighlight: View {
     ) {
       let rows = SleepFormat.rows(for: night)
       SleepStagesChart(
-        segments: night.segments, rows: rows, calendar: calendar, barHeight: .fixed(10)
+        segments: night.segments, rows: rows, calendar: night.clock(calendar: calendar).calendar,
+        barHeight: .fixed(10)
       )
       // A lane each, tall enough for its name over its bars, and the hours under them.
       .frame(

@@ -5,9 +5,11 @@ import SwiftUI
 
 // Sleep's charts for W, M and 6M, as Health draws them (851-3098): each night a column at the
 // clock times it ran, bedtime at the top, stacked by stage; 6M a bar a week from its average
-// bedtime to its average wake. The y-axis is clock time, on the trailing side.
+// bedtime to its average wake. The y-axis is clock time, on the trailing side. Each night is on
+// its own clock, its recorded zone's (`SleepNight.clock(calendar:)`, 851-4178), as Health draws a
+// night slept in Tokyo at Tokyo's times; its slot is still its day's on the page's calendar.
 
-/// Where sleep goes on a chart's clock-time axis, at the times `HealthDatabase.clockHours` gives.
+/// Where sleep goes on a chart's clock-time axis, at the times `SleepNight.clockHours` gives.
 enum SleepClock {
   /// The middle `ratio` of `day`'s slot on the x-axis, by the page's calendar rather than the
   /// one Charts would bin with.
@@ -31,6 +33,38 @@ enum SleepClock {
     let low = (earliest / step).rounded(.down) * step
     let high = max((latest / step).rounded(.up) * step, low + step)
     return (low...high, Array(stride(from: low, through: high, by: step)))
+  }
+
+  /// Every 2 hours on `calendar`'s clock from the hour `start` is in, those from `start` through
+  /// `end`, as Charts' `.stride(by: .hour, count: 2)` marks them: where D's chart and the heart
+  /// rate highlight mark a night's hours. On the night's clock (851-4178), since Charts' stride
+  /// and `.dateTime.hour()` read the process's time zone, so a night in a half-hour zone is
+  /// marked on its own hours.
+  /// Across a daylight saving change, they stay 2 clock hours apart: the clock's hours with
+  /// the first's parity, a repeated hour marked once and a skipped one passed over.
+  static func hourMarks(from start: Date, to end: Date, calendar: Calendar) -> [Date] {
+    guard var hour = calendar.dateInterval(of: .hour, for: start)?.start else { return [] }
+    let parity = calendar.component(.hour, from: hour) % 2
+    var marks: [Date] = []
+    var last: Int?
+    while hour <= end {
+      let clock = calendar.component(.hour, from: hour)
+      if clock % 2 == parity, clock != last {
+        if hour >= start { marks.append(hour) }
+        last = clock
+      }
+      hour.addTimeInterval(3600)
+    }
+    return marks
+  }
+
+  /// An hour mark's label, "10 PM", on `calendar`'s clock and in its locale.
+  static func hourLabel(_ date: Date, calendar: Calendar) -> String {
+    date.formatted(
+      Date.FormatStyle(
+        date: .omitted, time: .omitted, locale: calendar.locale ?? .current, calendar: calendar,
+        timeZone: calendar.timeZone
+      ).hour())
   }
 
   /// A mark's clock time, "10 PM", "12 AM", in the calendar's locale.
@@ -60,7 +94,8 @@ struct SleepWeek: Equatable, Identifiable, Sendable {
   var id: Date { start }
   /// The start of the week.
   let start: Date
-  /// The average time the week's nights fell asleep, and woke, in hours from their days' starts.
+  /// The average time the week's nights fell asleep, and woke, in hours from their days' starts,
+  /// each night's on its own clock.
   let bedtime: Double
   let wake: Double
 
@@ -70,13 +105,10 @@ struct SleepWeek: Equatable, Identifiable, Sendable {
     let spans = nights.compactMap { night -> (week: Date, start: Double, end: Double)? in
       let asleep = night.segments.filter(\.stage.isAsleep)
       guard let start = asleep.map(\.start).min(), let end = asleep.map(\.end).max(),
-        let first = night.segments.map(\.start).min(),
+        let place = night.clockPlacer(calendar: calendar),
         let week = calendar.dateInterval(of: .weekOfYear, for: night.day)?.start
       else { return nil }
-      return (
-        week, HealthDatabase.clockHours(start, from: night.day, start: first, calendar: calendar),
-        HealthDatabase.clockHours(end, from: night.day, start: first, calendar: calendar)
-      )
+      return (week, place(start), place(end))
     }
     return Dictionary(grouping: spans, by: \.week)
       .map { week, spans in
@@ -122,22 +154,18 @@ struct SleepNightsChart: View {
     .chartYAxis { sleepClockAxis(marks: axis.marks, calendar: calendar) }
   }
 
-  /// Every stretch of every night, Awake included, at clock time.
+  /// Every stretch of every night, Awake included, at clock time, on its night's own clock.
   private var blocks: [SleepBlock] {
     var blocks: [SleepBlock] = []
     let ratio = period.range == .week ? 0.3 : 0.6
     for night in period.nights {
-      guard let first = night.segments.map(\.start).min() else { continue }
+      guard let place = night.clockPlacer(calendar: calendar) else { continue }
       let slot = SleepClock.slot(night.day, ratio: ratio, unit: .day, calendar: calendar)
       for segment in night.segments {
         blocks.append(
           SleepBlock(
-            id: blocks.count, slot: slot, stage: segment.stage,
-            start: HealthDatabase.clockHours(
-              segment.start, from: night.day, start: first, calendar: calendar),
-            end: HealthDatabase.clockHours(
-              segment.end, from: night.day, start: first, calendar: calendar)
-          ))
+            id: blocks.count, slot: slot, stage: segment.stage, start: place(segment.start),
+            end: place(segment.end)))
       }
     }
     return blocks
@@ -245,12 +273,23 @@ private func sleepClockAxis(marks: [Double], calendar: Calendar) -> some AxisCon
 struct SleepStagesChart: View {
   let segments: [SleepSegment]
   let rows: [SleepStage]
-  /// The page's, whose hours the x-axis marks.
+  /// Whose hours the x-axis marks: the night's own clock (`SleepNight.clock(calendar:)`,
+  /// 851-4178), so a night slept in Tokyo reads Tokyo's times.
   let calendar: Calendar
   /// Each bar's height: a share of its row, or fixed.
   var barHeight: MarkDimension = .ratio(0.7)
+  /// The times it shows, its x-axis's domain, without segments: the empty night's.
+  var span: ClosedRange<Date>?
 
   var body: some View {
+    if let span {
+      chart.chartXScale(domain: span)
+    } else {
+      chart
+    }
+  }
+
+  private var chart: some View {
     Chart(Array(segments.enumerated()), id: \.offset) { _, segment in
       BarMark(
         xStart: .value("Start", segment.start), xEnd: .value("End", segment.end),
@@ -275,13 +314,29 @@ struct SleepStagesChart: View {
       }
     }
     .chartXAxis {
-      AxisMarks(values: .stride(by: .hour, count: 2)) { _ in
+      AxisMarks(values: hourMarks) { value in
         AxisGridLine()
-        AxisValueLabel(format: .dateTime.hour())
+        AxisValueLabel {
+          if let date = value.as(Date.self) {
+            Text(SleepClock.hourLabel(date, calendar: calendar))
+          }
+        }
       }
     }
-    // Hours in the page's calendar and time zone, as the night's are.
+    // On the night's clock, so Charts' own dates (VoiceOver's, the audio graph's) read as the
+    // labels do.
     .environment(\.calendar, calendar)
     .environment(\.timeZone, calendar.timeZone)
+  }
+
+  /// Every 2 hours on the night's clock, over its segments or `span`.
+  private var hourMarks: [Date] {
+    guard
+      let span = span
+        ?? segments.map(\.start).min().flatMap({ start in
+          segments.map(\.end).max().map { start...max(start, $0) }
+        })
+    else { return [] }
+    return SleepClock.hourMarks(from: span.lowerBound, to: span.upperBound, calendar: calendar)
   }
 }
