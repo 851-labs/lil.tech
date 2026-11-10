@@ -111,9 +111,9 @@ struct HealthKitQuantitySeriesTests {
     ])
     let type = HealthBackfillType(id: HKQuantityTypeIdentifier.heartRate.rawValue)
 
-    // A page of one at a time. (Earlier tests' deletions count against a page's limit, but
-    // aren't sent.)
-    let (mutations, _) = try await readAll(type, limit: 1, series: true)
+    // A page at a time. (Earlier suites' deletions, thousands of heart rates in CI's run, count
+    // against a page's limit, but aren't sent.)
+    let (mutations, _) = try await readAll(type, series: true)
     #expect(
       mutations.map { "\($0.entity) \($0.id)" }.sorted()
         == (first + second).map { "health_quantity_series \($0.uuid.uuidString.lowercased())" }
@@ -140,7 +140,7 @@ struct HealthKitQuantitySeriesTests {
   ) async throws -> ([HealthMutation], Data?) {
     var mutations: [HealthMutation] = []
     var anchor = anchor
-    for _ in 0..<10_000 {
+    while true {
       let page =
         series
         ? try await HealthReader.liveValue.series(type, anchor, limit)
