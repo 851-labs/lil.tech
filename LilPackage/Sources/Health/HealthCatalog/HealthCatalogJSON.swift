@@ -3,7 +3,8 @@ import Foundation
 extension HealthCatalog {
   /// The catalog as the server reads it, `Services/api/health-catalog.json` (851-2857): the
   /// categories in Browse's order, with their symbols and colors (a card's defaults, 851-3194),
-  /// every type, and the workout activities' names. The Swift catalog is the source of truth:
+  /// every type, the workout activities' names, and the metadata keys and device properties
+  /// lil health keeps (851-4152). The Swift catalog is the source of truth:
   /// `scripts/generate-health-catalog` writes the file from this, and `HealthCatalogTests` checks
   /// the committed file matches.
   ///
@@ -43,12 +44,15 @@ extension HealthCatalog {
     let workoutActivities = try workoutActivityNames.sorted { $0.key < $1.key }.map {
       try object(["activityType": $0.key, "name": $0.value])
     }
+    let metadataKeys = try keptMetadataKeys.sorted().map { try value($0) }
     return """
       {
         "categories": \(array(categories)),
         "types": \(array(types)),
         "workoutActivities": \(array(workoutActivities)),
-        "otherWorkoutActivityName": \(try value(otherWorkoutActivityName))
+        "otherWorkoutActivityName": \(try value(otherWorkoutActivityName)),
+        "metadataKeys": \(array(metadataKeys)),
+        "deviceProperties": \(try value(keptDeviceProperties))
       }
 
       """

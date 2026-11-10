@@ -174,17 +174,19 @@ public enum HealthEncoder {
     return HKUnit(from: unit)
   }
 
-  /// Times, source, device and metadata, shared by samples and correlations.
+  /// Times, source, device and metadata, shared by samples and correlations. The device's
+  /// properties and the metadata's keys are only those lil health keeps (851-4152,
+  /// `HealthCatalog.keptDeviceProperties` and `keptMetadataKeys`).
   static func provenance(of sample: HKSample) -> [String: JSONValue] {
     let revision = sample.sourceRevision
     let os = revision.operatingSystemVersion
     let device = sample.device.map { device -> JSONValue in
+      // Not `localIdentifier` or `udiDeviceIdentifier`, which identify one device.
       .object(
         [
           "name": device.name, "manufacturer": device.manufacturer, "model": device.model,
           "hardwareVersion": device.hardwareVersion, "firmwareVersion": device.firmwareVersion,
-          "softwareVersion": device.softwareVersion, "localIdentifier": device.localIdentifier,
-          "udiDeviceIdentifier": device.udiDeviceIdentifier,
+          "softwareVersion": device.softwareVersion,
         ]
         .compactMapValues { $0.map(JSONValue.string) })
     }
@@ -201,8 +203,14 @@ public enum HealthEncoder {
             "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"),
         ]),
       "device": device ?? .null,
-      "metadata": sample.metadata.map { .object($0.mapValues(json)) } ?? .null,
+      "metadata": metadata(sample.metadata).map(JSONValue.object) ?? .null,
     ]
+  }
+
+  /// An object's metadata as it goes up: only the keys lil health keeps
+  /// (`HealthCatalog.keptMetadata`, 851-4152), as JSON, or nil if it has none of them.
+  static func metadata(_ metadata: [String: Any]?) -> [String: JSONValue]? {
+    metadata.flatMap(HealthCatalog.keptMetadata)?.mapValues(json)
   }
 
   /// Unix milliseconds, rounded to the nearest. Never change how: the server finds a sample by

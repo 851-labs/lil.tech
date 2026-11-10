@@ -308,6 +308,54 @@ layer(Layer.mergeAll(TestUserStores, TestHealthIngestion, KnownUser))("ingestHea
     }),
   );
 
+  it.effect("stores only the metadata and device properties lil health keeps (851-4152)", () =>
+    Effect.gen(function* () {
+      // As an iPhone from before 851-4152 uploads them, with every key and property.
+      const device = {
+        name: "Blood Pressure Monitor",
+        model: "BP-1",
+        localIdentifier: "00:11:22:33:44:55",
+        udiDeviceIdentifier: "00812345678906",
+      };
+      const { batch } = yield* ingest([
+        sample(5, {
+          metadata: {
+            HKTimeZone: "Europe/Bucharest",
+            HKDeviceSerialNumber: "SN-0000-SYNTHETIC",
+            HKMetadataKeySyncIdentifier: "reading-5",
+            "com.example.app.note": "after a run",
+          },
+          device,
+        }),
+        sample(6, { metadata: { HKExternalUUID: "x" } }),
+        {
+          entity: "health_provenance",
+          op: "upsert",
+          id: "0123456789abcdef0123456789abcdef",
+          row: { sourceRevision: null, device },
+        },
+      ]);
+      assert.deepInclude(batch, { status: "applied", applied: 3 });
+      const sql = (yield* TestStores).sqlFor(userId)!;
+      const stored = sql.exec(
+        "SELECT id, metadata, device FROM health_sample WHERE id IN (?, ?) ORDER BY id",
+        uuid(5),
+        uuid(6),
+      );
+      assert.deepStrictEqual(stored, [
+        {
+          id: uuid(5),
+          metadata: '{"HKTimeZone":"Europe/Bucharest"}',
+          device: '{"model":"BP-1","name":"Blood Pressure Monitor"}',
+        },
+        { id: uuid(6), metadata: null, device: null },
+      ]);
+      assert.deepStrictEqual(sql.exec("SELECT device FROM health_provenance"), [
+        { device: '{"model":"BP-1","name":"Blood Pressure Monitor"}' },
+      ]);
+    }),
+  );
+
   it.effect("delivering the same batch again changes nothing", () =>
     Effect.gen(function* () {
       const { batchId } = yield* ingest([sample(10)]);

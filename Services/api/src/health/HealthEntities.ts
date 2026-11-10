@@ -23,9 +23,15 @@ const provenance = {
    * that don't send `provenance`.
    */
   sourceRevision: Column.nullable(Column.json),
-  /** `HKDevice`'s properties, when HealthKit has them. Only from iPhones that don't send `provenance`. */
+  /**
+   * `HKDevice`'s properties, when HealthKit has them, but not its identifiers (851-4152). Only
+   * from iPhones that don't send `provenance`.
+   */
   device: Column.nullable(Column.json),
-  /** The sample's metadata, with HealthKit's keys (e.g. `HKTimeZone`). */
+  /**
+   * The sample's metadata, with HealthKit's keys (e.g. `HKTimeZone`): only those lil health keeps
+   * (`health-catalog.json`'s `metadataKeys`, 851-4152, `src/health/HealthMetadata.ts`).
+   */
   metadata: Column.nullable(Column.json),
   /**
    * The `health_provenance` record with the record's `sourceRevision` and `device` (851-2674).
@@ -44,7 +50,10 @@ export const HealthProvenance = defineEntity("health_provenance", {
   fields: {
     /** `HKSourceRevision`: `version`, `productType`, `operatingSystemVersion`. */
     sourceRevision: Column.nullable(Column.json),
-    /** `HKDevice`'s properties, when HealthKit has them. */
+    /**
+     * `HKDevice`'s properties, when HealthKit has them, but not `localIdentifier` or
+     * `udiDeviceIdentifier` (851-4152, `src/health/HealthMetadata.ts`).
+     */
     device: Column.nullable(Column.json),
   },
 });

@@ -153,11 +153,79 @@ struct HealthEncoderTests {
     let row = try #require(json["row"] as? [String: Any])
     let metadata = try #require(row["metadata"] as? [String: Any])
     #expect(metadata[HKMetadataKeyWasUserEntered] as? Bool == true)
-    #expect(metadata["Count"] as? Int == 3)
     #expect(metadata[HKMetadataKeyTimeZone] as? String == "Europe/Bucharest")
+    // Another app's own key isn't kept (851-4152).
+    #expect(metadata["Count"] == nil)
     let encodedDevice = try #require(row["device"] as? [String: Any])
     #expect(encodedDevice["name"] as? String == "Apple Watch")
     #expect(encodedDevice["firmwareVersion"] == nil)
+  }
+
+  /// Only the metadata keys and device properties lil health keeps go up (851-4152): no serial
+  /// or lot numbers, signatures, other apps' record IDs or keys, or the device's own identifiers.
+  @Test
+  func identifiersNothingNeedsDontGoUp() throws {
+    let device = HKDevice(
+      name: "Blood Pressure Monitor", manufacturer: "Example Medical", model: "BP-1",
+      hardwareVersion: "2", firmwareVersion: "1.4", softwareVersion: nil,
+      localIdentifier: "00:11:22:33:44:55", udiDeviceIdentifier: "00812345678906")
+    let sample = HKQuantitySample(
+      type: HKQuantityType(.bloodGlucose),
+      quantity: HKQuantity(unit: HKUnit(from: "mg/dL"), doubleValue: 92),
+      start: start, end: start, device: device,
+      metadata: [
+        HKMetadataKeyTimeZone: "Europe/Bucharest",
+        HKMetadataKeyBloodGlucoseMealTime: HKBloodGlucoseMealTime.preprandial.rawValue,
+        HKMetadataKeyReferenceRangeUpperLimit: 99,
+        HKMetadataKeyDeviceName: "Blood Pressure Monitor",
+        HKMetadataKeyDeviceSerialNumber: "SN-0000-SYNTHETIC",
+        HKMetadataKeyUDIDeviceIdentifier: "00812345678906",
+        HKMetadataKeyUDIProductionIdentifier: "(10)LOT0001(21)SERIAL0001",
+        HKMetadataKeyDigitalSignature: "c2lnbmF0dXJl",
+        HKMetadataKeySyncIdentifier: "reading-42", HKMetadataKeySyncVersion: 3,
+        HKMetadataKeyExternalUUID: "8e9a2a52-0000-4000-8000-000000000001",
+        "com.example.app.note": "after a run",
+      ])
+
+    let row = try #require(try line(HealthEncoder.sample(sample))["row"] as? [String: Any])
+    let metadata = try #require(row["metadata"] as? [String: Any])
+    #expect(
+      Set(metadata.keys) == [
+        HKMetadataKeyTimeZone, HKMetadataKeyBloodGlucoseMealTime,
+        HKMetadataKeyReferenceRangeUpperLimit, HKMetadataKeyDeviceName,
+      ])
+    let encodedDevice = try #require(row["device"] as? [String: Any])
+    #expect(
+      Set(encodedDevice.keys) == [
+        "name", "manufacturer", "model", "hardwareVersion", "firmwareVersion",
+      ])
+
+    // Metadata with none of the kept keys goes up as none.
+    let bare = HKCategorySample(
+      type: HKCategoryType(.mindfulSession), value: HKCategoryValue.notApplicable.rawValue,
+      start: start, end: start.addingTimeInterval(600),
+      metadata: [HKMetadataKeySyncIdentifier: "session-1", HKMetadataKeySyncVersion: 1])
+    let bareRow = try #require(try line(HealthEncoder.sample(bare))["row"] as? [String: Any])
+    #expect(bareRow["metadata"] is NSNull)
+  }
+
+  /// A workout's activities and events keep only the kept keys too.
+  @Test
+  func workoutMetadataKeepsOnlyKeptKeys() {
+    #expect(
+      HealthEncoder.metadata([
+        HKMetadataKeyLapLength: HKQuantity(unit: .meter(), doubleValue: 25),
+        HKMetadataKeySwimmingStrokeStyle: HKSwimmingStrokeStyle.freestyle.rawValue,
+        HKMetadataKeyAppleFitnessPlusCatalogIdentifier: "catalog-1",
+        "com.example.swim.lane": 4,
+      ])
+        == [
+          HKMetadataKeyLapLength: .string("25 m"),
+          HKMetadataKeySwimmingStrokeStyle: .number(
+            Double(HKSwimmingStrokeStyle.freestyle.rawValue)),
+        ])
+    #expect(HealthEncoder.metadata(["com.example.swim.lane": 4]) == nil)
+    #expect(HealthEncoder.metadata(nil) == nil)
   }
 
   @Test

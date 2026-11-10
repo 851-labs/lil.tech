@@ -178,14 +178,14 @@ extension WorkoutRecord {
           duration: activity.duration,
           locationType: activity.workoutConfiguration.locationType.rawValue,
           swimmingLocationType: activity.workoutConfiguration.swimmingLocationType.rawValue,
-          metadata: activity.metadata.map { $0.mapValues(HealthEncoder.json) },
+          metadata: HealthEncoder.metadata(activity.metadata),
           statistics: Self.statistics(activity.allStatistics))
       },
       events: (workout.workoutEvents ?? []).map { event in
         Event(
           type: event.type.rawValue, startDate: event.dateInterval.start,
           endDate: event.dateInterval.end,
-          metadata: event.metadata.map { $0.mapValues(HealthEncoder.json) })
+          metadata: HealthEncoder.metadata(event.metadata))
       },
       statistics: Self.statistics(workout.allStatistics),
       provenance: HealthEncoder.provenance(of: workout), plan: plan)

@@ -7,6 +7,7 @@ import { Users } from "../core/Users.ts";
 import { type UserStoreClient, UserStores } from "../store/UserStores.ts";
 import type { HealthBatch, RejectedLine } from "./HealthBatches.ts";
 import { healthEntities } from "./HealthEntities.ts";
+import { withKeptMetadata } from "./HealthMetadata.ts";
 
 // Health ingestion (`docs/sync/protocol.md`): the iPhone uploads gzip NDJSON batch files, one
 // mutation per line, which the API stores in R2 and queues. The queue consumer applies them to the
@@ -132,6 +133,9 @@ const parseLine = (
   if (!entity.isValidId(mutation.id))
     return Result.fail(`Invalid ${entity.name} ID ${mutation.id}`);
   if (mutation.op === "upsert") {
+    // Older iPhones upload every metadata key and device property: only those lil health keeps
+    // are stored (851-4152).
+    mutation = { ...mutation, row: withKeptMetadata(entity, mutation.row) };
     const fields = entity.decodeFields(mutation.row);
     if (Result.isFailure(fields)) return Result.fail(fields.failure.message);
     const missing = entity.fields.find(
