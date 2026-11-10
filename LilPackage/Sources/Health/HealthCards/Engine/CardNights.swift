@@ -18,11 +18,11 @@ public struct CardSleepRecord: Hashable, Sendable {
   public var source: String
   /// The zone it was recorded in (`HKTimeZone`), when that's a name the tools' `timeZone` takes
   /// (`CardTimeZone.named(_:)`), else `nil`. Its night follows it (`CardNights.nights`).
-  public var timeZone: TimeZone?
+  public private(set) var timeZone: TimeZone?
   /// `timeZone`'s name as the record gave it, which `TimeZone` doesn't always keep (`UTC` is
   /// `GMT` there): what ties between zones compare, as on the server, and what the `sleep` tools
-  /// say (851-4177). `nil` without a zone.
-  public var timeZoneName: String?
+  /// say (851-4177). `nil` without a zone. Both are set by `init`, so they always agree.
+  public private(set) var timeZoneName: String?
 
   /// `timeZoneName` defaults to `timeZone`'s identifier.
   public init(
@@ -55,9 +55,9 @@ public struct CardNight: Hashable, Sendable {
   public var day: Date
   /// The zone it was recorded in (`CardNights.nights`), or `nil` for the calendar's. Its date,
   /// bedtime and clock are that zone's (`CardNights.clock(day:timeZone:calendar:)`).
-  public var timeZone: TimeZone?
+  public private(set) var timeZone: TimeZone?
   /// Its zone's name, as its records gave it (`CardSleepRecord.timeZoneName`), `nil` without one.
-  public var timeZoneName: String?
+  public private(set) var timeZoneName: String?
   /// The chosen source's records in its main session, by start: its stages, awake included, but
   /// not In Bed.
   public var records: [CardSleepRecord]

@@ -41,9 +41,9 @@ public struct SleepNight: Equatable, Identifiable, Sendable {
   public var inBed: TimeInterval
   /// The zone it was recorded in (`CardNight.timeZone`, 851-4174), or `nil` for the calendar's:
   /// its date and clock are that zone's.
-  public var timeZone: TimeZone?
+  public private(set) var timeZone: TimeZone?
   /// Its zone's name, as its records gave it (`CardNight.timeZoneName`), `nil` without one.
-  public var timeZoneName: String?
+  public private(set) var timeZoneName: String?
 
   /// `timeZoneName` defaults to `timeZone`'s identifier.
   public init(

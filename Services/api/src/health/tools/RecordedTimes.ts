@@ -61,7 +61,9 @@ export class RecordedZones {
 
   /** The zone named `name` (`named`), with `time` on its clock: a record of one time's. */
   namedAt(name: unknown, time: number): RecordedTime {
-    const { recordedTimeZone, recordedStart } = this.named(name, time, time);
-    return recordedTimeZone === undefined ? {} : { recordedTimeZone, recordedTime: recordedStart! };
+    const zone = Predicate.isString(name) ? this.zone(name) : undefined;
+    return zone === undefined
+      ? {}
+      : { recordedTimeZone: name as string, recordedTime: localTime(time, zone) };
   }
 }

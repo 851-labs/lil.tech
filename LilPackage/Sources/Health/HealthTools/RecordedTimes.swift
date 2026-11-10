@@ -60,8 +60,9 @@ final class RecordedZones {
   /// The recorded time of a record at `time` (Unix milliseconds) whose metadata is the JSON
   /// `metadata`.
   func time(json metadata: String?, at time: Int) -> RecordedTime {
-    let times = times(json: metadata, start: time, end: time)
-    return RecordedTime(timeZone: times.timeZone, time: times.start)
+    guard let name = Self.zoneName(SampleDetails.object(metadata)), let clock = clock(name)
+    else { return RecordedTime() }
+    return RecordedTime(timeZone: name, time: clock.localTime(Date(unixMilliseconds: time)))
   }
 
   /// A record's `HKTimeZone`, if it's text.

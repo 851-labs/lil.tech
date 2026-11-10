@@ -402,8 +402,8 @@ public struct HealthTools: Sendable {
     let metadata = workout.decodedMetadata
     let activities = workout.decodedActivities
     let location = HealthWorkout.location(metadata: metadata, activities: activities)
-    let recorded = zones.times(
-      json: workout.metadata, start: workout.startDate, end: workout.endDate)
+    let recorded = zones.named(
+      metadata.timeZoneName, start: workout.startDate, end: workout.endDate)
     let item = HealthWorkoutItem(
       id: workout.id, activityType: workout.activityType,
       activity: HealthCatalog.workoutActivityName(workout.activityType),

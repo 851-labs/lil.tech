@@ -228,8 +228,9 @@ public struct HealthSampleSeries: Codable, Equatable, Sendable {
 }
 
 /// What a sample's metadata says (`sampleDetailFields` in `HealthToolkit.ts`, 851-4166), read
-/// by `SampleDetails`. Every field is left out of the JSON when it's nil, as the toolkit's optional
-/// keys are: synthesized `Codable` does that.
+/// by `SampleDetails`, and its recorded times (`recordedTimeFields` there, set by `RecordedZones`,
+/// 851-4177), which the JSON has beside them. Every field is left out of the JSON when it's nil,
+/// as the toolkit's optional keys are: synthesized `Codable` does that.
 public struct HealthSampleDetails: Codable, Equatable, Sendable {
   public var userEntered: Bool?
   /// The zone it was recorded in, when it's a name the tools take, and its start and end on that
