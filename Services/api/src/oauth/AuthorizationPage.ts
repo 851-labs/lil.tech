@@ -424,7 +424,16 @@ export const addAuthorizationPage = (router: HttpRouter.HttpRouter, environment:
     ): TargetView => {
       const views = apps.flatMap((key) => {
         const app = registry[key];
-        return app === undefined ? [] : [{ key, name: app.name, writes: writesOf(app, scopes) }];
+        return app === undefined
+          ? []
+          : [
+              {
+                key,
+                name: app.name,
+                writes: writesOf(app, scopes),
+                sensitiveReads: app.sensitiveReads,
+              },
+            ];
       });
       return {
         name: target.combined ? "lil" : (views[0]?.name ?? "lil"),

@@ -9,7 +9,7 @@
   <body>
     <main>
       <h1>Privacy Policy</h1>
-      <p class="muted">lil health · Effective October 23, 2026</p>
+      <p class="muted">lil health · Effective November 9, 2026</p>
 
       <p>
         lil health brings your Apple Health data to the Mac. The iPhone app reads the Health data
@@ -101,9 +101,10 @@
       <p>
         lil health for Mac keeps a copy of your Health data on your Mac. Its setting “Allow access
         on this Mac” is off unless you turn it on. While it's on, the lil-health command and its MCP
-        server let programs on your Mac read all of that copy, including AI agents. AI agents
-        usually send what they read to their provider's servers, which handle it under their own
-        terms and privacy policies, not this one. I don't receive what they read.
+        server let programs on your Mac read all of that copy, including AI agents, the sensitive
+        kinds of Health data described below included. AI agents usually send what they read to
+        their provider's servers, which handle it under their own terms and privacy policies, not
+        this one. I don't receive what they read.
       </p>
       <p>
         While it's on, lil health keeps a log on your Mac of each request: the command or tool,
@@ -134,12 +135,37 @@
         <a href="/agents">lil.tech/agents</a>.
       </p>
       <p>
-        An agent you connect can read all of your lil health data on my servers, and there's no way
-        to share only some kinds of data. It can't change or delete your Health data. If you allow
-        it, it can also create, change and delete your cards, the charts on lil health's Summary:
-        their names, icons, colors and what they show. Changes sync to your devices. Agents get
-        summaries first, such as daily totals and averages, and individual records only when they
-        ask for them, a page at a time.
+        An agent you connect can read all of your lil health data on my servers: every kind of
+        Health data listed under What I collect, and your cards. What it can read includes the most
+        sensitive kinds:
+      </p>
+      <ul>
+        <li>your ECG recordings, with their voltage measurements and classification;</li>
+        <li>
+          your State of Mind logs and anxiety and depression assessments (GAD-7, PHQ-9), with your
+          answers and scores;
+        </li>
+        <li>your audiograms (hearing tests);</li>
+        <li>your medications and the doses you logged, skipped or missed;</li>
+        <li>your cycle tracking, including sexual activity and pregnancy;</li>
+        <li>
+          the clinical documents you shared, with what your provider recorded in them, such as your
+          name, address, diagnoses and test results;
+        </li>
+        <li>your workout routes, the precise locations where you exercised.</li>
+      </ul>
+      <p>
+        There's no way to share only some kinds of data. lil health doesn't read Health Records, the
+        clinical records your healthcare providers send to Apple Health, so agents can't read them
+        either. Agents you connected before November 9, 2026 can read all of this too, since they
+        could already read all of your lil health data.
+      </p>
+      <p>
+        An agent can't change or delete your Health data. If you allow it, it can also create,
+        change and delete your cards, the charts on lil health's Summary: their names, icons, colors
+        and what they show. Changes sync to your devices. Agents get summaries first, such as daily
+        totals and averages, and individual records, such as a route's locations or an ECG's
+        voltages, only when they ask for them, a page at a time.
       </p>
       <p>
         Agents send what they read to their provider's servers (for example Anthropic's or

@@ -64,11 +64,12 @@ struct ConnectedAgentsView: View {
             .foregroundStyle(.red)
         } else if !store.loadedAgents.isEmpty {
           Text(
-            "Connected agents can read all your Health data, from anywhere, until you revoke them. Swipe left to revoke one."
+            "Connected agents can read all your Health data, including ECGs, mental health, clinical documents and workout locations, from anywhere, until you revoke them. Swipe left to revoke one."
           )
         } else {
           Text(
-            "Connected agents can read all your Health data, from anywhere, until you revoke them.")
+            "Connected agents can read all your Health data, including ECGs, mental health, clinical documents and workout locations, from anywhere, until you revoke them."
+          )
         }
       }
 
@@ -77,7 +78,8 @@ struct ConnectedAgentsView: View {
           RecentAccessView(store: store)
         }
       } footer: {
-        Text("What your connected agents read, and the cards they changed.")
+        // A line, so the disclosure above leaves Turn Off Agent Access on screen (851-4029, 851-4157).
+        Text("What agents read, and the cards they changed.")
       }
 
       MCPServerSection(

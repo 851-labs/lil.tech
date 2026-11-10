@@ -43,6 +43,8 @@ export interface AppView {
   readonly name: string;
   /** What the agent asked to change in it, beyond reading (`health:cards`'s cards, 851-3214). */
   readonly writes: ReadonlyArray<AgentWriteScope>;
+  /** The most sensitive data reading it includes, which the page names (`AgentApp`, 851-4157). */
+  readonly sensitiveReads?: string | undefined;
 }
 
 /** What an agent asks to connect to, as the page names it: one app's server, or the combined one. */
@@ -355,6 +357,23 @@ const unchangedText = (writes: ReadonlyArray<AgentWriteScope>) =>
   list([...new Set(writes.map((write) => `your ${escape(write.unchanged)}`))]);
 
 /**
+ * The sensitive data reading includes, a paragraph per app that names some (851-4157): "What it
+ * can read includes your ECGs, …" for one app's server, "In lil health, what it can read includes
+ * …" for the combined. Not "That includes", which would follow "It can't change …".
+ */
+const sensitiveText = (target: TargetView) =>
+  target.apps
+    .flatMap(({ name, sensitiveReads }) =>
+      sensitiveReads === undefined
+        ? []
+        : [
+            `<p>${target.combined ? `In ${escape(name)}, what` : "What"} it can read includes ` +
+              `${escape(sensitiveReads)}.</p>\n`,
+          ],
+    )
+    .join("");
+
+/**
  * What an agent connecting to one app's server can read, and change if it asked to (lil health's
  * cards, 851-3214), all or nothing.
  */
@@ -369,7 +388,7 @@ ${writesText(writes, true)}. It can't change ${unchangedText(writes)}.</p>`;
   return `<section>
 <h2>${writes.length === 0 ? "What it can read" : "What it can do"}</h2>
 ${can}
-<p>Agents may send what they read to their AI provider, which handles it under its own terms.</p>
+${sensitiveText(target)}<p>Agents may send what they read to their AI provider, which handles it under its own terms.</p>
 <p class="muted">Only ${escape(target.name)}: your other lil apps' data isn't included. See the
 <a href="${escape(target.privacyUrl)}" target="_blank" rel="noreferrer">privacy policy</a>.</p>
 </section>`;
@@ -400,7 +419,7 @@ and ${list(changes)}. It can't change ${unchangedText(writes)}, or anything else
 ${apps}
 </ul>
 ${can}
-<p>Agents may send what they read to their AI provider, which handles it under its own terms.</p>
+${sensitiveText(target)}<p>Agents may send what they read to their AI provider, which handles it under its own terms.</p>
 <p class="muted">Allowing gives it every app listed. To let an agent read only one of them, connect
 it to that app's own server instead. See the
 <a href="${escape(target.privacyUrl)}" target="_blank" rel="noreferrer">privacy policy</a>.</p>

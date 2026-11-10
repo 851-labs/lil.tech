@@ -51,6 +51,11 @@ export interface AgentApp {
    * change and delete your <what>", and that it still can't change the app's `unchanged`.
    */
   readonly writeScopes?: Readonly<Record<string, AgentWriteScope>>;
+  /**
+   * The most sensitive data reading it includes, which the consent page names after "all of your
+   * <app> data", as the privacy policy does: "What it can read includes your ECGs, …" (851-4157).
+   */
+  readonly sensitiveReads?: string;
   /** The consent connecting an agent records (`Consents.ts`). */
   readonly consent: ConsentType;
   /** The privacy policy version that consent is recorded against. */
@@ -79,6 +84,11 @@ export const agentResources = {
     scopes: ["health:read", "health:cards"],
     readScope: "health:read",
     writeScopes: { "health:cards": { what: "cards", unchanged: "Health data" } },
+    // Agents read every kind of Health data lil health syncs, under `health:read` (Alexandru,
+    // 2026-11-09, 851-4156): the page names the sensitive kinds, as the privacy policy does.
+    sensitiveReads:
+      "your ECGs, State of Mind and anxiety and depression scores (GAD-7, PHQ-9), hearing tests, " +
+      "medications, cycle tracking, clinical documents and your workout routes' precise locations",
     consent: "agents:health",
     consentPolicyVersion: agentsConsentPolicyVersions["agents:health"],
   },
