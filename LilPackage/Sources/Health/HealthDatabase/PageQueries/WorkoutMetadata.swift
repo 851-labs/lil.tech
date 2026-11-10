@@ -1,5 +1,6 @@
 import Foundation
 import HealthCards
+import HealthCatalog
 public import SQLiteData
 
 /// What a workout's or one of its activities' metadata says of it, by HealthKit's keys, read as
@@ -21,8 +22,8 @@ public struct WorkoutMetadata: Equatable, Sendable {
   public var planName: String?
 
   // What the `workout` tool reads besides (851-4165), on workouts, activities and events, as the
-  // server reads them (`Services/api/src/health/tools/WorkoutValues.ts`). Quantities are the
-  // iPhone's descriptions of them, 6 significant digits, until 851-4150 keeps them whole.
+  // server reads them (`Services/api/src/health/tools/WorkoutValues.ts`). Every key is read as
+  // `HealthMetadataValues` reads it (851-4170).
 
   /// `HKMetadataKeyElevationDescended`, in meters.
   public var elevationDescended: Double?
@@ -40,7 +41,8 @@ public struct WorkoutMetadata: Equatable, Sendable {
   public var weatherCondition: String?
   /// `HKMetadataKeyWeatherTemperature`, in degrees Celsius.
   public var weatherTemperature: Double?
-  /// `HKMetadataKeyWeatherHumidity`, a percent from 0 to 100 (see `humidity`).
+  /// `HKMetadataKeyWeatherHumidity`, a percent from 0 to 100 (see
+  /// `HealthMetadataValues.Quantity.humidity`).
   public var weatherHumidity: Double?
   /// `HKMetadataKeySwimmingStrokeStyle`, as `HKSwimmingStrokeStyle` names it (`freestyle`…), on
   /// laps and segments.
@@ -80,29 +82,25 @@ public struct WorkoutMetadata: Equatable, Sendable {
       self.init()
       return
     }
-    self.init(
-      indoor: CardWorkout.indoor(metadataValue: metadata["HKIndoorWorkout"]),
-      swimmingLocation: Self.swimmingLocation(Self.number(metadata["HKSwimmingLocationType"])),
-      brandName: Self.unlessBlank(metadata["HKWorkoutBrandName"]),
-      elevationAscended: Self.quantity(metadata["HKElevationAscended"], Self.lengths),
-      planName: Self.unlessBlank((metadata["LilWorkoutPlan"] as? [String: Any])?["name"]),
-      elevationDescended: Self.quantity(metadata["HKElevationDescended"], Self.lengths),
-      averageSpeed: Self.quantity(metadata["HKAverageSpeed"], Self.speeds),
-      maximumSpeed: Self.quantity(metadata["HKMaximumSpeed"], Self.speeds),
-      averageMETs: Self.quantity(metadata["HKAverageMETs"], Self.mets),
-      lapLength: Self.quantity(metadata["HKLapLength"], Self.lengths),
-      swolf: Self.number(metadata["HKSWOLFScore"]),
-      weatherCondition: Self.named(Self.weatherConditions, metadata["HKWeatherCondition"]),
-      weatherTemperature: Self.quantity(metadata["HKWeatherTemperature"], Self.temperatures),
-      weatherHumidity: Self.quantity(metadata["HKWeatherHumidity"], Self.humidity),
-      strokeStyle: Self.named(Self.strokeStyles, metadata["HKSwimmingStrokeStyle"]))
-  }
-
-  /// A string unless it's blank: only spaces, tabs and line breaks, as on the server.
-  static func unlessBlank(_ value: Any?) -> String? {
-    (value as? String).flatMap {
-      $0.unicodeScalars.allSatisfy { " \t\n\r".unicodeScalars.contains($0) } ? nil : $0
+    func value(_ key: String) -> HealthMetadataValues.Value? {
+      HealthMetadataValues.value(key, in: metadata)
     }
+    self.init(
+      indoor: value("HKIndoorWorkout")?.bool,
+      swimmingLocation: value("HKSwimmingLocationType")?.string,
+      brandName: value("HKWorkoutBrandName")?.string,
+      elevationAscended: value("HKElevationAscended")?.double,
+      planName: HealthMetadataValues.text((metadata["LilWorkoutPlan"] as? [String: Any])?["name"]),
+      elevationDescended: value("HKElevationDescended")?.double,
+      averageSpeed: value("HKAverageSpeed")?.double,
+      maximumSpeed: value("HKMaximumSpeed")?.double,
+      averageMETs: value("HKAverageMETs")?.double,
+      lapLength: value("HKLapLength")?.double,
+      swolf: value("HKSWOLFScore")?.double,
+      weatherCondition: value("HKWeatherCondition")?.string,
+      weatherTemperature: value("HKWeatherTemperature")?.double,
+      weatherHumidity: value("HKWeatherHumidity")?.double,
+      strokeStyle: value("HKSwimmingStrokeStyle")?.string)
   }
 
   /// Indoors or not, by an `HKWorkoutSessionLocationType` raw value: 2 indoor, 3 outdoor, and
@@ -115,88 +113,12 @@ public struct WorkoutMetadata: Equatable, Sendable {
   /// `HKSwimmingLocationType` and a configuration's have it: 1 pool, 2 open water, and nil for 0
   /// (unknown) or anything else.
   static func swimmingLocation(_ type: Double?) -> String? {
-    type == 1 ? "pool" : type == 2 ? "openWater" : nil
-  }
-
-  /// A quantity the iPhone wrote as its description, a number and a unit ("4250 cm"), converted
-  /// by its unit's function in `units`, or nil for anything else or another unit.
-  static func quantity(_ value: Any?, _ units: [String: @Sendable (Double) -> Double]) -> Double? {
-    guard let description = value as? String,
-      let match = description.wholeMatch(
-        of: /([+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?) (\S+)/),
-      let number = Double(match.1), let convert = units[String(match.2)]
-    else { return nil }
-    let converted = convert(number)
-    return converted.isFinite ? converted : nil
-  }
-
-  /// Each unit's function: multiplying by its factor.
-  private static func scaled(_ factors: [String: Double]) -> [String: @Sendable (Double) -> Double]
-  {
-    factors.mapValues { factor in { $0 * factor } }
-  }
-
-  /// Meters in each length unit HealthKit writes a quantity in (`HKUnit`'s unit strings).
-  static let lengths = scaled([
-    "mm": 0.001, "cm": 0.01, "m": 1, "km": 1000, "in": 0.0254, "ft": 0.3048, "yd": 0.9144,
-    "mi": 1609.344,
-  ])
-
-  /// Meters per second in each speed unit.
-  static let speeds = scaled([
-    "m/s": 1, "km/hr": 1000 / 3600, "mi/hr": 1609.344 / 3600, "ft/s": 0.3048,
-  ])
-
-  /// METs: `kcal/hr·kg`, as `HKQuantity.description` writes the unit (with a middle dot).
-  static let mets = scaled(["kcal/hr·kg": 1, "kcal/(kg·hr)": 1, "kcal/(hr·kg)": 1])
-
-  /// Degrees Celsius from each temperature unit.
-  static let temperatures: [String: @Sendable (Double) -> Double] = [
-    "degC": { $0 }, "degF": { ($0 - 32) * 5 / 9 }, "K": { $0 - 273.15 },
-  ]
-
-  /// A percent, from 0 to 100. Apple's Workout app writes humidity 100 times too large (a
-  /// quantity of 72 percent units for 72%, described as "7200 %"), so a value over 100 is
-  /// divided by 100.
-  static let humidity: [String: @Sendable (Double) -> Double] = [
-    "%": { $0 > 100 ? $0 / 100 : $0 }
-  ]
-
-  /// The name at an enum's raw value, if it's a whole number with one.
-  static func named(_ names: [String?], _ value: Any?) -> String? {
-    guard let raw = number(value), raw.rounded() == raw, raw >= 0, raw < Double(names.count)
-    else { return nil }
-    return names[Int(raw)]
-  }
-
-  /// `HKWeatherCondition`'s cases, by raw value, without their prefix; 0 (none) is nil.
-  static let weatherConditions: [String?] = [
-    nil, "clear", "fair", "partlyCloudy", "mostlyCloudy", "cloudy", "foggy", "haze", "windy",
-    "blustery", "smoky", "dust", "snow", "hail", "sleet", "freezingDrizzle", "freezingRain",
-    "mixedRainAndHail", "mixedRainAndSnow", "mixedRainAndSleet", "mixedSnowAndSleet", "drizzle",
-    "scatteredShowers", "showers", "thunderstorms", "tropicalStorm", "hurricane", "tornado",
-  ]
-
-  /// `HKSwimmingStrokeStyle`'s cases, by raw value; 0 (unknown) is nil.
-  static let strokeStyles: [String?] = [
-    nil, "mixed", "freestyle", "backstroke", "breaststroke", "butterfly", "kickboard",
-  ]
-
-  static func isBoolean(_ value: Any?) -> Bool {
-    guard let number = value as? NSNumber else { return false }
-    return CFGetTypeID(number) == CFBooleanGetTypeID()
-  }
-
-  /// A JSON number, not a Boolean.
-  static func number(_ value: Any?) -> Double? {
-    guard let number = value as? NSNumber, !isBoolean(number), number.doubleValue.isFinite
-    else { return nil }
-    return number.doubleValue
+    HealthMetadataValues.named(HealthMetadataValues.swimmingLocations, type)
   }
 
   /// A JSON number that's an integer, as the server's `Schema.Int` takes it (a safe one).
   static func integer(_ value: Any?) -> Int? {
-    guard let number = number(value), number.rounded() == number,
+    guard let number = HealthMetadataValues.number(value), number.rounded() == number,
       number.magnitude <= 9_007_199_254_740_991
     else { return nil }
     return Int(number)
@@ -290,21 +212,21 @@ extension HealthWorkout {
     for element in array {
       guard let object = element as? [String: Any],
         let activityType = WorkoutMetadata.integer(object["activityType"]),
-        let startDate = WorkoutMetadata.number(object["startDate"]),
-        let duration = WorkoutMetadata.number(object["duration"])
+        let startDate = HealthMetadataValues.number(object["startDate"]),
+        let duration = HealthMetadataValues.number(object["duration"])
       else { return [] }
       let endDate: Double?
       switch object["endDate"] {
       case is NSNull: endDate = nil
       case let value:
-        guard let value = WorkoutMetadata.number(value) else { return [] }
+        guard let value = HealthMetadataValues.number(value) else { return [] }
         endDate = value
       }
       // Missing or null, or a number: `.some(nil)` for none, `nil` for anything else.
       func optionalNumber(_ key: String) -> Double?? {
         switch object[key] {
         case nil, is NSNull: .some(nil)
-        case let value: WorkoutMetadata.number(value).map(Optional.some)
+        case let value: HealthMetadataValues.number(value).map(Optional.some)
         }
       }
       guard let locationType = optionalNumber("locationType"),

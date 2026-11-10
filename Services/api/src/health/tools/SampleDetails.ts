@@ -1,5 +1,5 @@
-import { type DateTime, Option, Predicate, type Schema } from "effect";
-import { workoutActivityName } from "../HealthCatalog.ts";
+import { type DateTime, Option, type Schema } from "effect";
+import { type MetadataKey, metadataValue, text } from "../MetadataValues.ts";
 import { decodeMetadata, type Metadata } from "../WorkoutMetadata.ts";
 import type { HealthSampleSource, sampleDetailFields } from "./HealthToolkit.ts";
 import { localTime } from "./ToolTime.ts";
@@ -9,11 +9,8 @@ import { localTime } from "./ToolTime.ts";
 // metadata (only the keys lil health keeps, 851-4152), each key it reads turned into a plain field
 // (`sampleDetails`). The Mac reads them alike (`SampleDetails` in `HealthTools`), so the two
 // `samples` tools agree (the conformance cases). Every field is left out when the sample doesn't
-// have it.
-//
-// The iPhone writes an `HKQuantity` as its description, a number with 6 significant digits and a
-// unit ("120 count/min", `HealthEncoder.json`), until 851-4150 keeps them whole: so quantities are
-// rounded to that, and a unit not listed here leaves the field out.
+// have it. Each key's value is read as `MetadataValues.ts` reads it (851-4170): a quantity in a
+// unit it isn't read in, or a value of another kind, leaves the field out.
 
 type SampleDetails = {
   -readonly [Field in keyof typeof sampleDetailFields]?: (typeof sampleDetailFields)[Field]["Type"];
@@ -41,138 +38,45 @@ export interface StoredSource {
 const appleDeviceBundleId =
   /^com\.apple\.health\.[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}$/;
 
-/** A string unless it's blank: only spaces, tabs and line breaks, as the Mac's `unlessBlank`. */
-const text = (value: unknown): string | null =>
-  Predicate.isString(value) && !/^[ \t\n\r]*$/.test(value) ? value : null;
-
-/** A JSON number, not a Boolean. */
-const number = (value: unknown): number | null =>
-  Predicate.isNumber(value) && Number.isFinite(value) ? value : null;
-
-/** A Boolean, or 0 or 1 from apps that write it as a number, as `HKIndoorWorkout` is read. */
-const boolean = (value: unknown): boolean | null =>
-  Predicate.isBoolean(value) ? value : value === 1 ? true : value === 0 ? false : null;
-
-/** The case at an enum's raw value, if it's a whole number with one (not set is null). */
-const named =
-  (cases: ReadonlyArray<string | null>) =>
-  (value: unknown): string | null => {
-    const raw = number(value);
-    return raw !== null && Number.isInteger(raw) && raw >= 0 ? (cases[raw] ?? null) : null;
-  };
-
-/** A workout activity's name, by its `HKWorkoutActivityType` raw value. */
-const activityName = (value: unknown): string | null => {
-  const raw = number(value);
-  // Whole and below 10^15, as the Mac can make an `Int` of it.
-  return raw !== null && Number.isInteger(raw) && Math.abs(raw) < 1e15
-    ? workoutActivityName(raw)
-    : null;
-};
-
-/** A number and a unit, as `HKQuantity.description` writes them: "120 count/min". */
-const quantityText = /^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?) (\S+)$/;
-
-/** A quantity's description in one unit, by the factor of each unit it's read in. */
-const quantity =
-  (factors: Readonly<Record<string, number>>) =>
-  (value: unknown): number | null => {
-    if (!Predicate.isString(value)) return null;
-    const match = quantityText.exec(value);
-    const factor = match === null ? undefined : factors[match[2]!];
-    if (match === null || factor === undefined) return null;
-    const converted = Number(match[1]) * factor;
-    return Number.isFinite(converted) ? converted : null;
-  };
-
-const beatsPerMinute = quantity({ "count/min": 1, "count/s": 60 });
-const seconds = quantity({ ms: 0.001, s: 1, min: 60, hr: 3600, d: 86400 });
-const decibels = quantity({ dBASPL: 1 });
-/** VO2 max, in mL/(kg·min): `HKQuantity` writes the unit `mL/min·kg`. */
-const vo2Max = quantity({ "mL/min·kg": 1, "mL/kg·min": 1, "ml/min·kg": 1, "ml/kg·min": 1 });
-const lux = quantity({ lx: 1, klx: 1000 });
-
-const heartRateTestTypes = [
-  null,
-  "maxExercise",
-  "predictionSubMaxExercise",
-  "predictionNonExercise",
-];
-
 /**
- * Each field read from one metadata key, in the order they're read. `sensorLocation` has two
- * keys, heart rate's and body temperature's, and takes the first a sample has.
+ * Each field and the metadata key it's read from, in the order they're read. `sensorLocation` has
+ * two keys, heart rate's and body temperature's, and takes the first a sample has.
  */
-const metadataFields: ReadonlyArray<
-  readonly [keyof SampleDetails, string, (value: unknown) => string | number | boolean | null]
-> = [
-  ["userEntered", "HKWasUserEntered", boolean],
-  ["recordedTimeZone", "HKTimeZone", text],
-  ["food", "HKFoodType", text],
-  ["motionContext", "HKMetadataKeyHeartRateMotionContext", named([null, "sedentary", "active"])],
-  ["userMotionContext", "HKMetadataKeyUserMotionContext", named([null, "stationary", "active"])],
-  [
-    "sensorLocation",
-    "HKHeartRateSensorLocation",
-    named(["other", "chest", "wrist", "finger", "hand", "earLobe", "foot"]),
-  ],
-  [
-    "sensorLocation",
-    "HKBodyTemperatureSensorLocation",
-    named([
-      "other",
-      "armpit",
-      "body",
-      "ear",
-      "finger",
-      "gastroIntestinal",
-      "mouth",
-      "rectum",
-      "toe",
-      "earDrum",
-      "temporalArtery",
-      "forehead",
-    ]),
-  ],
-  ["mealTime", "HKBloodGlucoseMealTime", named([null, "preprandial", "postprandial"])],
-  ["insulinDeliveryReason", "HKInsulinDeliveryReason", named([null, "basal", "bolus"])],
-  ["vo2MaxTestType", "HKVO2MaxTestType", named([...heartRateTestTypes, "predictionStepTest"])],
-  ["vo2Max", "HKVO2MaxValue", vo2Max],
-  ["lowCardioFitnessThreshold", "HKLowCardioFitnessEventThreshold", vo2Max],
-  ["heartRateEventThreshold", "HKHeartRateEventThreshold", beatsPerMinute],
-  [
-    "heartRateRecoveryTestType",
-    "HKMetadataKeyHeartRateRecoveryTestType",
-    named([...heartRateTestTypes, "stepTest"]),
-  ],
-  ["heartRateRecoveryActivity", "HKMetadataKeyHeartRateRecoveryActivityType", activityName],
-  ["heartRateRecoveryActivityDuration", "HKMetadataKeyHeartRateRecoveryActivityDuration", seconds],
-  [
-    "maxObservedRecoveryHeartRate",
-    "HKMetadataKeyHeartRateRecoveryMaxObservedRecoveryHeartRate",
-    beatsPerMinute,
-  ],
-  ["audioExposureLevel", "HKMetadataKeyAudioExposureLevel", decibels],
-  ["audioExposureDuration", "HKMetadataKeyAudioExposureDuration", seconds],
-  ["headphoneGain", "HKMetadataKeyHeadphoneGain", decibels],
-  [
-    "physicalEffortEstimationType",
-    "HKPhysicalEffortEstimationType",
-    named([null, "activityLookup", "deviceSensed"]),
-  ],
-  ["activity", "HKActivityType", activityName],
-  ["placementSide", "HKMetadataKeyDevicePlacementSide", named([null, "left", "right", "central"])],
-  ["deviceCalibrated", "HKMetadataKeyAppleDeviceCalibrated", boolean],
-  ["algorithmVersion", "HKAlgorithmVersion", number],
-  ["clampedToLowerBound", "HKMetadataKeyQuantityClampedToLowerBound", boolean],
-  ["clampedToUpperBound", "HKMetadataKeyQuantityClampedToUpperBound", boolean],
-  ["referenceRangeLowerLimit", "HKReferenceRangeLowerLimit", number],
-  ["referenceRangeUpperLimit", "HKReferenceRangeUpperLimit", number],
-  ["takenInLab", "HKWasTakenInLab", boolean],
-  ["waterSalinity", "HKMetadataKeyWaterSalinity", named([null, "freshWater", "saltWater"])],
-  ["maximumLightIntensity", "HKMetadataKeyMaximumLightIntensity", lux],
-  ["menstrualCycleStart", "HKMenstrualCycleStart", boolean],
-  ["protectionUsed", "HKSexualActivityProtectionUsed", boolean],
+const metadataFields: ReadonlyArray<readonly [keyof SampleDetails, MetadataKey]> = [
+  ["userEntered", "HKWasUserEntered"],
+  ["recordedTimeZone", "HKTimeZone"],
+  ["food", "HKFoodType"],
+  ["motionContext", "HKMetadataKeyHeartRateMotionContext"],
+  ["userMotionContext", "HKMetadataKeyUserMotionContext"],
+  ["sensorLocation", "HKHeartRateSensorLocation"],
+  ["sensorLocation", "HKBodyTemperatureSensorLocation"],
+  ["mealTime", "HKBloodGlucoseMealTime"],
+  ["insulinDeliveryReason", "HKInsulinDeliveryReason"],
+  ["vo2MaxTestType", "HKVO2MaxTestType"],
+  ["vo2Max", "HKVO2MaxValue"],
+  ["lowCardioFitnessThreshold", "HKLowCardioFitnessEventThreshold"],
+  ["heartRateEventThreshold", "HKHeartRateEventThreshold"],
+  ["heartRateRecoveryTestType", "HKMetadataKeyHeartRateRecoveryTestType"],
+  ["heartRateRecoveryActivity", "HKMetadataKeyHeartRateRecoveryActivityType"],
+  ["heartRateRecoveryActivityDuration", "HKMetadataKeyHeartRateRecoveryActivityDuration"],
+  ["maxObservedRecoveryHeartRate", "HKMetadataKeyHeartRateRecoveryMaxObservedRecoveryHeartRate"],
+  ["audioExposureLevel", "HKMetadataKeyAudioExposureLevel"],
+  ["audioExposureDuration", "HKMetadataKeyAudioExposureDuration"],
+  ["headphoneGain", "HKMetadataKeyHeadphoneGain"],
+  ["physicalEffortEstimationType", "HKPhysicalEffortEstimationType"],
+  ["activity", "HKActivityType"],
+  ["placementSide", "HKMetadataKeyDevicePlacementSide"],
+  ["deviceCalibrated", "HKMetadataKeyAppleDeviceCalibrated"],
+  ["algorithmVersion", "HKAlgorithmVersion"],
+  ["clampedToLowerBound", "HKMetadataKeyQuantityClampedToLowerBound"],
+  ["clampedToUpperBound", "HKMetadataKeyQuantityClampedToUpperBound"],
+  ["referenceRangeLowerLimit", "HKReferenceRangeLowerLimit"],
+  ["referenceRangeUpperLimit", "HKReferenceRangeUpperLimit"],
+  ["takenInLab", "HKWasTakenInLab"],
+  ["waterSalinity", "HKMetadataKeyWaterSalinity"],
+  ["maximumLightIntensity", "HKMetadataKeyMaximumLightIntensity"],
+  ["menstrualCycleStart", "HKMenstrualCycleStart"],
+  ["protectionUsed", "HKSexualActivityProtectionUsed"],
 ];
 
 /** `HKDevice`'s properties the tool shows, in order: those lil health keeps (851-4152). */
@@ -197,9 +101,9 @@ const sampleDevice = (device: Metadata | null, metadata: Metadata | null) => {
     const value =
       text(device?.[property]) ??
       (property === "name"
-        ? text(metadata?.["HKDeviceName"])
+        ? metadataValue(metadata, "HKDeviceName")
         : property === "manufacturer"
-          ? text(metadata?.["HKDeviceManufacturerName"])
+          ? metadataValue(metadata, "HKDeviceManufacturerName")
           : null);
     if (value !== null) result[property] = value;
   }
@@ -265,12 +169,12 @@ export const sampleDetails = (
   const details: SampleDetails = {};
   if (metadata === null) return details;
   const fields = details as Record<string, Schema.Json>;
-  for (const [field, key, read] of metadataFields) {
+  for (const [field, key] of metadataFields) {
     if (field in fields) continue;
-    const value = read(metadata[key]);
+    const value = metadataValue(metadata, key);
     if (value !== null) fields[field] = value;
   }
-  const earliest = number(metadata["HKDateOfEarliestDataUsedForEstimate"]);
+  const earliest = metadataValue(metadata, "HKDateOfEarliestDataUsedForEstimate");
   if (earliest !== null && earliest >= estimateDates.from && earliest < estimateDates.to) {
     details.earliestDataUsedForEstimate = localTime(earliest, zone);
   }

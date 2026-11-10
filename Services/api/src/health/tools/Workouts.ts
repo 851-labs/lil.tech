@@ -1,6 +1,7 @@
 import { Clock, type DateTime, Effect, Option, Predicate, Schema } from "effect";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import { workoutActivityName } from "../HealthCatalog.ts";
+import { metadataValue, text } from "../MetadataValues.ts";
 import {
   activityIndoor,
   activitySwimmingLocation,
@@ -19,7 +20,6 @@ import {
 } from "./HealthQueries.ts";
 import { type HealthToolkit, workoutsLimit } from "./HealthToolkit.ts";
 import { localTime, type ToolRange, toolPeriod, toolTimeZone } from "./ToolTime.ts";
-import { elevationAscended } from "./WorkoutValues.ts";
 
 type WorkoutsResult = (typeof HealthToolkit.tools.workouts.successSchema)["Type"];
 type WorkoutItem = WorkoutsResult["workouts"][number];
@@ -42,10 +42,6 @@ export const StatisticsByType = Schema.Record(
 export type WorkoutStatistics = (typeof StatisticsByType)["Type"];
 const decodeStatistics = Schema.decodeUnknownOption(Schema.fromJsonString(StatisticsByType));
 
-/** A string unless it's blank: only spaces, tabs and line breaks, which the Mac counts the same. */
-const unlessBlank = (value: unknown): string | null =>
-  Predicate.isString(value) && !/^[ \t\n\r]*$/.test(value) ? value : null;
-
 /**
  * The workout's name: `HKMetadataKeyWorkoutBrandName`, else the name of the WorkoutKit plan it was
  * recorded from, which the iPhone keeps in its metadata (`LilWorkoutPlan`, 851-4030), unless
@@ -54,8 +50,8 @@ const unlessBlank = (value: unknown): string | null =>
 const workoutName = (metadata: Metadata | null): string | null => {
   const plan = metadata?.["LilWorkoutPlan"];
   return (
-    unlessBlank(metadata?.["HKWorkoutBrandName"]) ??
-    (Predicate.isObject(plan) ? unlessBlank(plan["name"]) : null)
+    metadataValue(metadata, "HKWorkoutBrandName") ??
+    (Predicate.isObject(plan) ? text(plan["name"]) : null)
   );
 };
 
@@ -99,7 +95,7 @@ export const readWorkout = (
     activeEnergy: sum("HKQuantityTypeIdentifierActiveEnergyBurned"),
     distance: distanceTypes.map(sum).find((distance) => distance !== null) ?? null,
     averageHeartRate: statistics["HKQuantityTypeIdentifierHeartRate"]?.average ?? null,
-    elevationAscended: elevationAscended(metadata),
+    elevationAscended: metadataValue(metadata, "HKElevationAscended"),
     indoor: workoutIndoor(metadata, activities),
     swimmingLocation: swimmingLocation(metadata) ?? agreed(activities, activitySwimmingLocation),
     hasRoute: withRoutes.has(workout.id),
