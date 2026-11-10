@@ -400,7 +400,7 @@ struct ConnectedAgentsSections: View {
           .foregroundStyle(.red)
       } else {
         Text(
-          "Connected agents can read all your Health data, from anywhere, until you revoke them."
+          "Connected agents can read all your Health data, including ECGs, mental health, clinical documents and workout locations, from anywhere, until you revoke them."
         )
         .foregroundStyle(.secondary)
       }

@@ -64,11 +64,12 @@ struct ConnectedAgentsView: View {
             .foregroundStyle(.red)
         } else if !store.loadedAgents.isEmpty {
           Text(
-            "Connected agents can read all your Health data, from anywhere, until you revoke them. Swipe left to revoke one."
+            "Connected agents can read all your Health data, including ECGs, mental health, clinical documents and workout locations, from anywhere, until you revoke them. Swipe left to revoke one."
           )
         } else {
           Text(
-            "Connected agents can read all your Health data, from anywhere, until you revoke them.")
+            "Connected agents can read all your Health data, including ECGs, mental health, clinical documents and workout locations, from anywhere, until you revoke them."
+          )
         }
       }
 

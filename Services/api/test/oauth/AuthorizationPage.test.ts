@@ -227,6 +227,13 @@ describe("The authorization page", () => {
           assert.strictEqual(consent.response.status, 200);
           assert.include(consent.html, "Allow MCP Inspector to read your lil health data?");
           assert.include(consent.html, "all of your lil health data");
+          // The sensitive kinds it includes, as the privacy policy names them (851-4157).
+          assert.include(
+            consent.html,
+            "<p>That includes your ECGs, State of Mind and anxiety and depression scores " +
+              "(GAD-7, PHQ-9), hearing tests, medications, cycle tracking, clinical documents and " +
+              "your workout routes&#39; precise locations.</p>",
+          );
           assert.include(consent.html, "Agents may send what they read to their AI provider");
           assert.include(consent.html, "https://lil.tech/privacy#agents");
           assert.include(consent.html, "Signed in as <strong>e2e</strong>");
@@ -1390,6 +1397,7 @@ describe("Authorizing the combined server", () => {
           const html = started.consent.html;
           assert.include(html, "Allow MCP Inspector to read your lil data and change your cards?");
           assert.include(html, "all of your data in these lil apps: lil health");
+          assert.include(html, "<p>In lil health, that includes your ECGs, State of Mind");
           assert.include(
             html,
             "and create, change and delete your cards in lil health. It can't change your Health " +
@@ -1499,6 +1507,8 @@ describe("Authorizing the combined server", () => {
             handler,
             query(clientId, { resource: origin, scope: "mail:read" }).search,
           );
+          // Only an app that names sensitive kinds gets a line for them.
+          assert.notInclude(mailOnly.consent.html, "that includes");
           assert.strictEqual((yield* decide(handler, mailOnly, "allow")).status, 303);
           assert.deepStrictEqual(yield* consentsOf(["agents:health", "agents:mail"]), {
             "agents:health": null,
