@@ -221,13 +221,14 @@ LIL_BENCHMARKS=1 vp test --reporter=verbose --silent=false test/health/cards/Car
 
   | Card | Before | After |
   | --- | ---: | ---: |
-  | Heart rate, `asleep`, by the night | 237, 230 | 257, 251 |
-  | Heart rate, `beforeSleep` 5 minutes, by the night | 88, 87 | 98, 99 |
-  | A year of nights (3,660 records after, 3,650 before: the wider fetch reads a night more) | 27.8, 24.8 | 36.4, 31.3 |
-  | Of which reading the records | 1.8, 1.8 | 2.7, 2.8 |
+  | Heart rate, `asleep`, by the night | 237, 230 | 242, 234 |
+  | Heart rate, `beforeSleep` 5 minutes, by the night | 88, 87 | 92, 90 |
+  | A year of nights (3,660 records after, 3,650 before: the wider fetch reads a night more) | 27.8, 24.8 | 35.2, 30.0 |
+  | Of which reading the records | 1.8, 1.8 | 2.8, 2.6 |
 
   - **Reading each record's zone** adds about 1 ms a year (`json_valid` and `->>` on each sleep record's metadata, each name checked once a query).
-  - **Grouping** adds about 6 ms: each source's records split into runs, and the Tokyo weeks' days placed on Tokyo's clock and mapped to London's days, once a day (`NightDays`). The windows' 10–20 ms are that and the noise.
+  - **Grouping** adds about 6 ms: each source's records split into runs, and the Tokyo weeks' days placed on Tokyo's clock and mapped to London's days, once a day (`NightDays`).
+  - **A night's clock costs nothing more:** `cardNights` keeps the midnight that starts a zoned night's date as it places its records (`CardNight.clockDay`), so `nightBedtime`, which a sleep window asks of every night, does no time-zone math. Working it out again cost 7 ms a year, and the windows 10–20 ms more than they do now.
 - **A real account** has about 105,000 heart rate samples a year (Agent tool calls, above), a fifth of these, so a year's card costs about what a year of `metric` does, well under the store's 30 s limit and inside the tools' 0.7 s.
 
 ## Cards on the iPhone

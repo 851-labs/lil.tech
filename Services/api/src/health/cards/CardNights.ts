@@ -69,6 +69,11 @@ export interface CardNight {
    * bedtime and clock are that zone's (`nightClock`).
    */
   readonly timeZone?: string;
+  /**
+   * For a night in another zone, the midnight there that starts its date (`nightClock`), as
+   * `cardNights` placed it, so a night's clock costs no time-zone math.
+   */
+  readonly clockDay?: number;
   /** The chosen source's records in its main session, by start: its stages, not In Bed. */
   readonly records: ReadonlyArray<CardSleepRecord>;
   /** When its records start and end: the earliest start, and the latest end. */
@@ -128,7 +133,7 @@ export const clockHours = (
 export const nightBedtime = (night: CardNight, calendar: CardCalendar): number | undefined => {
   const asleepAt = fallingAsleep(night);
   if (asleepAt === undefined) return undefined;
-  const clock = nightClock(night.day, night.timeZone, calendar);
+  const clock = nightClock(night.day, night.timeZone, calendar, night.clockDay);
   const hours = clockHours(asleepAt, clock.day, night.start, clock.calendar);
   return hours < latestBedtime ? hours : undefined;
 };
@@ -174,24 +179,29 @@ const sameDate = (day: number, source: CardCalendar, target: CardCalendar): numb
 
 /**
  * A night's clock: the calendar in its zone (`CardNight.timeZone`), and the midnight there that
- * starts its day's date. The calendar and `day` themselves for a night in none, or in the
- * calendar's.
+ * starts its day's date (`clockDay` when it's known). The calendar and `day` themselves for a
+ * night in none, or in the calendar's.
  */
 export const nightClock = (
   day: number,
   timeZone: string | undefined,
   calendar: CardCalendar,
+  clockDay?: number,
 ): { readonly calendar: CardCalendar; readonly day: number } => {
   const zoned = zonedCalendar(calendar, timeZone);
   return zoned === undefined
     ? { calendar, day }
-    : { calendar: zoned, day: sameDate(day, calendar, zoned) };
+    : { calendar: zoned, day: clockDay ?? sameDate(day, calendar, zoned) };
 };
 
-/** A record and its run's zone (`sleepRuns`). */
+/**
+ * A record, its run's zone (`sleepRuns`), and the midnight on that zone's clock that starts its
+ * day there.
+ */
 interface Placed {
   readonly record: CardSleepRecord;
   readonly timeZone: string | undefined;
+  readonly clockDay: number;
 }
 
 /** A run of a source's records, by their indices, and its zone's name (`sleepRuns`). */
@@ -286,6 +296,12 @@ class NightDays {
     return this.clocks.length - 1;
   }
 
+  /** The start of the day `millis` falls on, on the clock's own calendar. */
+  clockDay(millis: number, clock: number): number {
+    return this.clocks[clock]!.bucketer.startOf(millis);
+  }
+
+  /** The calendar's day of the date `millis` has on the clock. */
   day(millis: number, clock: number): number {
     const { bucketer, days } = this.clocks[clock]!;
     const start = bucketer.startOf(millis);
@@ -313,9 +329,10 @@ const placeRecords = (
     const clock = days.clock(run.timeZone);
     for (const index of run.indices) {
       const record = records[index]!;
+      const at = record.start + nightStartOffset;
       placed[index] = {
-        placed: { record, timeZone: run.timeZone },
-        day: days.day(record.start + nightStartOffset, clock),
+        placed: { record, timeZone: run.timeZone, clockDay: days.clockDay(at, clock) },
+        day: days.day(at, clock),
       };
     }
   }
@@ -435,10 +452,10 @@ export const cardNights = (
       end = Math.max(end, record.end);
     }
     const inBed = union(inBedRecords.filter((record) => record.start < end && record.end > start));
-    const timeZone = session[0]!.timeZone;
+    const { timeZone, clockDay } = session[0]!;
     nights.push({
       day,
-      ...(timeZone !== undefined && { timeZone }),
+      ...(timeZone !== undefined && { timeZone, clockDay }),
       records: session.map(({ record }) => record).sort((a, b) => a.start - b.start),
       start,
       end,

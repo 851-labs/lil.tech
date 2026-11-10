@@ -117,6 +117,9 @@ describe("nights in their recorded zones", () => {
     const clock = nightClock(night.day, night.timeZone, london);
     assert.strictEqual(clock.calendar.timeZone, tokyo);
     assert.strictEqual(clock.day, day(12, calendar("Asia/Tokyo")));
+    // As placed, and as worked out without it.
+    assert.strictEqual(night.clockDay, clock.day);
+    assert.deepStrictEqual(nightClock(night.day, night.timeZone, london).day, clock.day);
 
     // Without zones, as before: split at London's 18:00.
     const before = cardNights(withoutZones(tokyoNight), days, london);
