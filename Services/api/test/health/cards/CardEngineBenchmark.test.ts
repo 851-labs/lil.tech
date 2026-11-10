@@ -1,7 +1,8 @@
 import { assert, describe, it } from "@effect/vitest";
 import { DateTime, Option } from "effect";
 import type { CardCalendar } from "../../../src/health/cards/CardCalendar.ts";
-import { cardSeriesIn } from "../../../src/health/cards/CardQueries.ts";
+import { cardNights, nightRecordRange } from "../../../src/health/cards/CardNights.ts";
+import { cardSeriesIn, cardSleepRecords } from "../../../src/health/cards/CardQueries.ts";
 import { runCard } from "../../../src/health/cards/RunCard.ts";
 import { migrate } from "../../../src/store/Migrations.ts";
 import { makeTestStoreSql } from "../../store/TestStoreSql.ts";
@@ -109,6 +110,8 @@ describe.skipIf(process.env["LIL_BENCHMARKS"] !== "1")("the card engine's benchm
         }
       }
       // A Watch's nights: in bed 22:30 to 07:15, two awake in the night; and a run or a ride at 6 PM.
+      // Each record says where it was recorded, as a Watch's do (851-4175, the Mac's 851-4174):
+      // London, but a week in Tokyo every month.
       const stages = [
         [0, -1.5, 7.25],
         [3, -1, 0.5],
@@ -127,12 +130,13 @@ describe.skipIf(process.env["LIL_BENCHMARKS"] !== "1")("the card engine's benchm
         for (const [stage, from, to] of stages) {
           sql.exec(
             `INSERT INTO health_sample (id, type, start_date, end_date, category_value, source_name,
-            source_bundle_id) VALUES (?, 'HKCategoryTypeIdentifierSleepAnalysis', ?, ?, ?, 'Apple Watch', ?)`,
+            source_bundle_id, metadata) VALUES (?, 'HKCategoryTypeIdentifierSleepAnalysis', ?, ?, ?, 'Apple Watch', ?, ?)`,
             `00000000-0000-4000-9000-${String(++id).padStart(12, "0")}`,
             midnight + from * 3_600_000,
             midnight + to * 3_600_000,
             stage,
             watch,
+            JSON.stringify({ HKTimeZone: day % 30 < 7 ? "Asia/Tokyo" : "Europe/London" }),
           );
         }
         sql.exec(
@@ -227,6 +231,20 @@ describe.skipIf(process.env["LIL_BENCHMARKS"] !== "1")("the card engine's benchm
         assert.isAbove(points, 10, name);
         console.log(`A year, ${label}${name}: ${time.toFixed(0)} ms, ${points} points`);
       }
+      // Sleep's nights, Y, as the `sleep` tool reads them: the nights alone, and the records' read.
+      const days = { start, end: start + 365 * 86_400_000 };
+      let nights = 0;
+      const sleep = median(() => {
+        nights = cardNights(cardSleepRecords(sql, nightRecordRange(days)), days, london).length;
+      });
+      let records = 0;
+      const reading = median(() => {
+        records = cardSleepRecords(sql, nightRecordRange(days)).length;
+      });
+      assert.isAbove(nights, 300);
+      console.log(
+        `A year of nights: ${sleep.toFixed(1)} ms, ${nights} nights, of which reading ${records} records ${reading.toFixed(1)} ms`,
+      );
     },
   );
 });

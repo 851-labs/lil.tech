@@ -217,6 +217,17 @@ LIL_BENCHMARKS=1 vp test --reporter=verbose --silent=false test/health/cards/Car
 
   - **The query plan matters:** the store's samples are keyed by (type, start, ID), with no index of the ID alone. A series is joined to its sample by that key, with `CROSS JOIN` keeping the series first. Joined by ID alone, each series scanned the samples, and the benchmark didn't finish in 14 minutes. Left to choose, SQLite read a year's samples for a year's series (65 ms with no series at all).
   - `NOT IN` the range's series costs the server about 45 ms here, so it stays.
+- **Recorded time zones** (851-4175, `docs/decisions/cards.md` › Recorded time zones): the year's nights now say where they were recorded (`HKTimeZone`), as the Mac's benchmark's do (London, a week in Tokyo every month), and the run also times a year of nights as the `sleep` tool reads them (`cardNights` over `cardSleepRecords`), with the records' read alone. **2026-11-10**, Apple M1 Pro (load 3–15). CPU ms, the same data before and after, without series and with:
+
+  | Card | Before | After |
+  | --- | ---: | ---: |
+  | Heart rate, `asleep`, by the night | 237, 230 | 257, 251 |
+  | Heart rate, `beforeSleep` 5 minutes, by the night | 88, 87 | 98, 99 |
+  | A year of nights (3,660 records after, 3,650 before: the wider fetch reads a night more) | 27.8, 24.8 | 36.4, 31.3 |
+  | Of which reading the records | 1.8, 1.8 | 2.7, 2.8 |
+
+  - **Reading each record's zone** adds about 1 ms a year (`json_valid` and `->>` on each sleep record's metadata, each name checked once a query).
+  - **Grouping** adds about 6 ms: each source's records split into runs, and the Tokyo weeks' days placed on Tokyo's clock and mapped to London's days, once a day (`NightDays`). The windows' 10–20 ms are that and the noise.
 - **A real account** has about 105,000 heart rate samples a year (Agent tool calls, above), a fifth of these, so a year's card costs about what a year of `metric` does, well under the store's 30 s limit and inside the tools' 0.7 s.
 
 ## Cards on the iPhone

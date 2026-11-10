@@ -33,6 +33,7 @@ import {
   readingsOfSeries,
 } from "./CardSeries.ts";
 import type { CardFilter } from "./CardSpec.ts";
+import { namedTimeZone } from "../tools/ToolTime.ts";
 import { storedWorkoutIndoor } from "../WorkoutMetadata.ts";
 
 // The server engine's reads of the user's store (851-3197): the Mac's `CardQueries` over the
@@ -256,12 +257,23 @@ export const cardStretchReadings = (
 
 /**
  * Sleep analysis records with a value that end after `range` starts and start before it ends, by
- * start: In Bed records can start well before a night.
+ * start: In Bed records can start well before a night. Each with the zone it was recorded in
+ * (`HKTimeZone`, 851-4175), which its night follows, when that's a name the tools take
+ * (`namedTimeZone`). Metadata that isn't JSON, or a zone that isn't a name, loses only the zone.
  */
-export const cardSleepRecords = (sql: StoreSql, range: CardInterval): Array<CardSleepRecord> =>
-  sql
+export const cardSleepRecords = (sql: StoreSql, range: CardInterval): Array<CardSleepRecord> => {
+  // A few names among thousands of records: each checked once.
+  const zones = new Map<string, string | undefined>();
+  const zoneOf = (name: SqlValue | undefined) => {
+    if (typeof name !== "string") return undefined;
+    if (!zones.has(name)) zones.set(name, namedTimeZone(name) === undefined ? undefined : name);
+    return zones.get(name);
+  };
+  return sql
     .rows(
-      `SELECT start_date, end_date, category_value, source_bundle_id FROM health_sample s
+      `SELECT start_date, end_date, category_value, source_bundle_id,
+        CASE WHEN json_valid(metadata) THEN metadata ->> '$.HKTimeZone' END
+      FROM health_sample s
       WHERE type = ? AND start_date < ? AND end_date > ? AND category_value IS NOT NULL
         AND ${liveSample}
       ORDER BY start_date, id`,
@@ -269,12 +281,17 @@ export const cardSleepRecords = (sql: StoreSql, range: CardInterval): Array<Card
       range.end,
       range.start,
     )
-    .map(([start, end, value, source]) => ({
-      start: Number(start),
-      end: Number(end),
-      value: Number(value),
-      source: source as string,
-    }));
+    .map(([start, end, value, source, zone]) => {
+      const timeZone = zoneOf(zone);
+      return {
+        start: Number(start),
+        end: Number(end),
+        value: Number(value),
+        source: source as string,
+        ...(timeZone !== undefined && { timeZone }),
+      };
+    });
+};
 
 /** Workouts of every activity that end after `range` starts and start before it ends, from every source. */
 export const cardWorkouts = (sql: StoreSql, range: CardInterval): Array<CardWorkout> =>

@@ -109,9 +109,12 @@ describe("nights", () => {
     assert.strictEqual(nightBedtime(night, london), -1);
     // A day's sleep is a night of Sleep's page, but no night's sleep.
     assert.isUndefined(nightBedtime(nights[1]!, london));
+    // From 18:00 the evening before the first day to 18:00 on the last, 26 hours wider on each
+    // side for nights recorded in other zones (851-4175).
+    const reach = 26 * hour;
     assert.deepStrictEqual(nightRecordRange({ start: date(10, 19), end: date(10, 26) }), {
-      start: date(10, 18, 18),
-      end: date(10, 25, 18),
+      start: date(10, 18, 18) - reach,
+      end: date(10, 25, 18) + reach,
     });
   });
 
