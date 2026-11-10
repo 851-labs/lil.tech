@@ -3346,24 +3346,32 @@ struct NotificationQueriesTests {
   @Test
   func soundExposure() {
     let noise = notification(
-      .noise, metadata: #"{"HKAudioExposureLevel":"96.2 dBASPL","HKAudioExposureDuration":"240 s"}"#
+      .noise,
+      metadata:
+        #"{"HKMetadataKeyAudioExposureLevel":"96.2 dBASPL","HKMetadataKeyAudioExposureDuration":"240 s"}"#
     )
     #expect(summary(noise) == .soundExposure(level: 96.2, duration: 240))
     #expect(summary(noise)?.line(calendar: english) == "96 dB for 4 min")
 
     let headphone = notification(
       .headphone,
-      metadata: #"{"HKAudioExposureLevel":"88 dBASPL","HKAudioExposureDuration":"1.25 hr"}"#)
+      metadata:
+        #"{"HKMetadataKeyAudioExposureLevel":"88 dBASPL","HKMetadataKeyAudioExposureDuration":"1.25 hr"}"#
+    )
     #expect(summary(headphone)?.line(calendar: english) == "88 dB for 1 hr 15 min")
 
-    let levelOnly = notification(.noise, metadata: #"{"HKAudioExposureLevel":"100 dBASPL"}"#)
+    let levelOnly = notification(
+      .noise, metadata: #"{"HKMetadataKeyAudioExposureLevel":"100 dBASPL"}"#)
     #expect(summary(levelOnly)?.line(calendar: english) == "100 dB")
-    let durationOnly = notification(.noise, metadata: #"{"HKAudioExposureDuration":"45 s"}"#)
+    let durationOnly = notification(
+      .noise, metadata: #"{"HKMetadataKeyAudioExposureDuration":"45 s"}"#)
     #expect(summary(durationOnly) == .soundDuration(45))
     #expect(summary(durationOnly)?.line(calendar: english) == "For 45 sec")
 
     // A duration in a unit that isn't time doesn't count.
-    #expect(summary(notification(.noise, metadata: #"{"HKAudioExposureDuration":"3 m"}"#)) == nil)
+    #expect(
+      summary(notification(.noise, metadata: #"{"HKMetadataKeyAudioExposureDuration":"3 m"}"#))
+        == nil)
     #expect(summary(notification(.headphone)) == nil)
   }
 
@@ -3417,7 +3425,8 @@ struct NotificationQueriesTests {
       #expect(summary(notification(.highHeartRate, metadata: metadata)) == nil)
     }
     #expect(
-      summary(notification(.noise, metadata: #"{"HKAudioExposureLevel":"1e20 dBASPL"}"#)) == nil)
+      summary(notification(.noise, metadata: #"{"HKMetadataKeyAudioExposureLevel":"1e20 dBASPL"}"#))
+        == nil)
     // A duration given directly still reads, however long.
     #expect(
       HealthNotificationSummary.duration(1e300, locale: Locale(identifier: "en_US_POSIX"))

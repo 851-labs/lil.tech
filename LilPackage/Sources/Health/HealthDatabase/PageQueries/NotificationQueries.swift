@@ -44,14 +44,16 @@ public struct HealthNotification: Equatable, Identifiable, Sendable {
 }
 
 extension HealthDatabase {
-  /// HealthKit's metadata keys for what notifications say, as the iPhone uploads them: the keys'
-  /// raw values (`HKMetadataKeyHeartRateEventThreshold` is `HKHeartRateEventThreshold`).
+  /// HealthKit's metadata keys for what notifications say, as the iPhone uploads them: the
+  /// constants' string values, printed from the SDK, which drop the `HKMetadataKey` prefix for
+  /// some keys and keep it for others (`HKMetadataKeyHeartRateEventThreshold` is
+  /// `HKHeartRateEventThreshold`, but `HKMetadataKeyAudioExposureLevel` is itself, 851-4148).
   enum NotificationMetadataKey {
     static let heartRateThreshold = "HKHeartRateEventThreshold"
     static let vo2Max = "HKVO2MaxValue"
     static let cardioFitnessThreshold = "HKLowCardioFitnessEventThreshold"
-    static let audioLevel = "HKAudioExposureLevel"
-    static let audioDuration = "HKAudioExposureDuration"
+    static let audioLevel = "HKMetadataKeyAudioExposureLevel"
+    static let audioDuration = "HKMetadataKeyAudioExposureDuration"
   }
 
   /// A kind of notification, newest first by the date it's listed under (`listedByEnd`), at
