@@ -7,8 +7,9 @@ import LilSync
 
 // Routes' points for the route tools (851-4164), and ECGs' voltages (851-4159). They're blobs the
 // app downloads when a page needs them, into its cache (`BlobCache`), which `lil-health` reads: it
-// has no session of its own, and reads only what the app has synced. A blob that isn't cached is asked of the app, as a
-// card write is (`HealthCLI.askApp`), which downloads it into the cache as its pages do.
+// has no session of its own, and reads only what the app has synced. A blob that isn't cached is
+// asked of the app, as a card write is (`HealthCLI.askApp`), which downloads it into the cache as
+// its pages do.
 
 extension HealthCLI.Context {
   #if canImport(AppKit)

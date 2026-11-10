@@ -195,7 +195,7 @@ struct ElectrocardiogramDetailContent: View {
         .padding(.vertical, 6)
       }
       Section {
-        LabeledContent("Symptoms", value: ECGFormat.symptoms(recording))
+        LabeledContent("Symptoms", value: recording.symptomsName)
           .layoutAnchor("Symptoms")
         LabeledContent("Recorded With", value: recording.sourceName)
         if let frequency = recording.samplingFrequency {
@@ -352,7 +352,4 @@ enum ECGFormat {
     return "\(Int(bpm.rounded())) BPM Average"
   }
 
-  static func symptoms(_ recording: HealthElectrocardiogram) -> String {
-    recording.symptomsName
-  }
 }

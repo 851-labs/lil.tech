@@ -70,11 +70,8 @@ extension HealthTools {
     }
     let invalidCursor = HealthToolError(
       "Invalid cursor: \(cursor ?? ""). Pass the previous page's nextCursor.")
-    // 1 to 9 digits, as the remote server reads it.
     let start = try cursor.map { cursor in
-      guard (1...9).contains(cursor.utf8.count), cursor.utf8.allSatisfy({ (48...57).contains($0) }),
-        let index = Int(cursor)
-      else { throw invalidCursor }
+      guard let index = Self.cursorIndex(cursor) else { throw invalidCursor }
       return index
     }
     guard let recording = try HealthElectrocardiogram.where({ $0.id.eq(id) }).fetchOne(db) else {

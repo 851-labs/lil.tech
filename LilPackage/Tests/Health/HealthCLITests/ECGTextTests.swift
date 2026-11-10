@@ -50,4 +50,12 @@ import Testing
 
         """)
   }
+
+  @Test func listsAPageOnOneLineAtARateNoLineHolds() {
+    let result = HealthElectrocardiogramVoltagesResult(
+      timeZone: "UTC", id: "e1", start: "2026-10-19T08:30:00+00:00", samplingFrequency: 1e300,
+      voltageCount: 2, offset: 0, rate: 1e300, measurementsPerValue: 1, values: [1, 2],
+      nextCursor: nil)
+    #expect(result.text.hasSuffix("µV:\n  0 s   1 2\n"))
+  }
 }

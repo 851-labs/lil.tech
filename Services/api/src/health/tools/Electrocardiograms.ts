@@ -35,7 +35,7 @@ const classifications: ReadonlyMap<number, string> = new Map([
 /** A classification's name; not set, or one a later iOS adds, is Not Classified, as on the page. */
 const classificationName = (raw: number) => classifications.get(raw) ?? "Not Classified";
 
-/** `HKElectrocardiogram.SymptomsStatus` as the page says it (`ECGFormat.symptoms`). */
+/** `HKElectrocardiogram.SymptomsStatus` as the page says it (`HealthElectrocardiogram.symptomsName`). */
 const symptomsName = (raw: number) =>
   raw === 1 ? "No Symptoms" : raw === 2 ? "Symptoms Logged" : "Not Logged";
 

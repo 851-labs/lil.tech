@@ -344,8 +344,11 @@ extension HealthElectrocardiogramVoltagesResult: TextOutput {
         + (measurementsPerValue > 1 ? ", each the average of \(measurementsPerValue)" : "")
         + ", in µV:",
     ]
-    // A line a second, each starting with its time into the recording.
-    let perLine = max(1, Int(rate.rounded()))
+    // A line a second, each starting with its time into the recording; the whole page on one
+    // line if the rate isn't one a line can hold (a recording can say any sampling frequency).
+    let perLine =
+      rate.isFinite && rate < Double(max(values.count, 1))
+      ? max(1, Int(rate.rounded())) : max(values.count, 1)
     for first in stride(from: 0, to: values.count, by: perLine) {
       let seconds = offset + Double(first) / rate
       let line = values[first..<min(first + perLine, values.count)]
