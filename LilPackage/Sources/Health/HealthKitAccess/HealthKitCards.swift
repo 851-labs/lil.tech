@@ -211,7 +211,9 @@ public struct HealthKitCardEngine: Sendable {
           let checked = CardTimeZone.named(name)
           zones[name] = checked
           return checked
-        })
+        },
+        // As written: Foundation names `UTC` `GMT`, and runs' ties compare the names (851-4177).
+        timeZoneName: zone)
     }
   }
 

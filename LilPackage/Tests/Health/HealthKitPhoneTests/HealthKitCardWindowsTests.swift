@@ -333,10 +333,11 @@ extension HealthKitCardsTests {
   /// included, as the Mac reads it (`onlyAZonesNameIsAZone`): `GMT+9`, which HealthKit takes but
   /// the tools don't, or no zone loses only the zone, and the record stays. HealthKit itself
   /// refuses to make a sample whose zone is a UTC offset (`+09:00`), in the wrong case or blank.
+  /// The name stays as written (851-4177): Foundation's zone for `UTC` is `GMT`.
   @Test
   func onlyAZonesNameIsAZone() async throws {
     let health = try await SyntheticHealthKit.empty()
-    let zones: [String?] = ["Europe/Kyiv", "Europe/Kiev", nil, "GMT+9", "US/Pacific"]
+    let zones: [String?] = ["Europe/Kyiv", "Europe/Kiev", nil, "GMT+9", "US/Pacific", "UTC"]
     try await health.save(
       zones.enumerated().map { index, zone in
         SyntheticHealthKit.sleep(
@@ -347,7 +348,9 @@ extension HealthKitCardsTests {
       overlapping: day[0]..<day[1])
     #expect(
       records.map(\.timeZone?.identifier)
-        == ["Europe/Kyiv", "Europe/Kiev", nil, nil, "US/Pacific"])
+        == ["Europe/Kyiv", "Europe/Kiev", nil, nil, "US/Pacific", "GMT"])
+    #expect(
+      records.map(\.timeZoneName) == ["Europe/Kyiv", "Europe/Kiev", nil, nil, "US/Pacific", "UTC"])
   }
 
   // MARK: - Support
