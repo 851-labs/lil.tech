@@ -1,5 +1,17 @@
 import * as Alchemy from "alchemy";
-import { Cause, Console, Formatter, type LogLevel, Logger, References } from "effect";
+import {
+  Cause,
+  Console,
+  Context,
+  Formatter,
+  type LogLevel,
+  Logger,
+  Predicate,
+  Redacted,
+  References,
+  Schema,
+  SchemaIssue,
+} from "effect";
 
 /** Workers Logs' level for each of Effect's, which is also the console method that logs it. */
 const workersLevels = {
@@ -17,13 +29,188 @@ const workersLevels = {
 const ownFields = new Set(["message", "level", "details", "cause", "spans"]);
 
 /**
+ * The fields of an error a line keeps as they are (851-4054): codes and flags of ours, Cloudflare's
+ * and Effect's (an HttpApi decode error's `kind`, such as `Payload`), which hold no one's data. Every other field shows its type only (`"<string>"`), and
+ * `cause` and `reason` are errors of their own.
+ */
+const keptErrorFields = new Set([
+  "_tag",
+  "appleError",
+  "googleError",
+  "unavailable",
+  "index",
+  "status",
+  "retryable",
+  "overloaded",
+  "remote",
+  "durableObjectReset",
+  "kind",
+  "retryAfterSeconds",
+  "quotaBytes",
+]);
+
+/** How deep `redacted` follows causes. */
+const maxDepth = 6;
+
+/**
+ * An error message without the values some messages carry (851-4054): D1 names a value it couldn't
+ * bind (`D1_TYPE_ERROR: Type 'object' not supported for value '…'`, to the end of its line), and
+ * V8 quotes the text that isn't JSON (`Unexpected token 'a', "…" is not valid JSON`, the quote
+ * starting the message or following `: ` or `, `). The rest of the message stays.
+ */
+const redactedMessage = (message: string): string =>
+  message
+    .replace(/(D1_TYPE_ERROR\b[^\n]*?\bvalue)\b[^\n]*/g, "$1 <redacted>")
+    .replace(/Unexpected token '[\s\S]{1,2}', /gu, "Unexpected token, ")
+    .replace(
+      /(^|: |, )(?:\.\.\.)?"[\s\S]*?"(?:\.\.\.)? is not valid JSON/g,
+      "$1<redacted> is not valid JSON",
+    );
+
+/** A Schema issue without the input it reports, when decoding asked for it (`reportInput`). */
+const withoutInput = (issue: SchemaIssue.Issue): SchemaIssue.Issue => {
+  const copy = Object.create(Object.getPrototypeOf(issue) as object) as Record<string, unknown>;
+  for (const [key, value] of Object.entries(issue)) {
+    if (key === "input") continue;
+    copy[key] =
+      key === "issue" && SchemaIssue.isIssue(value)
+        ? withoutInput(value)
+        : key === "issues" && Array.isArray(value)
+          ? value.map((inner: SchemaIssue.Issue) => withoutInput(inner))
+          : value;
+  }
+  return copy as unknown as SchemaIssue.Issue;
+};
+
+const formatIssue = SchemaIssue.makeFormatterDefault();
+
+/** The type a value is shown as, in place of the value. */
+const typeOf = (value: unknown): string =>
+  `<${value === null ? "null" : Array.isArray(value) ? "array" : typeof value}>`;
+
+/** An object or array by its shape: its keys, with their values' types. */
+const shapeOf = (value: object): unknown =>
+  Array.isArray(value)
+    ? value.map(typeOf)
+    : Object.fromEntries(Object.entries(value).map(([key, field]) => [key, typeOf(field)]));
+
+/**
+ * Frames of an error's stack, without the message, which can hold values. After the header V8
+ * wrote (`name: message`) every `at` line is a frame; a stack that starts otherwise keeps only the
+ * lines with a source location, so no line of its message passes for one.
+ */
+const stackFrames = (error: object, header: string): ReadonlyArray<string> => {
+  if (!Predicate.hasProperty(error, "stack") || !Predicate.isString(error.stack)) return [];
+  const known = error.stack.startsWith(header);
+  const frame = known ? /^\s+at \S/ : /^\s+at \S.*(?:\d+:\d+\)?|\(native\))$/;
+  return (known ? error.stack.slice(header.length) : error.stack)
+    .split("\n")
+    .filter((line) => frame.test(line));
+};
+
+/**
+ * An error as a line may show it (851-4054): its type (`_tag`, `name`), its message without values
+ * (`redactedMessage`), the paths and expected types of a Schema error or issue but never what it
+ * got, a failed Drizzle query's SQL but not its parameters, its `cause` and `reason` likewise, the
+ * fields of `keptErrorFields`, and every other field's type only. Only an `Error`'s name and
+ * message are its own: something else failed with (a row, an object with a `name` or `message`)
+ * is shown by its `_tag` and shape, its keys with their types.
+ */
+const redactedError = (value: object, depth: number, seen: Map<unknown, unknown>): Error => {
+  const isError = value instanceof Error;
+  const tag = Predicate.hasProperty(value, "_tag") && Predicate.isString(value._tag);
+  const name = isError ? value.name : tag ? String(value._tag) : "Error";
+  const original = isError ? value.message : "";
+  const message = Schema.isSchemaError(value)
+    ? redactedMessage(formatIssue(withoutInput(value.issue)))
+    : SchemaIssue.isIssue(value)
+      ? redactedMessage(formatIssue(withoutInput(value)))
+      : Predicate.hasProperty(value, "query") &&
+          Predicate.isString(value.query) &&
+          Predicate.hasProperty(value, "params")
+        ? `Failed query: ${value.query}`
+        : isError
+          ? redactedMessage(original)
+          : JSON.stringify(shapeOf(value));
+  const error = new Error(message);
+  // On the error, as on the prototype it replaces: not a field of its own in `details`.
+  Object.defineProperty(error, "name", { value: name, configurable: true, writable: true });
+  seen.set(value, error);
+  // Assigned, not given to the constructor, so it's enumerable, and `details` show it too.
+  if (Predicate.hasProperty(value, "cause") && value.cause !== undefined) {
+    error.cause = redacted(value.cause, depth + 1, seen, true);
+  }
+  error.stack = [`${name}: ${message}`, ...stackFrames(value, `${name}: ${original}`)].join("\n");
+  for (const [key, field] of Object.entries(value)) {
+    if (key === "name" || key === "message" || key === "stack" || key === "cause") continue;
+    if (key.startsWith("~")) continue;
+    (error as unknown as Record<string, unknown>)[key] =
+      key === "reason"
+        ? redacted(field, depth + 1, seen, true)
+        : keptErrorFields.has(key) && !Predicate.isObjectOrArray(field)
+          ? field
+          : typeOf(field);
+  }
+  return error;
+};
+
+/** Shown as an error: an `Error`, or something tagged, such as HttpApi's decode error. */
+const isErrorLike = (value: unknown): value is object =>
+  value instanceof Error || (Predicate.isObject(value) && Predicate.hasProperty(value, "_tag"));
+
+/**
+ * What a log line may show of `value` (851-4054): an error as `redactedError` shows it, a string
+ * without the values some error messages carry, a `Redacted` value as it is (it formats as
+ * `<redacted>`), and another object by its shape (its keys and their types). Numbers, booleans and
+ * the rest stay.
+ */
+const redacted = (
+  value: unknown,
+  depth = 0,
+  seen = new Map<unknown, unknown>(),
+  asError = false,
+): unknown => {
+  if (Predicate.isString(value)) return redactedMessage(value);
+  if (!Predicate.isObjectOrArray(value) || Redacted.isRedacted(value)) return value;
+  if (seen.has(value)) return seen.get(value);
+  if (depth > maxDepth) return typeOf(value);
+  // A cycle back to `value` shows its type.
+  seen.set(value, typeOf(value));
+  if (Cause.isCause(value)) return Cause.pretty(redactedCause(value, depth + 1, seen));
+  if (asError || isErrorLike(value)) return redactedError(value, depth, seen);
+  return shapeOf(value);
+};
+
+/**
+ * `cause` with each failure and defect as `redacted` shows it, keeping its stack annotations. A
+ * cause inside an error goes on with the error's depth and what it has seen, so a cause that holds
+ * the error it's in ends.
+ */
+const redactedCause = <E>(
+  cause: Cause.Cause<E>,
+  depth = 0,
+  seen = new Map<unknown, unknown>(),
+): Cause.Cause<unknown> =>
+  Cause.fromReasons(
+    cause.reasons.map((reason) =>
+      reason._tag === "Interrupt"
+        ? reason
+        : (reason._tag === "Fail"
+            ? Cause.makeFailReason(redacted(reason.error, depth, seen, true))
+            : Cause.makeDieReason(redacted(reason.defect, depth, seen, true))
+          ).annotate(Context.makeUnsafe(reason.annotations)),
+    ),
+  );
+
+/**
  * A log line as one JSON object (851-4050), which Workers Logs indexes field by field, logged with
  * the console method of its level (`console.info`, `warn`, `error` or `debug`): `message` (the
- * first part logged), `level`, the annotations (`Effect.annotateLogs`) as fields of their own,
- * `details` (the other parts, such as an error), `cause` and `spans`. Annotations named like
- * those are left out. It's plain JSON, made with Effect's formatter: `Redacted` values stay
- * redacted, errors keep their name, message and fields, and anything else that can't be JSON is
- * dropped.
+ * first part logged, or the cause's first line when only a cause was), `level`, the annotations
+ * (`Effect.annotateLogs`) as fields of their own, `details` (the other parts, such as an error),
+ * `cause` and `spans`. Annotations named like those are left out. The message, details and cause show no values (851-4054, `redacted`): errors
+ * keep their type, message (without the values some carry), a Schema error's paths and expected
+ * types and a query's SQL, and their other fields' types. It's plain JSON, made with Effect's
+ * formatter: `Redacted` values stay redacted, and anything else that can't be JSON is dropped.
  */
 export const workersLogger = Logger.make(({ cause, date, fiber, logLevel, message }) => {
   const [first, ...rest] = Array.isArray(message) ? message : [message];
@@ -37,12 +224,20 @@ export const workersLogger = Logger.make(({ cause, date, fiber, logLevel, messag
     spans[label] = date.getTime() - startedAt;
   }
   const level = workersLevels[logLevel];
+  const pretty = cause.reasons.length > 0 ? Cause.pretty(redactedCause(cause)) : undefined;
   const entry = {
     ...annotations,
-    message: typeof first === "string" ? first : Formatter.format(first),
+    // A line of a cause only (`Effect.logError(cause)`, as McpServer logs a tool's defect) takes
+    // its first line as the message.
+    message:
+      first === undefined && pretty !== undefined
+        ? (pretty.split("\n")[0] ?? "")
+        : Predicate.isString(first)
+          ? redactedMessage(first)
+          : Formatter.format(redacted(first)),
     level,
-    ...(rest.length > 0 ? { details: rest } : {}),
-    ...(cause.reasons.length > 0 ? { cause: Cause.pretty(cause) } : {}),
+    ...(rest.length > 0 ? { details: rest.map((part) => redacted(part)) } : {}),
+    ...(pretty !== undefined ? { cause: pretty } : {}),
     ...(Object.keys(spans).length > 0 ? { spans } : {}),
   };
   fiber.getRef(Console.Console)[level](JSON.parse(Formatter.formatJson(entry)));
