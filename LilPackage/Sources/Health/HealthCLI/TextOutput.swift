@@ -453,8 +453,11 @@ extension HealthMedicationDosesResult: TextOutput {
         let sameDay = scheduled.hasPrefix(day(dose.time) + " ")
         parts.append("due " + (sameDay ? String(scheduled.dropFirst(11)) : scheduled))
       }
-      if let amount = dose.amount ?? dose.scheduledAmount {
-        parts.append("\(numberText(amount)) \(dose.unit)")
+      // The amount logged, else the one scheduled, said to be, so it doesn't read as taken.
+      if let amount = dose.amount {
+        parts.append(quantity(amount, dose.unit))
+      } else if let scheduled = dose.scheduledAmount {
+        parts.append("\(quantity(scheduled, dose.unit)) scheduled")
       }
       lines.append("  \(time(dose.time))   " + parts.joined(separator: " · "))
     }

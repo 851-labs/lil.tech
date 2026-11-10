@@ -6648,6 +6648,16 @@
       "expectedError": "Invalid cursor: 1792396800000_1792396830000_. Pass the previous page's nextCursor."
     },
     {
+      "name": "medication_doses with a cursor whose day has more than 15 digits fails",
+      "tool": "medication_doses",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "cursor": "9999999999999999_1792396830000_0c0f0000-0000-4000-8000-000000000122"
+      },
+      "expectedError": "Invalid cursor: 9999999999999999_1792396830000_0c0f0000-0000-4000-8000-000000000122. Pass the previous page's nextCursor."
+    },
+    {
       "name": "medication_doses with a limit over 250 fails",
       "tool": "medication_doses",
       "now": "2026-10-20T15:00:00Z",

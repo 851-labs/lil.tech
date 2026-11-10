@@ -153,9 +153,12 @@ const invalidCursor = (text: string) =>
 /** A page's cursor: its last dose's day, logged time and ID, `<day>_<start>_<id>`. */
 const doseCursorAt = (dose: DoseCursor) => `${dose.day}_${dose.startDate}_${dose.id}`;
 
-/** A cursor's day, logged time and ID, all there (`1_2_` isn't one), as the Mac reads them. */
+/**
+ * A cursor's day, logged time and ID, all there (`1_2_` isn't one), as the Mac reads them: each
+ * time at most 15 digits, so it's exact here and fits the Mac's `Int` (milliseconds have 13).
+ */
 const parseDoseCursor = (text: string) => {
-  const match = /^([+-]?\d+)_([+-]?\d+)_([^_]+)$/.exec(text);
+  const match = /^([+-]?\d{1,15})_([+-]?\d{1,15})_([^_]+)$/.exec(text);
   return match === null
     ? Effect.fail(invalidCursor(text))
     : Effect.succeed<DoseCursor>({

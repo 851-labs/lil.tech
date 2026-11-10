@@ -18,6 +18,10 @@ import Testing
           scheduledTime: "2026-10-20T08:00:00+00:00", amount: 1, scheduledAmount: 1,
           unit: "count", source: "Health"),
         HealthMedicationDoseItem(
+          medicationId: "c3", medication: "Synthetic Drops", status: "Taken",
+          schedule: "As Needed", time: "2026-10-19T21:00:00+00:00", scheduledTime: nil,
+          amount: 2.5, scheduledAmount: nil, unit: "mL", source: "Health"),
+        HealthMedicationDoseItem(
           medicationId: "a1", medication: "Synthetic Tablet", status: "Skipped",
           schedule: "Scheduled", time: "2026-10-14T00:30:00+00:00",
           scheduledTime: "2026-10-13T23:00:00+00:00", amount: nil, scheduledAmount: 0.5,
@@ -33,8 +37,9 @@ import Testing
         Medication doses, W: 2026-10-14 to 2026-10-20 (UTC)
         12 doses
 
-          2026-10-20 08:05   Synthetic Tablet · Taken · Scheduled · due 08:00 · 1 count
-          2026-10-14 00:30   Synthetic Tablet · Skipped · Scheduled · due 2026-10-13 23:00 · 0.5 count
+          2026-10-20 08:05   Synthetic Tablet · Taken · Scheduled · due 08:00 · 1
+          2026-10-19 21:00   Synthetic Drops · Taken · As Needed · 2.5 mL
+          2026-10-14 00:30   Synthetic Tablet · Skipped · Scheduled · due 2026-10-13 23:00 · 0.5 scheduled
           2026-10-16 09:00   Synthetic Spray · Not Logged · As Needed
 
         More: --cursor 1792396800000_1792396830000_0c0f

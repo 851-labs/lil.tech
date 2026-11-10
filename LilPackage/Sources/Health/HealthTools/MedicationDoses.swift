@@ -71,10 +71,12 @@ extension HealthTools {
     return DoseCursor(day: day, startDate: start, id: String(parts[2]))
   }
 
-  /// A cursor's whole number: digits, after an optional sign, as the server's `[+-]?\d+`.
+  /// A cursor's whole number: 1 to 15 digits, after an optional sign, as the server's
+  /// `[+-]?\d{1,15}` (exact as a JavaScript number; milliseconds have 13).
   private static func cursorNumber(_ text: Substring) -> Int? {
     let digits = text.first == "+" || text.first == "-" ? text.dropFirst() : text
-    guard !digits.isEmpty, digits.utf8.allSatisfy({ (48...57).contains($0) }) else { return nil }
+    guard (1...15).contains(digits.utf8.count), digits.utf8.allSatisfy({ (48...57).contains($0) })
+    else { return nil }
     return Int(text)
   }
 }
