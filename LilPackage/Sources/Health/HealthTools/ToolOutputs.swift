@@ -262,6 +262,209 @@ public struct HealthWorkoutsResult: HealthToolOutput {
   public var workouts: [HealthWorkoutItem]
 }
 
+// MARK: - workout
+
+/// One quantity type's statistics over a workout or one of its activities, in `unit`.
+public struct HealthWorkoutStatistic: Codable, Equatable, Sendable {
+  public var type: String
+  /// The name Health shows for it, if the catalog knows the type.
+  public var name: String?
+  public var unit: String
+  public var sum: Double?
+  public var average: Double?
+  public var minimum: Double?
+  public var maximum: Double?
+  public var mostRecent: Double?
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(type, .type)
+    try container.encode(name, .name)
+    try container.encode(unit, .unit)
+    try container.encode(sum, .sum)
+    try container.encode(average, .average)
+    try container.encode(minimum, .minimum)
+    try container.encode(maximum, .maximum)
+    try container.encode(mostRecent, .mostRecent)
+  }
+}
+
+/// When a workout was paused, to when it resumed or ended.
+public struct HealthWorkoutPause: Codable, Equatable, Sendable {
+  public var start: String
+  public var end: String
+  /// Seconds.
+  public var duration: Double
+}
+
+/// A workout's lap or segment.
+public struct HealthWorkoutInterval: Codable, Equatable, Sendable {
+  public var start: String
+  public var end: String
+  /// Seconds, from start to end.
+  public var duration: Double
+  /// `HKSwimmingStrokeStyle`'s name, e.g. `freestyle`.
+  public var strokeStyle: String?
+  public var swolf: Double?
+  /// Meters.
+  public var lapLength: Double?
+  /// Meters per second.
+  public var averageSpeed: Double?
+  /// Meters per second.
+  public var maximumSpeed: Double?
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(start, .start)
+    try container.encode(end, .end)
+    try container.encode(duration, .duration)
+    try container.encode(strokeStyle, .strokeStyle)
+    try container.encode(swolf, .swolf)
+    try container.encode(lapLength, .lapLength)
+    try container.encode(averageSpeed, .averageSpeed)
+    try container.encode(maximumSpeed, .maximumSpeed)
+  }
+}
+
+/// One of a multisport workout's legs, with its own statistics.
+public struct HealthWorkoutLeg: Codable, Equatable, Sendable {
+  public var activityType: Int
+  public var activity: String
+  public var start: String
+  /// `nil` while it was still going.
+  public var end: String?
+  /// Seconds, pauses left out.
+  public var duration: Double
+  public var indoor: Bool?
+  /// `pool` or `openWater`.
+  public var swimmingLocation: String?
+  /// Meters.
+  public var elevationAscended: Double?
+  /// Meters.
+  public var elevationDescended: Double?
+  /// Meters per second.
+  public var averageSpeed: Double?
+  /// Meters per second.
+  public var maximumSpeed: Double?
+  /// kcal/hr·kg.
+  public var averageMETs: Double?
+  /// Meters.
+  public var lapLength: Double?
+  public var swolf: Double?
+  public var statistics: [HealthWorkoutStatistic]
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(activityType, .activityType)
+    try container.encode(activity, .activity)
+    try container.encode(start, .start)
+    try container.encode(end, .end)
+    try container.encode(duration, .duration)
+    try container.encode(indoor, .indoor)
+    try container.encode(swimmingLocation, .swimmingLocation)
+    try container.encode(elevationAscended, .elevationAscended)
+    try container.encode(elevationDescended, .elevationDescended)
+    try container.encode(averageSpeed, .averageSpeed)
+    try container.encode(maximumSpeed, .maximumSpeed)
+    try container.encode(averageMETs, .averageMETs)
+    try container.encode(lapLength, .lapLength)
+    try container.encode(swolf, .swolf)
+    try container.encode(statistics, .statistics)
+  }
+}
+
+/// One workout in full: what `workouts` says of it, and the rest.
+public struct HealthWorkoutDetail: Codable, Equatable, Sendable {
+  public var id: String
+  public var activityType: Int
+  public var activity: String
+  public var name: String?
+  public var start: String
+  public var end: String
+  /// Seconds, pauses left out.
+  public var duration: Double
+  /// Kilocalories.
+  public var activeEnergy: Double?
+  /// Meters.
+  public var distance: Double?
+  /// Beats per minute.
+  public var averageHeartRate: Double?
+  /// Meters.
+  public var elevationAscended: Double?
+  public var indoor: Bool?
+  /// `pool` or `openWater`.
+  public var swimmingLocation: String?
+  public var hasRoute: Bool
+  public var source: String
+  /// Meters.
+  public var elevationDescended: Double?
+  /// Meters per second.
+  public var averageSpeed: Double?
+  /// Meters per second.
+  public var maximumSpeed: Double?
+  /// kcal/hr·kg.
+  public var averageMETs: Double?
+  /// Meters.
+  public var lapLength: Double?
+  public var swolf: Double?
+  /// `HKWeatherCondition`'s name, e.g. `clear`.
+  public var weatherCondition: String?
+  /// Degrees Celsius.
+  public var weatherTemperature: Double?
+  /// Percent, from 0 to 100.
+  public var weatherHumidity: Double?
+  public var statistics: [HealthWorkoutStatistic]
+  public var pauseCount: Int
+  public var pauses: [HealthWorkoutPause]
+  public var lapCount: Int
+  public var laps: [HealthWorkoutInterval]
+  public var segmentCount: Int
+  public var segments: [HealthWorkoutInterval]
+  /// A multisport workout's legs; empty for a workout of one.
+  public var activities: [HealthWorkoutLeg]
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(id, .id)
+    try container.encode(activityType, .activityType)
+    try container.encode(activity, .activity)
+    try container.encode(name, .name)
+    try container.encode(start, .start)
+    try container.encode(end, .end)
+    try container.encode(duration, .duration)
+    try container.encode(activeEnergy, .activeEnergy)
+    try container.encode(distance, .distance)
+    try container.encode(averageHeartRate, .averageHeartRate)
+    try container.encode(elevationAscended, .elevationAscended)
+    try container.encode(indoor, .indoor)
+    try container.encode(swimmingLocation, .swimmingLocation)
+    try container.encode(hasRoute, .hasRoute)
+    try container.encode(source, .source)
+    try container.encode(elevationDescended, .elevationDescended)
+    try container.encode(averageSpeed, .averageSpeed)
+    try container.encode(maximumSpeed, .maximumSpeed)
+    try container.encode(averageMETs, .averageMETs)
+    try container.encode(lapLength, .lapLength)
+    try container.encode(swolf, .swolf)
+    try container.encode(weatherCondition, .weatherCondition)
+    try container.encode(weatherTemperature, .weatherTemperature)
+    try container.encode(weatherHumidity, .weatherHumidity)
+    try container.encode(statistics, .statistics)
+    try container.encode(pauseCount, .pauseCount)
+    try container.encode(pauses, .pauses)
+    try container.encode(lapCount, .lapCount)
+    try container.encode(laps, .laps)
+    try container.encode(segmentCount, .segmentCount)
+    try container.encode(segments, .segments)
+    try container.encode(activities, .activities)
+  }
+}
+
+public struct HealthWorkoutResult: HealthToolOutput {
+  public var timeZone: String
+  public var workout: HealthWorkoutDetail
+}
+
 // MARK: - sleep
 
 public struct HealthSleepNight: Codable, Equatable, Sendable {

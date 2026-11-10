@@ -444,7 +444,7 @@
             "kind": "workout",
             "unit": null,
             "cumulative": false,
-            "first": "2026-09-08T06:30:00+00:00",
+            "first": "2026-09-02T07:00:00+00:00",
             "last": "2026-10-20T16:30:00+00:00"
           },
           {
@@ -577,7 +577,7 @@
             "kind": "workout",
             "unit": null,
             "cumulative": false,
-            "first": "2026-09-07T23:30:00-07:00",
+            "first": "2026-09-02T00:00:00-07:00",
             "last": "2026-10-20T09:30:00-07:00"
           },
           {
@@ -2381,6 +2381,806 @@
         "date": "0000-01-01"
       },
       "expectedError": "Invalid date: 0000-01-01. Use a day from 2000-01-01 to 2999-12-31."
+    },
+    {
+      "name": "workout: an outdoor run in full, with every statistic, its pauses and splits, and metadata in other units",
+      "tool": "workout",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000041"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "workout": {
+          "id": "0c0f0000-0000-4000-8000-000000000041",
+          "activityType": 37,
+          "activity": "Running",
+          "name": null,
+          "start": "2026-09-02T07:00:00+00:00",
+          "end": "2026-09-02T07:50:00+00:00",
+          "duration": 2790,
+          "activeEnergy": 512.25,
+          "distance": 8300,
+          "averageHeartRate": 158,
+          "elevationAscended": 84.60000000000001,
+          "indoor": false,
+          "swimmingLocation": null,
+          "hasRoute": false,
+          "source": "Test Apple Watch",
+          "activities": [],
+          "elevationDescended": 84.59998320000001,
+          "averageSpeed": 2.97491,
+          "maximumSpeed": 4.0993568,
+          "averageMETs": 9.87654,
+          "lapLength": null,
+          "swolf": null,
+          "weatherCondition": "partlyCloudy",
+          "weatherTemperature": 15,
+          "weatherHumidity": 65,
+          "statistics": [
+            {
+              "type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+              "name": "Active Energy",
+              "unit": "kcal",
+              "sum": 512.25,
+              "average": null,
+              "minimum": null,
+              "maximum": null,
+              "mostRecent": null
+            },
+            {
+              "type": "HKQuantityTypeIdentifierBasalEnergyBurned",
+              "name": "Resting Energy",
+              "unit": "kcal",
+              "sum": 70.5,
+              "average": null,
+              "minimum": null,
+              "maximum": null,
+              "mostRecent": null
+            },
+            {
+              "type": "HKQuantityTypeIdentifierDistanceWalkingRunning",
+              "name": "Walking + Running Distance",
+              "unit": "m",
+              "sum": 8300,
+              "average": null,
+              "minimum": null,
+              "maximum": null,
+              "mostRecent": null
+            },
+            {
+              "type": "HKQuantityTypeIdentifierFutureTestMetric",
+              "name": null,
+              "unit": "count",
+              "sum": 1,
+              "average": null,
+              "minimum": null,
+              "maximum": null,
+              "mostRecent": null
+            },
+            {
+              "type": "HKQuantityTypeIdentifierHeartRate",
+              "name": "Heart Rate",
+              "unit": "count/min",
+              "sum": null,
+              "average": 158,
+              "minimum": 96,
+              "maximum": 183,
+              "mostRecent": 171
+            },
+            {
+              "type": "HKQuantityTypeIdentifierRunningGroundContactTime",
+              "name": "Ground Contact Time",
+              "unit": "ms",
+              "sum": null,
+              "average": 242,
+              "minimum": 210,
+              "maximum": 290,
+              "mostRecent": 240
+            },
+            {
+              "type": "HKQuantityTypeIdentifierRunningPower",
+              "name": "Running Power",
+              "unit": "W",
+              "sum": null,
+              "average": 265,
+              "minimum": 120,
+              "maximum": 410,
+              "mostRecent": 280
+            },
+            {
+              "type": "HKQuantityTypeIdentifierRunningSpeed",
+              "name": "Running Speed",
+              "unit": "m/s",
+              "sum": null,
+              "average": 2.97,
+              "minimum": 1.2,
+              "maximum": 4.1,
+              "mostRecent": 3.1
+            },
+            {
+              "type": "HKQuantityTypeIdentifierRunningStrideLength",
+              "name": "Running Stride Length",
+              "unit": "m",
+              "sum": null,
+              "average": 1.12,
+              "minimum": 0.85,
+              "maximum": 1.4,
+              "mostRecent": 1.1
+            },
+            {
+              "type": "HKQuantityTypeIdentifierRunningVerticalOscillation",
+              "name": "Vertical Oscillation",
+              "unit": "cm",
+              "sum": null,
+              "average": 8.9,
+              "minimum": 7.5,
+              "maximum": 10.2,
+              "mostRecent": 9
+            },
+            {
+              "type": "HKQuantityTypeIdentifierStepCount",
+              "name": "Steps",
+              "unit": "count",
+              "sum": 7420,
+              "average": null,
+              "minimum": null,
+              "maximum": null,
+              "mostRecent": null
+            }
+          ],
+          "pauseCount": 2,
+          "pauses": [
+            {
+              "start": "2026-09-02T07:20:00+00:00",
+              "end": "2026-09-02T07:22:30+00:00",
+              "duration": 150
+            },
+            {
+              "start": "2026-09-02T07:40:00+00:00",
+              "end": "2026-09-02T07:41:00+00:00",
+              "duration": 60
+            }
+          ],
+          "lapCount": 0,
+          "laps": [],
+          "segmentCount": 3,
+          "segments": [
+            {
+              "start": "2026-09-02T07:00:00+00:00",
+              "end": "2026-09-02T07:18:00+00:00",
+              "duration": 1080,
+              "strokeStyle": null,
+              "swolf": null,
+              "lapLength": null,
+              "averageSpeed": 2.77778,
+              "maximumSpeed": 3.4
+            },
+            {
+              "start": "2026-09-02T07:18:00+00:00",
+              "end": "2026-09-02T07:35:00+00:00",
+              "duration": 1020,
+              "strokeStyle": null,
+              "swolf": null,
+              "lapLength": null,
+              "averageSpeed": 3.0000000000000004,
+              "maximumSpeed": null
+            },
+            {
+              "start": "2026-09-02T07:35:00+00:00",
+              "end": "2026-09-02T07:50:00+00:00",
+              "duration": 900,
+              "strokeStyle": null,
+              "swolf": null,
+              "lapLength": null,
+              "averageSpeed": null,
+              "maximumSpeed": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "workout: a pool swim in London, with its laps in order, their strokes and SWOLF, and a pause to the end",
+      "tool": "workout",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000042",
+        "timeZone": "Europe/London"
+      },
+      "expected": {
+        "timeZone": "Europe/London",
+        "workout": {
+          "id": "0c0f0000-0000-4000-8000-000000000042",
+          "activityType": 46,
+          "activity": "Swimming",
+          "name": null,
+          "start": "2026-09-04T07:30:00+01:00",
+          "end": "2026-09-04T08:00:00+01:00",
+          "duration": 1780,
+          "activeEnergy": 210,
+          "distance": 114.3,
+          "averageHeartRate": 131.5,
+          "elevationAscended": null,
+          "indoor": true,
+          "swimmingLocation": "pool",
+          "hasRoute": false,
+          "source": "Test Apple Watch",
+          "activities": [],
+          "elevationDescended": null,
+          "averageSpeed": null,
+          "maximumSpeed": null,
+          "averageMETs": null,
+          "lapLength": 22.86,
+          "swolf": 45,
+          "weatherCondition": null,
+          "weatherTemperature": 27,
+          "weatherHumidity": 45.5,
+          "statistics": [
+            {
+              "type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+              "name": "Active Energy",
+              "unit": "kcal",
+              "sum": 210,
+              "average": null,
+              "minimum": null,
+              "maximum": null,
+              "mostRecent": null
+            },
+            {
+              "type": "HKQuantityTypeIdentifierDistanceSwimming",
+              "name": "Swimming Distance",
+              "unit": "m",
+              "sum": 114.3,
+              "average": null,
+              "minimum": null,
+              "maximum": null,
+              "mostRecent": null
+            },
+            {
+              "type": "HKQuantityTypeIdentifierHeartRate",
+              "name": "Heart Rate",
+              "unit": "count/min",
+              "sum": null,
+              "average": 131.5,
+              "minimum": 104,
+              "maximum": 152,
+              "mostRecent": 140
+            },
+            {
+              "type": "HKQuantityTypeIdentifierSwimmingStrokeCount",
+              "name": "Swimming Strokes",
+              "unit": "count",
+              "sum": 96,
+              "average": null,
+              "minimum": null,
+              "maximum": null,
+              "mostRecent": null
+            }
+          ],
+          "pauseCount": 1,
+          "pauses": [
+            {
+              "start": "2026-09-04T07:59:40+01:00",
+              "end": "2026-09-04T08:00:00+01:00",
+              "duration": 20
+            }
+          ],
+          "lapCount": 5,
+          "laps": [
+            {
+              "start": "2026-09-04T07:30:00+01:00",
+              "end": "2026-09-04T07:30:30+01:00",
+              "duration": 30,
+              "strokeStyle": "freestyle",
+              "swolf": 41,
+              "lapLength": 22.86,
+              "averageSpeed": null,
+              "maximumSpeed": null
+            },
+            {
+              "start": "2026-09-04T07:30:30+01:00",
+              "end": "2026-09-04T07:31:02+01:00",
+              "duration": 32,
+              "strokeStyle": "backstroke",
+              "swolf": 44,
+              "lapLength": null,
+              "averageSpeed": null,
+              "maximumSpeed": null
+            },
+            {
+              "start": "2026-09-04T07:31:02+01:00",
+              "end": "2026-09-04T07:31:38+01:00",
+              "duration": 36,
+              "strokeStyle": "breaststroke",
+              "swolf": 48.5,
+              "lapLength": null,
+              "averageSpeed": null,
+              "maximumSpeed": null
+            },
+            {
+              "start": "2026-09-04T07:31:38+01:00",
+              "end": "2026-09-04T07:32:20+01:00",
+              "duration": 42,
+              "strokeStyle": "kickboard",
+              "swolf": null,
+              "lapLength": null,
+              "averageSpeed": null,
+              "maximumSpeed": null
+            },
+            {
+              "start": "2026-09-04T07:32:20+01:00",
+              "end": "2026-09-04T07:32:50+01:00",
+              "duration": 30,
+              "strokeStyle": null,
+              "swolf": null,
+              "lapLength": null,
+              "averageSpeed": null,
+              "maximumSpeed": null
+            }
+          ],
+          "segmentCount": 1,
+          "segments": [
+            {
+              "start": "2026-09-04T07:30:00+01:00",
+              "end": "2026-09-04T07:32:50+01:00",
+              "duration": 170,
+              "strokeStyle": "mixed",
+              "swolf": 44.25,
+              "lapLength": null,
+              "averageSpeed": null,
+              "maximumSpeed": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "workout: a ride whose statistics and events can't be read, and metadata in units the tools don't read",
+      "tool": "workout",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000043"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "workout": {
+          "id": "0c0f0000-0000-4000-8000-000000000043",
+          "activityType": 13,
+          "activity": "Cycling",
+          "name": null,
+          "start": "2026-09-05T18:00:00+00:00",
+          "end": "2026-09-05T19:00:00+00:00",
+          "duration": 3600,
+          "activeEnergy": null,
+          "distance": null,
+          "averageHeartRate": null,
+          "elevationAscended": null,
+          "indoor": null,
+          "swimmingLocation": null,
+          "hasRoute": false,
+          "source": "Test Apple Watch",
+          "activities": [],
+          "elevationDescended": null,
+          "averageSpeed": null,
+          "maximumSpeed": null,
+          "averageMETs": null,
+          "lapLength": null,
+          "swolf": null,
+          "weatherCondition": null,
+          "weatherTemperature": 12,
+          "weatherHumidity": null,
+          "statistics": [],
+          "pauseCount": 0,
+          "pauses": [],
+          "lapCount": 0,
+          "laps": [],
+          "segmentCount": 0,
+          "segments": []
+        }
+      }
+    },
+    {
+      "name": "workout: a triathlon's legs, each with its own statistics, in Los Angeles",
+      "tool": "workout",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000044",
+        "timeZone": "America/Los_Angeles"
+      },
+      "expected": {
+        "timeZone": "America/Los_Angeles",
+        "workout": {
+          "id": "0c0f0000-0000-4000-8000-000000000044",
+          "activityType": 82,
+          "activity": "Multisport",
+          "name": "Test Lake Sprint",
+          "start": "2026-09-06T01:00:00-07:00",
+          "end": "2026-09-06T02:30:00-07:00",
+          "duration": 5400,
+          "activeEnergy": 1100,
+          "distance": 5000,
+          "averageHeartRate": 155,
+          "elevationAscended": null,
+          "indoor": false,
+          "swimmingLocation": "openWater",
+          "hasRoute": false,
+          "source": "Test Apple Watch",
+          "activities": [
+            {
+              "activityType": 46,
+              "activity": "Swimming",
+              "start": "2026-09-06T01:00:00-07:00",
+              "end": "2026-09-06T01:20:00-07:00",
+              "duration": 1200,
+              "indoor": false,
+              "swimmingLocation": "openWater",
+              "elevationAscended": null,
+              "elevationDescended": null,
+              "averageSpeed": 0.625,
+              "maximumSpeed": null,
+              "averageMETs": null,
+              "lapLength": null,
+              "swolf": 52,
+              "statistics": [
+                {
+                  "type": "HKQuantityTypeIdentifierDistanceSwimming",
+                  "name": "Swimming Distance",
+                  "unit": "m",
+                  "sum": 750,
+                  "average": null,
+                  "minimum": null,
+                  "maximum": null,
+                  "mostRecent": null
+                },
+                {
+                  "type": "HKQuantityTypeIdentifierHeartRate",
+                  "name": "Heart Rate",
+                  "unit": "count/min",
+                  "sum": null,
+                  "average": 150,
+                  "minimum": 120,
+                  "maximum": 166,
+                  "mostRecent": 160
+                },
+                {
+                  "type": "HKQuantityTypeIdentifierSwimmingStrokeCount",
+                  "name": "Swimming Strokes",
+                  "unit": "count",
+                  "sum": 410,
+                  "average": null,
+                  "minimum": null,
+                  "maximum": null,
+                  "mostRecent": null
+                }
+              ]
+            },
+            {
+              "activityType": 83,
+              "activity": "Transition",
+              "start": "2026-09-06T01:20:00-07:00",
+              "end": "2026-09-06T01:25:00-07:00",
+              "duration": 300,
+              "indoor": null,
+              "swimmingLocation": null,
+              "elevationAscended": null,
+              "elevationDescended": null,
+              "averageSpeed": null,
+              "maximumSpeed": null,
+              "averageMETs": null,
+              "lapLength": null,
+              "swolf": null,
+              "statistics": []
+            },
+            {
+              "activityType": 13,
+              "activity": "Cycling",
+              "start": "2026-09-06T01:25:00-07:00",
+              "end": "2026-09-06T02:10:00-07:00",
+              "duration": 2700,
+              "indoor": false,
+              "swimmingLocation": null,
+              "elevationAscended": 210,
+              "elevationDescended": 200,
+              "averageSpeed": 8.5,
+              "maximumSpeed": 14.444444444444445,
+              "averageMETs": null,
+              "lapLength": null,
+              "swolf": null,
+              "statistics": [
+                {
+                  "type": "HKQuantityTypeIdentifierCyclingCadence",
+                  "name": "Cycling Cadence",
+                  "unit": "count/min",
+                  "sum": null,
+                  "average": 86,
+                  "minimum": 0,
+                  "maximum": 110,
+                  "mostRecent": 90
+                },
+                {
+                  "type": "HKQuantityTypeIdentifierCyclingPower",
+                  "name": "Cycling Power",
+                  "unit": "W",
+                  "sum": null,
+                  "average": 190,
+                  "minimum": 0,
+                  "maximum": 520,
+                  "mostRecent": 180
+                },
+                {
+                  "type": "HKQuantityTypeIdentifierDistanceCycling",
+                  "name": "Cycling Distance",
+                  "unit": "m",
+                  "sum": 20000,
+                  "average": null,
+                  "minimum": null,
+                  "maximum": null,
+                  "mostRecent": null
+                }
+              ]
+            },
+            {
+              "activityType": 37,
+              "activity": "Running",
+              "start": "2026-09-06T02:10:00-07:00",
+              "end": "2026-09-06T02:30:00-07:00",
+              "duration": 1200,
+              "indoor": false,
+              "swimmingLocation": null,
+              "elevationAscended": null,
+              "elevationDescended": null,
+              "averageSpeed": null,
+              "maximumSpeed": null,
+              "averageMETs": 10.5,
+              "lapLength": null,
+              "swolf": null,
+              "statistics": []
+            }
+          ],
+          "elevationDescended": null,
+          "averageSpeed": null,
+          "maximumSpeed": null,
+          "averageMETs": null,
+          "lapLength": null,
+          "swolf": null,
+          "weatherCondition": "clear",
+          "weatherTemperature": 18.5,
+          "weatherHumidity": 55,
+          "statistics": [
+            {
+              "type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+              "name": "Active Energy",
+              "unit": "kcal",
+              "sum": 1100,
+              "average": null,
+              "minimum": null,
+              "maximum": null,
+              "mostRecent": null
+            },
+            {
+              "type": "HKQuantityTypeIdentifierDistanceCycling",
+              "name": "Cycling Distance",
+              "unit": "m",
+              "sum": 20000,
+              "average": null,
+              "minimum": null,
+              "maximum": null,
+              "mostRecent": null
+            },
+            {
+              "type": "HKQuantityTypeIdentifierDistanceSwimming",
+              "name": "Swimming Distance",
+              "unit": "m",
+              "sum": 750,
+              "average": null,
+              "minimum": null,
+              "maximum": null,
+              "mostRecent": null
+            },
+            {
+              "type": "HKQuantityTypeIdentifierDistanceWalkingRunning",
+              "name": "Walking + Running Distance",
+              "unit": "m",
+              "sum": 5000,
+              "average": null,
+              "minimum": null,
+              "maximum": null,
+              "mostRecent": null
+            },
+            {
+              "type": "HKQuantityTypeIdentifierHeartRate",
+              "name": "Heart Rate",
+              "unit": "count/min",
+              "sum": null,
+              "average": 155,
+              "minimum": 110,
+              "maximum": 181,
+              "mostRecent": 176
+            }
+          ],
+          "pauseCount": 0,
+          "pauses": [],
+          "lapCount": 0,
+          "laps": [],
+          "segmentCount": 0,
+          "segments": []
+        }
+      }
+    },
+    {
+      "name": "workout: 18 October's run, with its route, elevation and weather",
+      "tool": "workout",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000013"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "workout": {
+          "id": "0c0f0000-0000-4000-8000-000000000013",
+          "activityType": 37,
+          "activity": "Running",
+          "name": null,
+          "start": "2026-10-18T07:00:00+00:00",
+          "end": "2026-10-18T07:30:00+00:00",
+          "duration": 1800,
+          "activeEnergy": 310.5,
+          "distance": 5000,
+          "averageHeartRate": 152.5,
+          "elevationAscended": 42.5,
+          "indoor": false,
+          "swimmingLocation": null,
+          "hasRoute": true,
+          "source": "Test Apple Watch",
+          "activities": [],
+          "elevationDescended": null,
+          "averageSpeed": null,
+          "maximumSpeed": null,
+          "averageMETs": null,
+          "lapLength": null,
+          "swolf": null,
+          "weatherCondition": null,
+          "weatherTemperature": 12,
+          "weatherHumidity": 72,
+          "statistics": [
+            {
+              "type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+              "name": "Active Energy",
+              "unit": "kcal",
+              "sum": 310.5,
+              "average": null,
+              "minimum": null,
+              "maximum": null,
+              "mostRecent": null
+            },
+            {
+              "type": "HKQuantityTypeIdentifierDistanceWalkingRunning",
+              "name": "Walking + Running Distance",
+              "unit": "m",
+              "sum": 5000,
+              "average": null,
+              "minimum": null,
+              "maximum": null,
+              "mostRecent": null
+            },
+            {
+              "type": "HKQuantityTypeIdentifierHeartRate",
+              "name": "Heart Rate",
+              "unit": "count/min",
+              "sum": null,
+              "average": 152.5,
+              "minimum": 120,
+              "maximum": 171,
+              "mostRecent": 160
+            }
+          ],
+          "pauseCount": 0,
+          "pauses": [],
+          "lapCount": 0,
+          "laps": [],
+          "segmentCount": 0,
+          "segments": []
+        }
+      }
+    },
+    {
+      "name": "workout: a ride paused once, from an iPhone before 851-4030",
+      "tool": "workout",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000014"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "workout": {
+          "id": "0c0f0000-0000-4000-8000-000000000014",
+          "activityType": 13,
+          "activity": "Cycling",
+          "name": null,
+          "start": "2026-10-02T17:00:00+00:00",
+          "end": "2026-10-02T18:10:00+00:00",
+          "duration": 3900,
+          "activeEnergy": 450,
+          "distance": 20000.5,
+          "averageHeartRate": null,
+          "elevationAscended": null,
+          "indoor": true,
+          "swimmingLocation": null,
+          "hasRoute": false,
+          "source": "Test Apple Watch",
+          "activities": [],
+          "elevationDescended": null,
+          "averageSpeed": null,
+          "maximumSpeed": null,
+          "averageMETs": null,
+          "lapLength": null,
+          "swolf": null,
+          "weatherCondition": null,
+          "weatherTemperature": null,
+          "weatherHumidity": null,
+          "statistics": [
+            {
+              "type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+              "name": "Active Energy",
+              "unit": "kcal",
+              "sum": 450,
+              "average": null,
+              "minimum": null,
+              "maximum": null,
+              "mostRecent": null
+            },
+            {
+              "type": "HKQuantityTypeIdentifierDistanceCycling",
+              "name": "Cycling Distance",
+              "unit": "m",
+              "sum": 20000.5,
+              "average": null,
+              "minimum": null,
+              "maximum": null,
+              "mostRecent": null
+            }
+          ],
+          "pauseCount": 1,
+          "pauses": [
+            {
+              "start": "2026-10-02T17:30:00+00:00",
+              "end": "2026-10-02T17:40:00+00:00",
+              "duration": 600
+            }
+          ],
+          "lapCount": 0,
+          "laps": [],
+          "segmentCount": 0,
+          "segments": []
+        }
+      }
+    },
+    {
+      "name": "workout with an unknown ID fails",
+      "tool": "workout",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-0000000000ff"
+      },
+      "expectedError": "No workout with ID 0c0f0000-0000-4000-8000-0000000000ff. workouts lists them, with their IDs."
+    },
+    {
+      "name": "workout without an ID fails",
+      "tool": "workout",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {},
+      "expectedError": "Invalid parameters for tool 'workout': Missing key\n  at [\"id\"]"
+    },
+    {
+      "name": "workout with an unknown time zone fails",
+      "tool": "workout",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000041",
+        "timeZone": "Mars/Olympus_Mons"
+      },
+      "expectedError": "Unknown time zone: Mars/Olympus_Mons. Use an IANA name, e.g. Europe/London."
     },
     {
       "name": "sleep on the day before 2000 fails",

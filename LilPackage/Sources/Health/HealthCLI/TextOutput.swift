@@ -123,6 +123,107 @@ extension HealthWorkoutsResult: TextOutput {
   }
 }
 
+extension HealthWorkoutResult: TextOutput {
+  var text: String {
+    let workout = self.workout
+    var heading = [
+      time(workout.start), workout.name.map { "\(workout.activity) “\($0)”" } ?? workout.activity,
+    ]
+    let location =
+      place(indoor: workout.indoor, swimmingLocation: workout.swimmingLocation)
+      + (workout.hasRoute ? ["GPS route"] : [])
+    if !location.isEmpty { heading.append(location.joined(separator: ", ")) }
+    heading.append(durationText(workout.duration))
+    var lines = [heading.joined(separator: "   ") + " (\(timeZone))", "From \(workout.source)"]
+    let details: [(String, String?)] = [
+      ("Climbed", workout.elevationAscended.map { numberText($0) + " m" }),
+      ("Descended", workout.elevationDescended.map { numberText($0) + " m" }),
+      ("Avg. speed", workout.averageSpeed.map { numberText($0 * 3.6) + " km/h" }),
+      ("Top speed", workout.maximumSpeed.map { numberText($0 * 3.6) + " km/h" }),
+      ("Avg. METs", workout.averageMETs.map(numberText)),
+      ("Pool", workout.lapLength.map { numberText($0) + " m" }),
+      ("SWOLF", workout.swolf.map(numberText)),
+      ("Weather", weatherText(workout)),
+    ]
+    let shown = details.compactMap { label, value in value.map { (label, $0) } }
+    lines += statisticsLines(workout.statistics, indent: "  ")
+    if !shown.isEmpty {
+      lines.append("")
+      let width = shown.map(\.0.count).max() ?? 0
+      lines += shown.map { "  " + row($0, width, $1) }
+    }
+    if !workout.pauses.isEmpty {
+      lines += ["", "Pauses: \(workout.pauseCount)"]
+      lines += workout.pauses.map { "  \(time($0.start))   \(durationText($0.duration))" }
+      if workout.pauses.count < workout.pauseCount {
+        lines.append("  … and \(workout.pauseCount - workout.pauses.count) more")
+      }
+    }
+    lines += intervalLines("Laps", workout.laps, count: workout.lapCount)
+    lines += intervalLines("Segments", workout.segments, count: workout.segmentCount)
+    for leg in workout.activities {
+      let place = place(indoor: leg.indoor, swimmingLocation: leg.swimmingLocation)
+      lines.append("")
+      lines.append(
+        ([time(leg.start), leg.activity] + (place.isEmpty ? [] : [place.joined(separator: ", ")])
+          + [durationText(leg.duration)]).joined(separator: "   "))
+      lines += statisticsLines(leg.statistics, indent: "  ")
+    }
+    return lines.joined(separator: "\n") + "\n"
+  }
+}
+
+/// A workout's statistics, a line each: its name, then its values.
+private func statisticsLines(_ statistics: [HealthWorkoutStatistic], indent: String) -> [String] {
+  guard !statistics.isEmpty else { return [] }
+  let names = statistics.map { $0.name ?? $0.type }
+  let width = names.map(\.count).max() ?? 0
+  return [""]
+    + zip(names, statistics).map { name, statistic in
+      let values = [
+        statistic.sum.map { quantity($0, statistic.unit) },
+        statistic.average.map { "avg. " + quantity($0, statistic.unit) },
+        statistic.minimum.map { "min. " + quantity($0, statistic.unit) },
+        statistic.maximum.map { "max. " + quantity($0, statistic.unit) },
+      ]
+      .compactMap(\.self)
+      // A statistic with only its last reading shows that.
+      let shown =
+        values.isEmpty
+        ? statistic.mostRecent.map { ["last " + quantity($0, statistic.unit)] } ?? [] : values
+      return indent + row(name, width, shown.isEmpty ? "–" : shown.joined(separator: " · "))
+    }
+}
+
+/// A workout's laps or segments, a line each, after how many there are.
+private func intervalLines(_ title: String, _ intervals: [HealthWorkoutInterval], count: Int)
+  -> [String]
+{
+  guard !intervals.isEmpty else { return [] }
+  var lines = ["", "\(title): \(count)"]
+  for interval in intervals {
+    let parts = [
+      time(interval.start), durationText(interval.duration), interval.strokeStyle,
+      interval.swolf.map { "SWOLF " + numberText($0) },
+      interval.averageSpeed.map { numberText($0 * 3.6) + " km/h" },
+    ]
+    lines.append("  " + parts.compactMap(\.self).joined(separator: "   "))
+  }
+  if intervals.count < count { lines.append("  … and \(count - intervals.count) more") }
+  return lines
+}
+
+/// The weather, as far as the workout says: `clear, 12 °C, 72% humidity`.
+private func weatherText(_ workout: HealthWorkoutDetail) -> String? {
+  let parts = [
+    workout.weatherCondition,
+    workout.weatherTemperature.map { numberText($0) + " °C" },
+    workout.weatherHumidity.map { numberText($0) + "% humidity" },
+  ]
+  .compactMap(\.self)
+  return parts.isEmpty ? nil : parts.joined(separator: ", ")
+}
+
 extension HealthSleepResult: TextOutput {
   var text: String {
     var lines = ["Sleep, \(range): \(day(start)) to \(lastDay(end)) (\(timeZone))", ""]

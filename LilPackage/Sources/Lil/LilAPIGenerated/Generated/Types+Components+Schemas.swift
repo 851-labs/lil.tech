@@ -7125,6 +7125,1306 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutStatistic`.
+        public struct HealthWorkoutStatistic: Codable, Hashable, Sendable {
+            /// The quantity type, e.g. HKQuantityTypeIdentifierHeartRate.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutStatistic/type`.
+            public var _type: Swift.String
+            /// The name Health shows for it, e.g. Heart Rate.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutStatistic/name`.
+            public var name: Swift.String?
+            /// The HealthKit unit of its values, e.g. count/min, W, m or kcal.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutStatistic/unit`.
+            public var unit: Swift.String
+            /// For types that add up (energy, distance, steps, strokes): the total.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutStatistic/sum`.
+            public var sum: Swift.Double?
+            /// For other types (heart rate, power, cadence, speed): the average.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutStatistic/average`.
+            public var average: Swift.Double?
+            /// The lowest reading.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutStatistic/minimum`.
+            public var minimum: Swift.Double?
+            /// The highest reading.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutStatistic/maximum`.
+            public var maximum: Swift.Double?
+            /// The last reading.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutStatistic/mostRecent`.
+            public var mostRecent: Swift.Double?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutStatistic`.
+            ///
+            /// - Parameters:
+            ///   - _type: The quantity type, e.g. HKQuantityTypeIdentifierHeartRate.
+            ///   - name: The name Health shows for it, e.g. Heart Rate.
+            ///   - unit: The HealthKit unit of its values, e.g. count/min, W, m or kcal.
+            ///   - sum: For types that add up (energy, distance, steps, strokes): the total.
+            ///   - average: For other types (heart rate, power, cadence, speed): the average.
+            ///   - minimum: The lowest reading.
+            ///   - maximum: The highest reading.
+            ///   - mostRecent: The last reading.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                _type: Swift.String,
+                name: Swift.String? = nil,
+                unit: Swift.String,
+                sum: Swift.Double? = nil,
+                average: Swift.Double? = nil,
+                minimum: Swift.Double? = nil,
+                maximum: Swift.Double? = nil,
+                mostRecent: Swift.Double? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self._type = _type
+                self.name = name
+                self.unit = unit
+                self.sum = sum
+                self.average = average
+                self.minimum = minimum
+                self.maximum = maximum
+                self.mostRecent = mostRecent
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _type = "type"
+                case name
+                case unit
+                case sum
+                case average
+                case minimum
+                case maximum
+                case mostRecent
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self._type = try container.decode(
+                    Swift.String.self,
+                    forKey: ._type
+                )
+                self.name = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .name
+                )
+                self.unit = try container.decode(
+                    Swift.String.self,
+                    forKey: .unit
+                )
+                self.sum = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .sum
+                )
+                self.average = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .average
+                )
+                self.minimum = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .minimum
+                )
+                self.maximum = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .maximum
+                )
+                self.mostRecent = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .mostRecent
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "type",
+                    "name",
+                    "unit",
+                    "sum",
+                    "average",
+                    "minimum",
+                    "maximum",
+                    "mostRecent"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self._type,
+                    forKey: ._type
+                )
+                try container.encodeIfPresent(
+                    self.name,
+                    forKey: .name
+                )
+                try container.encode(
+                    self.unit,
+                    forKey: .unit
+                )
+                try container.encodeIfPresent(
+                    self.sum,
+                    forKey: .sum
+                )
+                try container.encodeIfPresent(
+                    self.average,
+                    forKey: .average
+                )
+                try container.encodeIfPresent(
+                    self.minimum,
+                    forKey: .minimum
+                )
+                try container.encodeIfPresent(
+                    self.maximum,
+                    forKey: .maximum
+                )
+                try container.encodeIfPresent(
+                    self.mostRecent,
+                    forKey: .mostRecent
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg`.
+        public struct HealthWorkoutLeg: Codable, Hashable, Sendable {
+            /// HKWorkoutActivityType's raw value.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/activityType`.
+            public var activityType: Swift.Int
+            /// The activity's name, e.g. Swimming.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/activity`.
+            public var activity: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/start`.
+            public var start: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/end`.
+            public var end: Swift.String?
+            /// Seconds of activity, excluding pauses.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/duration`.
+            public var duration: Swift.Double
+            /// Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout) or, failing that, as it was set up (its workout configuration's location), or null if neither says.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/indoor`.
+            public var indoor: Swift.Bool?
+            /// For swims: pool or openWater (HKMetadataKeySwimmingLocationType, else its workout configuration's), or null if neither says.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/swimmingLocation`.
+            public var swimmingLocation: Swift.String?
+            /// Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). Read from text with 6 significant digits, so rounded to that.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/elevationAscended`.
+            public var elevationAscended: Swift.Double?
+            /// Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). Read from text with 6 significant digits, so rounded to that.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/elevationDescended`.
+            public var elevationDescended: Swift.Double?
+            /// Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/averageSpeed`.
+            public var averageSpeed: Swift.Double?
+            /// Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/maximumSpeed`.
+            public var maximumSpeed: Swift.Double?
+            /// Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). Read from text with 6 significant digits, so rounded to that.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/averageMETs`.
+            public var averageMETs: Swift.Double?
+            /// For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/lapLength`.
+            public var lapLength: Swift.Double?
+            /// For swims: the SWOLF score (strokes plus seconds per length; lower is more efficient), if the app that recorded it says (HKMetadataKeySWOLFScore).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/swolf`.
+            public var swolf: Swift.Double?
+            /// The leg's own statistics.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/statistics`.
+            public var statistics: [Components.Schemas.HealthWorkoutStatistic]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutLeg`.
+            ///
+            /// - Parameters:
+            ///   - activityType: HKWorkoutActivityType's raw value.
+            ///   - activity: The activity's name, e.g. Swimming.
+            ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - duration: Seconds of activity, excluding pauses.
+            ///   - indoor: Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout) or, failing that, as it was set up (its workout configuration's location), or null if neither says.
+            ///   - swimmingLocation: For swims: pool or openWater (HKMetadataKeySwimmingLocationType, else its workout configuration's), or null if neither says.
+            ///   - elevationAscended: Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). Read from text with 6 significant digits, so rounded to that.
+            ///   - elevationDescended: Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). Read from text with 6 significant digits, so rounded to that.
+            ///   - averageSpeed: Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that.
+            ///   - maximumSpeed: Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that.
+            ///   - averageMETs: Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). Read from text with 6 significant digits, so rounded to that.
+            ///   - lapLength: For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that.
+            ///   - swolf: For swims: the SWOLF score (strokes plus seconds per length; lower is more efficient), if the app that recorded it says (HKMetadataKeySWOLFScore).
+            ///   - statistics: The leg's own statistics.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                activityType: Swift.Int,
+                activity: Swift.String,
+                start: Swift.String,
+                end: Swift.String? = nil,
+                duration: Swift.Double,
+                indoor: Swift.Bool? = nil,
+                swimmingLocation: Swift.String? = nil,
+                elevationAscended: Swift.Double? = nil,
+                elevationDescended: Swift.Double? = nil,
+                averageSpeed: Swift.Double? = nil,
+                maximumSpeed: Swift.Double? = nil,
+                averageMETs: Swift.Double? = nil,
+                lapLength: Swift.Double? = nil,
+                swolf: Swift.Double? = nil,
+                statistics: [Components.Schemas.HealthWorkoutStatistic],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.activityType = activityType
+                self.activity = activity
+                self.start = start
+                self.end = end
+                self.duration = duration
+                self.indoor = indoor
+                self.swimmingLocation = swimmingLocation
+                self.elevationAscended = elevationAscended
+                self.elevationDescended = elevationDescended
+                self.averageSpeed = averageSpeed
+                self.maximumSpeed = maximumSpeed
+                self.averageMETs = averageMETs
+                self.lapLength = lapLength
+                self.swolf = swolf
+                self.statistics = statistics
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case activityType
+                case activity
+                case start
+                case end
+                case duration
+                case indoor
+                case swimmingLocation
+                case elevationAscended
+                case elevationDescended
+                case averageSpeed
+                case maximumSpeed
+                case averageMETs
+                case lapLength
+                case swolf
+                case statistics
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.activityType = try container.decode(
+                    Swift.Int.self,
+                    forKey: .activityType
+                )
+                self.activity = try container.decode(
+                    Swift.String.self,
+                    forKey: .activity
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.duration = try container.decode(
+                    Swift.Double.self,
+                    forKey: .duration
+                )
+                self.indoor = try container.decodeIfPresent(
+                    Swift.Bool.self,
+                    forKey: .indoor
+                )
+                self.swimmingLocation = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .swimmingLocation
+                )
+                self.elevationAscended = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .elevationAscended
+                )
+                self.elevationDescended = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .elevationDescended
+                )
+                self.averageSpeed = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .averageSpeed
+                )
+                self.maximumSpeed = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .maximumSpeed
+                )
+                self.averageMETs = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .averageMETs
+                )
+                self.lapLength = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .lapLength
+                )
+                self.swolf = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .swolf
+                )
+                self.statistics = try container.decode(
+                    [Components.Schemas.HealthWorkoutStatistic].self,
+                    forKey: .statistics
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "activityType",
+                    "activity",
+                    "start",
+                    "end",
+                    "duration",
+                    "indoor",
+                    "swimmingLocation",
+                    "elevationAscended",
+                    "elevationDescended",
+                    "averageSpeed",
+                    "maximumSpeed",
+                    "averageMETs",
+                    "lapLength",
+                    "swolf",
+                    "statistics"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.activityType,
+                    forKey: .activityType
+                )
+                try container.encode(
+                    self.activity,
+                    forKey: .activity
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encodeIfPresent(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.duration,
+                    forKey: .duration
+                )
+                try container.encodeIfPresent(
+                    self.indoor,
+                    forKey: .indoor
+                )
+                try container.encodeIfPresent(
+                    self.swimmingLocation,
+                    forKey: .swimmingLocation
+                )
+                try container.encodeIfPresent(
+                    self.elevationAscended,
+                    forKey: .elevationAscended
+                )
+                try container.encodeIfPresent(
+                    self.elevationDescended,
+                    forKey: .elevationDescended
+                )
+                try container.encodeIfPresent(
+                    self.averageSpeed,
+                    forKey: .averageSpeed
+                )
+                try container.encodeIfPresent(
+                    self.maximumSpeed,
+                    forKey: .maximumSpeed
+                )
+                try container.encodeIfPresent(
+                    self.averageMETs,
+                    forKey: .averageMETs
+                )
+                try container.encodeIfPresent(
+                    self.lapLength,
+                    forKey: .lapLength
+                )
+                try container.encodeIfPresent(
+                    self.swolf,
+                    forKey: .swolf
+                )
+                try container.encode(
+                    self.statistics,
+                    forKey: .statistics
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutPause`.
+        public struct HealthWorkoutPause: Codable, Hashable, Sendable {
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutPause/start`.
+            public var start: Swift.String
+            /// When it resumed, or the workout's end.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutPause/end`.
+            public var end: Swift.String
+            /// Seconds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutPause/duration`.
+            public var duration: Swift.Double
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutPause`.
+            ///
+            /// - Parameters:
+            ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - end: When it resumed, or the workout's end.
+            ///   - duration: Seconds.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                start: Swift.String,
+                end: Swift.String,
+                duration: Swift.Double,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.start = start
+                self.end = end
+                self.duration = duration
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case start
+                case end
+                case duration
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.duration = try container.decode(
+                    Swift.Double.self,
+                    forKey: .duration
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "start",
+                    "end",
+                    "duration"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.duration,
+                    forKey: .duration
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutInterval`.
+        public struct HealthWorkoutInterval: Codable, Hashable, Sendable {
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutInterval/start`.
+            public var start: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutInterval/end`.
+            public var end: Swift.String
+            /// Seconds, from start to end.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutInterval/duration`.
+            public var duration: Swift.Double
+            /// For swims: the main stroke (HKMetadataKeySwimmingStrokeStyle): mixed, freestyle, backstroke, breaststroke, butterfly or kickboard, or null if it doesn't say.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutInterval/strokeStyle`.
+            public var strokeStyle: Swift.String?
+            /// For swims: the SWOLF score (strokes plus seconds per length; lower is more efficient), if the app that recorded it says (HKMetadataKeySWOLFScore).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutInterval/swolf`.
+            public var swolf: Swift.Double?
+            /// For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutInterval/lapLength`.
+            public var lapLength: Swift.Double?
+            /// Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutInterval/averageSpeed`.
+            public var averageSpeed: Swift.Double?
+            /// Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutInterval/maximumSpeed`.
+            public var maximumSpeed: Swift.Double?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutInterval`.
+            ///
+            /// - Parameters:
+            ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - duration: Seconds, from start to end.
+            ///   - strokeStyle: For swims: the main stroke (HKMetadataKeySwimmingStrokeStyle): mixed, freestyle, backstroke, breaststroke, butterfly or kickboard, or null if it doesn't say.
+            ///   - swolf: For swims: the SWOLF score (strokes plus seconds per length; lower is more efficient), if the app that recorded it says (HKMetadataKeySWOLFScore).
+            ///   - lapLength: For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that.
+            ///   - averageSpeed: Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that.
+            ///   - maximumSpeed: Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                start: Swift.String,
+                end: Swift.String,
+                duration: Swift.Double,
+                strokeStyle: Swift.String? = nil,
+                swolf: Swift.Double? = nil,
+                lapLength: Swift.Double? = nil,
+                averageSpeed: Swift.Double? = nil,
+                maximumSpeed: Swift.Double? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.start = start
+                self.end = end
+                self.duration = duration
+                self.strokeStyle = strokeStyle
+                self.swolf = swolf
+                self.lapLength = lapLength
+                self.averageSpeed = averageSpeed
+                self.maximumSpeed = maximumSpeed
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case start
+                case end
+                case duration
+                case strokeStyle
+                case swolf
+                case lapLength
+                case averageSpeed
+                case maximumSpeed
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.duration = try container.decode(
+                    Swift.Double.self,
+                    forKey: .duration
+                )
+                self.strokeStyle = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .strokeStyle
+                )
+                self.swolf = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .swolf
+                )
+                self.lapLength = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .lapLength
+                )
+                self.averageSpeed = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .averageSpeed
+                )
+                self.maximumSpeed = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .maximumSpeed
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "start",
+                    "end",
+                    "duration",
+                    "strokeStyle",
+                    "swolf",
+                    "lapLength",
+                    "averageSpeed",
+                    "maximumSpeed"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.duration,
+                    forKey: .duration
+                )
+                try container.encodeIfPresent(
+                    self.strokeStyle,
+                    forKey: .strokeStyle
+                )
+                try container.encodeIfPresent(
+                    self.swolf,
+                    forKey: .swolf
+                )
+                try container.encodeIfPresent(
+                    self.lapLength,
+                    forKey: .lapLength
+                )
+                try container.encodeIfPresent(
+                    self.averageSpeed,
+                    forKey: .averageSpeed
+                )
+                try container.encodeIfPresent(
+                    self.maximumSpeed,
+                    forKey: .maximumSpeed
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail`.
+        public struct HealthWorkoutDetail: Codable, Hashable, Sendable {
+            /// HealthKit's UUID for the workout.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/id`.
+            public var id: Swift.String
+            /// HKWorkoutActivityType's raw value, e.g. 37 for running.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/activityType`.
+            public var activityType: Swift.Int
+            /// The activity's name, e.g. Running.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/activity`.
+            public var activity: Swift.String
+            /// The workout's own name, from the app that recorded it (HKMetadataKeyWorkoutBrandName), else the name of the planned workout it followed (a custom or swim-bike-run workout made in an app with WorkoutKit). Usually null: the Workout app doesn't name its own.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/name`.
+            public var name: Swift.String?
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/start`.
+            public var start: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/end`.
+            public var end: Swift.String
+            /// Seconds of activity, excluding pauses.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/duration`.
+            public var duration: Swift.Double
+            /// Kilocalories.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/activeEnergy`.
+            public var activeEnergy: Swift.Double?
+            /// Meters.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/distance`.
+            public var distance: Swift.Double?
+            /// Beats per minute.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/averageHeartRate`.
+            public var averageHeartRate: Swift.Double?
+            /// Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). Read from text with 6 significant digits, so rounded to that.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/elevationAscended`.
+            public var elevationAscended: Swift.Double?
+            /// Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or as its activities say (their metadata, else how each was set up: its workout configuration's location), if they agree. Null if none says: then hasRoute is the best hint.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/indoor`.
+            public var indoor: Swift.Bool?
+            /// For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or its activities say (their metadata, else their workout configurations), if they agree, or null if none says.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/swimmingLocation`.
+            public var swimmingLocation: Swift.String?
+            /// Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/hasRoute`.
+            public var hasRoute: Swift.Bool
+            /// The app or device that recorded it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/source`.
+            public var source: Swift.String
+            /// A multisport workout's legs (e.g. swim, transition, bike, run), in order, each with its own statistics. Empty for a workout of one activity, whose statistics are the workout's.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/activities`.
+            public var activities: [Components.Schemas.HealthWorkoutLeg]
+            /// Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). Read from text with 6 significant digits, so rounded to that.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/elevationDescended`.
+            public var elevationDescended: Swift.Double?
+            /// Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/averageSpeed`.
+            public var averageSpeed: Swift.Double?
+            /// Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/maximumSpeed`.
+            public var maximumSpeed: Swift.Double?
+            /// Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). Read from text with 6 significant digits, so rounded to that.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/averageMETs`.
+            public var averageMETs: Swift.Double?
+            /// For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/lapLength`.
+            public var lapLength: Swift.Double?
+            /// For swims: the SWOLF score (strokes plus seconds per length; lower is more efficient), if the app that recorded it says (HKMetadataKeySWOLFScore).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/swolf`.
+            public var swolf: Swift.Double?
+            /// The weather (HKMetadataKeyWeatherCondition), as HKWeatherCondition names it, e.g. clear, partlyCloudy, showers or snow, or null if it doesn't say.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/weatherCondition`.
+            public var weatherCondition: Swift.String?
+            /// The temperature, in °C, if the app that recorded it says (HKMetadataKeyWeatherTemperature). Read from text with 6 significant digits, so rounded to that.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/weatherTemperature`.
+            public var weatherTemperature: Swift.Double?
+            /// Relative humidity, in percent from 0 to 100 (HKMetadataKeyWeatherHumidity). Apple's Workout app writes it 100 times too large (72% as 7200 %), so a value over 100 is divided by 100. Read from text with 6 significant digits.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/weatherHumidity`.
+            public var weatherHumidity: Swift.Double?
+            /// Every statistic HealthKit computed over it, one per quantity type, by type: energy, distance, heart rate (average, minimum, maximum), power, cadence, speed, stride length, ground contact time, vertical oscillation, swimming strokes, flights climbed… whatever was recorded. Null where HealthKit gives none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/statistics`.
+            public var statistics: [Components.Schemas.HealthWorkoutStatistic]
+            /// How many times it was paused.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/pauseCount`.
+            public var pauseCount: Swift.Int
+            /// When it was paused, by the person or automatically (auto-pause), from each pause to the resume after it, in order, at most 300. duration leaves them out.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/pauses`.
+            public var pauses: [Components.Schemas.HealthWorkoutPause]
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/lapCount`.
+            public var lapCount: Swift.Int
+            /// Its laps (HKWorkoutEventTypeLap), in order, at most 300: a pool swim's lengths, with each one's stroke and SWOLF, or laps marked in an app.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/laps`.
+            public var laps: [Components.Schemas.HealthWorkoutInterval]
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/segmentCount`.
+            public var segmentCount: Swift.Int
+            /// Its segments (HKWorkoutEventTypeSegment), in order, at most 300: splits, intervals or sets, as the app that recorded it marked them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/segments`.
+            public var segments: [Components.Schemas.HealthWorkoutInterval]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutDetail`.
+            ///
+            /// - Parameters:
+            ///   - id: HealthKit's UUID for the workout.
+            ///   - activityType: HKWorkoutActivityType's raw value, e.g. 37 for running.
+            ///   - activity: The activity's name, e.g. Running.
+            ///   - name: The workout's own name, from the app that recorded it (HKMetadataKeyWorkoutBrandName), else the name of the planned workout it followed (a custom or swim-bike-run workout made in an app with WorkoutKit). Usually null: the Workout app doesn't name its own.
+            ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - duration: Seconds of activity, excluding pauses.
+            ///   - activeEnergy: Kilocalories.
+            ///   - distance: Meters.
+            ///   - averageHeartRate: Beats per minute.
+            ///   - elevationAscended: Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). Read from text with 6 significant digits, so rounded to that.
+            ///   - indoor: Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or as its activities say (their metadata, else how each was set up: its workout configuration's location), if they agree. Null if none says: then hasRoute is the best hint.
+            ///   - swimmingLocation: For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or its activities say (their metadata, else their workout configurations), if they agree, or null if none says.
+            ///   - hasRoute: Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't.
+            ///   - source: The app or device that recorded it.
+            ///   - activities: A multisport workout's legs (e.g. swim, transition, bike, run), in order, each with its own statistics. Empty for a workout of one activity, whose statistics are the workout's.
+            ///   - elevationDescended: Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). Read from text with 6 significant digits, so rounded to that.
+            ///   - averageSpeed: Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that.
+            ///   - maximumSpeed: Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that.
+            ///   - averageMETs: Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). Read from text with 6 significant digits, so rounded to that.
+            ///   - lapLength: For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that.
+            ///   - swolf: For swims: the SWOLF score (strokes plus seconds per length; lower is more efficient), if the app that recorded it says (HKMetadataKeySWOLFScore).
+            ///   - weatherCondition: The weather (HKMetadataKeyWeatherCondition), as HKWeatherCondition names it, e.g. clear, partlyCloudy, showers or snow, or null if it doesn't say.
+            ///   - weatherTemperature: The temperature, in °C, if the app that recorded it says (HKMetadataKeyWeatherTemperature). Read from text with 6 significant digits, so rounded to that.
+            ///   - weatherHumidity: Relative humidity, in percent from 0 to 100 (HKMetadataKeyWeatherHumidity). Apple's Workout app writes it 100 times too large (72% as 7200 %), so a value over 100 is divided by 100. Read from text with 6 significant digits.
+            ///   - statistics: Every statistic HealthKit computed over it, one per quantity type, by type: energy, distance, heart rate (average, minimum, maximum), power, cadence, speed, stride length, ground contact time, vertical oscillation, swimming strokes, flights climbed… whatever was recorded. Null where HealthKit gives none.
+            ///   - pauseCount: How many times it was paused.
+            ///   - pauses: When it was paused, by the person or automatically (auto-pause), from each pause to the resume after it, in order, at most 300. duration leaves them out.
+            ///   - lapCount:
+            ///   - laps: Its laps (HKWorkoutEventTypeLap), in order, at most 300: a pool swim's lengths, with each one's stroke and SWOLF, or laps marked in an app.
+            ///   - segmentCount:
+            ///   - segments: Its segments (HKWorkoutEventTypeSegment), in order, at most 300: splits, intervals or sets, as the app that recorded it marked them.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                activityType: Swift.Int,
+                activity: Swift.String,
+                name: Swift.String? = nil,
+                start: Swift.String,
+                end: Swift.String,
+                duration: Swift.Double,
+                activeEnergy: Swift.Double? = nil,
+                distance: Swift.Double? = nil,
+                averageHeartRate: Swift.Double? = nil,
+                elevationAscended: Swift.Double? = nil,
+                indoor: Swift.Bool? = nil,
+                swimmingLocation: Swift.String? = nil,
+                hasRoute: Swift.Bool,
+                source: Swift.String,
+                activities: [Components.Schemas.HealthWorkoutLeg],
+                elevationDescended: Swift.Double? = nil,
+                averageSpeed: Swift.Double? = nil,
+                maximumSpeed: Swift.Double? = nil,
+                averageMETs: Swift.Double? = nil,
+                lapLength: Swift.Double? = nil,
+                swolf: Swift.Double? = nil,
+                weatherCondition: Swift.String? = nil,
+                weatherTemperature: Swift.Double? = nil,
+                weatherHumidity: Swift.Double? = nil,
+                statistics: [Components.Schemas.HealthWorkoutStatistic],
+                pauseCount: Swift.Int,
+                pauses: [Components.Schemas.HealthWorkoutPause],
+                lapCount: Swift.Int,
+                laps: [Components.Schemas.HealthWorkoutInterval],
+                segmentCount: Swift.Int,
+                segments: [Components.Schemas.HealthWorkoutInterval],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.activityType = activityType
+                self.activity = activity
+                self.name = name
+                self.start = start
+                self.end = end
+                self.duration = duration
+                self.activeEnergy = activeEnergy
+                self.distance = distance
+                self.averageHeartRate = averageHeartRate
+                self.elevationAscended = elevationAscended
+                self.indoor = indoor
+                self.swimmingLocation = swimmingLocation
+                self.hasRoute = hasRoute
+                self.source = source
+                self.activities = activities
+                self.elevationDescended = elevationDescended
+                self.averageSpeed = averageSpeed
+                self.maximumSpeed = maximumSpeed
+                self.averageMETs = averageMETs
+                self.lapLength = lapLength
+                self.swolf = swolf
+                self.weatherCondition = weatherCondition
+                self.weatherTemperature = weatherTemperature
+                self.weatherHumidity = weatherHumidity
+                self.statistics = statistics
+                self.pauseCount = pauseCount
+                self.pauses = pauses
+                self.lapCount = lapCount
+                self.laps = laps
+                self.segmentCount = segmentCount
+                self.segments = segments
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case activityType
+                case activity
+                case name
+                case start
+                case end
+                case duration
+                case activeEnergy
+                case distance
+                case averageHeartRate
+                case elevationAscended
+                case indoor
+                case swimmingLocation
+                case hasRoute
+                case source
+                case activities
+                case elevationDescended
+                case averageSpeed
+                case maximumSpeed
+                case averageMETs
+                case lapLength
+                case swolf
+                case weatherCondition
+                case weatherTemperature
+                case weatherHumidity
+                case statistics
+                case pauseCount
+                case pauses
+                case lapCount
+                case laps
+                case segmentCount
+                case segments
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.activityType = try container.decode(
+                    Swift.Int.self,
+                    forKey: .activityType
+                )
+                self.activity = try container.decode(
+                    Swift.String.self,
+                    forKey: .activity
+                )
+                self.name = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .name
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.duration = try container.decode(
+                    Swift.Double.self,
+                    forKey: .duration
+                )
+                self.activeEnergy = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .activeEnergy
+                )
+                self.distance = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .distance
+                )
+                self.averageHeartRate = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .averageHeartRate
+                )
+                self.elevationAscended = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .elevationAscended
+                )
+                self.indoor = try container.decodeIfPresent(
+                    Swift.Bool.self,
+                    forKey: .indoor
+                )
+                self.swimmingLocation = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .swimmingLocation
+                )
+                self.hasRoute = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .hasRoute
+                )
+                self.source = try container.decode(
+                    Swift.String.self,
+                    forKey: .source
+                )
+                self.activities = try container.decode(
+                    [Components.Schemas.HealthWorkoutLeg].self,
+                    forKey: .activities
+                )
+                self.elevationDescended = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .elevationDescended
+                )
+                self.averageSpeed = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .averageSpeed
+                )
+                self.maximumSpeed = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .maximumSpeed
+                )
+                self.averageMETs = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .averageMETs
+                )
+                self.lapLength = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .lapLength
+                )
+                self.swolf = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .swolf
+                )
+                self.weatherCondition = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .weatherCondition
+                )
+                self.weatherTemperature = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .weatherTemperature
+                )
+                self.weatherHumidity = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .weatherHumidity
+                )
+                self.statistics = try container.decode(
+                    [Components.Schemas.HealthWorkoutStatistic].self,
+                    forKey: .statistics
+                )
+                self.pauseCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .pauseCount
+                )
+                self.pauses = try container.decode(
+                    [Components.Schemas.HealthWorkoutPause].self,
+                    forKey: .pauses
+                )
+                self.lapCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .lapCount
+                )
+                self.laps = try container.decode(
+                    [Components.Schemas.HealthWorkoutInterval].self,
+                    forKey: .laps
+                )
+                self.segmentCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .segmentCount
+                )
+                self.segments = try container.decode(
+                    [Components.Schemas.HealthWorkoutInterval].self,
+                    forKey: .segments
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "activityType",
+                    "activity",
+                    "name",
+                    "start",
+                    "end",
+                    "duration",
+                    "activeEnergy",
+                    "distance",
+                    "averageHeartRate",
+                    "elevationAscended",
+                    "indoor",
+                    "swimmingLocation",
+                    "hasRoute",
+                    "source",
+                    "activities",
+                    "elevationDescended",
+                    "averageSpeed",
+                    "maximumSpeed",
+                    "averageMETs",
+                    "lapLength",
+                    "swolf",
+                    "weatherCondition",
+                    "weatherTemperature",
+                    "weatherHumidity",
+                    "statistics",
+                    "pauseCount",
+                    "pauses",
+                    "lapCount",
+                    "laps",
+                    "segmentCount",
+                    "segments"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.activityType,
+                    forKey: .activityType
+                )
+                try container.encode(
+                    self.activity,
+                    forKey: .activity
+                )
+                try container.encodeIfPresent(
+                    self.name,
+                    forKey: .name
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.duration,
+                    forKey: .duration
+                )
+                try container.encodeIfPresent(
+                    self.activeEnergy,
+                    forKey: .activeEnergy
+                )
+                try container.encodeIfPresent(
+                    self.distance,
+                    forKey: .distance
+                )
+                try container.encodeIfPresent(
+                    self.averageHeartRate,
+                    forKey: .averageHeartRate
+                )
+                try container.encodeIfPresent(
+                    self.elevationAscended,
+                    forKey: .elevationAscended
+                )
+                try container.encodeIfPresent(
+                    self.indoor,
+                    forKey: .indoor
+                )
+                try container.encodeIfPresent(
+                    self.swimmingLocation,
+                    forKey: .swimmingLocation
+                )
+                try container.encode(
+                    self.hasRoute,
+                    forKey: .hasRoute
+                )
+                try container.encode(
+                    self.source,
+                    forKey: .source
+                )
+                try container.encode(
+                    self.activities,
+                    forKey: .activities
+                )
+                try container.encodeIfPresent(
+                    self.elevationDescended,
+                    forKey: .elevationDescended
+                )
+                try container.encodeIfPresent(
+                    self.averageSpeed,
+                    forKey: .averageSpeed
+                )
+                try container.encodeIfPresent(
+                    self.maximumSpeed,
+                    forKey: .maximumSpeed
+                )
+                try container.encodeIfPresent(
+                    self.averageMETs,
+                    forKey: .averageMETs
+                )
+                try container.encodeIfPresent(
+                    self.lapLength,
+                    forKey: .lapLength
+                )
+                try container.encodeIfPresent(
+                    self.swolf,
+                    forKey: .swolf
+                )
+                try container.encodeIfPresent(
+                    self.weatherCondition,
+                    forKey: .weatherCondition
+                )
+                try container.encodeIfPresent(
+                    self.weatherTemperature,
+                    forKey: .weatherTemperature
+                )
+                try container.encodeIfPresent(
+                    self.weatherHumidity,
+                    forKey: .weatherHumidity
+                )
+                try container.encode(
+                    self.statistics,
+                    forKey: .statistics
+                )
+                try container.encode(
+                    self.pauseCount,
+                    forKey: .pauseCount
+                )
+                try container.encode(
+                    self.pauses,
+                    forKey: .pauses
+                )
+                try container.encode(
+                    self.lapCount,
+                    forKey: .lapCount
+                )
+                try container.encode(
+                    self.laps,
+                    forKey: .laps
+                )
+                try container.encode(
+                    self.segmentCount,
+                    forKey: .segmentCount
+                )
+                try container.encode(
+                    self.segments,
+                    forKey: .segments
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthWorkoutResult`.
+        public struct HealthWorkoutResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutResult/timeZone`.
+            public var timeZone: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutResult/workout`.
+            public var workout: Components.Schemas.HealthWorkoutDetail
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthWorkoutResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - workout:
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                workout: Components.Schemas.HealthWorkoutDetail,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.workout = workout
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case workout
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.workout = try container.decode(
+                    Components.Schemas.HealthWorkoutDetail.self,
+                    forKey: .workout
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "workout"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.workout,
+                    forKey: .workout
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthSleepNight`.
         public struct HealthSleepNight: Codable, Hashable, Sendable {
             /// The day the night ends on.

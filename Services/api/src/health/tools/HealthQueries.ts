@@ -465,6 +465,22 @@ export interface WorkoutRow {
   readonly sourceName: string;
 }
 
+/** The columns `workoutRow` reads; `workout` adds `events`, which `workouts` doesn't need. */
+const workoutColumns = `id, activity_type, start_date, end_date, duration, statistics, activities,
+  metadata, source_name`;
+
+const workoutRow = (row: Record<string, unknown>): WorkoutRow => ({
+  id: row["id"] as string,
+  activityType: Number(row["activity_type"]),
+  startDate: Number(row["start_date"]),
+  endDate: Number(row["end_date"]),
+  duration: Number(row["duration"]),
+  statistics: row["statistics"] as string,
+  activities: row["activities"] as string,
+  metadata: row["metadata"] as string | null,
+  sourceName: row["source_name"] as string,
+});
+
 /** Up to `limit` of the workouts that start in `[from, to)`, newest first. */
 export const workoutsStarting = (
   sql: StoreSql,
@@ -474,25 +490,25 @@ export const workoutsStarting = (
 ): ReadonlyArray<WorkoutRow> =>
   sql
     .exec(
-      `SELECT id, activity_type, start_date, end_date, duration, statistics, activities,
-        metadata, source_name
-      FROM health_workout WHERE start_date >= ? AND start_date < ?
+      `SELECT ${workoutColumns} FROM health_workout WHERE start_date >= ? AND start_date < ?
       ORDER BY start_date DESC, id DESC LIMIT ?`,
       from,
       to,
       limit,
     )
-    .map((row) => ({
-      id: row["id"] as string,
-      activityType: Number(row["activity_type"]),
-      startDate: Number(row["start_date"]),
-      endDate: Number(row["end_date"]),
-      duration: Number(row["duration"]),
-      statistics: row["statistics"] as string,
-      activities: row["activities"] as string,
-      metadata: row["metadata"] as string | null,
-      sourceName: row["source_name"] as string,
-    }));
+    .map(workoutRow);
+
+/** A workout as `workout` reads it: its row, with its events. */
+export interface WorkoutDetailRow extends WorkoutRow {
+  /** As stored: JSON. */
+  readonly events: string;
+}
+
+/** The workout with HealthKit's UUID `id`, if there's one. */
+export const workoutWithId = (sql: StoreSql, id: string): WorkoutDetailRow | undefined =>
+  sql
+    .exec(`SELECT ${workoutColumns}, events FROM health_workout WHERE id = ?`, id)
+    .map((row) => ({ ...workoutRow(row), events: row["events"] as string }))[0];
 
 /**
  * The IDs of those of `workouts` that have a route with locations, as the Mac's workout page

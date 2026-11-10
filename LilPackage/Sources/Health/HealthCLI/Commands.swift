@@ -23,13 +23,14 @@ struct LilHealthCommand: ParsableCommand {
       open, sync and export ask lil health to do it, under the same setting, launching it if \
       it isn't running.
 
-      Exit statuses: 64 for a usage error, 65 for an unknown type, time zone, date, page or \
-      folder, 69 if there's no lil health data to read, or lil health isn't installed, didn't answer or \
+      Exit statuses: 64 for a usage error, 65 for an unknown type, workout, time zone, date, \
+      page or folder, 69 if there's no lil health data to read, or lil health isn't installed, didn't answer or \
       isn't signed in, 75 if its sync or export failed, 77 while access is off.
       """,
     subcommands: [
       SummaryCommand.self, TypesCommand.self, MetricCommand.self, SamplesCommand.self,
-      WorkoutsCommand.self, SleepCommand.self, MedicationsCommand.self, DetailsCommand.self,
+      WorkoutsCommand.self, WorkoutCommand.self, SleepCommand.self, MedicationsCommand.self,
+      DetailsCommand.self,
       SearchCommand.self, SyncCommand.self, OpenCommand.self, ExportCommand.self,
       MCPCommand.self,
     ]
@@ -191,6 +192,20 @@ struct WorkoutsCommand: QueryCommand {
 
   func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
     Answer(try tools.workouts(range: range.range, date: date, timeZone: timeZone, db))
+  }
+}
+
+struct WorkoutCommand: QueryCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "workout",
+    abstract: "One workout in full: its statistics, pauses, laps, segments, weather and legs.")
+
+  @Argument(help: "The workout's ID, from `workouts --json`.") var id: String
+  @Option(help: timeZoneHelp) var timeZone: String?
+  @OptionGroup var output: OutputOptions
+
+  func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
+    Answer(try tools.workout(id: id, timeZone: timeZone, db))
   }
 }
 
