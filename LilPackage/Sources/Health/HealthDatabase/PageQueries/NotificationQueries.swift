@@ -1,4 +1,5 @@
 public import Foundation
+import HealthCatalog
 public import SQLiteData
 
 /// The kinds of notification Health records as category samples, each its type's identifier
@@ -101,9 +102,11 @@ extension HealthDatabase {
     }
   }
 
-  /// A metadata quantity, as the iPhone writes one (its description: `"120 count/min"`), or a
-  /// plain number: the number and its unit (empty for a plain number). Numbers no notification
-  /// could mean (not finite, or a billion or more either way) don't count.
+  /// A metadata quantity, in either form the iPhone writes one (`{ "value": 120, "unit":
+  /// "count/min" }`, or before 851-4150 its description, `"120 count/min"`:
+  /// `HealthMetadataValues.quantityParts`), or a plain number: the number and its unit (empty for
+  /// a plain number). Numbers no notification could mean (not finite, or a billion or more either
+  /// way) don't count.
   static func quantity(_ value: Any?) -> (number: Double, unit: String)? {
     let number: Double
     let unit: String
@@ -111,11 +114,13 @@ extension HealthDatabase {
     case let value as NSNumber where CFGetTypeID(value) != CFBooleanGetTypeID():
       (number, unit) = (value.doubleValue, "")
     case let string as String:
+      // A description, or a number without a unit.
       let parts = string.split(separator: " ", maxSplits: 1)
       guard let first = parts.first, let value = Double(first) else { return nil }
       (number, unit) = (value, parts.count > 1 ? String(parts[1]) : "")
     default:
-      return nil
+      guard let parts = HealthMetadataValues.quantityParts(value) else { return nil }
+      (number, unit) = parts
     }
     guard number.isFinite, abs(number) < 1e9 else { return nil }
     return (number, unit)

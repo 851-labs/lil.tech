@@ -206,14 +206,36 @@ public enum HealthEncoder {
             "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"),
         ]),
       "device": device ?? .null,
-      "metadata": metadata(sample.metadata).map(JSONValue.object) ?? .null,
+      "metadata": metadata(
+        sample.metadata,
+        sampleUnit: (sample as? HKQuantitySample).flatMap { try? unit(for: $0.quantityType) }
+      ).map(JSONValue.object) ?? .null,
     ]
   }
 
   /// An object's metadata as it goes up: only the keys lil health keeps
   /// (`HealthCatalog.keptMetadata`, 851-4152), as JSON, or nil if it has none of them.
-  static func metadata(_ metadata: [String: Any]?) -> [String: JSONValue]? {
-    metadata.flatMap(HealthCatalog.keptMetadata)?.mapValues(json)
+  /// `sampleUnit` is the unit of the quantity sample it's on, if it's on one.
+  static func metadata(
+    _ metadata: [String: Any]?, sampleUnit: HKUnit? = nil
+  ) -> [String: JSONValue]? {
+    metadata.flatMap(HealthCatalog.keptMetadata)
+      .map { kept in
+        Dictionary(
+          uniqueKeysWithValues: kept.map { key, value in
+            (key, json(value, unit: quantityUnit(of: key, sampleUnit: sampleUnit)))
+          })
+      }
+  }
+
+  /// The unit a key's quantity goes up in (`HealthCatalog.metadataQuantityUnits`), or nil for a
+  /// key that has none.
+  static func quantityUnit(of key: String, sampleUnit: HKUnit?) -> HKUnit? {
+    switch HealthCatalog.metadataQuantityUnits[key] {
+    case .unit(let unit): HKUnit(from: unit)
+    case .sample: sampleUnit
+    case nil: nil
+    }
   }
 
   /// Unix milliseconds, rounded to the nearest. Never change how: the server finds a sample by
@@ -223,21 +245,46 @@ public enum HealthEncoder {
     (date.timeIntervalSince1970 * 1000).rounded()
   }
 
-  /// A metadata value as JSON: dates as Unix milliseconds, and quantities as their description
-  /// (e.g. `"120 count/min"`), since HealthKit doesn't say an arbitrary quantity's unit.
-  /// Numbers that aren't finite become null.
-  static func json(_ value: Any) -> JSONValue {
+  /// A metadata value as JSON (851-4150). A quantity is `{ "value": 84.6, "unit": "m" }` in
+  /// `unit`, its key's unit (`HealthCatalog.metadataQuantityUnits`), to 12 significant digits
+  /// (`significant`), so it's whole and a conversion's noise is gone, as HealthKit holds it: a
+  /// percent (`%`) is a fraction, 0.72 for 72%. A quantity under a key without a unit, or in a unit
+  /// it can't be converted to, is its description (`"120 count/min"`, 6 significant digits), as
+  /// every quantity was before: HealthKit doesn't say an arbitrary quantity's unit. A date is
+  /// `{ "date": "2026-10-12T00:00:00.000Z" }`, ISO 8601 in UTC to the millisecond, rather than
+  /// Unix milliseconds that look like any other number. Numbers that aren't finite become null.
+  static func json(_ value: Any, unit: HKUnit? = nil) -> JSONValue {
     switch value {
     case let string as String: .string(string)
-    case let date as Date: .number(milliseconds(date))
-    case let quantity as HKQuantity: .string(quantity.description)
+    case let date as Date: .object(["date": .string(isoDate(date))])
+    case let quantity as HKQuantity:
+      if let unit, quantity.is(compatibleWith: unit) {
+        .object([
+          "value": json(NSNumber(value: significant(quantity.doubleValue(for: unit)))),
+          "unit": .string(unit.unitString),
+        ])
+      } else {
+        .string(quantity.description)
+      }
     case let number as NSNumber:
       CFGetTypeID(number) == CFBooleanGetTypeID()
         ? .bool(number.boolValue)
         : number.doubleValue.isFinite ? .number(number.doubleValue) : .null
-    case let array as [Any]: .array(array.map(json))
-    case let dictionary as [String: Any]: .object(dictionary.mapValues(json))
+    case let array as [Any]: .array(array.map { json($0) })
+    case let dictionary as [String: Any]: .object(dictionary.mapValues { json($0) })
     default: .string(String(describing: value))
     }
+  }
+
+  /// A date in ISO 8601, in UTC, to the millisecond it goes up as (`milliseconds`). The
+  /// milliseconds are written from that whole number: the format style's fractional seconds cut
+  /// them off rather than round them (`.123` came out `.122`).
+  static func isoDate(_ date: Date) -> String {
+    let milliseconds = Int64(milliseconds(date))
+    // Whole seconds rounded down, so a date before 1970 has a fraction from 0 to 999 too.
+    let seconds = milliseconds >= 0 ? milliseconds / 1000 : (milliseconds - 999) / 1000
+    let fraction = milliseconds - seconds * 1000
+    let text = Date(timeIntervalSince1970: Double(seconds)).formatted(.iso8601)
+    return "\(text.dropLast()).\(String(format: "%03lld", fraction))Z"
   }
 }

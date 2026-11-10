@@ -1222,7 +1222,7 @@ let mcpToolsJSON = #"""
   },
   {
     "name": "workout",
-    "description": "One workout in full, by the ID workouts gives: everything workouts says, plus every statistic HealthKit computed (maximum and minimum heart rate, power, cadence, stride length, swimming strokes…), descent, speeds, METs, the weather, SWOLF and pool length, its pauses, laps (with each length's stroke and SWOLF) and segments, and a multisport workout's legs with their own statistics. Values from the workout's metadata are read from text and rounded to 6 significant digits.",
+    "description": "One workout in full, by the ID workouts gives: everything workouts says, plus every statistic HealthKit computed (maximum and minimum heart rate, power, cadence, stride length, swimming strokes…), descent, speeds, METs, the weather, SWOLF and pool length, its pauses, laps (with each length's stroke and SWOLF) and segments, and a multisport workout's legs with their own statistics. Values from the workout's metadata are as recorded, or to 6 significant digits from an older iPhone.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1410,7 +1410,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). Read from text with 6 significant digits, so rounded to that."
+              "description": "Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). As recorded, or to 6 significant digits from an older iPhone."
             },
             "elevationDescended": {
               "anyOf": [
@@ -1421,7 +1421,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). Read from text with 6 significant digits, so rounded to that."
+              "description": "Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). As recorded, or to 6 significant digits from an older iPhone."
             },
             "averageSpeed": {
               "anyOf": [
@@ -1432,7 +1432,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that."
+              "description": "Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). As recorded, or to 6 significant digits from an older iPhone."
             },
             "maximumSpeed": {
               "anyOf": [
@@ -1443,7 +1443,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that."
+              "description": "Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). As recorded, or to 6 significant digits from an older iPhone."
             },
             "averageMETs": {
               "anyOf": [
@@ -1454,7 +1454,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). Read from text with 6 significant digits, so rounded to that."
+              "description": "Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). As recorded, or to 6 significant digits from an older iPhone."
             },
             "lapLength": {
               "anyOf": [
@@ -1465,7 +1465,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that."
+              "description": "For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). As recorded, or to 6 significant digits from an older iPhone."
             },
             "swolf": {
               "anyOf": [
@@ -1574,7 +1574,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that."
+              "description": "For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). As recorded, or to 6 significant digits from an older iPhone."
             },
             "averageSpeed": {
               "anyOf": [
@@ -1585,7 +1585,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that."
+              "description": "Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). As recorded, or to 6 significant digits from an older iPhone."
             },
             "maximumSpeed": {
               "anyOf": [
@@ -1596,7 +1596,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that."
+              "description": "Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). As recorded, or to 6 significant digits from an older iPhone."
             }
           },
           "required": [
@@ -1693,7 +1693,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). Read from text with 6 significant digits, so rounded to that."
+              "description": "Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). As recorded, or to 6 significant digits from an older iPhone."
             },
             "indoor": {
               "anyOf": [
@@ -1741,7 +1741,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). Read from text with 6 significant digits, so rounded to that."
+              "description": "Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). As recorded, or to 6 significant digits from an older iPhone."
             },
             "averageSpeed": {
               "anyOf": [
@@ -1752,7 +1752,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that."
+              "description": "Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). As recorded, or to 6 significant digits from an older iPhone."
             },
             "maximumSpeed": {
               "anyOf": [
@@ -1763,7 +1763,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that."
+              "description": "Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). As recorded, or to 6 significant digits from an older iPhone."
             },
             "averageMETs": {
               "anyOf": [
@@ -1774,7 +1774,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). Read from text with 6 significant digits, so rounded to that."
+              "description": "Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). As recorded, or to 6 significant digits from an older iPhone."
             },
             "lapLength": {
               "anyOf": [
@@ -1785,7 +1785,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that."
+              "description": "For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). As recorded, or to 6 significant digits from an older iPhone."
             },
             "swolf": {
               "anyOf": [
@@ -1818,7 +1818,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "The temperature, in °C, if the app that recorded it says (HKMetadataKeyWeatherTemperature). Read from text with 6 significant digits, so rounded to that."
+              "description": "The temperature, in °C, if the app that recorded it says (HKMetadataKeyWeatherTemperature). As recorded, or to 6 significant digits from an older iPhone."
             },
             "weatherHumidity": {
               "anyOf": [
@@ -1829,7 +1829,7 @@ let mcpToolsJSON = #"""
                   "type": "null"
                 }
               ],
-              "description": "Relative humidity, in percent from 0 to 100 (HKMetadataKeyWeatherHumidity). Apple's Workout app writes it 100 times too large (72% as 7200 %), so a value over 100 is divided by 100. Read from text with 6 significant digits."
+              "description": "Relative humidity, in percent from 0 to 100 (HKMetadataKeyWeatherHumidity). Apple's Workout app writes it 100 times too large (72% as 7200 %), so a value over 100 is divided by 100. As recorded, or to 6 significant digits from an older iPhone."
             },
             "statistics": {
               "type": "array",

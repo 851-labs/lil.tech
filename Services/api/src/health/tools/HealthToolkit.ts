@@ -691,13 +691,14 @@ export const Workouts = readOnly(
 export const workoutEventsLimit = 300;
 
 /**
- * Quantities read from metadata, which the iPhone stores as text with 6 significant digits
- * ("4250 cm") until 851-4150: so they're rounded to that, and one in a unit the tools don't
- * know is null.
+ * Quantities read from metadata, which iPhones store whole since 851-4150, and before as text with
+ * 6 significant digits ("4250 cm"): an updated iPhone uploads its workouts again whole, but until
+ * then (or from an iPhone that isn't updated) they're rounded to that. One in a unit the tools
+ * don't know is null.
  */
 const fromMetadata = (key: string, what: string) =>
-  `${what}, if the app that recorded it says (${key}). Read from text with 6 significant ` +
-  "digits, so rounded to that.";
+  `${what}, if the app that recorded it says (${key}). As recorded, or to 6 significant ` +
+  "digits from an older iPhone.";
 
 /** What a workout's, or one of its activities', metadata says beyond where it was. */
 const workoutMetadataFields = {
@@ -806,7 +807,7 @@ export const HealthWorkoutDetail = Schema.Struct({
     description:
       "Relative humidity, in percent from 0 to 100 (HKMetadataKeyWeatherHumidity). Apple's " +
       "Workout app writes it 100 times too large (72% as 7200 %), so a value over 100 is " +
-      "divided by 100. Read from text with 6 significant digits.",
+      "divided by 100. As recorded, or to 6 significant digits from an older iPhone.",
   }),
   statistics: workoutStatistics,
   pauseCount: Schema.Int.annotate({ description: "How many times it was paused." }),
@@ -847,8 +848,8 @@ export const Workout = readOnly(
       "statistic HealthKit computed (maximum and minimum heart rate, power, cadence, stride " +
       "length, swimming strokes…), descent, speeds, METs, the weather, SWOLF and pool length, " +
       "its pauses, laps (with each length's stroke and SWOLF) and segments, and a multisport " +
-      "workout's legs with their own statistics. Values from the workout's metadata are read " +
-      "from text and rounded to 6 significant digits.",
+      "workout's legs with their own statistics. Values from the workout's metadata are as " +
+      "recorded, or to 6 significant digits from an older iPhone.",
     parameters: Schema.Struct({
       id: Schema.String.annotate({ description: "The workout's ID, from workouts." }),
       timeZone,

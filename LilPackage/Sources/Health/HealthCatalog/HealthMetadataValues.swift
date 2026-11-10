@@ -8,9 +8,12 @@ import Foundation
 /// The server reads them alike (`Services/api/src/health/MetadataValues.ts`), so the tools agree
 /// (the conformance cases).
 ///
-/// The iPhone writes an `HKQuantity` as its description, a number with 6 significant digits and
-/// a unit ("120 count/min", `HealthEncoder.json`), until 851-4150 keeps them whole: so quantities
-/// are rounded to that, and a unit not listed here gives nil.
+/// Quantities come in two forms, which both read (851-4150): iPhones since 851-4150 write an
+/// `HKQuantity` whole, `{ "value": 84.6, "unit": "m" }` in its key's unit
+/// (`HealthCatalog.metadataQuantityUnits`), and earlier ones (and records they uploaded) as its
+/// description, a number with 6 significant digits and a unit ("8460 cm", "120 count/min"),
+/// rounded to that. A unit not listed here gives nil. Dates likewise: `{ "date": "…Z" }`, ISO
+/// 8601, or Unix milliseconds before (`HealthEncoder.json`).
 public enum HealthMetadataValues {
   /// What a metadata key's value is.
   public enum Kind: Sendable {
@@ -22,6 +25,8 @@ public enum HealthMetadataValues {
     /// An `HKWorkoutActivityType`'s raw value, read as the activity's name.
     case activity
     case quantity(Quantity)
+    /// A date, read as Unix milliseconds.
+    case date
   }
 
   /// A value as its kind reads it.
@@ -44,7 +49,8 @@ public enum HealthMetadataValues {
   }
 
   /// What a quantity measures: the unit it's read in (`unit`), and each unit (`HKUnit`'s unit
-  /// strings, as `HKQuantity.description` writes them) it's converted from (`conversions`).
+  /// strings, as `HKQuantity.description` and `unitString` write them) it's converted from
+  /// (`conversions`), with a percent's number from 0 to 100, as descriptions write it.
   public enum Quantity: Sendable, CaseIterable {
     case length, speed, mets, temperature, humidity, heartRate, duration, soundLevel, vo2Max
     case illuminance
@@ -147,7 +153,7 @@ public enum HealthMetadataValues {
     "HKMetadataKeyDevicePlacementSide": .named([nil, "left", "right", "central"]),
     "HKMetadataKeyAppleDeviceCalibrated": .boolean,
     "HKAlgorithmVersion": .number,
-    "HKDateOfEarliestDataUsedForEstimate": .number,
+    "HKDateOfEarliestDataUsedForEstimate": .date,
     "HKMetadataKeyQuantityClampedToLowerBound": .boolean,
     "HKMetadataKeyQuantityClampedToUpperBound": .boolean,
     "HKReferenceRangeLowerLimit": .number,
@@ -197,7 +203,7 @@ public enum HealthMetadataValues {
   public static func valueType(of kind: Kind) -> Any.Type {
     switch kind {
     case .boolean: Bool.self
-    case .number, .quantity: Double.self
+    case .number, .quantity, .date: Double.self
     case .text, .named, .activity: String.self
     }
   }
@@ -211,6 +217,7 @@ public enum HealthMetadataValues {
     case .named(let cases): named(cases, value).map(Value.text)
     case .activity: activityName(value).map(Value.text)
     case .quantity(let quantity): self.quantity(quantity, value).map(Value.number)
+    case .date: date(value).map(Value.number)
     }
   }
 
@@ -265,13 +272,47 @@ public enum HealthMetadataValues {
   nonisolated(unsafe) static let quantityText =
     /([+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?) (\S+)/
 
-  /// A quantity's description in `quantity`'s unit, or nil in a unit it isn't read in.
+  /// A metadata quantity's number and unit, in either form: `{ "value": 0.72, "unit": "%" }`, as
+  /// the iPhone writes one since 851-4150, or its description, "72 %", as before. A percent's
+  /// number is from 0 to 100, as a description writes it, so a fraction (`HKUnit`'s percent) is
+  /// multiplied by 100, to 12 significant digits. Nil for anything else.
+  public static func quantityParts(_ value: Any?) -> (number: Double, unit: String)? {
+    if let description = value as? String {
+      guard let match = description.wholeMatch(of: quantityText), let number = Double(match.1)
+      else { return nil }
+      return (number, String(match.2))
+    }
+    guard let object = value as? [String: Any], let number = number(object["value"]),
+      let unit = object["unit"] as? String
+    else { return nil }
+    guard unit == "%" else { return (number, unit) }
+    // To 12 significant digits, as the iPhone writes values, without the multiplication's noise
+    // (0.555 is 55.5, not 55.50000000000001), as the server does (`toPrecision(12)`).
+    return (Double(String(format: "%.12g", number * 100)) ?? number * 100, unit)
+  }
+
+  /// A quantity in `quantity`'s unit, or nil in a unit it isn't read in.
   public static func quantity(_ quantity: Quantity, _ value: Any?) -> Double? {
-    guard let description = value as? String,
-      let match = description.wholeMatch(of: quantityText),
-      let number = Double(match.1), let convert = quantity.conversions[String(match.2)]
+    guard let (number, unit) = quantityParts(value), let convert = quantity.conversions[unit]
     else { return nil }
     let converted = convert(number)
     return converted.isFinite ? converted : nil
+  }
+
+  /// An ISO 8601 date and time with its zone, to the second or the millisecond, as the iPhone
+  /// writes a date: "2026-10-12T00:00:00.000Z".
+  nonisolated(unsafe) static let isoDateText =
+    /[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,3})?(?:Z|[+-][0-9]{2}:[0-9]{2})/
+
+  /// A date as Unix milliseconds, in either form: `{ "date": "2026-10-12T00:00:00.000Z" }`, as the
+  /// iPhone writes one since 851-4150, or Unix milliseconds, as before.
+  public static func date(_ value: Any?) -> Double? {
+    if let milliseconds = number(value) { return milliseconds }
+    guard let object = value as? [String: Any], let text = object["date"] as? String,
+      text.wholeMatch(of: isoDateText) != nil,
+      let date = (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(text))
+        ?? (try? Date.ISO8601FormatStyle().parse(text))
+    else { return nil }
+    return (date.timeIntervalSince1970 * 1000).rounded()
   }
 }

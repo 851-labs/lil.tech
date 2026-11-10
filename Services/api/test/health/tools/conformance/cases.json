@@ -6761,7 +6761,7 @@
       }
     },
     {
-      "name": "workout: a triathlon's legs, each with its own statistics, in Los Angeles",
+      "name": "workout: a triathlon's legs, each with its own statistics, in Los Angeles, with metadata quantities whole",
       "tool": "workout",
       "now": "2026-10-20T15:00:00Z",
       "arguments": {
@@ -6860,10 +6860,10 @@
               "duration": 2700,
               "indoor": false,
               "swimmingLocation": null,
-              "elevationAscended": 210,
-              "elevationDescended": 200,
-              "averageSpeed": 8.5,
-              "maximumSpeed": 14.444444444444445,
+              "elevationAscended": 210.456789123,
+              "elevationDescended": 199.987654321,
+              "averageSpeed": 8.50123456789,
+              "maximumSpeed": 14.4444444444,
               "averageMETs": null,
               "lapLength": null,
               "swolf": null,
@@ -6912,7 +6912,7 @@
               "elevationDescended": null,
               "averageSpeed": null,
               "maximumSpeed": null,
-              "averageMETs": 10.5,
+              "averageMETs": 10.5432109876,
               "lapLength": null,
               "swolf": null,
               "statistics": []
@@ -6925,8 +6925,8 @@
           "lapLength": null,
           "swolf": null,
           "weatherCondition": "clear",
-          "weatherTemperature": 18.5,
-          "weatherHumidity": 55,
+          "weatherTemperature": 18.56789,
+          "weatherHumidity": 55.12345,
           "statistics": [
             {
               "type": "HKQuantityTypeIdentifierActiveEnergyBurned",

@@ -241,8 +241,9 @@ extension HealthEncoder {
 
   /// What's in a workout's upload. Bump it when the iPhone starts uploading something new of
   /// workouts, so the ones already uploaded are read and go up again (`HealthBackfillState`'s
-  /// `workoutEncoding`). 1: their activities' locations and their plans (851-4030).
-  public static let workoutEncoding = 1
+  /// `workoutEncoding`). 1: their activities' locations and their plans (851-4030). 2: their
+  /// metadata's quantities whole, as `{ value, unit }`, rather than descriptions (851-4150).
+  public static let workoutEncoding = 2
 
   /// A workout, with its activities, events and statistics as JSON.
   public static func workout(_ workout: WorkoutRecord) -> HealthMutation {

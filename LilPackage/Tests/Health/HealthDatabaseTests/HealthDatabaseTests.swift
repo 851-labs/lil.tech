@@ -847,6 +847,23 @@ struct SampleQueriesTests {
     // Booleans read as words, and nulls (values JSON can't hold) as a dash.
     #expect(heartRate.metadataEntries.map(\.value) == [#"{"a":true}"#, "1", "Yes", "–"])
   }
+
+  /// Quantities and dates as the iPhone uploads them since 851-4150 read as a description would:
+  /// a quantity's number and unit (a percent from 0 to 100), and a date as it was written.
+  @Test
+  func aSamplesWholeQuantitiesAndDatesReadAsText() {
+    var vo2Max = sample("HKQuantityTypeIdentifierVO2Max", at: utc(1), value: 42.5)
+    vo2Max.metadata = """
+      {"HKVO2MaxValue":{"value":45.6789012,"unit":"mL/min·kg"},\
+      "HKAlpineSlopeGrade":{"value":0.4567,"unit":"%"},\
+      "HKDateOfEarliestDataUsedForEstimate":{"date":"2026-10-12T00:00:00.000Z"},\
+      "Other":{"value":"1","unit":"m"}}
+      """
+    #expect(
+      vo2Max.metadataEntries.map(\.value) == [
+        "45.67 %", "2026-10-12T00:00:00.000Z", "45.6789012 mL/min·kg", #"{"unit":"m","value":"1"}"#,
+      ])
+  }
 }
 
 @Suite
@@ -1146,6 +1163,25 @@ struct WorkoutQueriesTests {
       statistics:
         #"{"HKQuantityTypeIdentifierDistanceWalkingRunning":{"unit":"m","sum":5000,"average":null,"minimum":null,"maximum":null,"mostRecent":null}}"#,
       sourceName: "Test", sourceBundleID: "com.example")
+  }
+
+  /// A swim's pool unit, from its lap length as the iPhone wrote it: a description in the pool's
+  /// unit, or since 851-4150 in meters, a whole number of yards for a pool measured in yards.
+  @Test
+  func lapLengthUnit() {
+    var swim = workout("swim", at: Date(timeIntervalSince1970: 0))
+    for (lapLength, unit) in [
+      (#""25 yd""#, "yd"), (#""50 m""#, "m"), (#"{"value":22.86,"unit":"m"}"#, "yd"),
+      (#"{"value":45.72,"unit":"m"}"#, "yd"), (#"{"value":25,"unit":"m"}"#, "m"),
+      (#"{"value":33.3333333333,"unit":"m"}"#, "m"), (#"{"value":25,"unit":"yd"}"#, "yd"),
+    ] {
+      swim.metadata = #"{"HKLapLength":\#(lapLength)}"#
+      #expect(swim.lapLengthUnit == unit, "\(lapLength)")
+    }
+    swim.metadata = #"{"HKLapLength":{"value":"25","unit":"m"}}"#
+    #expect(swim.lapLengthUnit == nil)
+    swim.metadata = nil
+    #expect(swim.lapLengthUnit == nil)
   }
 
   @Test
@@ -3420,6 +3456,49 @@ struct NotificationQueriesTests {
     #expect(
       summary(notification(.highHeartRate, metadata: #"{"HKHeartRateEventThreshold":"2 count/s"}"#))
         == .heartRateAbove(120))
+  }
+
+  /// Quantities as the iPhone uploads them since 851-4150, `{ value, unit }`, read as their
+  /// descriptions were.
+  @Test
+  func wholeQuantities() {
+    #expect(
+      summary(
+        notification(
+          .highHeartRate,
+          metadata: #"{"HKHeartRateEventThreshold":{"value":120,"unit":"count/min"}}"#))
+        == .heartRateAbove(120))
+    #expect(
+      summary(
+        notification(
+          .lowCardioFitness,
+          metadata: """
+            {"HKVO2MaxValue":{"value":27.4321,"unit":"mL/min·kg"},\
+            "HKLowCardioFitnessEventThreshold":{"value":30.1,"unit":"mL/min·kg"}}
+            """))
+        == .cardioFitness(vo2Max: 27.4321, threshold: 30.1))
+    #expect(
+      summary(
+        notification(
+          .noise,
+          metadata: """
+            {"HKMetadataKeyAudioExposureLevel":{"value":96.2345,"unit":"dBASPL"},\
+            "HKMetadataKeyAudioExposureDuration":{"value":240,"unit":"s"}}
+            """))
+        == .soundExposure(level: 96.2345, duration: 240))
+    // Not a quantity: a value that isn't a number, or a unit that isn't a rate of beats.
+    #expect(
+      summary(
+        notification(
+          .highHeartRate,
+          metadata: #"{"HKHeartRateEventThreshold":{"value":"120","unit":"count/min"}}"#))
+        == nil)
+    #expect(
+      summary(
+        notification(
+          .highHeartRate,
+          metadata: #"{"HKHeartRateEventThreshold":{"value":120,"unit":"ms"}}"#))
+        == nil)
   }
 
   @Test

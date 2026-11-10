@@ -8639,27 +8639,27 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/swimmingLocation`.
             public var swimmingLocation: Swift.String?
-            /// Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). Read from text with 6 significant digits, so rounded to that.
+            /// Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/elevationAscended`.
             public var elevationAscended: Swift.Double?
-            /// Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). Read from text with 6 significant digits, so rounded to that.
+            /// Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/elevationDescended`.
             public var elevationDescended: Swift.Double?
-            /// Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that.
+            /// Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/averageSpeed`.
             public var averageSpeed: Swift.Double?
-            /// Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that.
+            /// Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/maximumSpeed`.
             public var maximumSpeed: Swift.Double?
-            /// Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). Read from text with 6 significant digits, so rounded to that.
+            /// Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/averageMETs`.
             public var averageMETs: Swift.Double?
-            /// For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that.
+            /// For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/lapLength`.
             public var lapLength: Swift.Double?
@@ -8683,12 +8683,12 @@ extension Components {
             ///   - duration: Seconds of activity, excluding pauses.
             ///   - indoor: Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout) or, failing that, as it was set up (its workout configuration's location), or null if neither says.
             ///   - swimmingLocation: For swims: pool or openWater (HKMetadataKeySwimmingLocationType, else its workout configuration's), or null if neither says.
-            ///   - elevationAscended: Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). Read from text with 6 significant digits, so rounded to that.
-            ///   - elevationDescended: Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). Read from text with 6 significant digits, so rounded to that.
-            ///   - averageSpeed: Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that.
-            ///   - maximumSpeed: Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that.
-            ///   - averageMETs: Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). Read from text with 6 significant digits, so rounded to that.
-            ///   - lapLength: For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that.
+            ///   - elevationAscended: Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). As recorded, or to 6 significant digits from an older iPhone.
+            ///   - elevationDescended: Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). As recorded, or to 6 significant digits from an older iPhone.
+            ///   - averageSpeed: Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). As recorded, or to 6 significant digits from an older iPhone.
+            ///   - maximumSpeed: Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). As recorded, or to 6 significant digits from an older iPhone.
+            ///   - averageMETs: Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). As recorded, or to 6 significant digits from an older iPhone.
+            ///   - lapLength: For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). As recorded, or to 6 significant digits from an older iPhone.
             ///   - swolf: For swims: the SWOLF score (strokes plus seconds per length; lower is more efficient), if the app that recorded it says (HKMetadataKeySWOLFScore).
             ///   - statistics: The leg's own statistics.
             ///   - additionalProperties: A container of undocumented properties.
@@ -8987,15 +8987,15 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutInterval/swolf`.
             public var swolf: Swift.Double?
-            /// For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that.
+            /// For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutInterval/lapLength`.
             public var lapLength: Swift.Double?
-            /// Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that.
+            /// Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutInterval/averageSpeed`.
             public var averageSpeed: Swift.Double?
-            /// Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that.
+            /// Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutInterval/maximumSpeed`.
             public var maximumSpeed: Swift.Double?
@@ -9009,9 +9009,9 @@ extension Components {
             ///   - duration: Seconds, from start to end.
             ///   - strokeStyle: For swims: the main stroke (HKMetadataKeySwimmingStrokeStyle): mixed, freestyle, backstroke, breaststroke, butterfly or kickboard, or null if it doesn't say.
             ///   - swolf: For swims: the SWOLF score (strokes plus seconds per length; lower is more efficient), if the app that recorded it says (HKMetadataKeySWOLFScore).
-            ///   - lapLength: For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that.
-            ///   - averageSpeed: Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that.
-            ///   - maximumSpeed: Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that.
+            ///   - lapLength: For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). As recorded, or to 6 significant digits from an older iPhone.
+            ///   - averageSpeed: Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). As recorded, or to 6 significant digits from an older iPhone.
+            ///   - maximumSpeed: Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). As recorded, or to 6 significant digits from an older iPhone.
             ///   - additionalProperties: A container of undocumented properties.
             public init(
                 start: Swift.String,
@@ -9168,7 +9168,7 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/averageHeartRate`.
             public var averageHeartRate: Swift.Double?
-            /// Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). Read from text with 6 significant digits, so rounded to that.
+            /// Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/elevationAscended`.
             public var elevationAscended: Swift.Double?
@@ -9192,23 +9192,23 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/activities`.
             public var activities: [Components.Schemas.HealthWorkoutLeg]
-            /// Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). Read from text with 6 significant digits, so rounded to that.
+            /// Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/elevationDescended`.
             public var elevationDescended: Swift.Double?
-            /// Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that.
+            /// Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/averageSpeed`.
             public var averageSpeed: Swift.Double?
-            /// Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that.
+            /// Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/maximumSpeed`.
             public var maximumSpeed: Swift.Double?
-            /// Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). Read from text with 6 significant digits, so rounded to that.
+            /// Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/averageMETs`.
             public var averageMETs: Swift.Double?
-            /// For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that.
+            /// For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/lapLength`.
             public var lapLength: Swift.Double?
@@ -9220,11 +9220,11 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/weatherCondition`.
             public var weatherCondition: Swift.String?
-            /// The temperature, in °C, if the app that recorded it says (HKMetadataKeyWeatherTemperature). Read from text with 6 significant digits, so rounded to that.
+            /// The temperature, in °C, if the app that recorded it says (HKMetadataKeyWeatherTemperature). As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/weatherTemperature`.
             public var weatherTemperature: Swift.Double?
-            /// Relative humidity, in percent from 0 to 100 (HKMetadataKeyWeatherHumidity). Apple's Workout app writes it 100 times too large (72% as 7200 %), so a value over 100 is divided by 100. Read from text with 6 significant digits.
+            /// Relative humidity, in percent from 0 to 100 (HKMetadataKeyWeatherHumidity). Apple's Workout app writes it 100 times too large (72% as 7200 %), so a value over 100 is divided by 100. As recorded, or to 6 significant digits from an older iPhone.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/weatherHumidity`.
             public var weatherHumidity: Swift.Double?
@@ -9267,21 +9267,21 @@ extension Components {
             ///   - activeEnergy: Kilocalories.
             ///   - distance: Meters.
             ///   - averageHeartRate: Beats per minute.
-            ///   - elevationAscended: Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). Read from text with 6 significant digits, so rounded to that.
+            ///   - elevationAscended: Meters climbed, if the app that recorded it says (HKMetadataKeyElevationAscended). As recorded, or to 6 significant digits from an older iPhone.
             ///   - indoor: Whether it was indoors (a treadmill run, an indoor ride, a pool swim) rather than outdoors, as the app that recorded it says (HKMetadataKeyIndoorWorkout), or as its activities say (their metadata, else how each was set up: its workout configuration's location), if they agree. Null if none says: then hasRoute is the best hint.
             ///   - swimmingLocation: For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or its activities say (their metadata, else their workout configurations), if they agree, or null if none says.
             ///   - hasRoute: Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't. workout_route reads it, by the workout's ID.
             ///   - source: The app or device that recorded it.
             ///   - activities: A multisport workout's legs (e.g. swim, transition, bike, run), in order, each with its own statistics. Empty for a workout of one activity, whose statistics are the workout's.
-            ///   - elevationDescended: Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). Read from text with 6 significant digits, so rounded to that.
-            ///   - averageSpeed: Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). Read from text with 6 significant digits, so rounded to that.
-            ///   - maximumSpeed: Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). Read from text with 6 significant digits, so rounded to that.
-            ///   - averageMETs: Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). Read from text with 6 significant digits, so rounded to that.
-            ///   - lapLength: For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). Read from text with 6 significant digits, so rounded to that.
+            ///   - elevationDescended: Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). As recorded, or to 6 significant digits from an older iPhone.
+            ///   - averageSpeed: Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). As recorded, or to 6 significant digits from an older iPhone.
+            ///   - maximumSpeed: Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). As recorded, or to 6 significant digits from an older iPhone.
+            ///   - averageMETs: Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). As recorded, or to 6 significant digits from an older iPhone.
+            ///   - lapLength: For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). As recorded, or to 6 significant digits from an older iPhone.
             ///   - swolf: For swims: the SWOLF score (strokes plus seconds per length; lower is more efficient), if the app that recorded it says (HKMetadataKeySWOLFScore).
             ///   - weatherCondition: The weather (HKMetadataKeyWeatherCondition), as HKWeatherCondition names it, e.g. clear, partlyCloudy, showers or snow, or null if it doesn't say.
-            ///   - weatherTemperature: The temperature, in °C, if the app that recorded it says (HKMetadataKeyWeatherTemperature). Read from text with 6 significant digits, so rounded to that.
-            ///   - weatherHumidity: Relative humidity, in percent from 0 to 100 (HKMetadataKeyWeatherHumidity). Apple's Workout app writes it 100 times too large (72% as 7200 %), so a value over 100 is divided by 100. Read from text with 6 significant digits.
+            ///   - weatherTemperature: The temperature, in °C, if the app that recorded it says (HKMetadataKeyWeatherTemperature). As recorded, or to 6 significant digits from an older iPhone.
+            ///   - weatherHumidity: Relative humidity, in percent from 0 to 100 (HKMetadataKeyWeatherHumidity). Apple's Workout app writes it 100 times too large (72% as 7200 %), so a value over 100 is divided by 100. As recorded, or to 6 significant digits from an older iPhone.
             ///   - statistics: Every statistic HealthKit computed over it, one per quantity type, by type: energy, distance, heart rate (average, minimum, maximum), power, cadence, speed, stride length, ground contact time, vertical oscillation, swimming strokes, flights climbed… whatever was recorded. Null where HealthKit gives none.
             ///   - pauseCount: How many times it was paused.
             ///   - pauses: When it was paused, by the person or automatically (auto-pause), from each pause to the resume after it, in order, at most 300. duration leaves them out.

@@ -220,7 +220,7 @@ struct HealthEncoderTests {
         "com.example.swim.lane": 4,
       ])
         == [
-          HKMetadataKeyLapLength: .string("25 m"),
+          HKMetadataKeyLapLength: .object(["value": .number(25), "unit": .string("m")]),
           HKMetadataKeySwimmingStrokeStyle: .number(
             Double(HKSwimmingStrokeStyle.freestyle.rawValue)),
         ])
@@ -264,6 +264,83 @@ struct HealthEncoderTests {
       let sample = try row(member, as: Components.Schemas.HealthSample.self)
       #expect(sample.correlationId == mutations[0].id)
       #expect(sample.unit == "mmHg")
+    }
+  }
+
+  /// Metadata quantities go up whole, `{ value, unit }` in their key's unit, and dates as
+  /// ISO 8601 (851-4150), rather than descriptions with 6 significant digits and bare numbers.
+  @Test
+  func metadataQuantitiesAndDatesGoUpWhole() throws {
+    let metadata = try #require(
+      HealthEncoder.metadata([
+        // More digits than a description keeps, in another unit than the key's.
+        HKMetadataKeyElevationAscended: HKQuantity(
+          unit: .meterUnit(with: .centi), doubleValue: 8460.12345),
+        HKMetadataKeyElevationDescended: HKQuantity(unit: .meter(), doubleValue: 123_456_789),
+        // Converted without a conversion's noise: 59 °F is 15 °C, not 15.000000000000057.
+        HKMetadataKeyWeatherTemperature: HKQuantity(unit: .degreeFahrenheit(), doubleValue: 59),
+        // A percent is a fraction, as HealthKit holds it: 45.67% is 0.4567 (its description
+        // says "45.67 %"), and Apple's Workout app's humidity, 72 percent units, stays 72.
+        HKMetadataKeyAlpineSlopeGrade: HKQuantity(unit: .percent(), doubleValue: 0.4567),
+        HKMetadataKeyWeatherHumidity: HKQuantity(unit: .percent(), doubleValue: 72),
+        // METs, whose description's unit has a middle dot.
+        HKMetadataKeyAverageMETs: HKQuantity(
+          unit: HKUnit(from: "kcal/(kg·hr)"), doubleValue: 9.876543),
+        HKMetadataKeyLapLength: HKQuantity(unit: .yard(), doubleValue: 25),
+        HKMetadataKeyHeartRateEventThreshold: HKQuantity(
+          unit: .count().unitDivided(by: .minute()), doubleValue: 120),
+        HKMetadataKeyVO2MaxValue: HKQuantity(
+          unit: HKUnit(from: "ml/(kg·min)"), doubleValue: 45.6789),
+        // A quantity in a unit its key's can't be converted to stays its description.
+        HKMetadataKeyAverageSpeed: HKQuantity(unit: .meter(), doubleValue: 30),
+        // A key whose quantity is the sample's own kind has no unit without a sample.
+        HKMetadataKeySessionEstimate: HKQuantity(unit: .percent(), doubleValue: 0.5),
+        HKMetadataKeyDateOfEarliestDataUsedForEstimate: Date(
+          timeIntervalSince1970: 1_791_763_200.1234),
+      ]))
+    func quantity(_ value: Double, _ unit: String) -> JSONValue {
+      .object(["value": .number(value), "unit": .string(unit)])
+    }
+    #expect(metadata[HKMetadataKeyElevationAscended] == quantity(84.6012345, "m"))
+    #expect(metadata[HKMetadataKeyElevationDescended] == quantity(123_456_789, "m"))
+    #expect(metadata[HKMetadataKeyWeatherTemperature] == quantity(15, "degC"))
+    #expect(metadata[HKMetadataKeyAlpineSlopeGrade] == quantity(0.4567, "%"))
+    #expect(metadata[HKMetadataKeyWeatherHumidity] == quantity(72, "%"))
+    #expect(metadata[HKMetadataKeyAverageMETs] == quantity(9.876543, "kcal/hr·kg"))
+    #expect(metadata[HKMetadataKeyLapLength] == quantity(22.86, "m"))
+    #expect(metadata[HKMetadataKeyHeartRateEventThreshold] == quantity(120, "count/min"))
+    #expect(metadata[HKMetadataKeyVO2MaxValue] == quantity(45.6789, "mL/min·kg"))
+    #expect(metadata[HKMetadataKeyAverageSpeed] == .string("30 m"))
+    #expect(metadata[HKMetadataKeySessionEstimate] == .string("50 %"))
+    #expect(
+      metadata[HKMetadataKeyDateOfEarliestDataUsedForEstimate]
+        == .object(["date": .string("2026-10-12T00:00:00.123Z")]))
+    // Before 1970, the fraction still counts up from the second before.
+    #expect(
+      HealthEncoder.isoDate(Date(timeIntervalSince1970: -0.25)) == "1969-12-31T23:59:59.750Z")
+  }
+
+  /// A session estimate is in its sample's unit, the catalog's for its type.
+  @Test
+  func sessionEstimateIsInItsSamplesUnit() throws {
+    let sample = HKQuantitySample(
+      type: HKQuantityType(.appleWalkingSteadiness),
+      quantity: HKQuantity(unit: .percent(), doubleValue: 0.62), start: start, end: start,
+      metadata: [HKMetadataKeySessionEstimate: HKQuantity(unit: .percent(), doubleValue: 0.58)])
+    let json = try line(HealthEncoder.sample(sample))
+    let row = try #require(json["row"] as? [String: Any])
+    let metadata = try #require(row["metadata"] as? [String: Any])
+    let estimate = try #require(metadata[HKMetadataKeySessionEstimate] as? [String: Any])
+    #expect(estimate["unit"] as? String == "%")
+    #expect(estimate["value"] as? Double == 0.58)
+  }
+
+  /// Every quantity key's unit is one `HKUnit` reads, written as it writes it.
+  @Test
+  func metadataQuantityUnitsAreHealthKitsOwn() {
+    for (key, unit) in HealthCatalog.metadataQuantityUnits {
+      guard case .unit(let unit) = unit else { continue }
+      #expect(HKUnit(from: unit).unitString == unit, "\(key)")
     }
   }
 

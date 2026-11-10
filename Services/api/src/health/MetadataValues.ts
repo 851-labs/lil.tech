@@ -9,9 +9,12 @@ import { workoutActivityName } from "./HealthCatalog.ts";
 // them alike (`HealthMetadataValues` in `HealthCatalog`), so the tools agree (the conformance
 // cases).
 //
-// The iPhone writes an `HKQuantity` as its description, a number with 6 significant digits and a
-// unit ("120 count/min", `HealthEncoder.json`), until 851-4150 keeps them whole: so quantities are
-// rounded to that, and a unit not listed here gives null.
+// Quantities come in two forms, which both read (851-4150): iPhones since 851-4150 write an
+// `HKQuantity` whole, `{ "value": 84.6, "unit": "m" }` in its key's unit (the Swift
+// `HealthCatalog.metadataQuantityUnits`), and earlier ones (and records they uploaded) as its
+// description, a number with 6 significant digits and a unit ("8460 cm", "120 count/min"), rounded
+// to that. A unit not listed here gives null. Dates likewise: `{ "date": "…Z" }`, ISO 8601, or Unix
+// milliseconds before (`HealthEncoder.json`).
 
 /** Metadata as HealthKit keys it, `WorkoutMetadata.ts`' `Metadata`. */
 type Metadata = Readonly<Record<string, unknown>>;
@@ -53,7 +56,8 @@ type Conversion = (value: number) => number;
 
 /**
  * What a quantity measures: the unit it's read in, and each unit (`HKUnit`'s unit strings, as
- * `HKQuantity.description` writes them) it's converted from.
+ * `HKQuantity.description` and `unitString` write them) it's converted from, with a percent's
+ * number from 0 to 100, as descriptions write it.
  */
 export const quantities = {
   length: {
@@ -110,17 +114,57 @@ export type Quantity = keyof typeof quantities;
 /** A number and a unit, as `HKQuantity.description` writes them: "120 count/min", "4250 cm". */
 const quantityText = /^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?) (\S+)$/;
 
-/** A quantity's description in `quantity`'s unit, or null in a unit it isn't read in. */
+/**
+ * A metadata quantity's number and unit, in either form: `{ "value": 0.72, "unit": "%" }`, as the
+ * iPhone writes one since 851-4150, or its description, "72 %", as before. A percent's number is
+ * from 0 to 100, as a description writes it, so a fraction (`HKUnit`'s percent) is multiplied by
+ * 100, to 12 significant digits. Null for anything else.
+ */
+export const quantityParts = (value: unknown): { number: number; unit: string } | null => {
+  if (Predicate.isString(value)) {
+    const match = quantityText.exec(value);
+    return match === null ? null : { number: Number(match[1]), unit: match[2]! };
+  }
+  if (!Predicate.isObject(value) || Array.isArray(value)) return null;
+  const record = value as Readonly<Record<string, unknown>>;
+  const amount = number(record["value"]);
+  const unit = record["unit"];
+  if (amount === null || !Predicate.isString(unit)) return null;
+  // To 12 significant digits, as the iPhone writes values, without the multiplication's noise
+  // (0.555 is 55.5, not 55.50000000000001), as the Mac does.
+  return { number: unit === "%" ? Number((amount * 100).toPrecision(12)) : amount, unit };
+};
+
+/** A quantity in `quantity`'s unit, or null in a unit it isn't read in. */
 export const quantity = (measures: Quantity, value: unknown): number | null => {
-  if (!Predicate.isString(value)) return null;
-  const match = quantityText.exec(value);
+  const parts = quantityParts(value);
   const convert: Conversion | undefined =
-    match === null
+    parts === null
       ? undefined
-      : (quantities[measures].from as Record<string, Conversion>)[match[2]!];
-  if (match === null || convert === undefined) return null;
-  const converted = convert(Number(match[1]));
+      : (quantities[measures].from as Record<string, Conversion>)[parts.unit];
+  if (parts === null || convert === undefined) return null;
+  const converted = convert(parts.number);
   return Number.isFinite(converted) ? converted : null;
+};
+
+/**
+ * An ISO 8601 date and time with its zone, to the second or the millisecond, as the iPhone writes
+ * a date: "2026-10-12T00:00:00.000Z".
+ */
+const isoDateText = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * A date as Unix milliseconds, in either form: `{ "date": "2026-10-12T00:00:00.000Z" }`, as the
+ * iPhone writes one since 851-4150, or Unix milliseconds, as before.
+ */
+export const date = (value: unknown): number | null => {
+  const milliseconds = number(value);
+  if (milliseconds !== null) return milliseconds;
+  if (!Predicate.isObject(value) || Array.isArray(value)) return null;
+  const text = (value as Readonly<Record<string, unknown>>)["date"];
+  if (!Predicate.isString(text) || !isoDateText.test(text)) return null;
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
 /** What a metadata key's value is. */
@@ -132,12 +176,15 @@ export type MetadataKind =
   | { readonly kind: "enum"; readonly cases: ReadonlyArray<string | null> }
   /** An `HKWorkoutActivityType`'s raw value, read as the activity's name. */
   | { readonly kind: "activity" }
-  | { readonly kind: "quantity"; readonly quantity: Quantity };
+  | { readonly kind: "quantity"; readonly quantity: Quantity }
+  /** A date, read as Unix milliseconds. */
+  | { readonly kind: "date" };
 
 const textKind = { kind: "text" } as const;
 const numberKind = { kind: "number" } as const;
 const booleanKind = { kind: "boolean" } as const;
 const activityKind = { kind: "activity" } as const;
+const dateKind = { kind: "date" } as const;
 const enumKind = (cases: ReadonlyArray<string | null>) => ({ kind: "enum", cases }) as const;
 const quantityKind = (measures: Quantity) => ({ kind: "quantity", quantity: measures }) as const;
 
@@ -200,7 +247,7 @@ export const metadataKinds = {
   HKMetadataKeyDevicePlacementSide: enumKind([null, "left", "right", "central"]),
   HKMetadataKeyAppleDeviceCalibrated: booleanKind,
   HKAlgorithmVersion: numberKind,
-  HKDateOfEarliestDataUsedForEstimate: numberKind,
+  HKDateOfEarliestDataUsedForEstimate: dateKind,
   HKMetadataKeyQuantityClampedToLowerBound: booleanKind,
   HKMetadataKeyQuantityClampedToUpperBound: booleanKind,
   HKReferenceRangeLowerLimit: numberKind,
@@ -273,7 +320,7 @@ export type MetadataKey = keyof typeof metadataKinds;
 /** The value a kind of metadata is read as. */
 type ValueOf<Kind extends MetadataKind> = Kind extends { kind: "boolean" }
   ? boolean
-  : Kind extends { kind: "number" | "quantity" }
+  : Kind extends { kind: "number" | "quantity" | "date" }
     ? number
     : string;
 
@@ -296,6 +343,8 @@ export const readMetadataValue = <Kind extends MetadataKind>(
         return activityName(value);
       case "quantity":
         return quantity(kind.quantity, value);
+      case "date":
+        return date(value);
     }
   };
   return read() as ValueOf<Kind> | null;

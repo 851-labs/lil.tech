@@ -11,8 +11,9 @@ import {
 } from "../../src/health/MetadataValues.ts";
 
 // How the Health tools read a metadata value at its edges (851-4170): blank text, Booleans
-// written as numbers, enums' raw values out of range or not whole, quantity descriptions in
-// units each quantity is or isn't read in, and humidity's ×100. The Mac's
+// written as numbers, enums' raw values out of range or not whole, quantities in both forms
+// (`{ value, unit }` and descriptions, 851-4150) in units each quantity is or isn't read in,
+// humidity's ×100, and dates in both forms. The Mac's
 // `HealthMetadataValuesTests` reads the same inputs alike. Synthetic data only.
 
 const read = (kind: MetadataKind, value: unknown) => readMetadataValue(kind, value);
@@ -112,6 +113,62 @@ describe("MetadataValues", () => {
       null,
     ]) {
       assert.isNull(read(heartRate, other), String(other));
+    }
+  });
+
+  it("reads a whole quantity, { value, unit }, in its unit", () => {
+    const whole = (value: number, unit: string) => ({ value, unit });
+    assert.strictEqual(quantity("length", whole(84.6012345, "m")), 84.6012345);
+    assert.strictEqual(quantity("length", whole(123456789, "m")), 123456789);
+    assert.strictEqual(quantity("heartRate", whole(120, "count/min")), 120);
+    assert.strictEqual(quantity("mets", whole(9.876543, "kcal/hr·kg")), 9.876543);
+    assert.strictEqual(quantity("vo2Max", whole(45.6789, "mL/min·kg")), 45.6789);
+    assert.strictEqual(quantity("temperature", whole(15, "degC")), 15);
+    // A percent is a fraction: 0.555 is 55.5%, and Apple's Workout app's 72 (7200%) is 72%.
+    assert.strictEqual(quantity("humidity", whole(0.555, "%")), 55.5);
+    assert.strictEqual(quantity("humidity", whole(72, "%")), 72);
+    // Converted from any unit the quantity reads, as a description is.
+    assert.strictEqual(quantity("length", whole(25, "yd")), 22.86);
+    for (const measures of Object.keys(quantities) as Array<Quantity>) {
+      if (measures === "humidity") continue;
+      assert.strictEqual(quantity(measures, whole(7, quantities[measures].unit)), 7, measures);
+    }
+  });
+
+  it("leaves out a whole quantity in another unit or not { value, unit }", () => {
+    for (const other of [
+      { value: 120, unit: "bpm" },
+      { value: "120", unit: "count/min" },
+      { value: true, unit: "count/min" },
+      { value: null, unit: "count/min" },
+      { value: 120 },
+      { unit: "count/min" },
+      { value: 120, unit: 1 },
+      [120, "count/min"],
+      {},
+    ]) {
+      assert.isNull(quantity("heartRate", other), JSON.stringify(other));
+    }
+  });
+
+  it("reads a date as ISO 8601 or Unix milliseconds", () => {
+    const date = metadataKinds.HKDateOfEarliestDataUsedForEstimate;
+    assert.strictEqual(read(date, 1791763200000), 1791763200000);
+    assert.strictEqual(read(date, { date: "2026-10-12T00:00:00.123Z" }), 1791763200123);
+    assert.strictEqual(read(date, { date: "2026-10-12T00:00:00Z" }), 1791763200000);
+    assert.strictEqual(read(date, { date: "2026-10-12T01:00:00.5+01:00" }), 1791763200500);
+    for (const other of [
+      { date: "2026-10-12" },
+      { date: "2026-10-12T00:00:00" },
+      { date: "2026-10-12 00:00:00Z" },
+      { date: "2026-10-12T00:00:00.1234Z" },
+      { date: 1791763200000 },
+      "2026-10-12T00:00:00Z",
+      {},
+      true,
+      null,
+    ]) {
+      assert.isNull(read(date, other), JSON.stringify(other));
     }
   });
 

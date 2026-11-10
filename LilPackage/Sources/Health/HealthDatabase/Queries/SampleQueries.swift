@@ -1,4 +1,5 @@
 public import Foundation
+import HealthCatalog
 public import SQLiteData
 
 /// Where a page of samples ends, for the next: the last sample's start and ID.
@@ -116,16 +117,29 @@ extension HealthSample {
       case let number as NSNumber: text = number.stringValue
       // The iPhone uploads values JSON can't hold (e.g. infinity) as `null`.
       case is NSNull: text = "–"
+      // A quantity, `{ value, unit }` (851-4150), as its description would read: "84.6 m".
+      case let object as [String: Any] where object.count == 2:
+        if let (number, unit) = HealthMetadataValues.quantityParts(object) {
+          text = "\(String(format: "%.12g", number)) \(unit)"
+        } else {
+          text = Self.json(object)
+        }
+      // A date, `{ date }` (851-4150), as the iPhone wrote it: ISO 8601, in UTC.
+      case let object as [String: Any] where object.count == 1 && object["date"] is String:
+        text = object["date"] as? String ?? ""
       default:
         // Only arrays and objects reach here, which JSON writing accepts.
-        text =
-          (try? JSONSerialization.data(
-            withJSONObject: value, options: [.sortedKeys, .fragmentsAllowed]))
-          .map { String(decoding: $0, as: UTF8.self) } ?? "\(value)"
+        text = Self.json(value)
       }
       return (key, text)
     }
     .sorted { $0.key < $1.key }
+  }
+
+  /// An array or object as JSON text.
+  private static func json(_ value: Any) -> String {
+    (try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys, .fragmentsAllowed]))
+      .map { String(decoding: $0, as: UTF8.self) } ?? "\(value)"
   }
 }
 
