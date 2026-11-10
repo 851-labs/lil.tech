@@ -1,4 +1,5 @@
 public import Foundation
+import HealthCards
 import SQLiteData
 
 /// Heart rate while asleep last night (851-3110): its range every 15 minutes from falling asleep
@@ -28,6 +29,11 @@ public struct SleepHeartRate: Equatable, Sendable {
   /// The night's zone (`SleepNight.timeZone`), or `nil` for the calendar's: its chart's hours are
   /// that zone's, as the night's are (851-4178).
   public var timeZone: TimeZone?
+
+  /// `calendar` on the night's clock (`CardNights.clock`), whose hours its chart marks.
+  public func clock(calendar: Calendar) -> Calendar {
+    CardNights.clock(day: start, timeZone: timeZone, calendar: calendar).calendar
+  }
 
   public init(start: Date, end: Date, ranges: [Range], timeZone: TimeZone? = nil) {
     self.start = start

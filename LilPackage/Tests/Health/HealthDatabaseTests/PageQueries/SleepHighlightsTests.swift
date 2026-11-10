@@ -29,13 +29,12 @@ struct SleepHighlightsTests {
   /// A Watch's night ending on day `offset`: in bed 10 minutes before falling asleep at
   /// `bedtime` (hours from the day's midnight), then `stage` for `hours`.
   private func night(
-    _ offset: Int, bedtime: Double = -1, hours: Double = 7, stage: SleepStage = .core,
-    metadata: String? = nil
+    _ offset: Int, bedtime: Double = -1, hours: Double = 7, stage: SleepStage = .core
   ) -> [HealthSample] {
     let start = day(offset).addingTimeInterval(bedtime * 3600)
     return [
-      sample(.inBed, start.addingTimeInterval(-600), hours + 0.25, metadata: metadata),
-      sample(stage, start, hours, metadata: metadata),
+      sample(.inBed, start.addingTimeInterval(-600), hours + 0.25),
+      sample(stage, start, hours),
     ]
   }
 

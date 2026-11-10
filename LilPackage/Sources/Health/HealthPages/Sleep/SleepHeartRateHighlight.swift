@@ -68,15 +68,14 @@ struct SleepHeartRateHighlight: View {
       AxisMarks(position: .trailing, values: .automatic(desiredCount: 3))
     }
     .frame(height: SleepHighlightStyle.chartHeight + 20)
+    // On the night's own clock, as its stages are (851-4178).
+    .environment(\.calendar, clock)
+    .environment(\.timeZone, clock.timeZone)
   }
 
-  /// The page's calendar in the night's zone: its hours are marked on the night's own clock, as
-  /// its stages' are (851-4178).
-  private var clock: Calendar {
-    var clock = calendar
-    if let timeZone = heartRate.timeZone { clock.timeZone = timeZone }
-    return clock
-  }
+  /// The page's calendar on the night's own clock: its hours are marked there, as its stages'
+  /// are (851-4178).
+  private var clock: Calendar { heartRate.clock(calendar: calendar) }
 
   private var padding: Double { max(8, (heartRate.maximum - heartRate.minimum) / 6 + 4) }
 

@@ -67,6 +67,31 @@ struct SleepChartsTests {
         == 7)
   }
 
+  /// D's hours are marked every 2 hours from the hour the night starts in, on the clock, so a
+  /// daylight saving change neither repeats nor misplaces a mark (851-4178).
+  @Test
+  func hourMarksFollowTheClock() {
+    let hours = { (marks: [Date]) in marks.map { calendar.component(.hour, from: $0) } }
+    #expect(
+      hours(SleepClock.hourMarks(from: date(8, 12, 23, 20), to: date(8, 13, 7), calendar: calendar))
+        == [1, 3, 5, 7])
+    // The fall's repeated 1 AM is marked once.
+    #expect(
+      hours(SleepClock.hourMarks(from: date(11, 2, 23), to: date(11, 3, 7), calendar: calendar))
+        == [23, 1, 3, 5, 7])
+    // Spring's skipped 2 AM is passed over.
+    #expect(
+      hours(SleepClock.hourMarks(from: date(3, 10, 0), to: date(3, 10, 7), calendar: calendar))
+        == [0, 4, 6])
+    // On another zone's clock: a night in Kolkata, marked on its half hours in Los Angeles.
+    var kolkata = calendar
+    kolkata.timeZone = TimeZone(identifier: "Asia/Kolkata")!
+    let marks = SleepClock.hourMarks(
+      from: date(8, 12, 10, 30), to: date(8, 12, 18), calendar: kolkata)
+    #expect(marks.map { kolkata.component(.hour, from: $0) } == [23, 1, 3, 5])
+    #expect(calendar.component(.minute, from: marks[0]) == 30)
+  }
+
   @Test
   func slotsAreThePagesDays() {
     let slot = SleepClock.slot(date(8, 13, 0), ratio: 0.5, unit: .day, calendar: calendar)

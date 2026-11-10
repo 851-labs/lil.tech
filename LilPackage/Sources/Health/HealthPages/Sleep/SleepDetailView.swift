@@ -421,9 +421,7 @@ struct SleepDetailContent: View {
     let start = clockTime(hours.lowerBound, from: day)
     let end = clockTime(hours.upperBound, from: day)
     return SleepStagesChart(
-      segments: [], rows: [.awake, .rem, .core, .deep], calendar: calendar, span: start...end
-    )
-    .chartXScale(domain: start...end)
+      segments: [], rows: [.awake, .rem, .core, .deep], calendar: calendar, span: start...end)
   }
 
   /// The time the clock reads `hours` from the start of `day` (-2 is 10 PM the evening before),
