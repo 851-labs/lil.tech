@@ -4629,6 +4629,48 @@
         ],
         "additionalProperties": true
       },
+      "HealthSampleSeries": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "How many values the series has."
+          },
+          "index": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "With seriesValues: which of the series' values this item is, from 0, the earliest. Left out for a series whose values weren't uploaded (more than 20,000), listed as one sample."
+          },
+          "minimum": {
+            "type": "number",
+            "description": "A discrete series' lowest value (heart rate), in `unit`."
+          },
+          "maximum": {
+            "type": "number",
+            "description": "Its highest value."
+          },
+          "mostRecent": {
+            "type": "number",
+            "description": "Its last value."
+          },
+          "mostRecentStart": {
+            "type": "string",
+            "description": "When its last value starts."
+          },
+          "mostRecentEnd": {
+            "type": "string",
+            "description": "When its last value ends."
+          }
+        },
+        "required": [
+          "count"
+        ],
+        "additionalProperties": true,
+        "description": "Only for a quantity series, a sample of many values: its count and summary, or which of its values this item is."
+      },
       "HealthCorrelatedValue": {
         "type": "object",
         "properties": {
@@ -4677,7 +4719,7 @@
               "number",
               "null"
             ],
-            "description": "A quantity's value, in `unit`. Null for category types and correlations."
+            "description": "A quantity's value, in `unit`: for a series, HealthKit's for all of it, its total or its time-weighted average. Null for category types and correlations."
           },
           "unit": {
             "type": [
@@ -4703,6 +4745,9 @@
             "minimum": -9007199254740991,
             "maximum": 9007199254740991,
             "description": "Its entry in `sources`: the app, its version and the device, from 0."
+          },
+          "series": {
+            "$ref": "#/components/schemas/HealthSampleSeries"
           },
           "userEntered": {
             "type": "boolean",

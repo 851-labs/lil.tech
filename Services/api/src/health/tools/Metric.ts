@@ -1,7 +1,7 @@
 import { Clock, type DateTime, Effect } from "effect";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import type { HealthAggregation } from "../HealthCatalog.ts";
-import { cumulativeTotalsBy, sampleReadings } from "./HealthQueries.ts";
+import { cumulativeTotalsBy, type QuantityReadings, quantityReadings } from "./HealthQueries.ts";
 import { HealthToolError, type HealthToolkit } from "./HealthToolkit.ts";
 import {
   bucketIndex,
@@ -68,14 +68,6 @@ const combine = (values: ReadonlyArray<number>, statistic: Statistic): number | 
   }
 };
 
-/** A reading of a discrete type: a sample with a value, and its source's bundle ID. */
-interface Reading {
-  readonly start: number;
-  readonly end: number;
-  readonly value: number;
-  readonly source: string;
-}
-
 /** One statistic's running totals, added to a reading at a time, in order. */
 class Accumulator {
   readonly aggregation: HealthAggregation;
@@ -90,10 +82,11 @@ class Accumulator {
     this.aggregation = aggregation;
   }
 
-  add(value: number, weight: number) {
+  /** `least` and `most` are a series' extremes, for one that stands for a whole series. */
+  add(value: number, weight: number, least = value, most = value) {
     this.count++;
-    this.least = Math.min(this.least, value);
-    this.most = Math.max(this.most, value);
+    this.least = Math.min(this.least, least);
+    this.most = Math.max(this.most, most);
     this.totalWeight += weight;
     this.weighted +=
       this.aggregation === "discreteEquivalentContinuousLevel"
@@ -116,7 +109,8 @@ class Accumulator {
 
 /**
  * A discrete type's statistic over the period and each of its buckets, from the readings that
- * start in them (`readings` by start, reaching an hour past the period's end), weighted by the
+ * start in them (`readings` by start, reaching an hour past the period's end; a series' values
+ * each a reading, 851-4171, and a series without its values one with its extremes), weighted by the
  * type's aggregation style, as the Mac's `HealthDatabase.discreteStatistic` weighs each bucket on
  * its own:
  * - Time-weighted: each counts until its source's next reading, up to an hour, and a source's
@@ -129,7 +123,7 @@ class Accumulator {
  * the period's in the Mac's order, so the sums come out the same (851-2906).
  */
 const discreteStatistics = (
-  readings: ReadonlyArray<Reading>,
+  { readings, extremes }: QuantityReadings,
   period: ToolPeriod,
   aggregation: HealthAggregation,
   statistic: Exclude<Statistic, "sum">,
@@ -173,11 +167,14 @@ const discreteStatistics = (
       bucketReach = reach(period.buckets[bucket + 1] ?? period.end);
     }
     const bucketWeight = weight(index, bucketReach);
-    buckets[bucket]!.add(reading.value, bucketWeight);
+    const [least, most] = extremes.get(index) ?? [reading.value, reading.value];
+    buckets[bucket]!.add(reading.value, bucketWeight, least, most);
     // Only a time-weighted reading's weight depends on how far the readings reach.
     whole.add(
       reading.value,
       timeWeighted && bucketReach !== wholeReach ? weight(index, wholeReach) : bucketWeight,
+      least,
+      most,
     );
   }
   return {
@@ -249,7 +246,12 @@ export const healthMetric = Effect.fn("healthMetric")(function* (
       });
     }
     // An hour past the end, for time-weighted readings near it.
-    const readings = sampleReadings(sql, type.id, period.start, period.end + maxSampleWeightMillis);
+    const readings = quantityReadings(
+      sql,
+      type.id,
+      period.start,
+      period.end + maxSampleWeightMillis,
+    );
     ({ value, buckets } = discreteStatistics(readings, period, aggregation, statistic));
   }
   const result: MetricResult = {

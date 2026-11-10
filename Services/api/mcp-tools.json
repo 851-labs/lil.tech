@@ -286,7 +286,7 @@
   },
   {
     "name": "metric",
-    "description": "A quantity type's statistic over a period, overall and per hour, day, week or month, computed as Health does: totals of types that add up come from the iPhone's own statistics (so iPhone and Watch steps aren't counted twice), and averages follow the type's style (heart rate is weighted by time). Prefer this to samples.",
+    "description": "A quantity type's statistic over a period, overall and per hour, day, week or month, computed as Health does: totals of types that add up come from the iPhone's own statistics (so iPhone and Watch steps aren't counted twice), and averages follow the type's style (heart rate is weighted by time), with each value of a series (an Apple Watch's heart rate in a workout) counted at its own time. Prefer this to samples.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -438,7 +438,7 @@
   },
   {
     "name": "samples",
-    "description": "Individual samples of a quantity, category or correlation type (blood pressure, food) in a period, newest first, a page at a time, each with its source app and device (listed once a page, in sources) and what its metadata says (how and where it was measured, whether it was entered by hand), fields only when HealthKit has them. A type can have many thousands of samples a day: use metric for totals and trends, and this only to look at particular readings. Workouts, medications and health details have their own tools.",
+    "description": "Individual samples of a quantity, category or correlation type (blood pressure, food) in a period, newest first, a page at a time, each with its source app and device (listed once a page, in sources) and what its metadata says (how and where it was measured, whether it was entered by hand), fields only when HealthKit has them. A type can have many thousands of samples a day: use metric for totals and trends, and this only to look at particular readings. A series (an Apple Watch's heart rate in a workout) is one sample with its count and summary, or its values with seriesValues. Workouts, medications and health details have their own tools.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -474,6 +474,10 @@
           "minimum": 1,
           "maximum": 500,
           "description": "Samples per page, at most 500. Defaults to 100."
+        },
+        "seriesValues": {
+          "type": "boolean",
+          "description": "List each quantity series' values, newest first, in place of the series, each counting toward the limit; a page can end inside a series. Defaults to false."
         }
       },
       "required": [
@@ -543,6 +547,48 @@
       ],
       "additionalProperties": true,
       "$defs": {
+        "HealthSampleSeries": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "How many values the series has."
+            },
+            "index": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "With seriesValues: which of the series' values this item is, from 0, the earliest. Left out for a series whose values weren't uploaded (more than 20,000), listed as one sample."
+            },
+            "minimum": {
+              "type": "number",
+              "description": "A discrete series' lowest value (heart rate), in `unit`."
+            },
+            "maximum": {
+              "type": "number",
+              "description": "Its highest value."
+            },
+            "mostRecent": {
+              "type": "number",
+              "description": "Its last value."
+            },
+            "mostRecentStart": {
+              "type": "string",
+              "description": "When its last value starts."
+            },
+            "mostRecentEnd": {
+              "type": "string",
+              "description": "When its last value ends."
+            }
+          },
+          "required": [
+            "count"
+          ],
+          "additionalProperties": true,
+          "description": "Only for a quantity series, a sample of many values: its count and summary, or which of its values this item is."
+        },
         "HealthCorrelatedValue": {
           "type": "object",
           "properties": {
@@ -603,7 +649,7 @@
                   "type": "null"
                 }
               ],
-              "description": "A quantity's value, in `unit`. Null for category types and correlations."
+              "description": "A quantity's value, in `unit`: for a series, HealthKit's for all of it, its total or its time-weighted average. Null for category types and correlations."
             },
             "unit": {
               "anyOf": [
@@ -637,6 +683,9 @@
               "minimum": -9007199254740991,
               "maximum": 9007199254740991,
               "description": "Its entry in `sources`: the app, its version and the device, from 0."
+            },
+            "series": {
+              "$ref": "#/$defs/HealthSampleSeries"
             },
             "userEntered": {
               "type": "boolean",

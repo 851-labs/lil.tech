@@ -2,7 +2,7 @@ import { Clock, Effect } from "effect";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import {
   cumulativeTotals,
-  latestSample,
+  latestReading,
   statisticsDevices,
   statisticsSource,
   workoutTotals,
@@ -29,7 +29,8 @@ export const healthSummary = Effect.fn("healthSummary")(function* (
   const weekStart = startOfDay(now, zone, -6);
   const source = statisticsSource(statisticsDevices(sql), now);
   const metrics = summaryTypes.map((type) => {
-    const latest = latestSample(sql, type, now);
+    // A series' most recent value, not its average (851-4171).
+    const latest = latestReading(sql, type, now);
     const totals =
       source === null
         ? null

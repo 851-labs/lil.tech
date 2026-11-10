@@ -355,6 +355,13 @@ export const storeMigrations: ReadonlyArray<StoreMigration> = [
     // `HealthQuantitySeries` in `src/health/HealthEntities.ts` (851-4149): a series sample's values.
     sql: `CREATE TABLE "health_quantity_series" (id TEXT PRIMARY KEY, "type" TEXT NOT NULL, "start_date" INTEGER NOT NULL, "count" INTEGER NOT NULL, "times" TEXT, "durations" TEXT, "values" TEXT, "minimum" REAL, "maximum" REAL, "most_recent" REAL, "most_recent_start_date" INTEGER, "most_recent_end_date" INTEGER) STRICT;`,
   },
+  {
+    version: 30,
+    name: "health_quantity_series_type_start",
+    // Statistics read a type's series by start (851-4171), those that started up to a week
+    // before a range included (`seriesLookbackMillis` in `src/health/tools/HealthQueries.ts`).
+    sql: `CREATE INDEX health_quantity_series_type_start ON health_quantity_series (type, start_date);`,
+  },
 ];
 
 /** The store's schema version: its newest applied migration. */

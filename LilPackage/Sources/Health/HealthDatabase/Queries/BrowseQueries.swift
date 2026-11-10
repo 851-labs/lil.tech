@@ -158,7 +158,8 @@ extension HealthDatabase {
   private static func discreteSummary(
     of type: HealthDataType, calendar: Calendar, _ db: Database
   ) throws -> MetricSummary {
-    guard let latest = try latestSample(of: type.id, db) else { return MetricSummary(id: type.id) }
+    // A series's most recent value, not its average (851-4171).
+    guard let latest = try latestReading(of: type.id, db) else { return MetricSummary(id: type.id) }
     let date = Date(unixMilliseconds: latest.startDate)
     let week = weekEnding(on: calendar.startOfDay(for: date), calendar: calendar)
     let days = try discreteStatistics(of: type.id, in: week, by: .day, calendar: calendar, db)

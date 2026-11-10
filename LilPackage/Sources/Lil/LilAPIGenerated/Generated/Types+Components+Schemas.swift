@@ -6459,6 +6459,152 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// Only for a quantity series, a sample of many values: its count and summary, or which of its values this item is.
+        ///
+        /// - Remark: Generated from `#/components/schemas/HealthSampleSeries`.
+        public struct HealthSampleSeries: Codable, Hashable, Sendable {
+            /// How many values the series has.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSeries/count`.
+            public var count: Swift.Int
+            /// With seriesValues: which of the series' values this item is, from 0, the earliest. Left out for a series whose values weren't uploaded (more than 20,000), listed as one sample.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSeries/index`.
+            public var index: Swift.Int?
+            /// A discrete series' lowest value (heart rate), in `unit`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSeries/minimum`.
+            public var minimum: Swift.Double?
+            /// Its highest value.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSeries/maximum`.
+            public var maximum: Swift.Double?
+            /// Its last value.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSeries/mostRecent`.
+            public var mostRecent: Swift.Double?
+            /// When its last value starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSeries/mostRecentStart`.
+            public var mostRecentStart: Swift.String?
+            /// When its last value ends.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthSampleSeries/mostRecentEnd`.
+            public var mostRecentEnd: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthSampleSeries`.
+            ///
+            /// - Parameters:
+            ///   - count: How many values the series has.
+            ///   - index: With seriesValues: which of the series' values this item is, from 0, the earliest. Left out for a series whose values weren't uploaded (more than 20,000), listed as one sample.
+            ///   - minimum: A discrete series' lowest value (heart rate), in `unit`.
+            ///   - maximum: Its highest value.
+            ///   - mostRecent: Its last value.
+            ///   - mostRecentStart: When its last value starts.
+            ///   - mostRecentEnd: When its last value ends.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                count: Swift.Int,
+                index: Swift.Int? = nil,
+                minimum: Swift.Double? = nil,
+                maximum: Swift.Double? = nil,
+                mostRecent: Swift.Double? = nil,
+                mostRecentStart: Swift.String? = nil,
+                mostRecentEnd: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.count = count
+                self.index = index
+                self.minimum = minimum
+                self.maximum = maximum
+                self.mostRecent = mostRecent
+                self.mostRecentStart = mostRecentStart
+                self.mostRecentEnd = mostRecentEnd
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case count
+                case index
+                case minimum
+                case maximum
+                case mostRecent
+                case mostRecentStart
+                case mostRecentEnd
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.index = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .index
+                )
+                self.minimum = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .minimum
+                )
+                self.maximum = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .maximum
+                )
+                self.mostRecent = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .mostRecent
+                )
+                self.mostRecentStart = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .mostRecentStart
+                )
+                self.mostRecentEnd = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .mostRecentEnd
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "count",
+                    "index",
+                    "minimum",
+                    "maximum",
+                    "mostRecent",
+                    "mostRecentStart",
+                    "mostRecentEnd"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.count,
+                    forKey: .count
+                )
+                try container.encodeIfPresent(
+                    self.index,
+                    forKey: .index
+                )
+                try container.encodeIfPresent(
+                    self.minimum,
+                    forKey: .minimum
+                )
+                try container.encodeIfPresent(
+                    self.maximum,
+                    forKey: .maximum
+                )
+                try container.encodeIfPresent(
+                    self.mostRecent,
+                    forKey: .mostRecent
+                )
+                try container.encodeIfPresent(
+                    self.mostRecentStart,
+                    forKey: .mostRecentStart
+                )
+                try container.encodeIfPresent(
+                    self.mostRecentEnd,
+                    forKey: .mostRecentEnd
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthCorrelatedValue`.
         public struct HealthCorrelatedValue: Codable, Hashable, Sendable {
             /// A HealthKit type identifier, e.g. HKQuantityTypeIdentifierStepCount or HKCategoryTypeIdentifierSleepAnalysis. list_types and search return them.
@@ -6547,7 +6693,7 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSampleItem/end`.
             public var end: Swift.String
-            /// A quantity's value, in `unit`. Null for category types and correlations.
+            /// A quantity's value, in `unit`: for a series, HealthKit's for all of it, its total or its time-weighted average. Null for category types and correlations.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSampleItem/value`.
             public var value: Swift.Double?
@@ -6565,6 +6711,8 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSampleItem/sourceIndex`.
             public var sourceIndex: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HealthSampleItem/series`.
+            public var series: Components.Schemas.HealthSampleSeries?
             /// True if someone entered it by hand, e.g. in the Health app (HKMetadataKeyWasUserEntered).
             ///
             /// - Remark: Generated from `#/components/schemas/HealthSampleItem/userEntered`.
@@ -6713,11 +6861,12 @@ extension Components {
             ///   - id: HealthKit's UUID for the sample.
             ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
             ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
-            ///   - value: A quantity's value, in `unit`. Null for category types and correlations.
+            ///   - value: A quantity's value, in `unit`: for a series, HealthKit's for all of it, its total or its time-weighted average. Null for category types and correlations.
             ///   - unit:
             ///   - categoryValue: A category sample's HealthKit value (HKCategoryValue…). Null for quantities and correlations.
             ///   - source: The app or device that recorded it, e.g. an Apple Watch's name.
             ///   - sourceIndex: Its entry in `sources`: the app, its version and the device, from 0.
+            ///   - series:
             ///   - userEntered: True if someone entered it by hand, e.g. in the Health app (HKMetadataKeyWasUserEntered).
             ///   - recordedTimeZone: The time zone where it was recorded (HKMetadataKeyTimeZone), e.g. America/New_York. Times here are still in the output's `timeZone`.
             ///   - values: For a correlation (blood pressure, food): the samples it groups, by type, e.g. systolic and diastolic, or each nutrient of a food.
@@ -6763,6 +6912,7 @@ extension Components {
                 categoryValue: Swift.Int? = nil,
                 source: Swift.String,
                 sourceIndex: Swift.Int,
+                series: Components.Schemas.HealthSampleSeries? = nil,
                 userEntered: Swift.Bool? = nil,
                 recordedTimeZone: Swift.String? = nil,
                 values: [Components.Schemas.HealthCorrelatedValue]? = nil,
@@ -6808,6 +6958,7 @@ extension Components {
                 self.categoryValue = categoryValue
                 self.source = source
                 self.sourceIndex = sourceIndex
+                self.series = series
                 self.userEntered = userEntered
                 self.recordedTimeZone = recordedTimeZone
                 self.values = values
@@ -6854,6 +7005,7 @@ extension Components {
                 case categoryValue
                 case source
                 case sourceIndex
+                case series
                 case userEntered
                 case recordedTimeZone
                 case values
@@ -6923,6 +7075,10 @@ extension Components {
                 self.sourceIndex = try container.decode(
                     Swift.Int.self,
                     forKey: .sourceIndex
+                )
+                self.series = try container.decodeIfPresent(
+                    Components.Schemas.HealthSampleSeries.self,
+                    forKey: .series
                 )
                 self.userEntered = try container.decodeIfPresent(
                     Swift.Bool.self,
@@ -7073,6 +7229,7 @@ extension Components {
                     "categoryValue",
                     "source",
                     "sourceIndex",
+                    "series",
                     "userEntered",
                     "recordedTimeZone",
                     "values",
@@ -7143,6 +7300,10 @@ extension Components {
                 try container.encode(
                     self.sourceIndex,
                     forKey: .sourceIndex
+                )
+                try container.encodeIfPresent(
+                    self.series,
+                    forKey: .series
                 )
                 try container.encodeIfPresent(
                     self.userEntered,

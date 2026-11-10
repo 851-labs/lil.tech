@@ -83,6 +83,46 @@ extension HealthDatabase {
       .fetchOne(db)
   }
 
+  /// A type's latest reading started by `now` if given (851-4171): `latestSample`, with a
+  /// discrete series' most recent value in place of the series' own (its value, start and end),
+  /// since HealthKit's value for a whole heart rate series is its average, which isn't a reading
+  /// anyone took; or a series that started before it (up to `seriesLookback`) whose most recent
+  /// value is later (a workout's, past a strap's reading during it). Ties go to the higher ID. The
+  /// server's `latestReading`.
+  public static func latestReading(
+    of type: String, startedBy now: Date? = nil, _ db: Database
+  ) throws -> HealthSample? {
+    guard let sample = try latestSample(of: type, startedBy: now, db) else { return nil }
+    func reading(_ sample: HealthSample, _ series: HealthQuantitySeries) -> HealthSample {
+      guard let mostRecent = series.mostRecent else { return sample }
+      var reading = sample
+      reading.value = mostRecent
+      reading.startDate = series.mostRecentStartDate ?? sample.startDate
+      reading.endDate = series.mostRecentEndDate ?? reading.startDate
+      return reading
+    }
+    let latest =
+      try HealthQuantitySeries.find(sample.id).fetchOne(db).map { reading(sample, $0) }
+      ?? sample
+    let upper = now?.unixMilliseconds ?? .max
+    let lookback = sample.startDate - seriesLookbackMilliseconds
+    let laterID = try String.fetchOne(
+      db,
+      sql: """
+        SELECT "id" FROM "healthQuantitySeries"
+        WHERE "type" = ? AND "startDate" >= ? AND "startDate" <= ? AND "mostRecent" IS NOT NULL
+          AND "mostRecentStartDate" > ? AND "mostRecentStartDate" <= ?
+          AND EXISTS (SELECT 1 FROM "healthSamples" WHERE "healthSamples"."id" = "healthQuantitySeries"."id")
+        ORDER BY "mostRecentStartDate" DESC, "id" DESC LIMIT 1
+        """,
+      arguments: [type, lookback, sample.startDate, latest.startDate, upper])
+    let later = try laterID.flatMap { try HealthQuantitySeries.find($0).fetchOne(db) }
+    guard let later, let laterSample = try HealthSample.find(later.id).fetchOne(db) else {
+      return latest
+    }
+    return reading(laterSample, later)
+  }
+
   /// A type's samples that start in `range`, oldest first.
   public static func samples(
     of type: String, in range: Range<Date>, _ db: Database
@@ -128,8 +168,10 @@ extension HealthDatabase {
     return totals
   }
 
-  /// A discrete type's average, minimum and maximum per period in `range`, from raw samples.
-  /// Averages follow the type's aggregation style:
+  /// A discrete type's average, minimum and maximum per period in `range`, from raw samples, a
+  /// series' values each a reading at its own time (`quantityReadings`, 851-4171), and a series
+  /// without its values one, whose extremes are the series'. Averages follow the type's
+  /// aggregation style:
   /// - Arithmetic: a plain average.
   /// - Time-weighted: each sample counts until its source's next sample, up to an hour, and a
   ///   source's last sample for its own duration. Samples up to an hour past the range are
@@ -161,34 +203,36 @@ extension HealthDatabase {
     let reach =
       aggregation == .discreteTemporallyWeighted
       ? range.upperBound.addingTimeInterval(maxSampleWeight).unixMilliseconds : upper
-    let rows =
-      try HealthSample
-      .where { $0.type.eq(type) && $0.startDate >= lower && $0.startDate < reach }
-      .order(by: \.startDate)
-      .select { ($0.startDate, $0.endDate, $0.value, $0.sourceBundleID) }
-      .fetchAll(db)
-      .compactMap { start, end, value, source in
-        value.map { CardReading(start: start, end: end, value: $0, source: source) }
-      }
-    // Cards' weights (851-3195), so a card and its type's page agree.
+    // A series is a reading per value (851-4171).
+    let readings = try quantityReadings(of: type, from: lower, to: reach, db)
+    let rows = readings.readings
+    // Cards' weights (851-3195), so a card and its type's page agree (once cards read series'
+    // values too, 851-4172).
     let weights = CardWeights.weights(of: rows, aggregation)
 
-    var groups: [(start: Date, values: [Double], weights: [Double])] = []
-    for (reading, weight) in zip(rows, weights) where reading.start < upper {
+    var groups: [(start: Date, values: [Double], weights: [Double], range: ClosedRange<Double>)] =
+      []
+    for (index, (reading, weight)) in zip(rows, weights).enumerated() where reading.start < upper {
       let start = periods.start(ofMilliseconds: reading.start)
+      let range = readings.range(at: index)
       if groups.last?.start == start {
-        groups[groups.count - 1].values.append(reading.value)
-        groups[groups.count - 1].weights.append(weight)
+        let last = groups.count - 1
+        groups[last].values.append(reading.value)
+        groups[last].weights.append(weight)
+        groups[last].range =
+          min(
+            groups[last].range.lowerBound, range.lowerBound)...max(
+            groups[last].range.upperBound, range.upperBound)
       } else {
-        groups.append((start, [reading.value], [weight]))
+        groups.append((start, [reading.value], [weight], range))
       }
     }
     return groups.map { group in
       DiscreteStatistic(
         start: group.start,
         average: CardWeights.average(group.values, weights: group.weights, aggregation),
-        minimum: group.values.min() ?? 0,
-        maximum: group.values.max() ?? 0,
+        minimum: group.range.lowerBound,
+        maximum: group.range.upperBound,
         count: group.values.count)
     }
   }

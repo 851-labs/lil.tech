@@ -362,11 +362,12 @@ private struct ToolCall {
       let timeZone = arguments.string("timeZone")
       let cursor = arguments.string("cursor")
       let limit = arguments.integer("limit", in: 1...HealthTools.samplesLimit)
+      let seriesValues = arguments.boolean("seriesValues")
       guard let type, let range, arguments.isValid else { throw arguments.invalid }
       query = { tools, db in
         try tools.samples(
           type: type, range: range, date: date, timeZone: timeZone, cursor: cursor, limit: limit,
-          db)
+          seriesValues: seriesValues, db)
       }
     case "workouts":
       let range = arguments.required("range", arguments.range)
@@ -547,6 +548,15 @@ private final class Arguments {
   }
 
   func range(_ name: String) -> ToolRange? { oneOf(name, ToolRange.self) }
+
+  func boolean(_ name: String) -> Bool? {
+    guard let value = values[name] else { return nil }
+    guard case .bool(let bool) = value else {
+      issue("Expected boolean", at: name)
+      return nil
+    }
+    return bool
+  }
 
   /// A whole number in `bounds`. Both of its checks are made, as Effect's are: 0.5 is neither.
   func integer(_ name: String, in bounds: ClosedRange<Int>) -> Int? {

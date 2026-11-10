@@ -81,7 +81,12 @@ extension HealthSamplesResult: TextOutput {
         sample.value.map { quantity($0, sample.unit) }
         ?? sample.categoryValue.map { "value \($0)" }
         ?? correlated?.joined(separator: ", ") ?? ""
-      lines.append("  \(time(sample.start))   \(value)   \(sample.source)")
+      // A series (851-4171): "a series of 120", or which of its values this is.
+      let series = sample.series.map { series in
+        series.index.map { "   value \($0 + 1) of \(series.count)" }
+          ?? "   series of \(series.count)"
+      }
+      lines.append("  \(time(sample.start))   \(value)   \(sample.source)\(series ?? "")")
     }
     if let nextCursor {
       lines.append("")

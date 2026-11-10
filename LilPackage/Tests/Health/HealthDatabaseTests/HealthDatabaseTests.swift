@@ -214,6 +214,57 @@ struct HealthQueriesTests {
   }
 
   @Test
+  func aSeriesCountsEachValueAtItsOwnTime() throws {
+    let heartRate = "HKQuantityTypeIdentifierHeartRate"
+    // A series from 23:59:50 to 00:00:10 (851-4171): 100 and 110 before midnight, 150 after,
+    // each until the next; its own value (HealthKit's for the whole series) isn't a reading. A
+    // series of the next morning whose values weren't uploaded is one reading, with the
+    // series' extremes.
+    var series = sample(heartRate, at: utc(24 - 10.0 / 3600), value: 999)
+    series.endDate = series.startDate + 20_000
+    var big = sample(heartRate, at: utc(8, day: 15), value: 70)
+    big.endDate = big.startDate + 3_600_000
+    try database.write { db in
+      try HealthSample.insert { [series, big] }.execute(db)
+      try HealthQuantitySeries.insert {
+        HealthQuantitySeries(
+          id: series.id, type: heartRate, startDate: series.startDate, count: 3,
+          times: "[0,5,20]", durations: "[0,0,0]", values: "[100,110,150]", minimum: 100,
+          maximum: 150, mostRecent: 150, mostRecentStartDate: series.startDate + 20_000,
+          mostRecentEndDate: series.startDate + 20_000)
+        HealthQuantitySeries(
+          id: big.id, type: heartRate, startDate: big.startDate, count: 25_000, minimum: 40,
+          maximum: 180)
+      }
+      .execute(db)
+    }
+    let days = try database.read {
+      try HealthDatabase.discreteStatistics(
+        of: heartRate, in: utc(0)..<utc(24, day: 15), by: .day, calendar: calendar("UTC"), $0)
+    }
+    #expect(
+      days == [
+        // 100 for 5 s, 110 for 15 s.
+        DiscreteStatistic(start: utc(0), average: 107.5, minimum: 100, maximum: 110, count: 2),
+        // 150 until the morning's series (an hour at most), which counts its hour.
+        DiscreteStatistic(
+          start: utc(0, day: 15), average: 110, minimum: 40, maximum: 180, count: 2),
+      ])
+    // The 15th alone reads the series that started the day before.
+    let fifteenth = try database.read {
+      try HealthDatabase.discreteStatistic(
+        of: heartRate, in: utc(0, day: 15)..<utc(24, day: 15), $0)
+    }
+    #expect(fifteenth == days.last)
+    // Summary's latest: the series' most recent value, not its own.
+    let latest = try database.read {
+      try HealthDatabase.latestReading(of: heartRate, startedBy: utc(1, day: 15), $0)
+    }
+    #expect(latest?.value == 150)
+    #expect(latest?.startDate == series.startDate + 20_000)
+  }
+
+  @Test
   func eachSourceIsItsOwnSeries() throws {
     let heartRate = "HKQuantityTypeIdentifierHeartRate"
     // A strap's reading a second after the Watch's doesn't cut the Watch's short.

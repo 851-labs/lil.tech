@@ -59,6 +59,7 @@ export const statisticsSource = (
 };
 
 export interface LatestSample {
+  readonly id: string;
   readonly startDate: number;
   readonly endDate: number;
   readonly value: number | null;
@@ -75,7 +76,7 @@ const stringOrNull = (value: SqlValue | undefined) => (typeof value === "string"
  */
 export const latestSample = (sql: StoreSql, type: string, now: number): LatestSample | null => {
   const row = sql.exec(
-    `SELECT start_date, end_date, value, unit, category_value FROM health_sample s
+    `SELECT id, start_date, end_date, value, unit, category_value FROM health_sample s
     WHERE type = ? AND start_date <= ?
       AND NOT EXISTS (SELECT 1 FROM tombstones t WHERE t.entity = 'health_sample' AND t.id = s.id)
     ORDER BY start_date DESC, id DESC LIMIT 1`,
@@ -84,11 +85,62 @@ export const latestSample = (sql: StoreSql, type: string, now: number): LatestSa
   )[0];
   if (row === undefined) return null;
   return {
+    id: row["id"] as string,
     startDate: Number(row["start_date"]),
     endDate: Number(row["end_date"]),
     value: numberOrNull(row["value"]),
     unit: stringOrNull(row["unit"]),
     categoryValue: numberOrNull(row["category_value"]),
+  };
+};
+
+/**
+ * A type's latest reading started by `now` (851-4171): `latestSample`, with a discrete series'
+ * most recent value in place of the series' own (its value, start and end), since HealthKit's
+ * value for a whole heart rate series is its average, which isn't a reading anyone took; or a
+ * series that started before it (up to `seriesLookbackMillis`) whose most recent value is later
+ * (a workout's, past a strap's reading during it). Ties go to the higher ID. The Mac's
+ * `HealthDatabase.latestReading`.
+ */
+export const latestReading = (sql: StoreSql, type: string, now: number): LatestSample | null => {
+  const sample = latestSample(sql, type, now);
+  if (sample === null) return null;
+  const own = sql.exec(
+    `SELECT most_recent, most_recent_start_date, most_recent_end_date
+    FROM health_quantity_series WHERE id = ? AND most_recent IS NOT NULL`,
+    sample.id,
+  )[0];
+  const ownStart = numberOrNull(own?.["most_recent_start_date"]) ?? sample.startDate;
+  const latest: LatestSample =
+    own === undefined
+      ? sample
+      : {
+          ...sample,
+          value: numberOrNull(own["most_recent"]),
+          startDate: ownStart,
+          endDate: numberOrNull(own["most_recent_end_date"]) ?? ownStart,
+        };
+  const later = sql.exec(
+    `SELECT s.id, s.unit, q.most_recent, q.most_recent_start_date, q.most_recent_end_date
+    FROM health_quantity_series q JOIN health_sample s ON s.id = q.id
+    WHERE q.type = ? AND q.start_date >= ? AND q.start_date <= ? AND q.most_recent IS NOT NULL
+      AND q.most_recent_start_date > ? AND q.most_recent_start_date <= ? AND ${liveSample}
+    ORDER BY q.most_recent_start_date DESC, s.id DESC LIMIT 1`,
+    type,
+    sample.startDate - seriesLookbackMillis,
+    sample.startDate,
+    latest.startDate,
+    now,
+  )[0];
+  if (later === undefined) return latest;
+  const startDate = Number(later["most_recent_start_date"]);
+  return {
+    id: later["id"] as string,
+    startDate,
+    endDate: numberOrNull(later["most_recent_end_date"]) ?? startDate,
+    value: numberOrNull(later["most_recent"]),
+    unit: stringOrNull(later["unit"]),
+    categoryValue: null,
   };
 };
 
@@ -392,31 +444,236 @@ const samplesStarting = (
     to,
   );
 
-/** A quantity type's samples with a value that start in `[from, to)`, oldest first. */
-export const sampleReadings = (
+// Quantity series as readings (851-4171), as the Mac's `QuantitySeriesReadings.swift` reads
+// them: a sample whose `count` is over 1 (a Watch's heart rate in a workout) keeps its values in
+// `health_quantity_series` (851-4149), and statistics read each value as a reading of its own, at
+// its own time, as HealthKit's statistics split a series. The cards' engine can share them
+// (851-4172).
+
+/** A reading of a quantity type: a sample with a value, or one of a series' values. */
+export interface QuantityReading {
+  /** Unix milliseconds. */
+  readonly start: number;
+  readonly end: number;
+  readonly value: number;
+  /** The source's bundle ID: each source is its own series for time weighting. */
+  readonly source: string;
+}
+
+/**
+ * How long after its start a series' values count, in milliseconds: a range reads the series
+ * that started this long before it too, and values later than that (or after the sample's end)
+ * don't count anywhere, so what a range reads doesn't depend on where it starts. The iPhone
+ * uploads at most 20,000 values a series: a week of them every 30 s. The Mac's
+ * `HealthDatabase.seriesLookback`.
+ */
+export const seriesLookbackMillis = 7 * 24 * 60 * 60 * 1000;
+
+/** A quantity series' values: each one's start and duration in seconds since the sample's start. */
+export interface QuantitySeriesValues {
+  readonly times: ReadonlyArray<number>;
+  readonly durations: ReadonlyArray<number>;
+  readonly values: ReadonlyArray<number>;
+}
+
+const numberArray = (json: SqlValue | undefined): ReadonlyArray<number> | null => {
+  if (typeof json !== "string") return null;
+  try {
+    const parsed: unknown = JSON.parse(json);
+    return Array.isArray(parsed) && parsed.every((item) => typeof item === "number")
+      ? (parsed as ReadonlyArray<number>)
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+/** Seconds a series' time or duration can be: from 0 to about 31 years, as on the Mac. */
+const isSeriesSeconds = (seconds: number) => seconds >= 0 && seconds <= 1e9;
+
+/**
+ * A series' values from its row's JSON arrays, or null when the iPhone didn't upload them (more
+ * than `HealthEncoder.maxSeriesValues`), or they're empty, don't have one entry each, or have a
+ * time or duration that isn't from 0 to 1e9 s.
+ */
+export const quantitySeriesValues = (
+  times: SqlValue | undefined,
+  durations: SqlValue | undefined,
+  values: SqlValue | undefined,
+): QuantitySeriesValues | null => {
+  const [starts, lengths, numbers] = [
+    numberArray(times),
+    numberArray(durations),
+    numberArray(values),
+  ];
+  return starts === null ||
+    lengths === null ||
+    numbers === null ||
+    starts.length === 0 ||
+    lengths.length !== starts.length ||
+    numbers.length !== starts.length ||
+    !starts.every(isSeriesSeconds) ||
+    !lengths.every(isSeriesSeconds)
+    ? null
+    : { times: starts, durations: lengths, values: numbers };
+};
+
+/** When value `index` starts and ends (Unix milliseconds): its seconds to the millisecond. */
+export const seriesValueInterval = (
+  series: QuantitySeriesValues,
+  index: number,
+  sampleStart: number,
+) => {
+  const start = sampleStart + Math.round(series.times[index]! * 1000);
+  return { start, end: start + Math.round(series.durations[index]! * 1000) };
+};
+
+/** A sample that's a quantity series, with what statistics need of it. */
+export interface QuantitySeriesSample {
+  readonly id: string;
+  readonly start: number;
+  readonly end: number;
+  /** HealthKit's value for the whole series: its total, or its (time-weighted) average. */
+  readonly value: number | null;
+  readonly source: string;
+  /** Null when they weren't uploaded. */
+  readonly values: QuantitySeriesValues | null;
+  /** A discrete series' lowest and highest values. */
+  readonly minimum: number | null;
+  readonly maximum: number | null;
+}
+
+/**
+ * A series' readings: one per value, in order, of those that start by the sample's end and less
+ * than `seriesLookbackMillis` after its start; or, without its values, one for the sample, at its
+ * start (none without a value either).
+ */
+export const seriesReadings = (series: QuantitySeriesSample): ReadonlyArray<QuantityReading> => {
+  const { values, start, end, source } = series;
+  if (values === null) {
+    return series.value === null ? [] : [{ start, end, value: series.value, source }];
+  }
+  const reach = start + seriesLookbackMillis;
+  const readings: Array<QuantityReading> = [];
+  for (let index = 0; index < values.values.length; index++) {
+    const interval = seriesValueInterval(values, index, start);
+    if (interval.start <= end && interval.start < reach) {
+      readings.push({ ...interval, value: values.values[index]!, source });
+    }
+  }
+  return readings;
+};
+
+/**
+ * A type's series whose samples start in `[from, to)` and end at or after `endingFrom`, oldest
+ * first, then by ID, past tombstones. Through the series' own (type, start_date) index, so a
+ * range without series costs a seek.
+ */
+export const quantitySeries = (
   sql: StoreSql,
   type: string,
   from: number,
   to: number,
-): ReadonlyArray<{
-  readonly start: number;
-  readonly end: number;
-  readonly value: number;
-  readonly source: string;
-}> =>
-  samplesStarting(
+  endingFrom: number,
+): ReadonlyArray<QuantitySeriesSample> =>
+  sql
+    .rows(
+      `SELECT s.id, s.start_date, s.end_date, s.value, s.source_bundle_id,
+        q.times, q.durations, q."values", q.minimum, q.maximum
+      FROM health_quantity_series q JOIN health_sample s ON s.id = q.id
+      WHERE q.type = ? AND q.start_date >= ? AND q.start_date < ? AND s.end_date >= ?
+        AND ${liveSample}
+      ORDER BY q.start_date, q.id`,
+      type,
+      from,
+      to,
+      endingFrom,
+    )
+    .map(([id, start, end, value, source, times, durations, values, minimum, maximum]) => ({
+      id: id as string,
+      start: Number(start),
+      end: Number(end),
+      value: numberOrNull(value),
+      source: source as string,
+      values: quantitySeriesValues(times, durations, values),
+      minimum: numberOrNull(minimum),
+      maximum: numberOrNull(maximum),
+    }));
+
+/** A quantity type's readings, oldest first, with a series' values as readings of their own. */
+export interface QuantityReadings {
+  readonly readings: ReadonlyArray<QuantityReading>;
+  /**
+   * The lowest and highest value of readings that stand for a series without its values, by
+   * index in `readings`: its own minimum and maximum, which minimums and maximums take.
+   */
+  readonly extremes: ReadonlyMap<number, readonly [number, number]>;
+}
+
+/**
+ * A quantity type's readings that start in `[from, to)`, oldest first: each sample with a value,
+ * except that a series is one reading per value, at the value's own time (`seriesReadings`), of
+ * the series that started up to `seriesLookbackMillis` before `from` too. A series without its
+ * values stays one reading, at its start, whose extremes are the series'. Readings that start
+ * together keep single samples first, by ID, then series by start, ID and value, as the Mac's
+ * `HealthDatabase.quantityReadings` orders them.
+ */
+export const quantityReadings = (
+  sql: StoreSql,
+  type: string,
+  from: number,
+  to: number,
+): QuantityReadings => {
+  const series = quantitySeries(sql, type, from - seriesLookbackMillis, to, from);
+  const seriesIds = new Set(series.filter((sample) => sample.start >= from).map(({ id }) => id));
+  const singles: Array<QuantityReading> = [];
+  for (const [start, end, value, source, id] of samplesStarting(
     sql,
-    "start_date, end_date, value, source_bundle_id",
+    `start_date, end_date, value, source_bundle_id${seriesIds.size === 0 ? "" : ", id"}`,
     type,
     from,
     to,
     "AND value IS NOT NULL",
-  ).map(([start, end, value, source]) => ({
-    start: Number(start),
-    end: Number(end),
-    value: Number(value),
-    source: source as string,
-  }));
+  )) {
+    if (seriesIds.size !== 0 && seriesIds.has(id as string)) continue;
+    singles.push({
+      start: Number(start),
+      end: Number(end),
+      value: Number(value),
+      source: source as string,
+    });
+  }
+  if (series.length === 0) return { readings: singles, extremes: new Map() };
+
+  // Every series' readings in range, by start, then the series' order, then their own: a stable
+  // sort keeps the last two.
+  const values: Array<{ reading: QuantityReading; extremes: readonly [number, number] | null }> =
+    [];
+  for (const sample of series) {
+    const extremes: readonly [number, number] | null =
+      sample.values === null && sample.minimum !== null && sample.maximum !== null
+        ? [sample.minimum, Math.max(sample.minimum, sample.maximum)]
+        : null;
+    for (const reading of seriesReadings(sample)) {
+      if (reading.start >= from && reading.start < to) values.push({ reading, extremes });
+    }
+  }
+  values.sort((a, b) => a.reading.start - b.reading.start);
+
+  const readings: Array<QuantityReading> = [];
+  const extremes = new Map<number, readonly [number, number]>();
+  let single = 0;
+  for (const { reading, extremes: range } of values) {
+    while (single < singles.length && singles[single]!.start <= reading.start) {
+      readings.push(singles[single]!);
+      single++;
+    }
+    if (range !== null) extremes.set(readings.length, range);
+    readings.push(reading);
+  }
+  for (; single < singles.length; single++) readings.push(singles[single]!);
+  return { readings, extremes };
+};
 
 /**
  * A cumulative type's values that start in `[from, to)`, oldest first: only when each starts and
@@ -443,7 +700,8 @@ export interface SampleCursor {
  * Up to `limit` of a type's samples, or a correlation type's correlations (`correlation`), that
  * start in `[from, to)`, newest first (by start, then ID, both descending), after `cursor` (as
  * the Mac's `HealthDatabase.samplePage` and `correlationPage`), with their source revision, device
- * and metadata (851-4166). Correlations have no value, and no tombstones (they have no key
+ * and metadata (851-4166); with `includingCursor`, the cursor's own sample first, whose series'
+ * values a page of them ended inside (851-4171). Correlations have no value, and no tombstones (they have no key
  * fields, so they're deleted at once).
  */
 export const samplePage = (
@@ -453,6 +711,7 @@ export const samplePage = (
   cursor: SampleCursor | null,
   limit: number,
   correlation = false,
+  includingCursor = false,
 ): ReadonlyArray<DetailedSampleRow> =>
   sql
     .exec(
@@ -464,7 +723,7 @@ export const samplePage = (
       FROM ${correlation ? "health_correlation" : "health_sample"} s
       LEFT JOIN health_provenance p ON p.id = s.provenance
       WHERE s.type = ? AND s.start_date >= ? AND s.start_date < ?
-        ${cursor === null ? "" : "AND s.start_date <= ? AND (s.start_date < ? OR s.id < ?)"}
+        ${cursor === null ? "" : `AND s.start_date <= ? AND (s.start_date < ? OR s.id ${includingCursor ? "<=" : "<"} ?)`}
         ${correlation ? "" : `AND ${liveSample}`}
       ORDER BY s.start_date DESC, s.id DESC LIMIT ?`,
       type,
@@ -474,6 +733,53 @@ export const samplePage = (
       limit,
     )
     .map(detailedRow);
+
+/** A quantity series' row (851-4149), as `samples` shows it. */
+export interface QuantitySeriesRow {
+  readonly count: number;
+  readonly values: QuantitySeriesValues | null;
+  readonly minimum: number | null;
+  readonly maximum: number | null;
+  readonly mostRecent: number | null;
+  readonly mostRecentStartDate: number | null;
+  readonly mostRecentEndDate: number | null;
+}
+
+/**
+ * The quantity series of `samples` that are series, by ID, with their values only `withValues`
+ * (a page of summaries needn't parse hundreds of arrays). The IDs go in as one JSON array, since
+ * a Durable Object's SQLite binds at most 100 parameters.
+ */
+export const quantitySeriesOf = (
+  sql: StoreSql,
+  samples: ReadonlyArray<string>,
+  withValues: boolean,
+): ReadonlyMap<string, QuantitySeriesRow> =>
+  samples.length === 0
+    ? new Map()
+    : new Map(
+        sql
+          .exec(
+            `SELECT id, count, ${withValues ? `times, durations, "values",` : ""} minimum, maximum,
+              most_recent, most_recent_start_date, most_recent_end_date
+            FROM health_quantity_series WHERE id IN (SELECT value FROM json_each(?))`,
+            JSON.stringify(samples),
+          )
+          .map((row) => [
+            row["id"] as string,
+            {
+              count: Number(row["count"]),
+              values: withValues
+                ? quantitySeriesValues(row["times"], row["durations"], row["values"])
+                : null,
+              minimum: numberOrNull(row["minimum"]),
+              maximum: numberOrNull(row["maximum"]),
+              mostRecent: numberOrNull(row["most_recent"]),
+              mostRecentStartDate: numberOrNull(row["most_recent_start_date"]),
+              mostRecentEndDate: numberOrNull(row["most_recent_end_date"]),
+            },
+          ]),
+      );
 
 /** A correlation's member sample: its type, value and unit. */
 export interface CorrelatedValueRow {
