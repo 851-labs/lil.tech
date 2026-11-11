@@ -448,6 +448,7 @@ let package = Package(
         "LilAPI",
         "LilGzip",
         .product(name: "Dependencies", package: "swift-dependencies"),
+        .product(name: "HTTPTypes", package: "swift-http-types"),
         .product(name: "IssueReporting", package: "swift-issue-reporting"),
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
       ],
@@ -460,6 +461,8 @@ let package = Package(
         "LilAPI",
         "LilGzip",
         "LilTestSupport",
+        .product(name: "HTTPTypes", package: "swift-http-types"),
+        .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
       ],
       path: "Tests/Health/HealthUploadTests"
     ),

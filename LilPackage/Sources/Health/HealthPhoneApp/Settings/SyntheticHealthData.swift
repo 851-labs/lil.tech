@@ -1,5 +1,6 @@
 #if targetEnvironment(simulator)
   import HealthKit
+  import HealthUpload
   import Observation
   import os
   import SwiftUI
@@ -56,7 +57,8 @@
           let count = try await Self.write { count in await MainActor.run { self.saved = count } }
           Self.logger.info("Added \(count) synthetic samples")
         } catch {
-          Self.logger.error("Adding synthetic samples failed: \(error)")
+          Self.logger.error(
+            "Adding synthetic samples failed: \(BackfillLog.describe(error), privacy: .public)")
           await MainActor.run { self.failure = error.localizedDescription }
         }
         await MainActor.run { self.isAdding = false }

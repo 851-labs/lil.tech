@@ -36,6 +36,16 @@ struct HealthBackgroundWorkTests {
   }
 
   @Test
+  func aRunsOutcomeIsLoggedWithoutItsReason() {
+    // The reason is an error's description, for the task's UI, which could hold anything
+    // (851-4183).
+    let failed = HealthBackgroundWork.RunOutcome.failed(
+      "Couldn't encode Ada Lovelace's 72.5", madeProgress: true)
+    #expect(failed.logged == "failed(madeProgress: true)")
+    #expect(HealthBackgroundWork.RunOutcome.locked.logged == "locked")
+  }
+
+  @Test
   func countedRecordsMakeTheTotalExact() {
     var counted = progress(withData: 5, empty: 5, records: 10_000, total: 40)
     counted.totalRecords = 1_234_567
