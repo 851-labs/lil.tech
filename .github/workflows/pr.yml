@@ -63,8 +63,15 @@ jobs:
       latest: ${{ steps.latest.outputs.latest }}
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
+        # Quiets git's hint about the initial branch's name when checkout runs `git init`, and its
+        # advice after checking out a commit, 13 and 15 lines (851-4052), as `-c` would. On the
+        # checkout steps only, since a workflow's `env` is listed in every step's header.
+        env: &quiet-git
+          GIT_CONFIG_COUNT: "2"
+          GIT_CONFIG_KEY_0: init.defaultBranch
+          GIT_CONFIG_VALUE_0: main
+          GIT_CONFIG_KEY_1: advice.detachedHead
+          GIT_CONFIG_VALUE_1: "false"
       - name: determine changes
         id: changes
         uses: ./.github/actions/changes
@@ -140,6 +147,7 @@ jobs:
           [ "$state" = open ] || echo "::notice::The PR is $state, so its preview isn't deployed."
       - if: steps.open.outputs.open == 'true'
         uses: actions/checkout@v7
+        env: *quiet-git
       - name: set up services
         if: steps.open.outputs.open == 'true'
         uses: ./.github/actions/setup-services
@@ -201,6 +209,7 @@ jobs:
       LIL_VERSION: destroy
     steps:
       - uses: actions/checkout@v7
+        env: *quiet-git
       - name: set up services
         uses: ./.github/actions/setup-services
       # Destroying a stage that was never deployed is a no-op.
@@ -251,6 +260,7 @@ jobs:
       BASE_REF: ${{ github.event.pull_request.base.ref }}
     steps:
       - uses: actions/checkout@v7
+        env: *quiet-git
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
