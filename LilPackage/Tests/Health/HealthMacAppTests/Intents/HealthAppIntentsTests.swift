@@ -88,7 +88,8 @@ struct HealthAppIntentsTests {
   /// Through the intents' channel, as Shortcuts and Spotlight open a page (851-3030).
   @Test(.timeLimit(.minutes(1)))
   func anIntentOpeningACategoryPopsWhatsPushedOnIt() async throws {
-    let actions = HealthAppActions(channel: HealthAppActionChannel(signInWait: .zero))
+    let channel = HealthAppActionChannel(signInWait: .zero)
+    let actions = HealthAppActions(channel: channel)
     let (updates, session) = AsyncStream<Bool>.makeStream()
     let store = TestStore(
       initialState: AppFeature.State(
@@ -108,6 +109,8 @@ struct HealthAppIntentsTests {
     let task = await store.send(.task)
     session.yield(true)
     await store.receive(\.signedInChanged)
+    // The store serves actions from an effect of its own, which may not have started yet.
+    try await eventually { channel.hasServer }
 
     let category = Task {
       try await actions.perform(.open(.category(.bodyMeasurements)), { _ in })
@@ -159,7 +162,8 @@ struct HealthAppIntentsTests {
 
   @Test(.timeLimit(.minutes(1)))
   func servesActionsWhileSignedInAndFailsThemOnceSignedOut() async throws {
-    let actions = HealthAppActions(channel: HealthAppActionChannel(signInWait: .zero))
+    let channel = HealthAppActionChannel(signInWait: .zero)
+    let actions = HealthAppActions(channel: channel)
     let (updates, session) = AsyncStream<Bool>.makeStream()
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
@@ -176,6 +180,8 @@ struct HealthAppIntentsTests {
     let task = await store.send(.task)
     session.yield(true)
     await store.receive(\.signedInChanged)
+    // The store serves actions from an effect of its own, which may not have started yet.
+    try await eventually { channel.hasServer }
 
     let opened = Task { try await actions.perform(.open(steps), { _ in }) }
     await store.receive(\.appActionRequested)
