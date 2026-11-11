@@ -115,6 +115,7 @@ struct AgentAccessFeatureTests {
     await store.receive(\.settingLoaded) {
       $0.isEnabled = false
     }
+    await store.finish()
   }
 
   @Test(.timeLimit(.minutes(1)))

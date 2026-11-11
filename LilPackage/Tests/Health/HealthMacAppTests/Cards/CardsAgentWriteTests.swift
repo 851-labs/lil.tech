@@ -43,7 +43,9 @@ private enum Answer: Equatable {
   case failed(String)
 }
 
-/// An agent's request, with what it was answered.
+/// An agent's request, with what it was answered. The answer comes from an effect of its own, which
+/// can still be running after the action that started it is received, so a test reads it after
+/// `store.finish()` (851-4207).
 private func agentRequest(_ action: HealthAppAction) -> (
   HealthAppActionRequest, LockIsolated<[Answer]>
 ) {
@@ -114,6 +116,7 @@ struct CardsAgentWriteTests {
     await store.receive(\.pushFinished) {
       $0.unsaved = []
     }
+    await store.finish()
     #expect(answers.value == [.ok(.card(id: id))])
     #expect(pushed.value == [[try new.upsert()]])
     // Never the editor's alerts.
@@ -140,6 +143,7 @@ struct CardsAgentWriteTests {
     await store.receive(\.pushFinished) {
       $0.unsaved = []
     }
+    await store.finish()
     #expect(replaced.position == later.position && replaced.updatedAt == nowMilliseconds)
     #expect(answers.value == [.ok(.card(id: later.id))])
   }
@@ -159,6 +163,7 @@ struct CardsAgentWriteTests {
     await store.receive(\.pushFinished) {
       $0.unsaved = []
     }
+    await store.finish()
     #expect(deleted.value == [.ok(.done)])
 
     // The last first: only it moves.
@@ -178,6 +183,7 @@ struct CardsAgentWriteTests {
     await store.receive(\.pushFinished) {
       $0.unsaved = []
     }
+    await store.finish()
     #expect(store.state.cards.map(\.id) == order)
     #expect(reordered.value == [.ok(.done)])
 
@@ -243,6 +249,7 @@ struct CardsAgentWriteTests {
     await store.receive(\.pushFinished) {
       $0.unsaved = []
     }
+    await store.finish()
     #expect(answers.value == [.ok(.done)])
 
     // Cards that can't be read fail what's waiting.
@@ -269,6 +276,7 @@ struct CardsAgentWriteTests {
     let issues = await issuesReported {
       await store.send(.agentRequested(request))
       await store.receive(\.pushFailed)
+      await store.finish()
     }
     #expect(issues == ["Caught error: Full()"])
     #expect(answers.value == [.failed("lil health couldn't save the card.")])

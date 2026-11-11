@@ -133,6 +133,7 @@ struct CardsFeatureTests {
     }
     #expect(CardID.isValid(id))
     #expect(pushed.value == [write.mutations])
+    await store.finish()
   }
 
   @Test
@@ -168,6 +169,7 @@ struct CardsFeatureTests {
       $0.unsaved = []
     }
     #expect(pushed.value.map { $0.map(\.id) } == [[edited.id], [steps.id], ["card_seed_weight"]])
+    await store.finish()
   }
 
   @Test
@@ -198,6 +200,7 @@ struct CardsFeatureTests {
       $0.writeError = .notFound
     }
     #expect(pushed.value.isEmpty)
+    await store.finish()
   }
 }
 

@@ -147,6 +147,7 @@ struct AppFeatureTests {
       $0.syncStatus.needsHealthAccess = false
     }
     await store.receive(\.backfill)
+    await store.finish()
   }
 
   @Test
@@ -189,6 +190,7 @@ struct AppFeatureTests {
     await store.receive(\.healthAccessChecked) {
       $0.healthAccess = HealthAccessFeature.State()
     }
+    await store.finish()
   }
 
   @Test
@@ -211,6 +213,7 @@ struct AppFeatureTests {
     }
     await store.receive(\.consentChecked)
     await store.receive(\.otherIPhonesFound)
+    await store.finish()
   }
 
   @Test
@@ -246,6 +249,7 @@ struct AppFeatureTests {
     await store.send(.signedInChanged(true))
     await store.receive(\.consentChecked)
     #expect(checks.value == 1)
+    await store.finish()
   }
 
   @Test
@@ -331,6 +335,7 @@ struct AppFeatureTests {
       $0.healthConsent = nil
     }
     await store.receive(\.otherIPhonesFound)
+    await store.finish()
   }
 
   @Test
@@ -358,6 +363,7 @@ struct AppFeatureTests {
       $0.$consentedPolicyVersion.withLock { $0 = nil }
     }
     await store.receive(\.signIn.readyToSignIn)
+    await store.finish()
   }
 
   @Test
@@ -517,6 +523,7 @@ struct AppFeatureTests {
       $0.syncStatus.needsHealthAccess = true
       $0.healthAccess = HealthAccessFeature.State()
     }
+    await store.finish()
   }
 
   @Test
@@ -550,6 +557,7 @@ struct AppFeatureTests {
     await store.receive(\.syncStatus.delegate.reviewConsent) {
       $0.healthConsent = HealthConsentFeature.State()
     }
+    await store.finish()
   }
 
   @Test
@@ -577,6 +585,7 @@ struct AppFeatureTests {
     // Withdrawn, not a first sign-in: the home screen says so, rather than the consent screen.
     #expect(store.state.healthConsent == nil)
     #expect(store.state.syncStatus.status == .needsConsent)
+    await store.finish()
   }
 
   @Test
@@ -609,6 +618,7 @@ struct AppFeatureTests {
     await store.receive(\.consentChecked) {
       $0.$consentedPolicyVersion.withLock { $0 = nil }
     }
+    await store.finish()
   }
 
   @Test
@@ -636,6 +646,7 @@ struct AppFeatureTests {
     await store.receive(\.syncStatus.delegate.consentWithdrawn)
     // Nothing uploads from here.
     await store.send(.backfill)
+    await store.finish()
   }
 
   @Test
@@ -672,5 +683,6 @@ struct AppFeatureTests {
     await store.receive(\.consentChecked)
     await store.receive(\.otherIPhonesFound)
     #expect(store.state.hasConsent)
+    await store.finish()
   }
 }
