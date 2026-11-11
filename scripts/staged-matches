@@ -1,0 +1,29 @@
+#!/bin/bash
+# Usage: scripts/staged-matches <glob>…
+# Exits 0 when the commit being made changes a path one of the globs matches, and 1 when it changes
+# none, for the pre-commit hook's jobs (`lefthook.yml`'s `only:`, 851-4205). lefthook's own `glob:`
+# matches its list of staged files, which git's rename detection gives a moved file's new path
+# only, so a commit moving `Services/api/src/Foo.ts` to `docs/` skipped the services checks. This
+# lists them with `--no-renames`: a move is its old path, deleted, and its new one, added, and
+# deletions count too.
+# The globs match as lefthook's do (its default matcher): `*` matches any characters, `/`
+# included, so `**` is the same as `*`, and case is ignored. No `{a,b}`.
+# If git can't list the files, it exits 0, so the checks run rather than being skipped.
+set -u
+shopt -s nocasematch
+
+list=$(mktemp)
+trap 'rm -f "$list"' EXIT
+if ! git diff --cached --no-renames --name-only -z >"$list"; then
+  echo "scripts/staged-matches: git couldn't list the staged files, so the checks run" >&2
+  exit 0
+fi
+while IFS= read -r -d '' path; do
+  for glob in "$@"; do
+    # shellcheck disable=SC2053 # The glob matches as a pattern.
+    if [[ $path == $glob ]]; then
+      exit 0
+    fi
+  done
+done <"$list"
+exit 1
