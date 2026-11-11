@@ -80,6 +80,18 @@ struct SettingsSheet: View {
             SyntheticHealthSection()
           }
         #endif
+        #if DEBUG
+          // Checks a developer runs on their own iPhone's Health data (851-4173, 851-4190).
+          // Debug builds only, and not in snapshot tests (which are Debug builds), whose
+          // references show what Release builds do.
+          if isLive {
+            Section {
+              NavigationLink("Diagnostics") { DiagnosticsView() }
+            } footer: {
+              Text("Debug builds only.")
+            }
+          }
+        #endif
       }
       .navigationTitle("Settings")
       #if os(iOS)
