@@ -19,6 +19,11 @@ export const decodeMetadata = Schema.decodeUnknownOption(Schema.fromJsonString(M
 export const WorkoutActivities = Schema.fromJsonString(
   Schema.Array(
     Schema.Struct({
+      /**
+       * Its `HKWorkoutActivity`'s UUID, lowercase, as effort scores' legs name it (851-4187).
+       * Read loosely, so one that isn't a string leaves only its leg without a score.
+       */
+      id: Schema.optionalKey(Schema.Unknown),
       activityType: Schema.Int,
       startDate: Schema.Finite,
       endDate: Schema.NullOr(Schema.Finite),

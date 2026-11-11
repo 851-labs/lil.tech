@@ -550,6 +550,8 @@ public struct HealthWorkoutLeg: Codable, Equatable, Sendable {
   /// Meters.
   public var lapLength: Double?
   public var swolf: Double?
+  /// The leg's own effort score, nil without one.
+  public var effort: HealthWorkoutEffortScore?
   public var statistics: [HealthWorkoutStatistic]
 
   public func encode(to encoder: any Encoder) throws {
@@ -568,8 +570,16 @@ public struct HealthWorkoutLeg: Codable, Equatable, Sendable {
     try container.encode(averageMETs, .averageMETs)
     try container.encode(lapLength, .lapLength)
     try container.encode(swolf, .swolf)
+    try container.encode(effort, .effort)
     try container.encode(statistics, .statistics)
   }
+}
+
+/// A workout's or a leg's effort score (851-4187), from 1 to 10.
+public struct HealthWorkoutEffortScore: Codable, Equatable, Sendable {
+  public var score: Double
+  /// Apple Watch's estimate (`EstimatedWorkoutEffortScore`), not one the person rated.
+  public var estimated: Bool
 }
 
 /// One workout in full: what `workouts` says of it, and the rest.
@@ -617,6 +627,10 @@ public struct HealthWorkoutDetail: Codable, Equatable, Sendable {
   public var weatherTemperature: Double?
   /// Percent, from 0 to 100.
   public var weatherHumidity: Double?
+  /// Whether it has a link record (`healthWorkoutSamples`), which iPhones upload since 851-4153:
+  /// without one, `effort` isn't known.
+  public var linksRead: Bool
+  public var effort: HealthWorkoutEffortScore?
   public var statistics: [HealthWorkoutStatistic]
   public var pauseCount: Int
   public var pauses: [HealthWorkoutPause]
@@ -656,6 +670,8 @@ public struct HealthWorkoutDetail: Codable, Equatable, Sendable {
     try container.encode(weatherCondition, .weatherCondition)
     try container.encode(weatherTemperature, .weatherTemperature)
     try container.encode(weatherHumidity, .weatherHumidity)
+    try container.encode(linksRead, .linksRead)
+    try container.encode(effort, .effort)
     try container.encode(statistics, .statistics)
     try container.encode(pauseCount, .pauseCount)
     try container.encode(pauses, .pauses)

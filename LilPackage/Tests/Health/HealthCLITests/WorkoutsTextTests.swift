@@ -58,6 +58,7 @@ import Testing
         "source": "Synthetic Watch", "elevationDescended": null, "averageSpeed": null,
         "maximumSpeed": null, "averageMETs": 7.5, "lapLength": 22.86, "swolf": 45,
         "weatherCondition": "clear", "weatherTemperature": 27, "weatherHumidity": 45.5,
+        "linksRead": true, "effort": {"score": 6.5, "estimated": true},
         "statistics": [
           {"type": "HKQuantityTypeIdentifierHeartRate", "name": "Heart Rate", "unit": "count/min",
            "sum": null, "average": 131.5, "minimum": 104, "maximum": 152, "mostRecent": 140},
@@ -94,6 +95,7 @@ import Testing
           Pool        22.86 m
           SWOLF       45
           Weather     clear, 27 °C, 45.5% humidity
+          Effort      6.5 (estimated)
 
         Pauses: 2
           2026-09-04 06:59   20s

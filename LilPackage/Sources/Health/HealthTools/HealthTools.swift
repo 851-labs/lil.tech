@@ -444,7 +444,8 @@ public struct HealthTools: Sendable {
   public static let workoutEventsLimit = 300
 
   /// One workout, by its ID, with everything `workouts` says of it and the rest of what the
-  /// iPhone uploads (851-4165).
+  /// iPhone uploads (851-4165), its effort scores among them (851-4187). Its statistics are
+  /// HealthKit's, which it computes from the samples linked to it.
   public func workout(id: String, timeZone: String? = nil, _ db: Database) throws
     -> HealthWorkoutResult
   {
@@ -473,6 +474,7 @@ public struct HealthTools: Sendable {
     }
     let laps = intervals(WorkoutEvent.lap)
     let segments = intervals(WorkoutEvent.segment)
+    let effort = try HealthDatabase.workoutEffort(of: workout.id, db)
     let limit = Self.workoutEventsLimit
     return HealthWorkoutResult(
       timeZone: time.name,
@@ -489,6 +491,8 @@ public struct HealthTools: Sendable {
         weatherCondition: metadata.weatherCondition,
         weatherTemperature: metadata.weatherTemperature,
         weatherHumidity: metadata.weatherHumidity,
+        linksRead: try HealthWorkoutSamples.find(workout.id).fetchCount(db) > 0,
+        effort: Self.effortScore(effort?.score),
         statistics: Self.statisticsList(statistics),
         pauseCount: pauses.count,
         pauses: pauses.prefix(limit).map {
@@ -507,8 +511,17 @@ public struct HealthTools: Sendable {
             averageSpeed: activity.metadata.averageSpeed,
             maximumSpeed: activity.metadata.maximumSpeed,
             averageMETs: activity.metadata.averageMETs, lapLength: activity.metadata.lapLength,
-            swolf: activity.metadata.swolf, statistics: Self.statisticsList(activity.statistics))
+            swolf: activity.metadata.swolf,
+            effort: Self.effortScore(activity.id.flatMap { effort?.legs[$0] }),
+            statistics: Self.statisticsList(activity.statistics))
         }))
+  }
+
+  /// An effort score sample as `workout` gives it (851-4187); nil without one, or a value.
+  private static func effortScore(_ sample: HealthSample?) -> HealthWorkoutEffortScore? {
+    guard let sample, let score = sample.value else { return nil }
+    return HealthWorkoutEffortScore(
+      score: score, estimated: sample.type == HealthDatabase.estimatedWorkoutEffortScoreType)
   }
 
   /// Statistics as `workout` lists them: by type ID.

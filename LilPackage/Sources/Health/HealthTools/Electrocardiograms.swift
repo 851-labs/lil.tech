@@ -4,10 +4,10 @@ import HealthDatabase
 public import SQLiteData
 
 // The ECG tools (851-4159): `electrocardiograms` lists recordings from their rows, in the words of
-// the app's ECG page (`ElectrocardiogramsView.swift`), and `electrocardiogram_voltages` reads one
-// recording's voltages from its blob, a page of seconds at a time, as the privacy policy says
-// (851-4157). The remote server does the same (`Services/api/src/health/tools/Electrocardiograms.ts`),
-// rule for rule.
+// the app's ECG page (`ElectrocardiogramsView.swift`), with the symptoms their links name
+// (851-4187), and `electrocardiogram_voltages` reads one recording's voltages from its blob, a
+// page of seconds at a time, as the privacy policy says (851-4157). The remote server does the
+// same (`Services/api/src/health/tools/Electrocardiograms.ts`), rule for rule.
 
 extension HealthTools {
   /// The most ECGs `electrocardiograms` lists.
@@ -34,7 +34,7 @@ extension HealthTools {
     return HealthElectrocardiogramsResult(
       timeZone: time.name, range: range.rawValue, start: time.localTime(period.start),
       end: time.localTime(period.end), count: count,
-      recordings: recordings.map { recording in
+      recordings: try recordings.map { recording in
         let metadata = SampleDetails.object(recording.metadata)
         let recorded = zones.times(metadata, start: recording.startDate, end: recording.endDate)
         return HealthElectrocardiogramItem(
@@ -48,6 +48,12 @@ extension HealthTools {
           averageHeartRate: recording.averageHeartRate,
           samplingFrequency: recording.samplingFrequency, voltageCount: recording.voltageCount,
           symptoms: recording.symptomsName,
+          loggedSymptoms: try HealthDatabase.symptoms(ofElectrocardiogram: recording.id, db)
+            .samples?.map { symptom in
+              HealthElectrocardiogramSymptom(
+                type: symptom.type, name: HealthCatalog.type(id: symptom.type)?.name ?? symptom.type
+              )
+            },
           algorithmVersion: HealthMetadataValues.value(
             "HKMetadataKeyAppleECGAlgorithmVersion", in: metadata)?.double,
           source: recording.sourceName)
@@ -136,6 +142,9 @@ public struct HealthElectrocardiogramItem: Codable, Equatable, Sendable {
   public var voltageCount: Int
   /// `Symptoms Logged`, `No Symptoms` or `Not Logged`.
   public var symptoms: String
+  /// Those logged with it that have arrived, in order of start (851-4187); nil when its link
+  /// record hasn't synced (an iPhone from before 851-4153) or there were too many to upload.
+  public var loggedSymptoms: [HealthElectrocardiogramSymptom]?
   /// `HKMetadataKeyAppleECGAlgorithmVersion`, left out of the JSON when it doesn't say.
   public var algorithmVersion: Double? = nil
   public var source: String
@@ -154,9 +163,16 @@ public struct HealthElectrocardiogramItem: Codable, Equatable, Sendable {
     try container.encode(samplingFrequency, .samplingFrequency)
     try container.encode(voltageCount, .voltageCount)
     try container.encode(symptoms, .symptoms)
+    try container.encode(loggedSymptoms, .loggedSymptoms)
     try container.encodeIfPresent(algorithmVersion, forKey: .algorithmVersion)
     try container.encode(source, .source)
   }
+}
+
+/// A symptom logged with an ECG: its type, and the name Health gives it.
+public struct HealthElectrocardiogramSymptom: Codable, Equatable, Sendable {
+  public var type: String
+  public var name: String
 }
 
 public struct HealthElectrocardiogramsResult: HealthToolOutput {

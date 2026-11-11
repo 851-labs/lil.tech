@@ -8,15 +8,17 @@ import {
   voltagesDefaultSeconds,
   voltagesValueLimit,
 } from "./HealthToolkit.ts";
+import { electrocardiogramSymptoms } from "./Links.ts";
 import { RecordedZones } from "./RecordedTimes.ts";
 import { jsonObject } from "./SampleDetails.ts";
 import { localTime, type ToolRange, toolPeriod, toolTimeZone } from "./ToolTime.ts";
 import { cursorIndex, type HealthBlobReader, roundTo } from "./WorkoutRoutes.ts";
 
 // The ECG tools (851-4159): `electrocardiograms` lists recordings from their rows, in the words of
-// the Mac's ECG page (`ElectrocardiogramsView.swift`), and `electrocardiogram_voltages` reads one
-// recording's voltages from its blob, a page of seconds at a time, as the privacy policy says
-// (851-4157). The Mac's `HealthTools` does the same (`Electrocardiograms.swift`), rule for rule.
+// the Mac's ECG page (`ElectrocardiogramsView.swift`), with the symptoms their links name
+// (851-4187, `Links.ts`), and `electrocardiogram_voltages` reads one recording's voltages from its
+// blob, a page of seconds at a time, as the privacy policy says (851-4157). The Mac's
+// `HealthTools` does the same (`Electrocardiograms.swift`), rule for rule.
 
 type RecordingsResult = (typeof HealthToolkit.tools.electrocardiograms.successSchema)["Type"];
 type VoltagesResult = (typeof HealthToolkit.tools.electrocardiogram_voltages.successSchema)["Type"];
@@ -110,6 +112,10 @@ export const healthElectrocardiograms = Effect.fn("healthElectrocardiograms")(fu
             period.end,
           )[0]?.["count"] ?? 0,
         );
+  const symptoms = electrocardiogramSymptoms(
+    sql,
+    recordings.map((recording) => recording.id),
+  );
   const zones = new RecordedZones();
   const result: RecordingsResult = {
     timeZone: name,
@@ -131,6 +137,7 @@ export const healthElectrocardiograms = Effect.fn("healthElectrocardiograms")(fu
         samplingFrequency: recording.samplingFrequency,
         voltageCount: recording.voltageCount,
         symptoms: symptomsName(recording.symptomsStatus),
+        loggedSymptoms: symptoms.get(recording.id) ?? null,
         ...(algorithmVersion === null ? {} : { algorithmVersion }),
         source: recording.sourceName,
       };

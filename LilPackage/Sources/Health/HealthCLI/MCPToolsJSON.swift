@@ -1242,7 +1242,7 @@ let mcpToolsJSON = #"""
   },
   {
     "name": "workout",
-    "description": "One workout in full, by the ID workouts gives: everything workouts says, plus every statistic HealthKit computed (maximum and minimum heart rate, power, cadence, stride length, swimming strokes…), descent, speeds, METs, the weather, SWOLF and pool length, its pauses, laps (with each length's stroke and SWOLF) and segments, and a multisport workout's legs with their own statistics. Values from the workout's metadata have 12 significant digits, or 6 if an older lil health uploaded it.",
+    "description": "One workout in full, by the ID workouts gives: everything workouts says, plus every statistic HealthKit computed (maximum and minimum heart rate, power, cadence, stride length, swimming strokes…), descent, speeds, METs, the weather, SWOLF and pool length, its pauses, laps (with each length's stroke and SWOLF) and segments, its effort score (rated or Apple Watch's estimate), and a multisport workout's legs with their own statistics and scores. Values from the workout's metadata have 12 significant digits, or 6 if an older lil health uploaded it.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1498,6 +1498,32 @@ let mcpToolsJSON = #"""
               ],
               "description": "For swims: the SWOLF score (strokes plus seconds per length; lower is more efficient), if the app that recorded it says (HKMetadataKeySWOLFScore)."
             },
+            "effort": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "score": {
+                      "type": "number",
+                      "description": "How hard it was, from 1 to 10, as Health rates it: 1 to 3 Easy, 4 to 6 Moderate, 7 and 8 Hard, 9 and 10 All Out."
+                    },
+                    "estimated": {
+                      "type": "boolean",
+                      "description": "Whether it's Apple Watch's estimate (HKQuantityTypeIdentifierEstimatedWorkoutEffortScore) rather than a score the person rated (HKQuantityTypeIdentifierWorkoutEffortScore)."
+                    }
+                  },
+                  "required": [
+                    "score",
+                    "estimated"
+                  ],
+                  "additionalProperties": true
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The leg's own effort score: the one HealthKit finds most relevant among those related to it (HKWorkoutEffortRelationship), else, if that hasn't synced, the latest one the person rated, else Apple Watch's latest estimate. People often rate a workout after it ends. Null when it has none, or when linksRead is false and lil health doesn't know."
+            },
             "statistics": {
               "type": "array",
               "items": {
@@ -1521,6 +1547,7 @@ let mcpToolsJSON = #"""
             "averageMETs",
             "lapLength",
             "swolf",
+            "effort",
             "statistics"
           ],
           "additionalProperties": true
@@ -1762,7 +1789,7 @@ let mcpToolsJSON = #"""
               "items": {
                 "$ref": "#/$defs/HealthWorkoutLeg"
               },
-              "description": "A multisport workout's legs (e.g. swim, transition, bike, run), in order, each with its own statistics. Empty for a workout of one activity, whose statistics are the workout's."
+              "description": "A multisport workout's legs (e.g. swim, transition, bike, run), in order, each with its own statistics and effort score. Empty for a workout of one activity, whose statistics and score are the workout's."
             },
             "elevationDescended": {
               "anyOf": [
@@ -1863,6 +1890,36 @@ let mcpToolsJSON = #"""
               ],
               "description": "Relative humidity, in percent from 0 to 100 (HKMetadataKeyWeatherHumidity). Apple's Workout app writes it 100 times too large (72% as 7200 %), so a value over 100 is divided by 100. To 12 significant digits, or 6 if an older lil health uploaded it."
             },
+            "linksRead": {
+              "type": "boolean",
+              "description": "Whether lil health has read what HealthKit links to the workout: its effort scores, and the samples recorded with it. False for a workout an older lil health on the iPhone uploaded, until an updated one reads its links: its effort is then null because it isn't known, not because there's none."
+            },
+            "effort": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "score": {
+                      "type": "number",
+                      "description": "How hard it was, from 1 to 10, as Health rates it: 1 to 3 Easy, 4 to 6 Moderate, 7 and 8 Hard, 9 and 10 All Out."
+                    },
+                    "estimated": {
+                      "type": "boolean",
+                      "description": "Whether it's Apple Watch's estimate (HKQuantityTypeIdentifierEstimatedWorkoutEffortScore) rather than a score the person rated (HKQuantityTypeIdentifierWorkoutEffortScore)."
+                    }
+                  },
+                  "required": [
+                    "score",
+                    "estimated"
+                  ],
+                  "additionalProperties": true
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The workout's effort score: the one HealthKit finds most relevant among those related to it (HKWorkoutEffortRelationship), else, if that hasn't synced, the latest one the person rated, else Apple Watch's latest estimate. People often rate a workout after it ends. Null when it has none, or when linksRead is false and lil health doesn't know."
+            },
             "statistics": {
               "type": "array",
               "items": {
@@ -1934,6 +1991,8 @@ let mcpToolsJSON = #"""
             "weatherCondition",
             "weatherTemperature",
             "weatherHumidity",
+            "linksRead",
+            "effort",
             "statistics",
             "pauseCount",
             "pauses",
@@ -3189,7 +3248,7 @@ let mcpToolsJSON = #"""
   },
   {
     "name": "electrocardiograms",
-    "description": "ECG recordings (from the ECG app on Apple Watch, or another app) that started in a period, newest first, as lil health's ECG page lists them: each one's classification (e.g. Sinus Rhythm or Atrial Fibrillation), average heart rate, sampling frequency, how many voltage measurements it has and whether symptoms were logged, with the period's count. Its voltages come from electrocardiogram_voltages, a page at a time: ask for them only when the classification and heart rate aren't enough.",
+    "description": "ECG recordings (from the ECG app on Apple Watch, or another app) that started in a period, newest first, as lil health's ECG page lists them: each one's classification (e.g. Sinus Rhythm or Atrial Fibrillation), average heart rate, sampling frequency, how many voltage measurements it has and the symptoms logged with it, with the period's count. Its voltages come from electrocardiogram_voltages, a page at a time: ask for them only when the classification and heart rate aren't enough.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3261,6 +3320,24 @@ let mcpToolsJSON = #"""
       ],
       "additionalProperties": true,
       "$defs": {
+        "HealthElectrocardiogramSymptom": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "The symptom's category type, e.g. HKCategoryTypeIdentifierRapidPoundingOrFlutteringHeartbeat."
+            },
+            "name": {
+              "type": "string",
+              "description": "The name Health gives it, e.g. Rapid, Pounding, or Fluttering Heartbeat."
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ],
+          "additionalProperties": true
+        },
         "HealthElectrocardiogramItem": {
           "type": "object",
           "properties": {
@@ -3326,7 +3403,21 @@ let mcpToolsJSON = #"""
             },
             "symptoms": {
               "type": "string",
-              "description": "Whether symptoms were logged with it, as lil health shows it: Symptoms Logged, No Symptoms, or Not Logged (they weren't asked about). lil health doesn't link a recording to its symptoms yet: they're symptom samples (e.g. HKCategoryTypeIdentifierRapidPoundingOrFlutteringHeartbeat, HKCategoryTypeIdentifierChestTightnessOrPain), logged around its time, which samples lists by type."
+              "description": "Whether symptoms were logged with it, as lil health shows it: Symptoms Logged, No Symptoms, or Not Logged (they weren't asked about). loggedSymptoms says which."
+            },
+            "loggedSymptoms": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/HealthElectrocardiogramSymptom"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The symptoms logged with it (HKQuery.predicateForObjectsAssociated), in the order they were logged: empty when none were. Null when lil health doesn't know which: for a recording an older lil health on the iPhone uploaded, until an updated one reads its links. Its symptoms are then symptom samples logged around its time, which samples lists by type."
             },
             "algorithmVersion": {
               "type": "number",
@@ -3347,6 +3438,7 @@ let mcpToolsJSON = #"""
             "samplingFrequency",
             "voltageCount",
             "symptoms",
+            "loggedSymptoms",
             "source"
           ],
           "additionalProperties": true

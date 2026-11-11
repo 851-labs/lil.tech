@@ -14,7 +14,8 @@
     "ECGs (851-4159), in health_electrocardiogram: their voltages are blobs in blobs.json, one little-endian 32-bit float per measurement, in microvolts. 0c0f\u2026181 (19 October, recorded in London, algorithm version 2) has 60 measurements at 2 Hz, with a NaN (5), an infinity (12) and values that round on their halves; 0c0f\u2026182 (18 October, a third-party app's, at 600 Hz) has 15,362, so a 30-second page has more than 15,360 and is downsampled; 0c0f\u2026183 has no measurements, a zone that isn't a name and an algorithm version that's a Boolean; 0c0f\u2026184 to 189 have every classification (7, a later iOS's, reads Not Classified), 189 just before 14 October in UTC; 0c0f\u2026190 was deleted by ph2; 0c0f\u2026191 doesn't say its sampling frequency (4 measurements in 2 s) and 0c0f\u2026192 says 0 and lasts no time (so 512 Hz).",
     "Heartbeat series (851-4162), in health_heartbeat_series, each beat's time in seconds since the start (to 0.1 ms) and the indices of beats preceded by a gap, as JSON in the row: be47\u2026001 (19 October, recorded in London) has 60 beats without a gap; be47\u2026002 (18 October, recorded in Paris) has 40, with gaps before beats 10 and 11 (so 10 stands alone) and 30, and beat 20 at the same time as 19; 003 has three beats, 004 two, 005 two with a gap between, 006 one and 007 none; be47\u2026008 is a third-party app's, 1,250 beats, its first preceded by a gap and gaps before 400, 401 and 900; 009 starts a minute before 14 October in UTC; 010 was deleted by ph2. Their beats come from sines, so their HRV is worked out by a reference implementation.",
     "Medication doses (851-4167): the inhaler (\u2026d4) is due at 23:00 UTC; its doses are 0c0f\u2026151 (recorded in Tokyo), 152 (a status and schedule a later iOS might add, a zone that isn't a name), 153 and 154 (due and logged at the same instant), 156 (deleted by ph2) and 157 (as needed); 155 is a dose of \u2026e5, a medication that isn't shared. Atorvastatin and Amoxicillin have RxNorm and SNOMED codings.",
-    "Audiograms (851-4161), in health_audiogram, frequencies in Hz and results in dBHL: 0c0f…801 (19 October, recorded in London) is a hearing test of both ears, its left ear averaging 17.5 in the speech range (18, Little to No Hearing Loss) and its right 37.5 (38, Mild), a left result at 3000 Hz clamped on both sides and a right one at 8000 Hz only from below (no response); 0c0f…802 (15 October, a third-party app's) tests the left ear twice at 500 Hz (masked first) and at 1000 Hz (a conduction type a later iOS might add, then air masked), a side of 2 no ear has, the left averaging 50.125 (50, Moderate) and the right tested only outside the speech range (3000 and 6000 Hz: 70.5, so 71, Severe); 0c0f…803 (13 October at 23:30, 14 October in London, recorded in Tokyo) averages -2.5 on the left (-3) and -0.4 on the right (0, never -0); 0c0f…804 (2 September, from ph2) tests only the right ear (97.5, so 98, Profound); 0c0f…805 was deleted by ph2; 0c0f…806 is from September 2025, before a year's range; 0c0f…807 (1 August) has no frequencies and a zone that isn't a name."
+    "Audiograms (851-4161), in health_audiogram, frequencies in Hz and results in dBHL: 0c0f…801 (19 October, recorded in London) is a hearing test of both ears, its left ear averaging 17.5 in the speech range (18, Little to No Hearing Loss) and its right 37.5 (38, Mild), a left result at 3000 Hz clamped on both sides and a right one at 8000 Hz only from below (no response); 0c0f…802 (15 October, a third-party app's) tests the left ear twice at 500 Hz (masked first) and at 1000 Hz (a conduction type a later iOS might add, then air masked), a side of 2 no ear has, the left averaging 50.125 (50, Moderate) and the right tested only outside the speech range (3000 and 6000 Hz: 70.5, so 71, Severe); 0c0f…803 (13 October at 23:30, 14 October in London, recorded in Tokyo) averages -2.5 on the left (-3) and -0.4 on the right (0, never -0); 0c0f…804 (2 September, from ph2) tests only the right ear (97.5, so 98, Profound); 0c0f…805 was deleted by ph2; 0c0f…806 is from September 2025, before a year's range; 0c0f…807 (1 August) has no frequencies and a zone that isn't a name.",
+    "Links (851-4187), as iPhones upload them since 851-4153: health_workout_samples for the 1 to 6 September run, pool swim and triathlon (empty for the swim and the triathlon), so the ride and every other workout have no links read. Effort scores (health_workout_effort): the run's rated 7 during it, its most relevant, and the Watch's estimate of 6 after it; the triathlon's most relevant (eff0…005) never arrived and a rated 9 was deleted by ph2, leaving the Watch's estimate of 8.25; its swim has its own rated 5, its ride an estimated 7.5 (no most relevant), and its run a rated 6 and a later estimate of 6.5 whose most relevant (eff0…011) never arrived, so the rated one stands. ECG symptoms (health_electrocardiogram_symptoms): 0c0f…182 has a rapid, pounding or fluttering heartbeat and chest tightness logged after it, in that order, and dizziness that never arrived; 0c0f…181 has none; every other ECG has no links read, though 186 logged symptoms."
   ],
   "batches": [
     {
@@ -3735,6 +3736,239 @@
               "HKTimeZone": "+09:00"
             }
           }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "eff00000-0000-4000-8000-000000000002",
+          "row": {
+            "type": "HKQuantityTypeIdentifierWorkoutEffortScore",
+            "startDate": 1788335400000,
+            "endDate": 1788335400000,
+            "value": 7,
+            "unit": "appleEffortScore",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "eff00000-0000-4000-8000-000000000001",
+          "row": {
+            "type": "HKQuantityTypeIdentifierEstimatedWorkoutEffortScore",
+            "startDate": 1788335460000,
+            "endDate": 1788335460000,
+            "value": 6,
+            "unit": "appleEffortScore",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_workout_effort",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000041",
+          "row": {
+            "samples": [
+              "eff00000-0000-4000-8000-000000000002",
+              "eff00000-0000-4000-8000-000000000001"
+            ],
+            "mostRelevant": "eff00000-0000-4000-8000-000000000002",
+            "legs": []
+          }
+        },
+        {
+          "entity": "health_workout_samples",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000041",
+          "row": {
+            "count": 2,
+            "samples": {
+              "HKQuantityTypeIdentifierHeartRate": [
+                "eff00000-0000-4000-8000-000000000101",
+                "eff00000-0000-4000-8000-000000000102"
+              ]
+            }
+          }
+        },
+        {
+          "entity": "health_workout_samples",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000042",
+          "row": { "count": 0, "samples": {} }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "eff00000-0000-4000-8000-000000000003",
+          "row": {
+            "type": "HKQuantityTypeIdentifierEstimatedWorkoutEffortScore",
+            "startDate": 1788687060000,
+            "endDate": 1788687060000,
+            "value": 8.25,
+            "unit": "appleEffortScore",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "eff00000-0000-4000-8000-000000000008",
+          "row": {
+            "type": "HKQuantityTypeIdentifierWorkoutEffortScore",
+            "startDate": 1788687600000,
+            "endDate": 1788687600000,
+            "value": 9,
+            "unit": "appleEffortScore",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "eff00000-0000-4000-8000-000000000006",
+          "row": {
+            "type": "HKQuantityTypeIdentifierWorkoutEffortScore",
+            "startDate": 1788682800000,
+            "endDate": 1788682800000,
+            "value": 5,
+            "unit": "appleEffortScore",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "eff00000-0000-4000-8000-000000000007",
+          "row": {
+            "type": "HKQuantityTypeIdentifierEstimatedWorkoutEffortScore",
+            "startDate": 1788685860000,
+            "endDate": 1788685860000,
+            "value": 7.5,
+            "unit": "appleEffortScore",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "eff00000-0000-4000-8000-000000000009",
+          "row": {
+            "type": "HKQuantityTypeIdentifierWorkoutEffortScore",
+            "startDate": 1788686400000,
+            "endDate": 1788686400000,
+            "value": 6,
+            "unit": "appleEffortScore",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "eff00000-0000-4000-8000-000000000010",
+          "row": {
+            "type": "HKQuantityTypeIdentifierEstimatedWorkoutEffortScore",
+            "startDate": 1788687120000,
+            "endDate": 1788687120000,
+            "value": 6.5,
+            "unit": "appleEffortScore",
+            "sourceName": "Test Apple Watch",
+            "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "entity": "health_workout_effort",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000044",
+          "row": {
+            "samples": [
+              "eff00000-0000-4000-8000-000000000003",
+              "eff00000-0000-4000-8000-000000000008",
+              "eff00000-0000-4000-8000-000000000005"
+            ],
+            "mostRelevant": "eff00000-0000-4000-8000-000000000005",
+            "legs": [
+              {
+                "activity": "0c0f0000-0000-4000-8000-000000000441",
+                "samples": ["eff00000-0000-4000-8000-000000000006"],
+                "mostRelevant": "eff00000-0000-4000-8000-000000000006"
+              },
+              {
+                "activity": "0c0f0000-0000-4000-8000-000000000443",
+                "samples": ["eff00000-0000-4000-8000-000000000007"],
+                "mostRelevant": null
+              },
+              {
+                "activity": "0c0f0000-0000-4000-8000-000000000444",
+                "samples": [
+                  "eff00000-0000-4000-8000-000000000009",
+                  "eff00000-0000-4000-8000-000000000010"
+                ],
+                "mostRelevant": "eff00000-0000-4000-8000-000000000011"
+              }
+            ]
+          }
+        },
+        {
+          "entity": "health_workout_samples",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000044",
+          "row": { "count": 0, "samples": {} }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "5c700000-0000-4000-8000-000000000001",
+          "row": {
+            "type": "HKCategoryTypeIdentifierRapidPoundingOrFlutteringHeartbeat",
+            "startDate": 1792357240000,
+            "endDate": 1792357240000,
+            "categoryValue": 0,
+            "sourceName": "Test ECG App",
+            "sourceBundleId": "com.example.ecg"
+          }
+        },
+        {
+          "entity": "health_sample",
+          "op": "upsert",
+          "id": "5c700000-0000-4000-8000-000000000002",
+          "row": {
+            "type": "HKCategoryTypeIdentifierChestTightnessOrPain",
+            "startDate": 1792357245000,
+            "endDate": 1792357245000,
+            "categoryValue": 0,
+            "sourceName": "Test ECG App",
+            "sourceBundleId": "com.example.ecg"
+          }
+        },
+        {
+          "entity": "health_electrocardiogram_symptoms",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000182",
+          "row": {
+            "count": 3,
+            "samples": {
+              "HKCategoryTypeIdentifierChestTightnessOrPain": [
+                "5c700000-0000-4000-8000-000000000002"
+              ],
+              "HKCategoryTypeIdentifierDizziness": ["5c700000-0000-4000-8000-000000000003"],
+              "HKCategoryTypeIdentifierRapidPoundingOrFlutteringHeartbeat": [
+                "5c700000-0000-4000-8000-000000000001"
+              ]
+            }
+          }
+        },
+        {
+          "entity": "health_electrocardiogram_symptoms",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000181",
+          "row": { "count": 0, "samples": {} }
         }
       ]
     },
@@ -4095,7 +4329,8 @@
           "entity": "health_audiogram",
           "op": "delete",
           "id": "0c0f0000-0000-4000-8000-000000000805"
-        }
+        },
+        { "entity": "health_sample", "op": "delete", "id": "eff00000-0000-4000-8000-000000000008" }
       ]
     }
   ]

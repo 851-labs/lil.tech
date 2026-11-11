@@ -1,9 +1,10 @@
-import { type DateTime, Effect, Option, Schema } from "effect";
+import { type DateTime, Effect, Option, Predicate, Schema } from "effect";
 import type { StoreSql } from "../../store/StoreSql.ts";
 import { healthCatalogType } from "../HealthCatalog.ts";
 import { Metadata } from "../WorkoutMetadata.ts";
 import { workoutsWithRoutes, workoutWithId } from "./HealthQueries.ts";
 import { HealthToolError, type HealthToolkit, workoutEventsLimit } from "./HealthToolkit.ts";
+import { workoutEffort, workoutLinksRead } from "./Links.ts";
 import { RecordedZones } from "./RecordedTimes.ts";
 import { localTime, toolTimeZone } from "./ToolTime.ts";
 import { intervalValues, workoutMetadataValues, workoutWeather } from "./WorkoutValues.ts";
@@ -87,7 +88,8 @@ const intervals = (events: ReadonlyArray<WorkoutEvent>, type: number, zone: Date
 
 /**
  * The `workout` tool from the user's store: one workout, by its ID, with everything `workouts`
- * says of it and the rest of what the iPhone uploads (851-4165).
+ * says of it and the rest of what the iPhone uploads (851-4165), its effort scores among them
+ * (851-4187). Its statistics are HealthKit's, which it computes from the samples linked to it.
  */
 export const healthWorkout = Effect.fn("healthWorkout")(function* (
   sql: StoreSql,
@@ -110,10 +112,13 @@ export const healthWorkout = Effect.fn("healthWorkout")(function* (
   const paused = pauses(events, row.endDate);
   const laps = intervals(events, eventType.lap, zone);
   const segments = intervals(events, eventType.segment, zone);
+  const effort = workoutEffort(sql, row.id);
   const workout: WorkoutDetail = {
     ...item,
     ...workoutMetadataValues(metadata),
     ...workoutWeather(metadata),
+    linksRead: workoutLinksRead(sql, row.id),
+    effort: effort.effort,
     statistics: statisticsList(statistics),
     pauseCount: paused.length,
     pauses: paused.slice(0, workoutEventsLimit).map(([start, end]) => ({
@@ -130,6 +135,8 @@ export const healthWorkout = Effect.fn("healthWorkout")(function* (
       return {
         ...leg,
         ...workoutMetadataValues(activity.metadata),
+        effort:
+          (Predicate.isString(activity.id) ? effort.legs.get(activity.id) : undefined) ?? null,
         statistics: statisticsList(
           Option.getOrElse(decodeStatistics(activity.statistics), () => ({})),
         ),

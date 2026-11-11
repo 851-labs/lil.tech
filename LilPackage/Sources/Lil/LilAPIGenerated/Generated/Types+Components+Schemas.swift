@@ -8977,6 +8977,71 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/swolf`.
             public var swolf: Swift.Double?
+            /// The leg's own effort score: the one HealthKit finds most relevant among those related to it (HKWorkoutEffortRelationship), else, if that hasn't synced, the latest one the person rated, else Apple Watch's latest estimate. People often rate a workout after it ends. Null when it has none, or when linksRead is false and lil health doesn't know.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/effort`.
+            public struct EffortPayload: Codable, Hashable, Sendable {
+                /// How hard it was, from 1 to 10, as Health rates it: 1 to 3 Easy, 4 to 6 Moderate, 7 and 8 Hard, 9 and 10 All Out.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/effort/score`.
+                public var score: Swift.Double
+                /// Whether it's Apple Watch's estimate (HKQuantityTypeIdentifierEstimatedWorkoutEffortScore) rather than a score the person rated (HKQuantityTypeIdentifierWorkoutEffortScore).
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/effort/estimated`.
+                public var estimated: Swift.Bool
+                /// A container of undocumented properties.
+                public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+                /// Creates a new `EffortPayload`.
+                ///
+                /// - Parameters:
+                ///   - score: How hard it was, from 1 to 10, as Health rates it: 1 to 3 Easy, 4 to 6 Moderate, 7 and 8 Hard, 9 and 10 All Out.
+                ///   - estimated: Whether it's Apple Watch's estimate (HKQuantityTypeIdentifierEstimatedWorkoutEffortScore) rather than a score the person rated (HKQuantityTypeIdentifierWorkoutEffortScore).
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(
+                    score: Swift.Double,
+                    estimated: Swift.Bool,
+                    additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+                ) {
+                    self.score = score
+                    self.estimated = estimated
+                    self.additionalProperties = additionalProperties
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case score
+                    case estimated
+                }
+                public init(from decoder: any Swift.Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.score = try container.decode(
+                        Swift.Double.self,
+                        forKey: .score
+                    )
+                    self.estimated = try container.decode(
+                        Swift.Bool.self,
+                        forKey: .estimated
+                    )
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                        "score",
+                        "estimated"
+                    ])
+                }
+                public func encode(to encoder: any Swift.Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(
+                        self.score,
+                        forKey: .score
+                    )
+                    try container.encode(
+                        self.estimated,
+                        forKey: .estimated
+                    )
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// The leg's own effort score: the one HealthKit finds most relevant among those related to it (HKWorkoutEffortRelationship), else, if that hasn't synced, the latest one the person rated, else Apple Watch's latest estimate. People often rate a workout after it ends. Null when it has none, or when linksRead is false and lil health doesn't know.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/effort`.
+            public var effort: Components.Schemas.HealthWorkoutLeg.EffortPayload?
             /// The leg's own statistics.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutLeg/statistics`.
@@ -9000,6 +9065,7 @@ extension Components {
             ///   - averageMETs: Average intensity over the whole workout, in METs (kcal/hr·kg), if the app that recorded it says (HKMetadataKeyAverageMETs). To 12 significant digits, or 6 if an older lil health uploaded it.
             ///   - lapLength: For pool swims: the pool's length, in meters (25 yd is 22.86), if the app that recorded it says (HKMetadataKeyLapLength). To 12 significant digits, or 6 if an older lil health uploaded it.
             ///   - swolf: For swims: the SWOLF score (strokes plus seconds per length; lower is more efficient), if the app that recorded it says (HKMetadataKeySWOLFScore).
+            ///   - effort: The leg's own effort score: the one HealthKit finds most relevant among those related to it (HKWorkoutEffortRelationship), else, if that hasn't synced, the latest one the person rated, else Apple Watch's latest estimate. People often rate a workout after it ends. Null when it has none, or when linksRead is false and lil health doesn't know.
             ///   - statistics: The leg's own statistics.
             ///   - additionalProperties: A container of undocumented properties.
             public init(
@@ -9017,6 +9083,7 @@ extension Components {
                 averageMETs: Swift.Double? = nil,
                 lapLength: Swift.Double? = nil,
                 swolf: Swift.Double? = nil,
+                effort: Components.Schemas.HealthWorkoutLeg.EffortPayload? = nil,
                 statistics: [Components.Schemas.HealthWorkoutStatistic],
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
             ) {
@@ -9034,6 +9101,7 @@ extension Components {
                 self.averageMETs = averageMETs
                 self.lapLength = lapLength
                 self.swolf = swolf
+                self.effort = effort
                 self.statistics = statistics
                 self.additionalProperties = additionalProperties
             }
@@ -9052,6 +9120,7 @@ extension Components {
                 case averageMETs
                 case lapLength
                 case swolf
+                case effort
                 case statistics
             }
             public init(from decoder: any Swift.Decoder) throws {
@@ -9112,6 +9181,10 @@ extension Components {
                     Swift.Double.self,
                     forKey: .swolf
                 )
+                self.effort = try container.decodeIfPresent(
+                    Components.Schemas.HealthWorkoutLeg.EffortPayload.self,
+                    forKey: .effort
+                )
                 self.statistics = try container.decode(
                     [Components.Schemas.HealthWorkoutStatistic].self,
                     forKey: .statistics
@@ -9131,6 +9204,7 @@ extension Components {
                     "averageMETs",
                     "lapLength",
                     "swolf",
+                    "effort",
                     "statistics"
                 ])
             }
@@ -9191,6 +9265,10 @@ extension Components {
                 try container.encodeIfPresent(
                     self.swolf,
                     forKey: .swolf
+                )
+                try container.encodeIfPresent(
+                    self.effort,
+                    forKey: .effort
                 )
                 try container.encode(
                     self.statistics,
@@ -9510,7 +9588,7 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/source`.
             public var source: Swift.String
-            /// A multisport workout's legs (e.g. swim, transition, bike, run), in order, each with its own statistics. Empty for a workout of one activity, whose statistics are the workout's.
+            /// A multisport workout's legs (e.g. swim, transition, bike, run), in order, each with its own statistics and effort score. Empty for a workout of one activity, whose statistics and score are the workout's.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/activities`.
             public var activities: [Components.Schemas.HealthWorkoutLeg]
@@ -9550,6 +9628,75 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/weatherHumidity`.
             public var weatherHumidity: Swift.Double?
+            /// Whether lil health has read what HealthKit links to the workout: its effort scores, and the samples recorded with it. False for a workout an older lil health on the iPhone uploaded, until an updated one reads its links: its effort is then null because it isn't known, not because there's none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/linksRead`.
+            public var linksRead: Swift.Bool
+            /// The workout's effort score: the one HealthKit finds most relevant among those related to it (HKWorkoutEffortRelationship), else, if that hasn't synced, the latest one the person rated, else Apple Watch's latest estimate. People often rate a workout after it ends. Null when it has none, or when linksRead is false and lil health doesn't know.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/effort`.
+            public struct EffortPayload: Codable, Hashable, Sendable {
+                /// How hard it was, from 1 to 10, as Health rates it: 1 to 3 Easy, 4 to 6 Moderate, 7 and 8 Hard, 9 and 10 All Out.
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/effort/score`.
+                public var score: Swift.Double
+                /// Whether it's Apple Watch's estimate (HKQuantityTypeIdentifierEstimatedWorkoutEffortScore) rather than a score the person rated (HKQuantityTypeIdentifierWorkoutEffortScore).
+                ///
+                /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/effort/estimated`.
+                public var estimated: Swift.Bool
+                /// A container of undocumented properties.
+                public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+                /// Creates a new `EffortPayload`.
+                ///
+                /// - Parameters:
+                ///   - score: How hard it was, from 1 to 10, as Health rates it: 1 to 3 Easy, 4 to 6 Moderate, 7 and 8 Hard, 9 and 10 All Out.
+                ///   - estimated: Whether it's Apple Watch's estimate (HKQuantityTypeIdentifierEstimatedWorkoutEffortScore) rather than a score the person rated (HKQuantityTypeIdentifierWorkoutEffortScore).
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(
+                    score: Swift.Double,
+                    estimated: Swift.Bool,
+                    additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+                ) {
+                    self.score = score
+                    self.estimated = estimated
+                    self.additionalProperties = additionalProperties
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case score
+                    case estimated
+                }
+                public init(from decoder: any Swift.Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.score = try container.decode(
+                        Swift.Double.self,
+                        forKey: .score
+                    )
+                    self.estimated = try container.decode(
+                        Swift.Bool.self,
+                        forKey: .estimated
+                    )
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                        "score",
+                        "estimated"
+                    ])
+                }
+                public func encode(to encoder: any Swift.Encoder) throws {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(
+                        self.score,
+                        forKey: .score
+                    )
+                    try container.encode(
+                        self.estimated,
+                        forKey: .estimated
+                    )
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// The workout's effort score: the one HealthKit finds most relevant among those related to it (HKWorkoutEffortRelationship), else, if that hasn't synced, the latest one the person rated, else Apple Watch's latest estimate. People often rate a workout after it ends. Null when it has none, or when linksRead is false and lil health doesn't know.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/effort`.
+            public var effort: Components.Schemas.HealthWorkoutDetail.EffortPayload?
             /// Every statistic HealthKit computed over it, one per quantity type, by type: energy, distance, heart rate (average, minimum, maximum), power, cadence, speed, stride length, ground contact time, vertical oscillation, swimming strokes, flights climbed… whatever was recorded. Null where HealthKit gives none.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/statistics`.
@@ -9597,7 +9744,7 @@ extension Components {
             ///   - swimmingLocation: For swims: pool or openWater (HKMetadataKeySwimmingLocationType), as the workout or its activities say (their metadata, else their workout configurations), if they agree, or null if none says.
             ///   - hasRoute: Whether it has a GPS route: one HealthKit linked to it or, failing that, one linked to no workout that was recorded during it. Outdoor runs, walks and rides recorded on an iPhone or Apple Watch have one; treadmill runs and other indoor workouts don't. workout_route reads it, by the workout's ID.
             ///   - source: The app or device that recorded it.
-            ///   - activities: A multisport workout's legs (e.g. swim, transition, bike, run), in order, each with its own statistics. Empty for a workout of one activity, whose statistics are the workout's.
+            ///   - activities: A multisport workout's legs (e.g. swim, transition, bike, run), in order, each with its own statistics and effort score. Empty for a workout of one activity, whose statistics and score are the workout's.
             ///   - elevationDescended: Meters descended, if the app that recorded it says (HKMetadataKeyElevationDescended). To 12 significant digits, or 6 if an older lil health uploaded it.
             ///   - averageSpeed: Average speed, in meters per second, if the app that recorded it says (HKMetadataKeyAverageSpeed). To 12 significant digits, or 6 if an older lil health uploaded it.
             ///   - maximumSpeed: Top speed, in meters per second, if the app that recorded it says (HKMetadataKeyMaximumSpeed). To 12 significant digits, or 6 if an older lil health uploaded it.
@@ -9607,6 +9754,8 @@ extension Components {
             ///   - weatherCondition: The weather (HKMetadataKeyWeatherCondition), as HKWeatherCondition names it, e.g. clear, partlyCloudy, showers or snow, or null if it doesn't say.
             ///   - weatherTemperature: The temperature, in °C, if the app that recorded it says (HKMetadataKeyWeatherTemperature). To 12 significant digits, or 6 if an older lil health uploaded it.
             ///   - weatherHumidity: Relative humidity, in percent from 0 to 100 (HKMetadataKeyWeatherHumidity). Apple's Workout app writes it 100 times too large (72% as 7200 %), so a value over 100 is divided by 100. To 12 significant digits, or 6 if an older lil health uploaded it.
+            ///   - linksRead: Whether lil health has read what HealthKit links to the workout: its effort scores, and the samples recorded with it. False for a workout an older lil health on the iPhone uploaded, until an updated one reads its links: its effort is then null because it isn't known, not because there's none.
+            ///   - effort: The workout's effort score: the one HealthKit finds most relevant among those related to it (HKWorkoutEffortRelationship), else, if that hasn't synced, the latest one the person rated, else Apple Watch's latest estimate. People often rate a workout after it ends. Null when it has none, or when linksRead is false and lil health doesn't know.
             ///   - statistics: Every statistic HealthKit computed over it, one per quantity type, by type: energy, distance, heart rate (average, minimum, maximum), power, cadence, speed, stride length, ground contact time, vertical oscillation, swimming strokes, flights climbed… whatever was recorded. Null where HealthKit gives none.
             ///   - pauseCount: How many times it was paused.
             ///   - pauses: When it was paused, by the person or automatically (auto-pause), from each pause to the resume after it, in order, at most 300. duration leaves them out.
@@ -9644,6 +9793,8 @@ extension Components {
                 weatherCondition: Swift.String? = nil,
                 weatherTemperature: Swift.Double? = nil,
                 weatherHumidity: Swift.Double? = nil,
+                linksRead: Swift.Bool,
+                effort: Components.Schemas.HealthWorkoutDetail.EffortPayload? = nil,
                 statistics: [Components.Schemas.HealthWorkoutStatistic],
                 pauseCount: Swift.Int,
                 pauses: [Components.Schemas.HealthWorkoutPause],
@@ -9681,6 +9832,8 @@ extension Components {
                 self.weatherCondition = weatherCondition
                 self.weatherTemperature = weatherTemperature
                 self.weatherHumidity = weatherHumidity
+                self.linksRead = linksRead
+                self.effort = effort
                 self.statistics = statistics
                 self.pauseCount = pauseCount
                 self.pauses = pauses
@@ -9719,6 +9872,8 @@ extension Components {
                 case weatherCondition
                 case weatherTemperature
                 case weatherHumidity
+                case linksRead
+                case effort
                 case statistics
                 case pauseCount
                 case pauses
@@ -9841,6 +9996,14 @@ extension Components {
                     Swift.Double.self,
                     forKey: .weatherHumidity
                 )
+                self.linksRead = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .linksRead
+                )
+                self.effort = try container.decodeIfPresent(
+                    Components.Schemas.HealthWorkoutDetail.EffortPayload.self,
+                    forKey: .effort
+                )
                 self.statistics = try container.decode(
                     [Components.Schemas.HealthWorkoutStatistic].self,
                     forKey: .statistics
@@ -9898,6 +10061,8 @@ extension Components {
                     "weatherCondition",
                     "weatherTemperature",
                     "weatherHumidity",
+                    "linksRead",
+                    "effort",
                     "statistics",
                     "pauseCount",
                     "pauses",
@@ -10020,6 +10185,14 @@ extension Components {
                 try container.encodeIfPresent(
                     self.weatherHumidity,
                     forKey: .weatherHumidity
+                )
+                try container.encode(
+                    self.linksRead,
+                    forKey: .linksRead
+                )
+                try container.encodeIfPresent(
+                    self.effort,
+                    forKey: .effort
                 )
                 try container.encode(
                     self.statistics,
@@ -12871,6 +13044,65 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramSymptom`.
+        public struct HealthElectrocardiogramSymptom: Codable, Hashable, Sendable {
+            /// The symptom's category type, e.g. HKCategoryTypeIdentifierRapidPoundingOrFlutteringHeartbeat.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramSymptom/type`.
+            public var _type: Swift.String
+            /// The name Health gives it, e.g. Rapid, Pounding, or Fluttering Heartbeat.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramSymptom/name`.
+            public var name: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthElectrocardiogramSymptom`.
+            ///
+            /// - Parameters:
+            ///   - _type: The symptom's category type, e.g. HKCategoryTypeIdentifierRapidPoundingOrFlutteringHeartbeat.
+            ///   - name: The name Health gives it, e.g. Rapid, Pounding, or Fluttering Heartbeat.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                _type: Swift.String,
+                name: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self._type = _type
+                self.name = name
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _type = "type"
+                case name
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self._type = try container.decode(
+                    Swift.String.self,
+                    forKey: ._type
+                )
+                self.name = try container.decode(
+                    Swift.String.self,
+                    forKey: .name
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "type",
+                    "name"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self._type,
+                    forKey: ._type
+                )
+                try container.encode(
+                    self.name,
+                    forKey: .name
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem`.
         public struct HealthElectrocardiogramItem: Codable, Hashable, Sendable {
             /// HealthKit's UUID for the recording.
@@ -12917,10 +13149,14 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/voltageCount`.
             public var voltageCount: Swift.Int
-            /// Whether symptoms were logged with it, as lil health shows it: Symptoms Logged, No Symptoms, or Not Logged (they weren't asked about). lil health doesn't link a recording to its symptoms yet: they're symptom samples (e.g. HKCategoryTypeIdentifierRapidPoundingOrFlutteringHeartbeat, HKCategoryTypeIdentifierChestTightnessOrPain), logged around its time, which samples lists by type.
+            /// Whether symptoms were logged with it, as lil health shows it: Symptoms Logged, No Symptoms, or Not Logged (they weren't asked about). loggedSymptoms says which.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/symptoms`.
             public var symptoms: Swift.String
+            /// The symptoms logged with it (HKQuery.predicateForObjectsAssociated), in the order they were logged: empty when none were. Null when lil health doesn't know which: for a recording an older lil health on the iPhone uploaded, until an updated one reads its links. Its symptoms are then symptom samples logged around its time, which samples lists by type.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/loggedSymptoms`.
+            public var loggedSymptoms: [Components.Schemas.HealthElectrocardiogramSymptom]?
             /// The version of the ECG app's algorithm that classified it (HKMetadataKeyAppleECGAlgorithmVersion): 1, or 2, which classifies heart rates up to 150 BPM. Left out when it doesn't say.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthElectrocardiogramItem/algorithmVersion`.
@@ -12945,7 +13181,8 @@ extension Components {
             ///   - averageHeartRate: The average heart rate during the recording, in beats per minute, or null.
             ///   - samplingFrequency: Voltage measurements per second (Hz), as recorded: 512 for Apple Watch. Null if the recording doesn't say.
             ///   - voltageCount: How many voltage measurements it has: 15,360 for 30 seconds at 512 Hz. electrocardiogram_voltages reads them; 0 for a recording without any.
-            ///   - symptoms: Whether symptoms were logged with it, as lil health shows it: Symptoms Logged, No Symptoms, or Not Logged (they weren't asked about). lil health doesn't link a recording to its symptoms yet: they're symptom samples (e.g. HKCategoryTypeIdentifierRapidPoundingOrFlutteringHeartbeat, HKCategoryTypeIdentifierChestTightnessOrPain), logged around its time, which samples lists by type.
+            ///   - symptoms: Whether symptoms were logged with it, as lil health shows it: Symptoms Logged, No Symptoms, or Not Logged (they weren't asked about). loggedSymptoms says which.
+            ///   - loggedSymptoms: The symptoms logged with it (HKQuery.predicateForObjectsAssociated), in the order they were logged: empty when none were. Null when lil health doesn't know which: for a recording an older lil health on the iPhone uploaded, until an updated one reads its links. Its symptoms are then symptom samples logged around its time, which samples lists by type.
             ///   - algorithmVersion: The version of the ECG app's algorithm that classified it (HKMetadataKeyAppleECGAlgorithmVersion): 1, or 2, which classifies heart rates up to 150 BPM. Left out when it doesn't say.
             ///   - source: The app or device that recorded it, e.g. ECG on Apple Watch.
             ///   - additionalProperties: A container of undocumented properties.
@@ -12962,6 +13199,7 @@ extension Components {
                 samplingFrequency: Swift.Double? = nil,
                 voltageCount: Swift.Int,
                 symptoms: Swift.String,
+                loggedSymptoms: [Components.Schemas.HealthElectrocardiogramSymptom]? = nil,
                 algorithmVersion: Swift.Double? = nil,
                 source: Swift.String,
                 additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
@@ -12978,6 +13216,7 @@ extension Components {
                 self.samplingFrequency = samplingFrequency
                 self.voltageCount = voltageCount
                 self.symptoms = symptoms
+                self.loggedSymptoms = loggedSymptoms
                 self.algorithmVersion = algorithmVersion
                 self.source = source
                 self.additionalProperties = additionalProperties
@@ -12995,6 +13234,7 @@ extension Components {
                 case samplingFrequency
                 case voltageCount
                 case symptoms
+                case loggedSymptoms
                 case algorithmVersion
                 case source
             }
@@ -13048,6 +13288,10 @@ extension Components {
                     Swift.String.self,
                     forKey: .symptoms
                 )
+                self.loggedSymptoms = try container.decodeIfPresent(
+                    [Components.Schemas.HealthElectrocardiogramSymptom].self,
+                    forKey: .loggedSymptoms
+                )
                 self.algorithmVersion = try container.decodeIfPresent(
                     Swift.Double.self,
                     forKey: .algorithmVersion
@@ -13069,6 +13313,7 @@ extension Components {
                     "samplingFrequency",
                     "voltageCount",
                     "symptoms",
+                    "loggedSymptoms",
                     "algorithmVersion",
                     "source"
                 ])
@@ -13122,6 +13367,10 @@ extension Components {
                 try container.encode(
                     self.symptoms,
                     forKey: .symptoms
+                )
+                try container.encodeIfPresent(
+                    self.loggedSymptoms,
+                    forKey: .loggedSymptoms
                 )
                 try container.encodeIfPresent(
                     self.algorithmVersion,

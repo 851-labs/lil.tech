@@ -154,6 +154,7 @@ extension HealthWorkoutResult: TextOutput {
       ("Pool", workout.lapLength.map { numberText($0) + " m" }),
       ("SWOLF", workout.swolf.map(numberText)),
       ("Weather", weatherText(workout)),
+      ("Effort", workout.effort.map(effortText)),
     ]
     let shown = details.compactMap { label, value in value.map { (label, $0) } }
     lines += statisticsLines(workout.statistics, indent: "  ")
@@ -176,7 +177,8 @@ extension HealthWorkoutResult: TextOutput {
       lines.append("")
       lines.append(
         ([time(leg.start), leg.activity] + (place.isEmpty ? [] : [place.joined(separator: ", ")])
-          + [durationText(leg.duration)]).joined(separator: "   "))
+          + [durationText(leg.duration)] + (leg.effort.map { ["effort " + effortText($0)] } ?? []))
+          .joined(separator: "   "))
       lines += statisticsLines(leg.statistics, indent: "  ")
     }
     return lines.joined(separator: "\n") + "\n"
@@ -221,6 +223,11 @@ private func intervalLines(_ title: String, _ intervals: [HealthWorkoutInterval]
   }
   if intervals.count < count { lines.append("  … and \(count - intervals.count) more") }
   return lines
+}
+
+/// An effort score (851-4187): `7`, or `6.5 (estimated)` for Apple Watch's.
+private func effortText(_ effort: HealthWorkoutEffortScore) -> String {
+  numberText(effort.score) + (effort.estimated ? " (estimated)" : "")
 }
 
 /// The weather, as far as the workout says: `clear, 12 °C, 72% humidity`.
@@ -323,7 +330,13 @@ extension HealthElectrocardiogramsResult: TextOutput {
     if !recordings.isEmpty { lines.append("") }
     for recording in recordings {
       let heartRate = recording.averageHeartRate.map { "\(Int($0.rounded())) BPM average" }
-      let parts = [recording.classification, heartRate, recording.symptoms, recording.source]
+      // The symptoms logged with it by name, when its links say (851-4187).
+      let symptoms =
+        recording.loggedSymptoms.flatMap {
+          $0.isEmpty ? nil : $0.map(\.name).joined(separator: ", ")
+        }
+        ?? recording.symptoms
+      let parts = [recording.classification, heartRate, symptoms, recording.source]
       lines.append(
         "  \(time(recording.start))   " + parts.compactMap(\.self).joined(separator: " · ")
           + "   \(recording.id)")
