@@ -106,6 +106,42 @@ describe("samples by type and start", () => {
     );
   });
 
+  it("keeps an ID upserted under another key as a second record, which a Mac would replace", () => {
+    // 851-4181: a record's key fields never change, and the store can't afford to check (it has
+    // no index on `id`), so an ID sent under another key is another record here, while a Mac,
+    // keyed by ID, keeps the last. HealthKit never does it; the conformance datasets are checked
+    // for it (`readDataset`).
+    const { sql, apply } = makeStore();
+    const moved = 1760500000000;
+    apply([sample(1)]);
+    assert.strictEqual(
+      apply([sample(1, { startDate: moved, endDate: moved + 60000, value: 3 })]).appended,
+      1,
+    );
+    assert.deepStrictEqual(
+      sql.exec(
+        "SELECT start_date, value FROM health_sample WHERE id = ? ORDER BY start_date",
+        uuid(1),
+      ),
+      [
+        { start_date: 1760400060000, value: 1 },
+        { start_date: moved, value: 3 },
+      ],
+    );
+    // The feed serves each upsert with its own row: a Mac applying both by ID ends with the
+    // second.
+    const page = readChanges(sql, entitiesByName, 0, 10);
+    if (!("changes" in page)) return assert.fail("compacted");
+    assert.deepStrictEqual(
+      page.changes.map((change) => ("row" in change ? change.row["startDate"] : null)),
+      [1760400060000, moved],
+    );
+    // A delete, by ID, takes both: their ID's tombstone hides them until a sweep removes them.
+    assert.strictEqual(apply([remove(1)]).appended, 1);
+    assert.deepStrictEqual(tombstoned(sql), [1]);
+    assert.deepStrictEqual(log(sql), ["delete 1", "delete 1", "delete 1"]);
+  });
+
   it("finds, merges and revives a group's records by their key, in one call", () => {
     const { sql, apply } = makeStore();
     apply([sample(0), sample(1), sample(2)]);

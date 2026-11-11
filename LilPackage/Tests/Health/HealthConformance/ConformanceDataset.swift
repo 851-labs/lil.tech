@@ -28,12 +28,20 @@ public struct ConformanceBatch {
   /// Its lines: `entity`, `op`, `id` and `row`, as JSON objects.
   public var lines: [[String: Any]]
 
-  /// The batches of the dataset at `url`, those of the one it `extends` (relative to it) first.
+  /// The batches of the dataset at `url`, those of the one it `extends` (relative to it) first,
+  /// each record under one key (`checkRecordKeys`).
   public static func read(_ url: URL) throws -> [ConformanceBatch] {
+    let batches = try readBatches(url)
+    try checkRecordKeys(batches.flatMap(\.lines))
+    return batches
+  }
+
+  static func readBatches(_ url: URL) throws -> [ConformanceBatch] {
     let object = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
     var batches: [ConformanceBatch] = []
     if let base = object?["extends"] as? String {
-      batches = try read(url.deletingLastPathComponent().appending(path: base).standardized)
+      batches = try readBatches(
+        url.deletingLastPathComponent().appending(path: base).standardized)
     }
     guard let list = object?["batches"] as? [Any] else {
       throw ConformanceError("\(url.lastPathComponent) has no batches")
@@ -49,6 +57,35 @@ public struct ConformanceBatch {
           device: device, receivedAt: try Date(receivedAt, strategy: .iso8601), lines: lines))
     }
     return batches
+  }
+
+  /// The entities stored by key fields as well as ID, and their fields, as the server's
+  /// `Entity.key` has them (`Services/api/src/health/HealthEntities.ts`, which
+  /// `HealthConformance.test.ts` pins).
+  static let keyFields = ["health_sample": ["type", "startDate"]]
+
+  /// Throws if one of `lines` sends a record under other key fields' values than an earlier line
+  /// with its ID (851-4181), as the server's harnesses do (`checkRecordKeys`). A record's key
+  /// fields never change: the server would keep a second record, and the Mac, keyed by ID,
+  /// replaces the first, so the two sides' answers would differ.
+  public static func checkRecordKeys(_ lines: [[String: Any]]) throws {
+    var keys: [String: String] = [:]
+    for line in lines {
+      guard let entity = line["entity"] as? String, let fields = keyFields[entity],
+        line["op"] as? String == "upsert", let id = line["id"] as? String
+      else { continue }
+      let row = line["row"] as? [String: Any] ?? [:]
+      // As JSON, as the server compares them: a missing field is null, and `1` isn't `"1"`.
+      let key = String(
+        decoding: try JSONSerialization.data(
+          withJSONObject: fields.map { row[$0] ?? NSNull() }, options: [.sortedKeys]),
+        as: UTF8.self)
+      if let earlier = keys["\(entity) \(id)"], earlier != key {
+        throw ConformanceError(
+          "\(entity) \(id) is sent under two keys, \(earlier) and \(key): give it another ID")
+      }
+      keys["\(entity) \(id)"] = key
+    }
   }
 }
 
