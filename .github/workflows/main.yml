@@ -128,10 +128,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         env: *quiet-git
-        with:
-          # All of main, so a late or re-run job can tell its commit is behind main's pointer.
-          fetch-depth: 0
       - name: set up services
         uses: ./.github/actions/setup-services
       - name: publish snapshots and point main at them
-        run: scripts/pixelbook publish --ref main
+        run: |
+          # All of main, so a late or re-run job can tell its commit is behind main's pointer. The
+          # checkout is the commit alone: `fetch-depth: 0` fetched every other branch and tag too,
+          # listing each in the log (851-4200). Tried 3 times, as checkout does.
+          for attempt in 1 2 3; do
+            git fetch --quiet --no-tags --unshallow origin \
+              +refs/heads/main:refs/remotes/origin/main && break
+            [ "$attempt" = 3 ] && exit 1
+            sleep $((attempt * 10))
+          done
+          scripts/pixelbook publish --ref main
