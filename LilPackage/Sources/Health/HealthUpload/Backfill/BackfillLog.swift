@@ -5,7 +5,10 @@ import OSLog
 /// What the backfill did and how long each step took, in a file next to its state, so a stall
 /// on a device can be read off it (`devicectl device copy from`, `HealthBackfill/diagnostics.log`)
 /// and in the device's log (`subsystem: tech.lil.health`, category `Backfill`). Type names,
-/// counts and timings only: never Health values.
+/// counts and timings only: never Health values. Errors go through ``write(_:error:)``, which
+/// logs their type and a summary with no values in it (851-4183); text that could hold values
+/// (a server's failure message) is `privateDetail`, which neither shows publicly nor goes to the
+/// file.
 ///
 /// Off until the app turns it on, so tests write nothing.
 public enum BackfillLog {
@@ -20,11 +23,18 @@ public enum BackfillLog {
     URL.applicationSupportDirectory.appending(path: "HealthBackfill/diagnostics.log")
   }
 
-  /// Logs `message`, with the time.
-  public static func write(_ message: String) {
+  /// Logs `message`, with the time. `privateDetail` follows it in the device's log as private
+  /// (`<private>` unless the device's logging shows private data), and in the file as
+  /// `<private>`: for text that could hold someone's data, such as a server's message.
+  public static func write(_ message: String, privateDetail: String? = nil) {
     guard isEnabled.value else { return }
-    logger.notice("\(message, privacy: .public)")
-    let line = "\(Date.now.formatted(.iso8601)) \(message)\n"
+    if let privateDetail {
+      logger.notice("\(message, privacy: .public): \(privateDetail, privacy: .private)")
+    } else {
+      logger.notice("\(message, privacy: .public)")
+    }
+    let line =
+      "\(Date.now.formatted(.iso8601)) \(fileLine(message, privateDetail: privateDetail))\n"
     queue.async {
       let manager = FileManager.default
       let size = (try? manager.attributesOfItem(atPath: file.path)[.size] as? Int) ?? 0
@@ -46,6 +56,11 @@ public enum BackfillLog {
         try? Data(line.utf8).write(to: file)
       }
     }
+  }
+
+  /// What the file gets for a message: never its private detail.
+  static func fileLine(_ message: String, privateDetail: String?) -> String {
+    privateDetail == nil ? message : "\(message): <private>"
   }
 
   /// Seconds since `start`, for messages.

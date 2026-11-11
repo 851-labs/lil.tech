@@ -236,7 +236,7 @@ extension HealthReader {
       let mapped = Locked.mapped(error)
       if mapped is Locked || mapped is CancellationError || Task.isCancelled { throw mapped }
       // What failed, which `SeriesUnavailable` doesn't say.
-      BackfillLog.write("a query of linked samples failed: \(error)")
+      BackfillLog.write("a query of linked samples failed", error: error)
       throw SeriesUnavailable(expected: 0, read: 0)
     }
   }

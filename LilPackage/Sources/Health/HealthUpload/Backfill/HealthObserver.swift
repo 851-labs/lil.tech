@@ -53,8 +53,7 @@ extension HealthObserver: DependencyKey {
           query, completion, error in
           if let error {
             if failed.withValue({ $0.insert(id).inserted }) {
-              BackfillLog.write(
-                "observing \(BackfillLog.name(id)) failed: \(error.localizedDescription)")
+              BackfillLog.write("observing \(BackfillLog.name(id)) failed", error: error)
             }
             // Not asked about yet, e.g. at a fresh install's launch. Stopped and forgotten, so the
             // next call (after access is granted) watches the type again. Other errors, such as

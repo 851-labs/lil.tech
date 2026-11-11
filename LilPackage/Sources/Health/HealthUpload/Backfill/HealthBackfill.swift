@@ -651,7 +651,7 @@ public actor HealthBackfill {
         // Requests made while the sums went up are handled before the loop ends.
       } while syncAllRequested || !requestedTypes.isEmpty
     } catch {
-      BackfillLog.write("run stopped after \(BackfillLog.since(started)): \(error)")
+      BackfillLog.write("run stopped after \(BackfillLog.since(started))", error: error)
       let cancelled = Task.isCancelled || error is CancellationError
       // Rate limited, it's paused for a moment rather than failed.
       let rateLimit = error as? HealthBatchUploader.RateLimited
@@ -754,8 +754,8 @@ public actor HealthBackfill {
           }
         } catch {
           BackfillLog.write(
-            "read \(BackfillLog.name(type.id)) failed after \(BackfillLog.since(readStart)): \(error)"
-          )
+            "read \(BackfillLog.name(type.id)) failed after \(BackfillLog.since(readStart))",
+            error: error)
           throw error
         }
         BackfillLog.write(
@@ -956,7 +956,7 @@ public actor HealthBackfill {
         uniquingKeysWith: { first, _ in first })
     } catch {
       if Task.isCancelled || error is CancellationError { throw CancellationError() }
-      BackfillLog.write("checking \(asked.count) batches failed: \(error)")
+      BackfillLog.write("checking \(asked.count) batches failed", error: error)
       return
     }
     let isAsked = Set(asked)
@@ -980,8 +980,9 @@ public actor HealthBackfill {
       }
       let failed = answered.filter { $0.status == "failed" }
       for status in failed {
+        // The server's message can quote what it failed on, such as a line of the batch.
         BackfillLog.write(
-          "batch \(status.id) of \(name) failed: \(status.failure ?? "no reason")")
+          "batch \(status.id) of \(name) failed", privateDetail: status.failure ?? "no reason")
       }
       for status in answered
       where !["queued", "applying", "applied", "failed"].contains(status.status) {
@@ -1814,8 +1815,8 @@ public actor HealthBackfill {
       }
     } catch {
       BackfillLog.write(
-        "upload \(BackfillLog.name(pending.type)) failed after \(BackfillLog.since(uploading)): \(error)"
-      )
+        "upload \(BackfillLog.name(pending.type)) failed after \(BackfillLog.since(uploading))",
+        error: error)
       throw error
     }
     if missingBatch {

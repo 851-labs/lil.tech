@@ -70,8 +70,8 @@ public enum HealthBackgroundWork {
         log.notice("Requested")
         BackfillLog.write("continued task requested")
       } catch {
-        log.error("Not accepted: \(error, privacy: .public)")
-        BackfillLog.write("continued task not accepted: \(error)")
+        log.error("Not accepted: \(BackfillLog.describe(error), privacy: .public)")
+        BackfillLog.write("continued task not accepted", error: error)
         continuedUpload.withValue { $0.release(claim) }
       }
     #endif
@@ -135,6 +135,18 @@ public enum HealthBackgroundWork {
     case failed(String, madeProgress: Bool)
     /// Can't go on: cancelled, signed out, no consent, or the account's storage is full.
     case stopped
+
+    /// For the logs: a failure's reason, an error's description for the task's UI, is left out
+    /// (851-4183).
+    var logged: String {
+      switch self {
+      case .finished: "finished"
+      case .locked: "locked"
+      case .offline: "offline"
+      case .failed(_, let madeProgress): "failed(madeProgress: \(madeProgress))"
+      case .stopped: "stopped"
+      }
+    }
   }
 
   /// What the continued task says instead of its progress.
@@ -169,8 +181,8 @@ public enum HealthBackgroundWork {
     var failures = 0
     while !Task.isCancelled {
       let outcome = await run()
-      log.notice("Run ended: \(String(describing: outcome), privacy: .public)")
-      BackfillLog.write("continued task: run ended \(outcome)")
+      log.notice("Run ended: \(outcome.logged, privacy: .public)")
+      BackfillLog.write("continued task: run ended \(outcome.logged)")
       switch outcome {
       case .finished:
         return true
@@ -185,8 +197,10 @@ public enum HealthBackgroundWork {
       case .failed(let reason, let madeProgress):
         if madeProgress { failures = 0 }
         guard failures < retryDelays.count else {
-          log.error("Gave up after \(failures) retries: \(reason, privacy: .public)")
-          BackfillLog.write("continued task: gave up after \(failures) retries: \(reason)")
+          // Not `reason`: an error's description, for the task's UI. The run's error is logged
+          // as the backfill stopped (`run stopped after …`).
+          log.error("Gave up after \(failures) retries")
+          BackfillLog.write("continued task: gave up after \(failures) retries")
           await notice(.failed(reason))
           return false
         }
