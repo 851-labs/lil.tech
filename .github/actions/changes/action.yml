@@ -1,7 +1,8 @@
 name: Changes
 description: >-
   Which parts of the repo changed since a commit, so pr.yml and main.yml run only the jobs they
-  affect. Needs a checkout with the base commit in it (`fetch-depth: 0`).
+  affect. Fetches the base commit itself, so a checkout of HEAD alone will do, rather than one of
+  every branch and tag, which lists each in the log (851-4052).
 inputs:
   base:
     description: The commit to compare HEAD with. If it's missing or unknown, everything counts as changed.
@@ -46,7 +47,12 @@ runs:
         # files that deploy it.
         SERVICES: '^(Services/|Web/|package\.json$|pnpm-workspace\.yaml$|pnpm-lock\.yaml$|\.node-version$|vite\.config\.ts$|tsconfig\.json$|tsconfig\.base\.json$|scripts/generate-api-client$|LilPackage/Sources/Lil/LilAPIGenerated/|\.github/workflows/(pr|main)\.yml$|\.github/actions/(setup-services|changes|comment|check-deploy)/)'
       run: |
-        # No base, or one that isn't in the checkout (a run by hand, a force push): check everything.
+        # The diff compares the two commits' trees, so the base alone will do, without its history.
+        # The checkout is HEAD alone, so it's never there yet.
+        if [ -n "$BASE" ] && ! git fetch --quiet --no-tags --depth=1 origin "$BASE"; then
+          echo "::notice::Couldn't fetch the base, $BASE, so everything counts as changed."
+        fi
+        # No base, or one that couldn't be fetched (a run by hand): check everything.
         if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
           echo "swift=true" >> "$GITHUB_OUTPUT"
           echo "services=true" >> "$GITHUB_OUTPUT"
