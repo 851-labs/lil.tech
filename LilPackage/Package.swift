@@ -494,6 +494,7 @@ let package = Package(
       name: "LilAPITests",
       dependencies: [
         "LilAPI",
+        "LilTestSupport",
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
       ],
       path: "Tests/Lil/LilAPITests"
@@ -594,11 +595,13 @@ let package = Package(
       ],
       path: "Sources/Lil/LilSync"
     ),
-    // Clocks and waiting for test targets (`ManualClock`, `RecordingClock`, `eventually`).
+    // Clocks, waiting and reported issues for test targets (`ManualClock`, `RecordingClock`,
+    // `eventually`, `issuesReported`).
     .target(
       name: "LilTestSupport",
       dependencies: [
-        .product(name: "Dependencies", package: "swift-dependencies")
+        .product(name: "Dependencies", package: "swift-dependencies"),
+        .product(name: "IssueReporting", package: "swift-issue-reporting"),
       ],
       path: "Tests/Lil/LilTestSupport"
     ),

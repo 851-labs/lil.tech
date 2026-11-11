@@ -786,9 +786,8 @@ struct HealthBackfillTests {
     }
     let backfill = makeBackfill([temperature], health: health, server: server, storage: storage)
 
-    await withKnownIssue {
-      try await backfill.run()
-    }
+    let issues = try await issuesReported { try await backfill.run() }
+    #expect(issues == ["Starting the backfill over: its state couldn't be read"])
     #expect(server.records.value.count == 3)
   }
 
@@ -2028,8 +2027,13 @@ struct HealthBackfillTests {
     refusing.setValue(true)
     health.shared.setValue(["med-a", "med-b"])
     health.reads.setValue([])
-    await withKnownIssue { try await backfill.run() }
-    await withKnownIssue { try await backfill.run() }
+    for _ in 1...2 {
+      let issues = try await issuesReported { try await backfill.run() }
+      #expect(
+        issues == [
+          "Caught error: Rejected(statusCode: 400): Uploading medications; trying again next run"
+        ])
+    }
     #expect(health.reads.value == [2, 2])
 
     // Once it goes up, they are, for its doses from before the anchor.
@@ -2198,9 +2202,9 @@ struct HealthBackfillTests {
     } operation: {
       HealthBackfill(types: [])
     }
-    await withKnownIssue {
-      try await backfill.run()
-    }
+    let issues = try await issuesReported { try await backfill.run() }
+    #expect(
+      issues == ["Caught error: Unavailable(): Uploading characteristics; trying again next run"])
     #expect(server.records.value.isEmpty)
     failing.setValue(false)
     try await backfill.run()
