@@ -1,0 +1,49 @@
+{
+  "app" : "health-iphone",
+  "catalog" : "HealthPhoneApp/DiagnosticsCatalog.swift",
+  "screen" : "Diagnostics",
+  "states" : [
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/DiagnosticsCatalog/diagnostics.not-run-dark.png",
+      "id" : "diagnostics.not-run",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/DiagnosticsCatalog/diagnostics.not-run-light.png",
+      "name" : "Not run",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/DiagnosticsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/DiagnosticsCatalog/diagnostics.running-dark.png",
+      "id" : "diagnostics.running",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/DiagnosticsCatalog/diagnostics.running-light.png",
+      "name" : "Running",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/DiagnosticsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/DiagnosticsCatalog/diagnostics.series-counted-dark.png",
+      "id" : "diagnostics.series-counted",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/DiagnosticsCatalog/diagnostics.series-counted-light.png",
+      "name" : "Series counted",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/DiagnosticsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/DiagnosticsCatalog/diagnostics.links-checked-dark.png",
+      "id" : "diagnostics.links-checked",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/DiagnosticsCatalog/diagnostics.links-checked-light.png",
+      "name" : "Links checked",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/DiagnosticsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/DiagnosticsCatalog/diagnostics.arrivals-dark.png",
+      "id" : "diagnostics.arrivals",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/DiagnosticsCatalog/diagnostics.arrivals-light.png",
+      "name" : "Arrivals",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/DiagnosticsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/DiagnosticsCatalog/diagnostics.failed-dark.png",
+      "id" : "diagnostics.failed",
+      "light" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/__Snapshots__/DiagnosticsCatalog/diagnostics.failed-light.png",
+      "name" : "Failed",
+      "source" : "LilPackage/Tests/Health/HealthPhoneSnapshotTests/Catalogs/HealthPhoneApp/DiagnosticsCatalog.swift"
+    }
+  ]
+}

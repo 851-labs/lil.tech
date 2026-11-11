@@ -64,6 +64,11 @@
       "id": "recent-access",
       "screen": "HealthPhoneApp/RecentAccessCatalog.swift",
       "title": "Recent Access"
+    },
+    {
+      "id": "diagnostics",
+      "screen": "HealthPhoneApp/DiagnosticsCatalog.swift",
+      "title": "Diagnostics"
     }
   ],
   "edges": [
@@ -166,6 +171,11 @@
       "from": "connected-agents",
       "to": "recent-access",
       "label": "Recent Access"
+    },
+    {
+      "from": "settings",
+      "to": "diagnostics",
+      "label": "Diagnostics (Debug builds only)"
     }
   ]
 }
