@@ -55,7 +55,7 @@ enum SampleDetails {
     let kind = HealthMetadataValues.kinds[key.rawValue]
     assert(
       kind.map { HealthMetadataValues.valueType(of: $0) == Value.self } == true,
-      "\(key) isn't read as \(Value.self)")
+      "\(key.rawValue) isn't read as \(Value.self)")
     return { details, metadata in
       guard details[keyPath: field] == nil, let kind,
         let value = HealthMetadataValues.read(kind, metadata[key])

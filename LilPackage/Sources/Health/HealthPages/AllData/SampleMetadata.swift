@@ -25,7 +25,7 @@ extension SampleFormat {
     of sample: HealthSample, timeZoneShown: Bool = false, calendar: Calendar, locale: Locale
   ) -> [MetadataRow] {
     sample.metadataObject
-      .filter { !(timeZoneShown && $0.key == HealthMetadataKey.Name.timeZone.rawValue) }
+      .filter { !(timeZoneShown && $0.key == timeZoneKey) }
       .map { key, raw in
         MetadataRow(
           key: key, label: label(key),
@@ -37,6 +37,8 @@ extension SampleFormat {
         return order == .orderedSame ? $0.key < $1.key : order == .orderedAscending
       }
   }
+
+  static let timeZoneKey = HealthMetadataKey.Name.timeZone.rawValue
 
   /// A metadata key as words: HealthKit's as the allow-list labels it ("Heart Rate Event
   /// Threshold" for `HKHeartRateEventThreshold`), another with `HKMetadataKey` in front as its
@@ -50,7 +52,7 @@ extension SampleFormat {
   private static func value(
     _ key: String, _ raw: Any?, in sample: HealthSample, calendar: Calendar, locale: Locale
   ) -> String? {
-    if key == HealthMetadataKey.Name.timeZone.rawValue, let name = HealthMetadataValues.text(raw) {
+    if key == timeZoneKey, let name = HealthMetadataValues.text(raw) {
       return RecordedTimeZone(name, start: sample.start, calendar: calendar)?.name ?? name
     }
     let declared = HealthCatalog.metadataQuantityUnits[key]

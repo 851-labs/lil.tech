@@ -2117,17 +2117,25 @@ struct PreviewHealthDatabaseTests {
     #expect(correlations == 7)
   }
 
-  /// Its samples' and workouts' metadata is under HealthKit's keys (851-4168), so what the
-  /// catalogs show is what the pages read from an iPhone's uploads.
+  /// Its metadata, in every table that has some, is under HealthKit's keys (851-4168), so what
+  /// the catalogs show is what the pages read from an iPhone's uploads.
   @Test
   func metadataIsUnderHealthKitsKeys() throws {
     let database = makePreviewHealthDatabase(now: now, calendar: calendar("UTC"))
     let metadata = try database.read { db in
-      try HealthSample.select(\.metadata).fetchAll(db)
-        + HealthWorkout.select(\.metadata).fetchAll(db)
+      let tables = try String.fetchAll(
+        db,
+        sql: """
+          SELECT m.name FROM sqlite_master m JOIN pragma_table_info(m.name) c
+          WHERE m.type = 'table' AND c.name = 'metadata'
+          """)
+      #expect(tables.count > 5)
+      return try tables.flatMap { table in
+        try String.fetchAll(db, sql: "SELECT metadata FROM \"\(table)\" WHERE metadata IS NOT NULL")
+      }
     }
     var keys = Set<String>()
-    for json in metadata.compactMap(\.self) {
+    for json in metadata {
       let object = try #require(
         try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
       keys.formUnion(object.keys)

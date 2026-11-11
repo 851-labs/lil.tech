@@ -23,6 +23,21 @@ struct MetadataKeyNameTests {
     }
   }
 
+  /// The metadata table's keys (`HealthMetadataValues.kinds`) are the names', so each name the
+  /// code reads a value by has a kind, and each kind is under a name's key. Gym machines'
+  /// distances aren't in the table: the Mac shows them by their unit (`SampleFormat.metadata`).
+  @Test
+  func theMetadataTableIsUnderTheNames() {
+    let named = Set(HealthMetadataKey.Name.allCases.map(\.rawValue))
+      .subtracting([
+        HealthMetadataKey.Name.crossTrainerDistance.rawValue,
+        HealthMetadataKey.Name.indoorBikeDistance.rawValue,
+      ])
+    let tabled = Set(HealthMetadataValues.kinds.keys)
+    #expect(tabled.subtracting(named).isEmpty, "No name: \(tabled.subtracting(named).sorted())")
+    #expect(named.subtracting(tabled).isEmpty, "No kind: \(named.subtracting(tabled).sorted())")
+  }
+
   /// The metadata keys in the conformance datasets, the workouts' events' and activities'
   /// included, are HealthKit's (kept or dropped) or other apps' own, never a made-up `HK` one.
   @Test
@@ -34,7 +49,7 @@ struct MetadataKeyNameTests {
         with: Data(contentsOf: tests.appending(path: dataset)))
       var keys = Set<String>()
       Self.collectMetadataKeys(json, into: &keys)
-      #expect(keys.contains("HKTimeZone"), "\(dataset) has no metadata")
+      #expect(keys.contains(HealthMetadataKey.Name.timeZone.rawValue), "\(dataset) has no metadata")
       for key in keys where key.hasPrefix("HK") {
         #expect(
           HealthCatalog.healthKitMetadataKeysByKey[key] != nil,
