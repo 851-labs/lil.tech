@@ -57,7 +57,8 @@ describe("time zone names", () => {
   });
 
   // Every area's name `Intl` lists is listed. A newer ICU's new zone fails this until the list
-  // has it (`CardTimeZone.names` says how to update it).
+  // has it (`CardTimeZone.names` says how to update it). Node is pinned (`.node-version`), so
+  // this changes only when we update it. The Mac's tzdata isn't: Apple updates it on its own.
   it("every area's name Intl lists is listed", () => {
     const names = new Set(timeZonesJson.names);
     assert.deepStrictEqual(

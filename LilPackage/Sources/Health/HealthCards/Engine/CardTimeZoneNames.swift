@@ -14,7 +14,9 @@ extension CardTimeZone {
   ///     awk '$1 == "Z" { print $2 } $1 == "L" { print $3 }' tzdata.zi | grep / | sort -u
   ///
   /// then add `GMT` and `UTC`, and run `scripts/format`, which writes the server's copy.
-  /// `CardTimeZoneTests` checks Foundation knows each, and knows no area's name missing from it.
+  /// `CardTimeZoneTests` checks Foundation knows each, and the server's `TimeZones.test.ts` that
+  /// Node's `Intl` lists no area's name missing from it, so a Node update with a newer tzdata
+  /// says when to. Until then a zone IANA added later is no zone, on every engine.
   public static let names = Set(
     """
     Africa/Abidjan Africa/Accra Africa/Addis_Ababa Africa/Algiers Africa/Asmara Africa/Asmera

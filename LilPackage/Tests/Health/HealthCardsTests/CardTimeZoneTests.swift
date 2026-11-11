@@ -43,21 +43,13 @@ struct CardTimeZoneTests {
     #expect(CardTimeZone.properName(of: item.name) == item.properName)
   }
 
-  /// Foundation knows every listed name, so the Mac takes each.
+  /// Foundation knows every listed name, so the Mac takes each. Not the other way round: Apple
+  /// updates a Mac's tzdata on its own, so whether Foundation knows a name the list lacks depends
+  /// on the Mac. The server's tests check that against Node's pinned ICU.
   @Test
   func foundationKnowsEveryName() {
     let unknown = CardTimeZone.names.filter { TimeZone(identifier: $0) == nil }
     #expect(unknown.isEmpty, "\(unknown.sorted())")
-  }
-
-  /// Every area's name Foundation knows is listed. A newer tzdata's new zone fails this until
-  /// the list has it (`CardTimeZone.names` says how to update it).
-  @Test
-  func everyAreaNameFoundationKnowsIsListed() {
-    let missing = TimeZone.knownTimeZoneIdentifiers.filter {
-      $0.contains("/") && !CardTimeZone.names.contains($0)
-    }
-    #expect(missing.isEmpty, "\(missing)")
   }
 
   /// No two names differ only by case, so a name in the wrong case suggests one.

@@ -27,7 +27,8 @@ public struct ToolTime: Sendable {
   public init(timeZone name: String?) throws {
     guard let name else {
       // The Mac's own zone, even one newer than the list.
-      self.init(zone: .current, name: TimeZone.current.identifier)
+      let zone = TimeZone.current
+      self.init(zone: zone, name: zone.identifier)
       return
     }
     guard let zone = CardTimeZone.named(name) else {
