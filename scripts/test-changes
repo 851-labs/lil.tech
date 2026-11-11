@@ -1,9 +1,17 @@
 #!/bin/bash
 # Checks `.github/actions/changes`, which decides which parts of the repo a pull request or merge
-# affects, by running its script, as it is in `action.yml`, on commits made in a scratch repository:
-# a file moved out of a part counts as a change there, not only where it went (851-4199), and one
-# moved between folders no part watches changes nothing. `scripts/check --swift` runs it.
+# affects, by running its `diff` step's script, as it is in `action.yml`, on commits made in a
+# scratch repository: a file moved out of a part counts as a change there, not only where it went
+# (851-4199), a move between two parts in both, and one between folders no part watches in none.
+# Each case runs in a clone of HEAD alone, as `actions/checkout` leaves it, so the script's fetch
+# of the base (851-4052) has to work. `scripts/check --swift` runs it.
 set -eu
+# Not the repository a hook or another git command is working on, and none of the user's config
+# (hooks, templates, signing).
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR GIT_PREFIX
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com
+export GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 temporary=$(mktemp -d)
@@ -15,13 +23,17 @@ fail() {
   failures=$((failures + 1))
 }
 
-# The step's environment (its single-quoted patterns) and its `run:` script, from the action.
+# The `diff` step's environment (its single-quoted patterns) and its `run:` script.
 python3 -I - "$root/.github/actions/changes/action.yml" "$temporary/environment" "$temporary/run" <<'EOF'
 import re, shlex, sys
 
 action_path, environment_path, run_path = sys.argv[1:]
 action = open(action_path).read()
-patterns = re.findall(r"^\s*([A-Z]+): '(.*)'$", action, re.MULTILINE)
+step = re.search(r"^( *)- id: diff\n((?:\1  .*\n|\n)+)", action, re.MULTILINE)
+if not step:
+    sys.exit(f"error: no diff step in {action_path}")
+step = step.group(2)
+patterns = re.findall(r"^\s*([A-Z]+): '(.*)'$", step, re.MULTILINE)
 names = {name for name, _ in patterns}
 if not {"SWIFT", "IPHONE", "HEALTHKIT", "SERVICES"} <= names:
     sys.exit(f"error: {action_path} doesn't have the four parts' paths (has {sorted(names)})")
@@ -30,47 +42,54 @@ with open(environment_path, "w") as environment:
         # YAML doubles a single-quoted string's quotes.
         value = shlex.quote(pattern.replace("''", "'"))
         environment.write(f"export {name}={value}\n")
-run = re.search(r"^( *)run: \|\n((?:\1  .*\n|\n)+)", action, re.MULTILINE)
+run = re.search(r"^( *)run: \|\n((?:\1  .*\n|\n)+)", step, re.MULTILINE)
 if not run:
-    sys.exit(f"error: no run script in {action_path}")
+    sys.exit(f"error: no run script in {action_path}'s diff step")
 indent = len(run.group(1)) + 2
 open(run_path, "w").write("".join(line[indent:] + "\n" for line in run.group(2).splitlines()))
 EOF
 # shellcheck disable=SC1091
 . "$temporary/environment"
 
-# A repository of its own, with itself as `origin`, for the script's fetch of the base. Its
-# history starts with one file in each part.
-repository="$temporary/repository"
-git() { command git -C "$repository" -c user.name=test -c user.email=test@example.com \
-  -c commit.gpgsign=false "$@"; }
-command git init --quiet --initial-branch=main "$repository"
-git remote add origin "file://$repository"
-for path in Apps/Moved.swift LilPackage/Sources/Health/HealthPhoneApp/Moved.swift \
+# The repository the cases commit to, the checkouts' `origin`. Its history starts with a file in
+# each part.
+origin="$temporary/origin"
+git init --quiet --initial-branch=main "$origin"
+for path in Apps/Moved.swift Apps/Across.swift LilPackage/Sources/Health/HealthPhoneApp/Moved.swift \
   LilPackage/Tests/Health/HealthKitPhoneTests/Moved.swift Services/api/src/Moved.ts docs/Moved.md; do
-  mkdir -p "$repository/$(dirname "$path")"
+  mkdir -p "$origin/$(dirname "$path")"
   # Contents of their own, so git would pair each move by its contents, as a rename.
-  printf 'synthetic file %s\nwith a few lines\nso git pairs its moves\n' "$path" >"$repository/$path"
+  printf 'synthetic file %s\nwith a few lines\nso git pairs its moves\n' "$path" >"$origin/$path"
 done
-git add -A
-git commit --quiet -m base
+git -C "$origin" add -A
+git -C "$origin" commit --quiet -m base
 
 # moved <from> <to> <outputs>: the outputs (`swift=… services=… iphone=… healthkit=…`) of the
 # action for a commit moving <from> to <to>, against the one before.
 moved() {
-  local base outputs
-  base=$(git rev-parse HEAD)
-  mkdir -p "$repository/$(dirname "$2")"
-  git mv "$1" "$2"
-  git commit --quiet -m "move $1"
-  [ -n "$(git diff --find-renames --diff-filter=R --name-only "$base" HEAD)" ] ||
+  local base checkout outputs
+  base=$(git -C "$origin" rev-parse HEAD)
+  mkdir -p "$origin/$(dirname "$2")"
+  git -C "$origin" mv "$1" "$2"
+  git -C "$origin" commit --quiet -m "move $1"
+  [ -n "$(git -C "$origin" diff --find-renames --diff-filter=R --name-only "$base" HEAD)" ] ||
     fail "git doesn't see moving $1 as a rename, so this doesn't test that"
+  # HEAD alone, without the base, as `actions/checkout` leaves it.
+  checkout="$temporary/checkout"
+  rm -rf "$checkout"
+  git clone --quiet --depth=1 --no-tags "file://$origin" "$checkout"
+  ! git -C "$checkout" cat-file -e "$base^{commit}" 2>/dev/null ||
+    fail "the checkout has the base already, so this doesn't test its fetch"
   : >"$temporary/output"
-  if ! (cd "$repository" && BASE=$base GITHUB_OUTPUT="$temporary/output" \
+  if ! (cd "$checkout" && BASE=$base GITHUB_OUTPUT="$temporary/output" \
     bash --noprofile --norc -eo pipefail "$temporary/run" >"$temporary/log" 2>&1); then
     fail "moving $1 to $2: the script failed:"
     cat "$temporary/log" >&2
     return
+  fi
+  if grep -q '::notice::' "$temporary/log"; then
+    fail "moving $1 to $2: the script didn't fetch the base:"
+    cat "$temporary/log" >&2
   fi
   outputs=$(tr '\n' ' ' <"$temporary/output")
   [ "${outputs% }" = "$3" ] || fail "moving $1 to $2 gave '${outputs% }', not '$3'"
@@ -88,6 +107,9 @@ moved Services/api/src/Moved.ts docs/Moved.ts \
 # Into a part, from a folder none watches.
 moved docs/Moved.ts Services/api/src/Back.ts \
   "swift=false services=true iphone=false healthkit=false"
+# From one part to another.
+moved Apps/Across.swift Services/api/src/Across.swift \
+  "swift=true services=true iphone=false healthkit=false"
 # Between folders none watches.
 moved docs/Moved.md docs/elsewhere/Moved.md \
   "swift=false services=false iphone=false healthkit=false"
