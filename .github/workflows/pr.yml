@@ -265,12 +265,16 @@ jobs:
         env: *quiet-git
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
       - name: set up services
         uses: ./.github/actions/setup-services
       - name: publish snapshots and find the base's
         id: commits
         run: |
+          # The checkout is the head alone. The merge base needs its history and the target's, all
+          # of it (a PR can be any age), and nothing else: `fetch-depth: 0` fetched every branch
+          # and tag too, listing each in the log (851-4200).
+          git fetch --quiet --no-tags --unshallow origin \
+            "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF" "$HEAD_SHA"
           # The PR's merge base with its target, or the nearest commit before it with snapshots:
           # one main.yml hasn't published yet, or from before 851-2955.
           merge_base=$(git merge-base "origin/$BASE_REF" "$HEAD_SHA")
