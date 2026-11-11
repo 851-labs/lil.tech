@@ -218,6 +218,7 @@ struct SyncStatusFeatureTests {
       $0.isDeletingAccount = false
     }
     #expect(deleted.value)
+    await store.finish()
   }
 
   @Test
@@ -246,6 +247,7 @@ struct SyncStatusFeatureTests {
         TextState("It isn't possible right now. Please try again later.")
       }
     }
+    await store.finish()
   }
 
   @Test
@@ -277,6 +279,7 @@ struct SyncStatusFeatureTests {
       $0.$consentedPolicyVersion.withLock { $0 = HealthConsentClient.policyVersion }
       $0.alert = .withdrawalFailed("The Internet connection appears to be offline.")
     }
+    await store.finish()
   }
 
   @Test
@@ -327,6 +330,7 @@ struct SyncStatusFeatureTests {
     #expect(state.finished.isEmpty)
     #expect(state.uploadedRecords == 0)
     #expect(consented == HealthConsentClient.policyVersion)
+    await store.finish()
   }
 
   @Test
@@ -341,6 +345,7 @@ struct SyncStatusFeatureTests {
     await store.send(.signOutButtonTapped) {
       $0.isUploadingAgain = false
     }
+    await store.finish()
   }
 
   @Test

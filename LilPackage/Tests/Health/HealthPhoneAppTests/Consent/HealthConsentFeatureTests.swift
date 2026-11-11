@@ -33,6 +33,7 @@ struct HealthConsentFeatureTests {
       $0.isSaving = false
     }
     await store.receive(\.delegate.agreed)
+    await store.finish()
   }
 
   @Test

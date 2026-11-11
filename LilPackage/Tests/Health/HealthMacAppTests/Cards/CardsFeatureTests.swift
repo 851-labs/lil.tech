@@ -121,6 +121,7 @@ struct CardsFeatureTests {
     }
     #expect(id.hasPrefix("card_") && CardID.isValid(id))
     #expect(pushed.value == [write.mutations])
+    await store.finish()
   }
 
   @Test
@@ -161,6 +162,7 @@ struct CardsFeatureTests {
       $0.unsaved = []
     }
     #expect(pushed.value == [[seedCards[5].delete]])
+    await store.finish()
   }
 
   @Test
@@ -183,6 +185,7 @@ struct CardsFeatureTests {
     await store.send(.updateCard(id: "card_gone", spec: spec("Gone"))) {
       $0.writeError = .notFound
     }
+    await store.finish()
   }
 
   @Test
@@ -219,6 +222,7 @@ struct CardsFeatureTests {
       $0.unsaved = []
     }
     #expect(pushed.value.count == 2)
+    await store.finish()
   }
 
   /// Reorder Cards… (851-3210) opens only when there's an order to change, and its drags are
@@ -255,6 +259,7 @@ struct CardsFeatureTests {
     await store.send(.reorderingFinished) {
       $0.isReordering = false
     }
+    await store.finish()
   }
 
   /// Reorder Cards… closes when the cards can't be read, since nothing could move.
@@ -341,6 +346,7 @@ struct CardsFeatureTests {
     await store.receive(\.pushFinished) {
       $0.unsaved = []
     }
+    await store.finish()
   }
 
   /// Cards that couldn't be read can't be written: there'd be no end to add one at, nor a limit.
@@ -438,5 +444,6 @@ struct CardsFeatureTests {
     #expect(row["position"] as? String == "a1V")
     #expect(row["seed"] as? String == "steps")
     #expect(try await database.read { try HealthDatabase.cards($0) } == stored)
+    await store.finish()
   }
 }

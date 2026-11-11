@@ -33,6 +33,7 @@ struct HealthAccessFeatureTests {
     #expect(asked.value == [.medications])
     await store.send(.doneButtonTapped)
     await store.receive(\.delegate.finished)
+    await store.finish()
   }
 
   @Test
@@ -50,6 +51,7 @@ struct HealthAccessFeatureTests {
       $0.step = .explain
       $0.failure = Unavailable().localizedDescription
     }
+    await store.finish()
   }
 
   @Test

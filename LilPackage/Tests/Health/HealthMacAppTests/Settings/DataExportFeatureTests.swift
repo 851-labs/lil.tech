@@ -62,6 +62,7 @@ struct DataExportFeatureTests {
     }
     #expect(polls.value == 2)
     #expect(clock.sleeps.value == [.seconds(3), .seconds(3)])
+    await store.finish()
   }
 
   @Test
@@ -76,6 +77,7 @@ struct DataExportFeatureTests {
     await store.receive(\.saved) {
       $0.status = .idle
     }
+    await store.finish()
   }
 
   @Test
@@ -177,5 +179,6 @@ struct DataExportFeatureTests {
       $0.status = .saved(saved)
     }
     #expect(downloads.value == 2)
+    await store.finish()
   }
 }
