@@ -811,6 +811,16 @@
             "last": "2026-10-19T09:15:00+00:00"
           },
           {
+            "type": "HKDocumentTypeIdentifierCDA",
+            "name": "Health Documents (CDA)",
+            "category": "Other Data",
+            "kind": "document",
+            "unit": null,
+            "cumulative": false,
+            "first": "2025-06-01T09:00:00+00:00",
+            "last": "2026-10-19T14:00:00+00:00"
+          },
+          {
             "type": "HKQuantityTypeIdentifierInsulinDelivery",
             "name": "Insulin Delivery",
             "category": "Other Data",
@@ -1112,6 +1122,16 @@
             "cumulative": false,
             "first": "2026-10-19T00:30:00-07:00",
             "last": "2026-10-19T02:15:00-07:00"
+          },
+          {
+            "type": "HKDocumentTypeIdentifierCDA",
+            "name": "Health Documents (CDA)",
+            "category": "Other Data",
+            "kind": "document",
+            "unit": null,
+            "cumulative": false,
+            "first": "2025-06-01T02:00:00-07:00",
+            "last": "2026-10-19T07:00:00-07:00"
           },
           {
             "type": "HKQuantityTypeIdentifierInsulinDelivery",
@@ -2028,7 +2048,7 @@
         "type": "HKCategoryTypeIdentifierSleepAnalysis",
         "range": "W"
       },
-      "expectedError": "Sleep (HKCategoryTypeIdentifierSleepAnalysis) isn't a quantity type, so it has no statistics. Use samples, or the tool for its kind (sleep, activity_rings, state_of_mind, assessments, electrocardiograms, heartbeat_series, audiograms, workouts, medications)."
+      "expectedError": "Sleep (HKCategoryTypeIdentifierSleepAnalysis) isn't a quantity type, so it has no statistics. Use samples, or the tool for its kind (sleep, activity_rings, state_of_mind, assessments, electrocardiograms, heartbeat_series, audiograms, health_documents, workouts, medications)."
     },
     {
       "name": "metric of an unknown type fails",
@@ -5386,14 +5406,14 @@
       "expectedError": "samples doesn't list Audiograms (HKDataTypeIdentifierAudiogram): use audiograms."
     },
     {
-      "name": "samples of Health Documents fails: no tool reads them yet",
+      "name": "samples of Health Documents fails: health_documents lists them",
       "tool": "samples",
       "now": "2026-10-20T15:00:00Z",
       "arguments": {
         "type": "HKDocumentTypeIdentifierCDA",
         "range": "W"
       },
-      "expectedError": "samples doesn't list Health Documents (CDA) (HKDocumentTypeIdentifierCDA), and no other tool reads that kind yet."
+      "expectedError": "samples doesn't list Health Documents (CDA) (HKDocumentTypeIdentifierCDA): use health_documents."
     },
     {
       "name": "samples of State of Mind fails: state_of_mind has them",
@@ -12053,6 +12073,390 @@
         "limit": 2001
       },
       "expectedError": "Invalid parameters for tool 'heartbeat_series_beats': Expected a value between 1 and 2000\n  at [\"limit\"]"
+    },
+    {
+      "name": "health_documents: the last 12 months in UTC, newest first: blank names are null, a blank title is Health Document, the deleted one and last year's aren't listed",
+      "tool": "health_documents",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "Y"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "Y",
+        "start": "2025-11-01T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "count": 6,
+        "documents": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000901",
+            "title": "Visit Summary",
+            "patient": "Jane Example",
+            "author": "Dr. Sam Placeholder",
+            "custodian": "Synthetic Health Clinic",
+            "start": "2026-10-19T14:00:00+00:00",
+            "end": "2026-10-19T15:00:00+00:00",
+            "recordedTimeZone": "America/New_York",
+            "recordedStart": "2026-10-19T10:00:00-04:00",
+            "recordedEnd": "2026-10-19T11:00:00-04:00",
+            "source": "Synthetic Clinic"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000906",
+            "title": "Health Document",
+            "patient": null,
+            "author": "Dr. Em Space",
+            "custodian": "Synthetic Clinic",
+            "start": "2026-10-18T22:30:00+00:00",
+            "end": "2026-10-18T22:30:00+00:00",
+            "source": "Synthetic Records"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000902",
+            "title": "Lab Report",
+            "patient": "Jane Example",
+            "author": null,
+            "custodian": "Laboratoire Synthétique",
+            "start": "2026-10-16T09:00:00+00:00",
+            "end": "2026-10-16T09:00:00+00:00",
+            "source": "Synthetic Records"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000903",
+            "title": "Referral",
+            "patient": "Jane Example",
+            "author": "Dr. Sam Placeholder",
+            "custodian": null,
+            "start": "2026-10-12T10:00:00+00:00",
+            "end": "2026-10-12T10:30:00+00:00",
+            "source": "Synthetic Records"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000904",
+            "title": "Immunizations",
+            "patient": "Jane Example",
+            "author": null,
+            "custodian": "Synthetic Health Clinic",
+            "start": "2026-09-30T08:00:00+00:00",
+            "end": "2026-09-30T08:00:00+00:00",
+            "source": "Synthetic Records"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000905",
+            "title": "Discharge Note",
+            "patient": "Jane Example",
+            "author": "Dr. Sam Placeholder",
+            "custodian": "Synthetic Hospital",
+            "start": "2026-08-20T12:00:00+00:00",
+            "end": "2026-08-20T13:00:00+00:00",
+            "source": "Synthetic Records"
+          }
+        ]
+      }
+    },
+    {
+      "name": "health_documents: the week in New York, with 19 October's recorded times",
+      "tool": "health_documents",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "timeZone": "America/New_York"
+      },
+      "expected": {
+        "timeZone": "America/New_York",
+        "range": "W",
+        "start": "2026-10-14T00:00:00-04:00",
+        "end": "2026-10-21T00:00:00-04:00",
+        "count": 3,
+        "documents": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000901",
+            "title": "Visit Summary",
+            "patient": "Jane Example",
+            "author": "Dr. Sam Placeholder",
+            "custodian": "Synthetic Health Clinic",
+            "start": "2026-10-19T10:00:00-04:00",
+            "end": "2026-10-19T11:00:00-04:00",
+            "recordedTimeZone": "America/New_York",
+            "recordedStart": "2026-10-19T10:00:00-04:00",
+            "recordedEnd": "2026-10-19T11:00:00-04:00",
+            "source": "Synthetic Clinic"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000906",
+            "title": "Health Document",
+            "patient": null,
+            "author": "Dr. Em Space",
+            "custodian": "Synthetic Clinic",
+            "start": "2026-10-18T18:30:00-04:00",
+            "end": "2026-10-18T18:30:00-04:00",
+            "source": "Synthetic Records"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000902",
+            "title": "Lab Report",
+            "patient": "Jane Example",
+            "author": null,
+            "custodian": "Laboratoire Synthétique",
+            "start": "2026-10-16T05:00:00-04:00",
+            "end": "2026-10-16T05:00:00-04:00",
+            "source": "Synthetic Records"
+          }
+        ]
+      }
+    },
+    {
+      "name": "health_documents: a day without any",
+      "tool": "health_documents",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "D",
+        "date": "2026-10-20"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "D",
+        "start": "2026-10-20T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "count": 0,
+        "documents": []
+      }
+    },
+    {
+      "name": "health_document: the visit summary in one page, in New York",
+      "tool": "health_document",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000901",
+        "timeZone": "America/New_York"
+      },
+      "expected": {
+        "timeZone": "America/New_York",
+        "id": "0c0f0000-0000-4000-8000-000000000901",
+        "title": "Visit Summary",
+        "start": "2026-10-19T10:00:00-04:00",
+        "length": 2207,
+        "offset": 0,
+        "xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ClinicalDocument xmlns=\"urn:hl7-org:v3\" xmlns:sdtc=\"urn:hl7-org:sdtc\">\n  <templateId root=\"2.16.840.1.113883.10.20.22.1.1\"/>\n  <id root=\"2.16.840.1.113883.19.5.99999.1\" extension=\"SYNTHETIC-0001\"/>\n  <code code=\"34133-9\" codeSystem=\"2.16.840.1.113883.6.1\" displayName=\"Summarization of Episode Note\"/>\n  <title>Visit Summary</title>\n  <effectiveTime value=\"20261019100000-0400\"/>\n  <recordTarget>\n    <patientRole>\n      <addr use=\"HP\"><streetAddressLine>1 Example Street</streetAddressLine><city>Testville</city><state>NY</state><postalCode>00000</postalCode></addr>\n      <patient>\n        <name><given>Jane</given><family>Example</family></name>\n        <birthTime value=\"19800101\"/>\n      </patient>\n    </patientRole>\n  </recordTarget>\n  <author><assignedAuthor><assignedPerson><name><prefix>Dr.</prefix><given>Sam</given><family>Placeholder</family></name></assignedPerson></assignedAuthor></author>\n  <custodian><assignedCustodian><representedCustodianOrganization><name>Synthetic Health Clinic</name></representedCustodianOrganization></assignedCustodian></custodian>\n  <component>\n    <structuredBody>\n      <component>\n        <section>\n          <code code=\"11450-4\" codeSystem=\"2.16.840.1.113883.6.1\" displayName=\"Problem list\"/>\n          <title>Problems</title>\n          <text><list><item>Seasonal allergic rhinitis — mild</item></list></text>\n          <entry><act classCode=\"ACT\" moodCode=\"EVN\"><code code=\"CONC\" codeSystem=\"2.16.840.1.113883.5.6\"/></act></entry>\n        </section>\n      </component>\n      <component>\n        <section>\n          <code code=\"30954-2\" codeSystem=\"2.16.840.1.113883.6.1\" displayName=\"Results\"/>\n          <title>Results</title>\n          <text><table><thead><tr><th>Test</th><th>Result</th><th>Range</th></tr></thead><tbody><tr><td>Hemoglobin</td><td>13.9 g/dL</td><td>12.0–15.5</td></tr></tbody></table></text>\n        </section>\n      </component>\n      <component>\n        <section>\n          <title>Assessment</title>\n          <text><paragraph>Feeling well 🙂, follow up in 1 year &amp; as needed.</paragraph></text>\n        </section>\n      </component>\n    </structuredBody>\n  </component>\n</ClinicalDocument>\n",
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "health_document: a page that would end inside the emoji ends before it",
+      "tool": "health_document",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000901",
+        "cursor": "2042",
+        "limit": 11
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "0c0f0000-0000-4000-8000-000000000901",
+        "title": "Visit Summary",
+        "start": "2026-10-19T14:00:00+00:00",
+        "length": 2207,
+        "offset": 2042,
+        "xml": "ling well ",
+        "nextCursor": "2052"
+      }
+    },
+    {
+      "name": "health_document: a page of one character from the emoji has both its halves",
+      "tool": "health_document",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000901",
+        "cursor": "2052",
+        "limit": 1
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "0c0f0000-0000-4000-8000-000000000901",
+        "title": "Visit Summary",
+        "start": "2026-10-19T14:00:00+00:00",
+        "length": 2207,
+        "offset": 2052,
+        "xml": "🙂",
+        "nextCursor": "2054"
+      }
+    },
+    {
+      "name": "health_document: a cursor between the emoji's halves isn't one",
+      "tool": "health_document",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000901",
+        "cursor": "2053"
+      },
+      "expectedError": "Invalid cursor: 2053. Pass the previous page's nextCursor."
+    },
+    {
+      "name": "health_document: the last page, from a cursor",
+      "tool": "health_document",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000901",
+        "cursor": "2150"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "0c0f0000-0000-4000-8000-000000000901",
+        "title": "Visit Summary",
+        "start": "2026-10-19T14:00:00+00:00",
+        "length": 2207,
+        "offset": 2150,
+        "xml": "    </structuredBody>\n  </component>\n</ClinicalDocument>\n",
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "health_document: a cursor at the end gives an empty page",
+      "tool": "health_document",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000901",
+        "cursor": "2207"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "0c0f0000-0000-4000-8000-000000000901",
+        "title": "Visit Summary",
+        "start": "2026-10-19T14:00:00+00:00",
+        "length": 2207,
+        "offset": 2207,
+        "xml": "",
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "health_document: a cursor past the end",
+      "tool": "health_document",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000901",
+        "cursor": "2208"
+      },
+      "expectedError": "Invalid cursor: 2208. Pass the previous page's nextCursor."
+    },
+    {
+      "name": "health_document: a cursor that isn't one is refused before the document is looked up",
+      "tool": "health_document",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "nope",
+        "cursor": "1.5"
+      },
+      "expectedError": "Invalid cursor: 1.5. Pass the previous page's nextCursor."
+    },
+    {
+      "name": "health_document: ISO-8859-1, as its XML declaration says",
+      "tool": "health_document",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000902"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "0c0f0000-0000-4000-8000-000000000902",
+        "title": "Lab Report",
+        "start": "2026-10-16T09:00:00+00:00",
+        "length": 303,
+        "offset": 0,
+        "xml": "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<ClinicalDocument xmlns=\"urn:hl7-org:v3\"><title>Lab Report</title><component><structuredBody><component><section><title>Note</title><text>Résultat: normal. Café au lait spots: none.</text></section></component></structuredBody></component></ClinicalDocument>\n",
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "health_document: windows-1252, its 0x81 a C1 control",
+      "tool": "health_document",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000903"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "0c0f0000-0000-4000-8000-000000000903",
+        "title": "Referral",
+        "start": "2026-10-12T10:00:00+00:00",
+        "length": 282,
+        "offset": 0,
+        "xml": "<?xml version='1.0' encoding='windows-1252'?>\n<ClinicalDocument xmlns=\"urn:hl7-org:v3\"><title>Referral</title><component><structuredBody><component><section><title>Note</title><text>Fee: € 25. Code: “ok”</text></section></component></structuredBody></component></ClinicalDocument>\n",
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "health_document: UTF-16 by its byte order mark, which is left out",
+      "tool": "health_document",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000904"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "0c0f0000-0000-4000-8000-000000000904",
+        "title": "Immunizations",
+        "start": "2026-09-30T08:00:00+00:00",
+        "length": 294,
+        "offset": 0,
+        "xml": "<?xml version=\"1.0\" encoding=\"UTF-16\"?>\n<ClinicalDocument xmlns=\"urn:hl7-org:v3\"><title>Immunizations</title><component><structuredBody><component><section><title>Note</title><text>Influenza vaccine, 2026 – 𝄞 dose 1</text></section></component></structuredBody></component></ClinicalDocument>\n",
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "health_document: UTF-8 after its byte order mark, bytes it can't read as U+FFFD",
+      "tool": "health_document",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000905"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "0c0f0000-0000-4000-8000-000000000905",
+        "title": "Discharge Note",
+        "start": "2026-08-20T12:00:00+00:00",
+        "length": 268,
+        "offset": 0,
+        "xml": "<?xml version=\"1.0\"?>\n<ClinicalDocument xmlns=\"urn:hl7-org:v3\"><title>Discharge Note</title><component><structuredBody><component><section><title>Note</title><text>Stable. Bad bytes: �( � �.</text></section></component></structuredBody></component></ClinicalDocument>\n",
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "health_document: UTF-16 big-endian without a byte order mark, a lone surrogate and an odd last byte as U+FFFD, and a blank title",
+      "tool": "health_document",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000906"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "id": "0c0f0000-0000-4000-8000-000000000906",
+        "title": "Health Document",
+        "start": "2026-10-18T22:30:00+00:00",
+        "length": 244,
+        "offset": 0,
+        "xml": "<?xml version=\"1.0\"?>\n<ClinicalDocument xmlns=\"urn:hl7-org:v3\"><title></title><component><structuredBody><component><section><title>Note</title><text>Untitled note.</text></section></component></structuredBody></component></ClinicalDocument>�\n�",
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "health_document: a deleted document isn't there",
+      "tool": "health_document",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000907"
+      },
+      "expectedError": "No Health Document with ID 0c0f0000-0000-4000-8000-000000000907. health_documents lists them, with their IDs."
+    },
+    {
+      "name": "health_document: more than 40,000 characters a page",
+      "tool": "health_document",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "id": "0c0f0000-0000-4000-8000-000000000901",
+        "limit": 40001
+      },
+      "expectedError": "Invalid parameters for tool 'health_document': Expected a value between 1 and 40000\n  at [\"limit\"]"
     }
   ]
 }

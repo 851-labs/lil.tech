@@ -24,17 +24,17 @@ struct LilHealthCommand: ParsableCommand {
       it isn't running.
 
       Exit statuses: 64 for a usage error, 65 for an unknown type, workout, route, ECG, heartbeat \
-      series, medication, time zone, date, page or folder, 69 if there's no lil health data to read, \
-      or lil health isn't installed, didn't answer or isn't signed in, 75 if its sync or export \
-      failed, 77 while access is off.
+      series, document, medication, time zone, date, page or folder, 69 if there's no lil health \
+      data to read, or lil health isn't installed, didn't answer or isn't signed in, 75 if its \
+      sync or export failed, 77 while access is off.
       """,
     subcommands: [
       SummaryCommand.self, TypesCommand.self, MetricCommand.self, SamplesCommand.self,
       WorkoutsCommand.self, WorkoutCommand.self, RoutesCommand.self, RouteCommand.self,
       SleepCommand.self, ActivityCommand.self, StateOfMindCommand.self,
       AssessmentsCommand.self, ECGsCommand.self, ECGCommand.self, HeartbeatsCommand.self,
-      HeartbeatCommand.self, AudiogramsCommand.self, MedicationsCommand.self, DosesCommand.self,
-      DetailsCommand.self,
+      HeartbeatCommand.self, AudiogramsCommand.self, DocumentsCommand.self, DocumentCommand.self,
+      MedicationsCommand.self, DosesCommand.self, DetailsCommand.self,
       SearchCommand.self, SyncCommand.self, OpenCommand.self, ExportCommand.self,
       MCPCommand.self,
     ]
@@ -416,6 +416,47 @@ struct AudiogramsCommand: QueryCommand {
 
   func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
     Answer(try tools.audiograms(range: range.range, date: date, timeZone: timeZone, db))
+  }
+}
+
+struct DocumentsCommand: QueryCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "documents",
+    abstract: "Health Documents in a range: each one's title, patient, author and custodian.")
+
+  @Option(name: .shortAndLong, help: rangeHelp) var range = RangeArgument(.year)
+  @Option(help: dateHelp) var date: String?
+  @Option(help: timeZoneHelp) var timeZone: String?
+  @OptionGroup var output: OutputOptions
+
+  func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
+    Answer(try tools.healthDocuments(range: range.range, date: date, timeZone: timeZone, db))
+  }
+}
+
+struct DocumentCommand: QueryCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "document",
+    abstract: "A Health Document's CDA XML, a page of characters at a time.",
+    discussion: """
+      Each page is \(HealthTools.healthDocumentPageLimit) characters of the XML by default \
+      (health_document). lil health downloads a document's XML the first time it's read, as its \
+      pages do.
+      """)
+
+  @Argument(help: "A document's ID, from `documents --json`.") var id: String
+  @Option(help: "The previous page's next cursor.") var cursor: String?
+  @Option(
+    help: """
+      Characters per page, at most \(HealthTools.healthDocumentPageLimit), the default.
+      """)
+  var limit: Int?
+  @Option(help: timeZoneHelp) var timeZone: String?
+  @OptionGroup var output: OutputOptions
+
+  func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
+    Answer(
+      try tools.healthDocument(id: id, timeZone: timeZone, cursor: cursor, limit: limit, db))
   }
 }
 

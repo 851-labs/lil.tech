@@ -21,12 +21,11 @@ type SamplesResult = (typeof HealthToolkit.tools.samples.successSchema)["Type"];
 export const samplesDefaultLimit = 100;
 
 /**
- * The kinds `samples` doesn't list, and the tool that reads each instead, or null for those no
- * tool reads yet (their tools come under 851-4156). The Mac's `HealthTools.samplesElsewhere`
- * matches it.
+ * The kinds `samples` doesn't list, and the tool that reads each instead (851-4156). The Mac's
+ * `HealthTools.samplesKind` matches it.
  */
 const samplesElsewhere: Readonly<
-  Record<Exclude<HealthCatalogType["kind"], "quantity" | "category" | "correlation">, string | null>
+  Record<Exclude<HealthCatalogType["kind"], "quantity" | "category" | "correlation">, string>
 > = {
   workout: "workouts",
   workoutRoute: "workout_routes",
@@ -40,7 +39,7 @@ const samplesElsewhere: Readonly<
   audiogram: "audiograms",
   stateOfMind: "state_of_mind",
   scoredAssessment: "assessments",
-  document: null,
+  document: "health_documents",
 };
 
 /**
@@ -106,10 +105,7 @@ export const healthSamples = Effect.fn("healthSamples")(function* (
   if (type.kind !== "quantity" && type.kind !== "category" && type.kind !== "correlation") {
     const tool = samplesElsewhere[type.kind];
     return yield* new HealthToolError({
-      message:
-        tool === null
-          ? `samples doesn't list ${type.name} (${type.id}), and no other tool reads that kind yet.`
-          : `samples doesn't list ${type.name} (${type.id}): use ${tool}.`,
+      message: `samples doesn't list ${type.name} (${type.id}): use ${tool}.`,
     });
   }
   const limit = input.limit ?? samplesDefaultLimit;

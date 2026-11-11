@@ -156,8 +156,8 @@ enum HealthMCPServer {
       let database = try HealthDatabase.openForReading(
         at: context.directory.appending(path: "Health.sqlite"))
       let tools = context.tools()
-      // Asking the app for a route's points or an ECG's voltages it hasn't downloaded, if a call
-      // needs them.
+      // Asking the app for a route's points, an ECG's voltages or a document's XML it hasn't
+      // downloaded, if a call needs them.
       return try result(
         try await HealthCLI.withBlobs(context: context) {
           try await database.read { db in try query(tools, db) }
@@ -476,6 +476,23 @@ private struct ToolCall {
       guard let range, arguments.isValid else { throw arguments.invalid }
       query = { tools, db in
         try tools.audiograms(range: range, date: date, timeZone: timeZone, db)
+      }
+    case "health_documents":
+      let range = arguments.required("range", arguments.range)
+      let date = arguments.string("date")
+      let timeZone = arguments.string("timeZone")
+      guard let range, arguments.isValid else { throw arguments.invalid }
+      query = { tools, db in
+        try tools.healthDocuments(range: range, date: date, timeZone: timeZone, db)
+      }
+    case "health_document":
+      let id = arguments.required("id", arguments.string)
+      let timeZone = arguments.string("timeZone")
+      let cursor = arguments.string("cursor")
+      let limit = arguments.integer("limit", in: 1...HealthTools.healthDocumentPageLimit)
+      guard let id, arguments.isValid else { throw arguments.invalid }
+      query = { tools, db in
+        try tools.healthDocument(id: id, timeZone: timeZone, cursor: cursor, limit: limit, db)
       }
     case "medications":
       let timeZone = arguments.string("timeZone")

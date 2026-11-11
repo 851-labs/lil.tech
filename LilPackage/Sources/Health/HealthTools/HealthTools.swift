@@ -14,15 +14,16 @@ public struct HealthTools: Sendable {
   /// The IANA name of the time zone for calls that don't give one, or `nil` for the Mac's (UTC
   /// where the conformance cases expect the remote server's default).
   public var defaultTimeZone: String?
-  /// A health blob's bytes, by its SHA-256: a route's points (851-4164) or an ECG's voltages
-  /// (851-4159), which the app downloads when they're needed, as its pages do.
+  /// A health blob's bytes, by its SHA-256: a route's points (851-4164), an ECG's voltages
+  /// (851-4159) or a Health Document's XML (851-4163), which the app downloads when they're
+  /// needed, as its pages do.
   public var blob: @Sendable (_ sha256: String) throws -> Data
 
   public init(
     now: Date = Date(), defaultTimeZone: String? = nil,
     blob: @escaping @Sendable (_ sha256: String) throws -> Data = { _ in
       throw HealthToolError(
-        "lil health's data on this Mac has no route points or ECG voltages.")
+        "lil health's data on this Mac has no route points, ECG voltages or document XML.")
     }
   ) {
     self.now = now
@@ -119,7 +120,8 @@ public struct HealthTools: Sendable {
       throw HealthToolError(
         "\(type.name) (\(type.id)) isn't a quantity type, so it has no statistics. Use samples, "
           + "or the tool for its kind (sleep, activity_rings, state_of_mind, assessments, "
-          + "electrocardiograms, heartbeat_series, audiograms, workouts, medications).")
+          + "electrocardiograms, heartbeat_series, audiograms, health_documents, workouts, "
+          + "medications).")
     }
     let period = try ToolPeriod(range, date: date, now: now, time: time)
     let cumulative = aggregation.isCumulative
@@ -196,9 +198,6 @@ public struct HealthTools: Sendable {
     case .listed: break
     case .elsewhere(let tool):
       throw HealthToolError("samples doesn't list \(type.name) (\(type.id)): use \(tool).")
-    case .unread:
-      throw HealthToolError(
-        "samples doesn't list \(type.name) (\(type.id)), and no other tool reads that kind yet.")
     }
     let limit = limit ?? Self.samplesDefaultLimit
     guard (1...Self.samplesLimit).contains(limit) else {
@@ -311,12 +310,11 @@ public struct HealthTools: Sendable {
     var cursor: String
   }
 
-  /// Whether `samples` lists a kind, or which tool reads it instead, or that none does yet (their
-  /// tools come under 851-4156), as the server's `samplesElsewhere`.
+  /// Whether `samples` lists a kind, or which tool reads it instead (851-4156), as the server's
+  /// `samplesElsewhere`.
   enum SamplesKind: Equatable {
     case listed
     case elsewhere(String)
-    case unread
   }
 
   static func samplesKind(_ kind: HealthDataType.Kind) -> SamplesKind {
@@ -333,7 +331,7 @@ public struct HealthTools: Sendable {
     case .electrocardiogram: .elsewhere("electrocardiograms")
     case .heartbeatSeries: .elsewhere("heartbeat_series")
     case .audiogram: .elsewhere("audiograms")
-    case .document: .unread
+    case .document: .elsewhere("health_documents")
     }
   }
 
