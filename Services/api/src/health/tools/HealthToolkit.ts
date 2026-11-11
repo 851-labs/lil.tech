@@ -576,8 +576,8 @@ export const Samples = readOnly(
       "use metric for totals and trends, and this only to look at particular readings. A " +
       "series (an Apple Watch's heart rate in a workout) is one sample with its count and " +
       "summary, or its values with seriesValues. " +
-      "Workouts, Activity rings, State of Mind, GAD-7 and PHQ-9 assessments, medications and " +
-      "health details have their own tools.",
+      "Workouts, Activity rings, State of Mind, GAD-7 and PHQ-9 assessments, medications, " +
+      "their doses and health details have their own tools.",
     parameters: Schema.Struct({
       type: healthType,
       range,
@@ -1667,6 +1667,17 @@ const adherence = Schema.Struct({
   asNeeded: Schema.Int.annotate({ description: "Doses taken as needed." }),
 });
 
+export const HealthMedicationCoding = Schema.Struct({
+  system: Schema.String.annotate({
+    description:
+      "The coding system, as HealthKit names it, e.g. http://www.nlm.nih.gov/research/umls/rxnorm.",
+  }),
+  version: Schema.NullOr(Schema.String).annotate({
+    description: "The system's version, or null.",
+  }),
+  code: Schema.String.annotate({ description: "The code in that system, e.g. an RxNorm RxCUI." }),
+}).annotate({ identifier: "HealthMedicationCoding" });
+
 export const HealthMedicationItem = Schema.Struct({
   id: Schema.String,
   name: Schema.String.annotate({ description: "The name the person gave it, else Health's." }),
@@ -1683,6 +1694,11 @@ export const HealthMedicationItem = Schema.Struct({
   lastTaken: Schema.NullOr(LocalTime).annotate({
     description: "When a dose was last logged as taken, or null.",
   }),
+  codings: Schema.Array(HealthMedicationCoding).annotate({
+    description:
+      "Codes for it in clinical coding systems (HKClinicalCoding), which name the drug " +
+      "exactly, e.g. RxNorm's, as Health has them. Empty if Health has none.",
+  }),
 }).annotate({ identifier: "HealthMedicationItem" });
 
 export const HealthMedicationsResult = Schema.Struct({
@@ -1696,12 +1712,116 @@ export const Medications = readOnly(
   Tool.make("medications", {
     description:
       "The medications the person shares with lil health, with their form and schedule, how " +
-      "many scheduled doses they took over the last 7 and 30 days, and when they last took each.",
+      "many scheduled doses they took over the last 7 and 30 days, when they last took each, " +
+      "and their clinical codes (e.g. RxNorm). medication_doses lists each dose logged.",
     parameters: Schema.Struct({ timeZone }),
     success: HealthMedicationsResult,
     failure: HealthToolError,
   }),
   "Health Medications",
+);
+
+// -------------------------------------------------------------------------------------------------
+// medication_doses
+// -------------------------------------------------------------------------------------------------
+
+/** The most doses one call returns, and how many it returns by default. */
+export const medicationDosesLimit = 250;
+export const medicationDosesDefaultLimit = 100;
+
+export const HealthMedicationDoseItem = Schema.Struct({
+  medicationId: Schema.String.annotate({
+    description: "The medication's ID, as medications gives it.",
+  }),
+  medication: Schema.String.annotate({
+    description: "The medication's name: the one the person gave it, else Health's.",
+  }),
+  status: Schema.String.annotate({
+    description:
+      "What happened to it, as lil health's Medications page says it: Taken, Skipped, Snoozed, " +
+      "Not Logged (a scheduled dose nobody logged, or a status the person undid), Reminder Not " +
+      "Sent, or Unknown for one a later iOS adds.",
+  }),
+  schedule: Schema.String.annotate({
+    description:
+      "Scheduled (due at scheduledTime) or As Needed, or Unknown for one a later iOS adds.",
+  }),
+  time: LocalTime.annotate({
+    description:
+      "When it was logged (taken, skipped or snoozed), or for a scheduled dose nobody logged, " +
+      "when Health marked it.",
+  }),
+  scheduledTime: Schema.NullOr(LocalTime).annotate({
+    description:
+      "When it was due, for a scheduled dose; null for one taken as needed. A dose belongs to " +
+      "the day it was due, however long before or after it was logged.",
+  }),
+  ...recordedMomentFields,
+  recordedScheduledTime: recordedClock("When it was due"),
+  amount: Schema.NullOr(Schema.Finite).annotate({
+    description: "The dose logged, in `unit`, or null: usually only a taken dose has one.",
+  }),
+  scheduledAmount: Schema.NullOr(Schema.Finite).annotate({
+    description: "The dose scheduled, in `unit`, or null for one taken as needed.",
+  }),
+  unit: Schema.String.annotate({
+    description:
+      "The amounts' unit, as HealthKit writes it, e.g. mg or mL; count is the medication's own " +
+      "units, its form's (tablets, capsules, puffs…).",
+  }),
+  source: Schema.String.annotate({
+    description: "The app or device it was logged in, e.g. Health.",
+  }),
+}).annotate({ identifier: "HealthMedicationDoseItem" });
+
+export const HealthMedicationDosesResult = Schema.Struct({
+  ...periodFields,
+  count: Schema.Int.annotate({
+    description: "Doses in the period, of every page: the medication's, if one was asked for.",
+  }),
+  doses: Schema.Array(HealthMedicationDoseItem).annotate({
+    description:
+      "This page's doses, newest first by when they were due (or logged, for one taken as " +
+      "needed), as lil health's dose log lists them.",
+  }),
+  nextCursor: Schema.NullOr(Schema.String).annotate({
+    description: "Pass it as `cursor` for the next, older page; null on the last page.",
+  }),
+});
+
+export const MedicationDoses = readOnly(
+  Tool.make("medication_doses", {
+    description:
+      "The dose log of the medications the person shares: each dose in a period, newest " +
+      "first, a page at a time, in the words of lil health's Medications page: which " +
+      "medication, whether it was taken, skipped, snoozed or not logged, scheduled or as " +
+      "needed, when it was logged and when it was due, and the amount, with the period's " +
+      "count. A dose counts on the day it was due (or was logged, if taken as needed). For " +
+      "adherence over the last 7 and 30 days, use medications.",
+    parameters: Schema.Struct({
+      range,
+      date,
+      timeZone,
+      medication: Schema.optionalKey(
+        Schema.String.annotate({
+          description: "Only this medication's doses, by the ID medications gives it.",
+        }),
+      ),
+      cursor: Schema.optionalKey(
+        Schema.String.annotate({ description: "The previous page's nextCursor." }),
+      ),
+      limit: Schema.optionalKey(
+        Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: medicationDosesLimit })).annotate({
+          description:
+            `Doses per page, at most ${medicationDosesLimit}. Defaults to ` +
+            `${medicationDosesDefaultLimit}.`,
+        }),
+      ),
+    }),
+    success: HealthMedicationDosesResult,
+    failure: HealthToolError,
+  }),
+  "Health Medication Doses",
 );
 
 // -------------------------------------------------------------------------------------------------
@@ -1857,6 +1977,7 @@ export const HealthToolkit = Toolkit.make(
   HeartbeatSeries,
   HeartbeatSeriesBeats,
   Medications,
+  MedicationDoses,
   HealthDetails,
   Search,
   SyncStatus,
@@ -1886,6 +2007,7 @@ export const healthToolResultNames: Record<keyof typeof HealthToolkit.tools, str
   heartbeat_series: "HealthHeartbeatSeriesResult",
   heartbeat_series_beats: "HealthHeartbeatSeriesBeatsResult",
   medications: "HealthMedicationsResult",
+  medication_doses: "HealthMedicationDosesResult",
   health_details: "HealthDetailsResult",
   search: "HealthSearchResult",
   sync_status: "HealthSyncStatusResult",

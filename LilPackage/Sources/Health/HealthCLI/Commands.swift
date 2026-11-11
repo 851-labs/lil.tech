@@ -23,16 +23,17 @@ struct LilHealthCommand: ParsableCommand {
       open, sync and export ask lil health to do it, under the same setting, launching it if \
       it isn't running.
 
-      Exit statuses: 64 for a usage error, 65 for an unknown type, workout, route, ECG, heartbeat series, time zone, date, \
-      page or folder, 69 if there's no lil health data to read, or lil health isn't installed, didn't answer or \
-      isn't signed in, 75 if its sync or export failed, 77 while access is off.
+      Exit statuses: 64 for a usage error, 65 for an unknown type, workout, route, ECG, heartbeat \
+      series, medication, time zone, date, page or folder, 69 if there's no lil health data to read, \
+      or lil health isn't installed, didn't answer or isn't signed in, 75 if its sync or export \
+      failed, 77 while access is off.
       """,
     subcommands: [
       SummaryCommand.self, TypesCommand.self, MetricCommand.self, SamplesCommand.self,
       WorkoutsCommand.self, WorkoutCommand.self, RoutesCommand.self, RouteCommand.self,
       SleepCommand.self, ActivityCommand.self, StateOfMindCommand.self,
       AssessmentsCommand.self, ECGsCommand.self, ECGCommand.self, HeartbeatsCommand.self,
-      HeartbeatCommand.self, MedicationsCommand.self,
+      HeartbeatCommand.self, MedicationsCommand.self, DosesCommand.self,
       DetailsCommand.self,
       SearchCommand.self, SyncCommand.self, OpenCommand.self, ExportCommand.self,
       MCPCommand.self,
@@ -413,6 +414,33 @@ struct MedicationsCommand: QueryCommand {
 
   func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
     Answer(try tools.medications(timeZone: timeZone, db))
+  }
+}
+
+struct DosesCommand: QueryCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "doses",
+    abstract: "The medication doses in a range: taken, skipped or not logged, newest first.")
+
+  @Option(name: .shortAndLong, help: rangeHelp) var range = RangeArgument(.week)
+  @Option(help: dateHelp) var date: String?
+  @Option(help: "Only this medication's doses, by the ID `medications --json` gives.")
+  var medication: String?
+  @Option(help: "The previous page's next cursor.") var cursor: String?
+  @Option(
+    help: """
+      Doses per page, at most \(HealthTools.medicationDosesLimit). Defaults to \
+      \(HealthTools.medicationDosesDefaultLimit).
+      """)
+  var limit: Int?
+  @Option(help: timeZoneHelp) var timeZone: String?
+  @OptionGroup var output: OutputOptions
+
+  func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
+    Answer(
+      try tools.medicationDoses(
+        range: range.range, date: date, timeZone: timeZone, medication: medication,
+        cursor: cursor, limit: limit, db))
   }
 }
 

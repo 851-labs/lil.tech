@@ -7144,6 +7144,32 @@
         ],
         "additionalProperties": true
       },
+      "HealthMedicationCoding": {
+        "type": "object",
+        "properties": {
+          "system": {
+            "type": "string",
+            "description": "The coding system, as HealthKit names it, e.g. http://www.nlm.nih.gov/research/umls/rxnorm."
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The system's version, or null."
+          },
+          "code": {
+            "type": "string",
+            "description": "The code in that system, e.g. an RxNorm RxCUI."
+          }
+        },
+        "required": [
+          "system",
+          "version",
+          "code"
+        ],
+        "additionalProperties": true
+      },
       "HealthMedicationItem": {
         "type": "object",
         "properties": {
@@ -7235,6 +7261,13 @@
               "null"
             ],
             "description": "When a dose was last logged as taken, or null."
+          },
+          "codings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthMedicationCoding"
+            },
+            "description": "Codes for it in clinical coding systems (HKClinicalCoding), which name the drug exactly, e.g. RxNorm's, as Health has them. Empty if Health has none."
           }
         },
         "required": [
@@ -7246,7 +7279,8 @@
           "scheduled",
           "last7Days",
           "last30Days",
-          "lastTaken"
+          "lastTaken",
+          "codings"
         ],
         "additionalProperties": true
       },
@@ -7268,6 +7302,136 @@
         "required": [
           "timeZone",
           "medications"
+        ],
+        "additionalProperties": true
+      },
+      "HealthMedicationDoseItem": {
+        "type": "object",
+        "properties": {
+          "medicationId": {
+            "type": "string",
+            "description": "The medication's ID, as medications gives it."
+          },
+          "medication": {
+            "type": "string",
+            "description": "The medication's name: the one the person gave it, else Health's."
+          },
+          "status": {
+            "type": "string",
+            "description": "What happened to it, as lil health's Medications page says it: Taken, Skipped, Snoozed, Not Logged (a scheduled dose nobody logged, or a status the person undid), Reminder Not Sent, or Unknown for one a later iOS adds."
+          },
+          "schedule": {
+            "type": "string",
+            "description": "Scheduled (due at scheduledTime) or As Needed, or Unknown for one a later iOS adds."
+          },
+          "time": {
+            "type": "string",
+            "description": "When it was logged (taken, skipped or snoozed), or for a scheduled dose nobody logged, when Health marked it."
+          },
+          "scheduledTime": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When it was due, for a scheduled dose; null for one taken as needed. A dose belongs to the day it was due, however long before or after it was logged."
+          },
+          "recordedTimeZone": {
+            "type": "string",
+            "description": "The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records."
+          },
+          "recordedTime": {
+            "type": "string",
+            "description": "Its time, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+          },
+          "recordedScheduledTime": {
+            "type": "string",
+            "description": "When it was due, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+          },
+          "amount": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "The dose logged, in `unit`, or null: usually only a taken dose has one."
+          },
+          "scheduledAmount": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "The dose scheduled, in `unit`, or null for one taken as needed."
+          },
+          "unit": {
+            "type": "string",
+            "description": "The amounts' unit, as HealthKit writes it, e.g. mg or mL; count is the medication's own units, its form's (tablets, capsules, puffs…)."
+          },
+          "source": {
+            "type": "string",
+            "description": "The app or device it was logged in, e.g. Health."
+          }
+        },
+        "required": [
+          "medicationId",
+          "medication",
+          "status",
+          "schedule",
+          "time",
+          "scheduledTime",
+          "amount",
+          "scheduledAmount",
+          "unit",
+          "source"
+        ],
+        "additionalProperties": true
+      },
+      "HealthMedicationDosesResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "range": {
+            "type": "string",
+            "description": "The range asked for: D, W, M, 6M or Y."
+          },
+          "start": {
+            "type": "string",
+            "description": "When the period starts."
+          },
+          "end": {
+            "type": "string",
+            "description": "When the period ends (exclusive)."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Doses in the period, of every page: the medication's, if one was asked for."
+          },
+          "doses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthMedicationDoseItem"
+            },
+            "description": "This page's doses, newest first by when they were due (or logged, for one taken as needed), as lil health's dose log lists them."
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass it as `cursor` for the next, older page; null on the last page."
+          }
+        },
+        "required": [
+          "timeZone",
+          "range",
+          "start",
+          "end",
+          "count",
+          "doses",
+          "nextCursor"
         ],
         "additionalProperties": true
       },

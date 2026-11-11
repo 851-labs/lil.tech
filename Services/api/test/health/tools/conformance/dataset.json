@@ -12,7 +12,8 @@
     "Activity rings (851-4158) are on 20 September and 14 to 20 October, from ph1, keyed by the iPhone's day: 14 October has no move value, no exercise goal (0) and no stand value or pause flag; 15 October is in Move time, with active energy beside it the tools don't read; 16 October has no Exercise or Stand goal (no Watch that day); 17 October is paused; 18 October has none; 20 October is today, unfinished.",
     "Mental Wellbeing (851-4160): State of Mind logs from 13 September to 20 October, momentary emotions and daily moods logged in Health and on the Watch: one with every label and association, one with none, raw values a later iOS might add (a kind of 3, a classification of 9, a label of 39, 0s), one at the start of 14 September and one a second before, and one ph2 deleted. GAD-7 and PHQ-9 assessments from 25 September to 20 October: PHQ-9's 9th question skipped (Prefer not to answer), an answer of 5 and a risk of 6 a later iOS might add, and a GAD-7 ph2 deleted.",
     "ECGs (851-4159), in health_electrocardiogram: their voltages are blobs in blobs.json, one little-endian 32-bit float per measurement, in microvolts. 0c0f\u2026181 (19 October, recorded in London, algorithm version 2) has 60 measurements at 2 Hz, with a NaN (5), an infinity (12) and values that round on their halves; 0c0f\u2026182 (18 October, a third-party app's, at 600 Hz) has 15,362, so a 30-second page has more than 15,360 and is downsampled; 0c0f\u2026183 has no measurements, a zone that isn't a name and an algorithm version that's a Boolean; 0c0f\u2026184 to 189 have every classification (7, a later iOS's, reads Not Classified), 189 just before 14 October in UTC; 0c0f\u2026190 was deleted by ph2; 0c0f\u2026191 doesn't say its sampling frequency (4 measurements in 2 s) and 0c0f\u2026192 says 0 and lasts no time (so 512 Hz).",
-    "Heartbeat series (851-4162), in health_heartbeat_series, each beat's time in seconds since the start (to 0.1 ms) and the indices of beats preceded by a gap, as JSON in the row: be47\u2026001 (19 October, recorded in London) has 60 beats without a gap; be47\u2026002 (18 October, recorded in Paris) has 40, with gaps before beats 10 and 11 (so 10 stands alone) and 30, and beat 20 at the same time as 19; 003 has three beats, 004 two, 005 two with a gap between, 006 one and 007 none; be47\u2026008 is a third-party app's, 1,250 beats, its first preceded by a gap and gaps before 400, 401 and 900; 009 starts a minute before 14 October in UTC; 010 was deleted by ph2. Their beats come from sines, so their HRV is worked out by a reference implementation."
+    "Heartbeat series (851-4162), in health_heartbeat_series, each beat's time in seconds since the start (to 0.1 ms) and the indices of beats preceded by a gap, as JSON in the row: be47\u2026001 (19 October, recorded in London) has 60 beats without a gap; be47\u2026002 (18 October, recorded in Paris) has 40, with gaps before beats 10 and 11 (so 10 stands alone) and 30, and beat 20 at the same time as 19; 003 has three beats, 004 two, 005 two with a gap between, 006 one and 007 none; be47\u2026008 is a third-party app's, 1,250 beats, its first preceded by a gap and gaps before 400, 401 and 900; 009 starts a minute before 14 October in UTC; 010 was deleted by ph2. Their beats come from sines, so their HRV is worked out by a reference implementation.",
+    "Medication doses (851-4167): the inhaler (\u2026d4) is due at 23:00 UTC; its doses are 0c0f\u2026151 (recorded in Tokyo), 152 (a status and schedule a later iOS might add, a zone that isn't a name), 153 and 154 (due and logged at the same instant), 156 (deleted by ph2) and 157 (as needed); 155 is a dose of \u2026e5, a medication that isn't shared. Atorvastatin and Amoxicillin have RxNorm and SNOMED codings."
   ],
   "batches": [
     {
@@ -845,7 +846,13 @@
             "generalForm": "tablet",
             "isArchived": false,
             "hasSchedule": true,
-            "codings": []
+            "codings": [
+              {
+                "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+                "version": null,
+                "code": "83367"
+              }
+            ]
           }
         },
         {
@@ -871,7 +878,37 @@
             "generalForm": "capsule",
             "isArchived": true,
             "hasSchedule": true,
-            "codings": []
+            "codings": [
+              {
+                "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+                "version": "2025-09-02",
+                "code": "723"
+              },
+              {
+                "system": "http://snomed.info/sct",
+                "version": null,
+                "code": "27658006"
+              }
+            ]
+          }
+        },
+        {
+          "entity": "health_medication",
+          "op": "upsert",
+          "id": "00000000000000000000000000000000000000000000000000000000000000d4",
+          "row": {
+            "name": "Salbutamol",
+            "nickname": "Inhaler",
+            "generalForm": "inhaler",
+            "isArchived": false,
+            "hasSchedule": true,
+            "codings": [
+              {
+                "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+                "version": null,
+                "code": "435"
+              }
+            ]
           }
         },
         {
@@ -1086,6 +1123,138 @@
             "scheduledDoseQuantity": 1,
             "doseQuantity": 1,
             "unit": "tablet",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000151",
+          "row": {
+            "startDate": 1792105800000,
+            "endDate": 1792105800000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "logStatus": 4,
+            "scheduleType": 2,
+            "scheduledDate": 1792105200000,
+            "scheduledDoseQuantity": 2,
+            "doseQuantity": 2,
+            "unit": "count",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health",
+            "metadata": {
+              "HKTimeZone": "Asia/Tokyo"
+            }
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000152",
+          "row": {
+            "startDate": 1792065600000,
+            "endDate": 1792065600000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "logStatus": 7,
+            "scheduleType": 3,
+            "scheduledDate": null,
+            "scheduledDoseQuantity": null,
+            "doseQuantity": 0.5,
+            "unit": "count",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health",
+            "metadata": {
+              "HKTimeZone": "+09:00"
+            }
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000153",
+          "row": {
+            "startDate": 1792018800000,
+            "endDate": 1792018800000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "logStatus": 6,
+            "scheduleType": 2,
+            "scheduledDate": 1792018800000,
+            "scheduledDoseQuantity": 2,
+            "doseQuantity": null,
+            "unit": "count",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000154",
+          "row": {
+            "startDate": 1792018800000,
+            "endDate": 1792018800000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "logStatus": 2,
+            "scheduleType": 2,
+            "scheduledDate": 1792018800000,
+            "scheduledDoseQuantity": 2,
+            "doseQuantity": null,
+            "unit": "count",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000155",
+          "row": {
+            "startDate": 1792054800000,
+            "endDate": 1792054800000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000e5",
+            "logStatus": 4,
+            "scheduleType": 2,
+            "scheduledDate": 1792054800000,
+            "scheduledDoseQuantity": 1,
+            "doseQuantity": 1,
+            "unit": "count",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000156",
+          "row": {
+            "startDate": 1792141200000,
+            "endDate": 1792141200000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "logStatus": 4,
+            "scheduleType": 1,
+            "scheduledDate": null,
+            "scheduledDoseQuantity": null,
+            "doseQuantity": 2,
+            "unit": "count",
+            "sourceName": "Health",
+            "sourceBundleId": "com.apple.Health"
+          }
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000157",
+          "row": {
+            "startDate": 1792180800000,
+            "endDate": 1792180800000,
+            "medication": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "logStatus": 4,
+            "scheduleType": 1,
+            "scheduledDate": null,
+            "scheduledDoseQuantity": null,
+            "doseQuantity": 2,
+            "unit": "count",
             "sourceName": "Health",
             "sourceBundleId": "com.apple.Health"
           }
@@ -3368,6 +3537,11 @@
           "entity": "health_heartbeat_series",
           "op": "delete",
           "id": "be470000-0000-4000-8000-000000000010"
+        },
+        {
+          "entity": "health_medication_dose",
+          "op": "delete",
+          "id": "0c0f0000-0000-4000-8000-000000000156"
         }
       ]
     }

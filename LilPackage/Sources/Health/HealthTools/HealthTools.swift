@@ -324,7 +324,8 @@ public struct HealthTools: Sendable {
     case .quantity, .category, .correlation: .listed
     case .workout: .elsewhere("workouts")
     case .workoutRoute: .elsewhere("workout_routes")
-    case .medication, .medicationDoseEvent: .elsewhere("medications")
+    case .medication: .elsewhere("medications")
+    case .medicationDoseEvent: .elsewhere("medication_doses")
     case .characteristic, .visionPrescription: .elsewhere("health_details")
     case .activitySummary: .elsewhere("activity_rings")
     case .stateOfMind: .elsewhere("state_of_mind")
@@ -641,7 +642,7 @@ public struct HealthTools: Sendable {
   // MARK: - medications
 
   /// Every shared medication, current ones then archived ones, by name, with its adherence over
-  /// the last 7 and 30 days and when it was last taken.
+  /// the last 7 and 30 days, when it was last taken and its codings.
   public func medications(timeZone: String? = nil, _ db: Database) throws
     -> HealthMedicationsResult
   {
@@ -660,7 +661,10 @@ public struct HealthTools: Sendable {
         form: medication.generalForm, archived: medication.isArchived,
         scheduled: medication.hasSchedule, last7Days: adherence(7), last30Days: adherence(30),
         lastTaken: try HealthDatabase.lastTaken(medication: medication.id, db).map(
-          time.localTime))
+          time.localTime),
+        codings: medication.decodedCodings.map {
+          HealthMedicationCoding(system: $0.system, version: $0.version, code: $0.code)
+        })
     }
     return HealthMedicationsResult(timeZone: time.name, medications: medications)
   }

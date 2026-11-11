@@ -7,7 +7,8 @@
     "The route tools (851-4164) read routes' points from blobs.json, as the server reads them from R2 and the Mac from the app's blob cache. Their simplified shapes' expected points come from a reference implementation written apart from both servers, since hundreds of points can't be worked out by hand; the rest is by hand.",
     "Quantity series (851-4171): the heart rate statistics and the pages of a series' values are worked out by a reference implementation written apart from both servers, from the rules in docs/decisions/health.md, since 120 values every 5 s can't be weighted by hand; the rest is by hand.",
     "ECGs (851-4159): the pages of voltages are worked out by a reference implementation written apart from both servers (a 32-bit float per measurement, halves away from zero), since 20 values can't be read off base64 by hand; the rest is by hand.",
-    "Heartbeat series (851-4162): the series' average heart rate, SDNN and RMSSD, and the pages of beats, are worked out by a reference implementation written apart from both servers, from the rules in the tools' descriptions (Python's statistics module, halves away from zero), since hundreds of beats can't be worked out by hand; the rest is by hand."
+    "Heartbeat series (851-4162): the series' average heart rate, SDNN and RMSSD, and the pages of beats, are worked out by a reference implementation written apart from both servers, from the rules in the tools' descriptions (Python's statistics module, halves away from zero), since hundreds of beats can't be worked out by hand; the rest is by hand.",
+    "Medication doses (851-4167): medication_doses lists each dose by the day it was due (or logged, if taken as needed), as lil health's dose log does; the inhaler's doses (0c0f…151 to 157) have a recorded zone, a status and schedule a later iOS might add, two doses due and logged at the same time (so a page can end between them), a dose of a medication that isn't shared (155) and one ph2 deleted (156)."
   ],
   "cases": [
     {
@@ -5997,7 +5998,7 @@
       }
     },
     {
-      "name": "medications: current ones then archived, with adherence and the last dose taken",
+      "name": "medications: current ones then archived, with adherence, the last dose taken and codings",
       "tool": "medications",
       "now": "2026-10-20T15:00:00Z",
       "arguments": {},
@@ -6021,7 +6022,40 @@
               "taken": 4,
               "asNeeded": 0
             },
-            "lastTaken": "2026-10-20T08:05:00+00:00"
+            "lastTaken": "2026-10-20T08:05:00+00:00",
+            "codings": [
+              {
+                "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+                "version": null,
+                "code": "83367"
+              }
+            ]
+          },
+          {
+            "id": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "name": "Inhaler",
+            "healthName": "Salbutamol",
+            "form": "inhaler",
+            "archived": false,
+            "scheduled": true,
+            "last7Days": {
+              "scheduled": 2,
+              "taken": 1,
+              "asNeeded": 1
+            },
+            "last30Days": {
+              "scheduled": 2,
+              "taken": 1,
+              "asNeeded": 1
+            },
+            "lastTaken": "2026-10-16T20:00:00+00:00",
+            "codings": [
+              {
+                "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+                "version": null,
+                "code": "435"
+              }
+            ]
           },
           {
             "id": "00000000000000000000000000000000000000000000000000000000000000b2",
@@ -6040,7 +6074,8 @@
               "taken": 0,
               "asNeeded": 2
             },
-            "lastTaken": "2026-10-19T13:00:00+00:00"
+            "lastTaken": "2026-10-19T13:00:00+00:00",
+            "codings": []
           },
           {
             "id": "00000000000000000000000000000000000000000000000000000000000000c3",
@@ -6059,10 +6094,595 @@
               "taken": 0,
               "asNeeded": 0
             },
-            "lastTaken": "2026-09-01T08:00:00+00:00"
+            "lastTaken": "2026-09-01T08:00:00+00:00",
+            "codings": [
+              {
+                "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+                "version": "2025-09-02",
+                "code": "723"
+              },
+              {
+                "system": "http://snomed.info/sct",
+                "version": null,
+                "code": "27658006"
+              }
+            ]
           }
         ]
       }
+    },
+    {
+      "name": "medication_doses of a week in UTC: each medication's, newest first by when they were due; a dose due on 13 October and taken after midnight isn't the 14th's, one of a medication no longer shared and one deleted aren't listed",
+      "tool": "medication_doses",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "W",
+        "start": "2026-10-14T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "count": 12,
+        "doses": [
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "medication": "Atorvastatin",
+            "status": "Taken",
+            "schedule": "Scheduled",
+            "time": "2026-10-20T08:05:00+00:00",
+            "scheduledTime": "2026-10-20T08:00:00+00:00",
+            "amount": 1,
+            "scheduledAmount": 1,
+            "unit": "tablet",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000b2",
+            "medication": "Pain relief",
+            "status": "Taken",
+            "schedule": "As Needed",
+            "time": "2026-10-19T13:00:00+00:00",
+            "scheduledTime": null,
+            "amount": 1,
+            "scheduledAmount": null,
+            "unit": "tablet",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "medication": "Atorvastatin",
+            "status": "Taken",
+            "schedule": "Scheduled",
+            "time": "2026-10-19T08:20:00+00:00",
+            "scheduledTime": "2026-10-19T08:00:00+00:00",
+            "amount": 1,
+            "scheduledAmount": 1,
+            "unit": "tablet",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "medication": "Atorvastatin",
+            "status": "Snoozed",
+            "schedule": "Scheduled",
+            "time": "2026-10-19T08:00:30+00:00",
+            "scheduledTime": "2026-10-19T08:00:00+00:00",
+            "amount": null,
+            "scheduledAmount": 1,
+            "unit": "tablet",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "medication": "Atorvastatin",
+            "status": "Skipped",
+            "schedule": "Scheduled",
+            "time": "2026-10-18T09:00:00+00:00",
+            "scheduledTime": "2026-10-18T08:00:00+00:00",
+            "amount": null,
+            "scheduledAmount": 1,
+            "unit": "tablet",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "medication": "Atorvastatin",
+            "status": "Not Logged",
+            "schedule": "Scheduled",
+            "time": "2026-10-17T10:00:00+00:00",
+            "scheduledTime": "2026-10-17T08:00:00+00:00",
+            "amount": null,
+            "scheduledAmount": 1,
+            "unit": "tablet",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "medication": "Inhaler",
+            "status": "Taken",
+            "schedule": "As Needed",
+            "time": "2026-10-16T20:00:00+00:00",
+            "scheduledTime": null,
+            "amount": 2,
+            "scheduledAmount": null,
+            "unit": "count",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000b2",
+            "medication": "Pain relief",
+            "status": "Not Logged",
+            "schedule": "As Needed",
+            "time": "2026-10-16T09:00:00+00:00",
+            "scheduledTime": null,
+            "amount": null,
+            "scheduledAmount": null,
+            "unit": "tablet",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "medication": "Inhaler",
+            "status": "Taken",
+            "schedule": "Scheduled",
+            "time": "2026-10-15T23:10:00+00:00",
+            "scheduledTime": "2026-10-15T23:00:00+00:00",
+            "recordedTimeZone": "Asia/Tokyo",
+            "recordedTime": "2026-10-16T08:10:00+09:00",
+            "recordedScheduledTime": "2026-10-16T08:00:00+09:00",
+            "amount": 2,
+            "scheduledAmount": 2,
+            "unit": "count",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "medication": "Inhaler",
+            "status": "Unknown",
+            "schedule": "Unknown",
+            "time": "2026-10-15T12:00:00+00:00",
+            "scheduledTime": null,
+            "amount": 0.5,
+            "scheduledAmount": null,
+            "unit": "count",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "medication": "Inhaler",
+            "status": "Reminder Not Sent",
+            "schedule": "Scheduled",
+            "time": "2026-10-14T23:00:00+00:00",
+            "scheduledTime": "2026-10-14T23:00:00+00:00",
+            "amount": null,
+            "scheduledAmount": 2,
+            "unit": "count",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "medication": "Inhaler",
+            "status": "Not Logged",
+            "schedule": "Scheduled",
+            "time": "2026-10-14T23:00:00+00:00",
+            "scheduledTime": "2026-10-14T23:00:00+00:00",
+            "amount": null,
+            "scheduledAmount": 2,
+            "unit": "count",
+            "source": "Health"
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "medication_doses a page at a time: the first 4 of the week",
+      "tool": "medication_doses",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "limit": 4
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "W",
+        "start": "2026-10-14T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "count": 12,
+        "doses": [
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "medication": "Atorvastatin",
+            "status": "Taken",
+            "schedule": "Scheduled",
+            "time": "2026-10-20T08:05:00+00:00",
+            "scheduledTime": "2026-10-20T08:00:00+00:00",
+            "amount": 1,
+            "scheduledAmount": 1,
+            "unit": "tablet",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000b2",
+            "medication": "Pain relief",
+            "status": "Taken",
+            "schedule": "As Needed",
+            "time": "2026-10-19T13:00:00+00:00",
+            "scheduledTime": null,
+            "amount": 1,
+            "scheduledAmount": null,
+            "unit": "tablet",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "medication": "Atorvastatin",
+            "status": "Taken",
+            "schedule": "Scheduled",
+            "time": "2026-10-19T08:20:00+00:00",
+            "scheduledTime": "2026-10-19T08:00:00+00:00",
+            "amount": 1,
+            "scheduledAmount": 1,
+            "unit": "tablet",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "medication": "Atorvastatin",
+            "status": "Snoozed",
+            "schedule": "Scheduled",
+            "time": "2026-10-19T08:00:30+00:00",
+            "scheduledTime": "2026-10-19T08:00:00+00:00",
+            "amount": null,
+            "scheduledAmount": 1,
+            "unit": "tablet",
+            "source": "Health"
+          }
+        ],
+        "nextCursor": "1792396800000_1792396830000_0c0f0000-0000-4000-8000-000000000122"
+      }
+    },
+    {
+      "name": "medication_doses' next page ends on the first of two doses due and logged at the same time",
+      "tool": "medication_doses",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "limit": 7,
+        "cursor": "1792396800000_1792396830000_0c0f0000-0000-4000-8000-000000000122"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "W",
+        "start": "2026-10-14T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "count": 12,
+        "doses": [
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "medication": "Atorvastatin",
+            "status": "Skipped",
+            "schedule": "Scheduled",
+            "time": "2026-10-18T09:00:00+00:00",
+            "scheduledTime": "2026-10-18T08:00:00+00:00",
+            "amount": null,
+            "scheduledAmount": 1,
+            "unit": "tablet",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "medication": "Atorvastatin",
+            "status": "Not Logged",
+            "schedule": "Scheduled",
+            "time": "2026-10-17T10:00:00+00:00",
+            "scheduledTime": "2026-10-17T08:00:00+00:00",
+            "amount": null,
+            "scheduledAmount": 1,
+            "unit": "tablet",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "medication": "Inhaler",
+            "status": "Taken",
+            "schedule": "As Needed",
+            "time": "2026-10-16T20:00:00+00:00",
+            "scheduledTime": null,
+            "amount": 2,
+            "scheduledAmount": null,
+            "unit": "count",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000b2",
+            "medication": "Pain relief",
+            "status": "Not Logged",
+            "schedule": "As Needed",
+            "time": "2026-10-16T09:00:00+00:00",
+            "scheduledTime": null,
+            "amount": null,
+            "scheduledAmount": null,
+            "unit": "tablet",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "medication": "Inhaler",
+            "status": "Taken",
+            "schedule": "Scheduled",
+            "time": "2026-10-15T23:10:00+00:00",
+            "scheduledTime": "2026-10-15T23:00:00+00:00",
+            "recordedTimeZone": "Asia/Tokyo",
+            "recordedTime": "2026-10-16T08:10:00+09:00",
+            "recordedScheduledTime": "2026-10-16T08:00:00+09:00",
+            "amount": 2,
+            "scheduledAmount": 2,
+            "unit": "count",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "medication": "Inhaler",
+            "status": "Unknown",
+            "schedule": "Unknown",
+            "time": "2026-10-15T12:00:00+00:00",
+            "scheduledTime": null,
+            "amount": 0.5,
+            "scheduledAmount": null,
+            "unit": "count",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "medication": "Inhaler",
+            "status": "Reminder Not Sent",
+            "schedule": "Scheduled",
+            "time": "2026-10-14T23:00:00+00:00",
+            "scheduledTime": "2026-10-14T23:00:00+00:00",
+            "amount": null,
+            "scheduledAmount": 2,
+            "unit": "count",
+            "source": "Health"
+          }
+        ],
+        "nextCursor": "1792018800000_1792018800000_0c0f0000-0000-4000-8000-000000000154"
+      }
+    },
+    {
+      "name": "medication_doses' last page: the second of the two, by ID",
+      "tool": "medication_doses",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "limit": 7,
+        "cursor": "1792018800000_1792018800000_0c0f0000-0000-4000-8000-000000000154"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "W",
+        "start": "2026-10-14T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "count": 12,
+        "doses": [
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "medication": "Inhaler",
+            "status": "Not Logged",
+            "schedule": "Scheduled",
+            "time": "2026-10-14T23:00:00+00:00",
+            "scheduledTime": "2026-10-14T23:00:00+00:00",
+            "amount": null,
+            "scheduledAmount": 2,
+            "unit": "count",
+            "source": "Health"
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "medication_doses of one medication over 30 days: recorded in Tokyo, a status and schedule a later iOS adds, and a zone that isn't a name",
+      "tool": "medication_doses",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "M",
+        "medication": "00000000000000000000000000000000000000000000000000000000000000d4"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "M",
+        "start": "2026-09-21T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "count": 5,
+        "doses": [
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "medication": "Inhaler",
+            "status": "Taken",
+            "schedule": "As Needed",
+            "time": "2026-10-16T20:00:00+00:00",
+            "scheduledTime": null,
+            "amount": 2,
+            "scheduledAmount": null,
+            "unit": "count",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "medication": "Inhaler",
+            "status": "Taken",
+            "schedule": "Scheduled",
+            "time": "2026-10-15T23:10:00+00:00",
+            "scheduledTime": "2026-10-15T23:00:00+00:00",
+            "recordedTimeZone": "Asia/Tokyo",
+            "recordedTime": "2026-10-16T08:10:00+09:00",
+            "recordedScheduledTime": "2026-10-16T08:00:00+09:00",
+            "amount": 2,
+            "scheduledAmount": 2,
+            "unit": "count",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "medication": "Inhaler",
+            "status": "Unknown",
+            "schedule": "Unknown",
+            "time": "2026-10-15T12:00:00+00:00",
+            "scheduledTime": null,
+            "amount": 0.5,
+            "scheduledAmount": null,
+            "unit": "count",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "medication": "Inhaler",
+            "status": "Reminder Not Sent",
+            "schedule": "Scheduled",
+            "time": "2026-10-14T23:00:00+00:00",
+            "scheduledTime": "2026-10-14T23:00:00+00:00",
+            "amount": null,
+            "scheduledAmount": 2,
+            "unit": "count",
+            "source": "Health"
+          },
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000d4",
+            "medication": "Inhaler",
+            "status": "Not Logged",
+            "schedule": "Scheduled",
+            "time": "2026-10-14T23:00:00+00:00",
+            "scheduledTime": "2026-10-14T23:00:00+00:00",
+            "amount": null,
+            "scheduledAmount": 2,
+            "unit": "count",
+            "source": "Health"
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "medication_doses of a day in Los Angeles: the dose due at 4 PM, taken after midnight UTC",
+      "tool": "medication_doses",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "D",
+        "date": "2026-10-13",
+        "timeZone": "America/Los_Angeles"
+      },
+      "expected": {
+        "timeZone": "America/Los_Angeles",
+        "range": "D",
+        "start": "2026-10-13T00:00:00-07:00",
+        "end": "2026-10-14T00:00:00-07:00",
+        "count": 1,
+        "doses": [
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000a1",
+            "medication": "Atorvastatin",
+            "status": "Taken",
+            "schedule": "Scheduled",
+            "time": "2026-10-13T17:30:00-07:00",
+            "scheduledTime": "2026-10-13T16:00:00-07:00",
+            "amount": 1,
+            "scheduledAmount": 1,
+            "unit": "tablet",
+            "source": "Health"
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "medication_doses of an archived medication over a year",
+      "tool": "medication_doses",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "Y",
+        "medication": "00000000000000000000000000000000000000000000000000000000000000c3"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "Y",
+        "start": "2025-11-01T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "count": 1,
+        "doses": [
+          {
+            "medicationId": "00000000000000000000000000000000000000000000000000000000000000c3",
+            "medication": "Amoxicillin",
+            "status": "Taken",
+            "schedule": "Scheduled",
+            "time": "2026-09-01T08:00:00+00:00",
+            "scheduledTime": "2026-09-01T08:00:00+00:00",
+            "amount": 1,
+            "scheduledAmount": 1,
+            "unit": "tablet",
+            "source": "Health"
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "medication_doses of a medication that isn't shared fails, though its doses were synced",
+      "tool": "medication_doses",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "medication": "00000000000000000000000000000000000000000000000000000000000000e5"
+      },
+      "expectedError": "No medication with ID 00000000000000000000000000000000000000000000000000000000000000e5. medications lists them, with their IDs."
+    },
+    {
+      "name": "medication_doses with a cursor missing its ID fails",
+      "tool": "medication_doses",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "cursor": "1792396800000_1792396830000_"
+      },
+      "expectedError": "Invalid cursor: 1792396800000_1792396830000_. Pass the previous page's nextCursor."
+    },
+    {
+      "name": "medication_doses with a cursor whose day has more than 15 digits fails",
+      "tool": "medication_doses",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "cursor": "9999999999999999_1792396830000_0c0f0000-0000-4000-8000-000000000122"
+      },
+      "expectedError": "Invalid cursor: 9999999999999999_1792396830000_0c0f0000-0000-4000-8000-000000000122. Pass the previous page's nextCursor."
+    },
+    {
+      "name": "medication_doses with a limit over 250 fails",
+      "tool": "medication_doses",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "limit": 251
+      },
+      "expectedError": "Invalid parameters for tool 'medication_doses': Expected a value between 1 and 250\n  at [\"limit\"]"
+    },
+    {
+      "name": "medication_doses without a range fails",
+      "tool": "medication_doses",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {},
+      "expectedError": "Invalid parameters for tool 'medication_doses': Missing key\n  at [\"range\"]"
+    },
+    {
+      "name": "samples of medication doses names medication_doses",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKMedicationDoseEventTypeIdentifierMedicationDoseEvent",
+        "range": "W"
+      },
+      "expectedError": "samples doesn't list Medication Doses (HKMedicationDoseEventTypeIdentifierMedicationDoseEvent): use medication_doses."
     },
     {
       "name": "health_details in UTC, the day before a birthday",

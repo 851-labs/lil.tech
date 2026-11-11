@@ -422,9 +422,50 @@ extension HealthMedicationsResult: TextOutput {
         parts.append("\(medication.last30Days.asNeeded) as needed in 30 days")
       }
       parts.append("last taken \(medication.lastTaken.map(time) ?? "never")")
+      let codes = medication.codings.map { "\(codingSystemName($0.system)) \($0.code)" }
       return "\(title)\n  \(parts.joined(separator: " · "))\n"
+        + (codes.isEmpty ? "" : "  \(codes.joined(separator: " · "))\n")
     }
     .joined()
+  }
+}
+
+/// A coding system's short name: RxNorm, SNOMED CT, or the system as HealthKit names it.
+private func codingSystemName(_ system: String) -> String {
+  switch system {
+  case "http://www.nlm.nih.gov/research/umls/rxnorm": "RxNorm"
+  case "http://snomed.info/sct": "SNOMED CT"
+  default: system
+  }
+}
+
+extension HealthMedicationDosesResult: TextOutput {
+  var text: String {
+    var lines = [
+      "Medication doses, \(range): \(day(start)) to \(lastDay(end)) (\(timeZone))",
+      "\(count) \(count == 1 ? "dose" : "doses")",
+    ]
+    if !doses.isEmpty { lines.append("") }
+    for dose in doses {
+      var parts = [dose.medication, dose.status, dose.schedule]
+      if let scheduled = dose.scheduledTime.map(time) {
+        // Only its time when it was due the day it was logged.
+        let sameDay = scheduled.hasPrefix(day(dose.time) + " ")
+        parts.append("due " + (sameDay ? String(scheduled.dropFirst(11)) : scheduled))
+      }
+      // The amount logged, else the one scheduled, said to be, so it doesn't read as taken.
+      if let amount = dose.amount {
+        parts.append(quantity(amount, dose.unit))
+      } else if let scheduled = dose.scheduledAmount {
+        parts.append("\(quantity(scheduled, dose.unit)) scheduled")
+      }
+      lines.append("  \(time(dose.time))   " + parts.joined(separator: " · "))
+    }
+    if let nextCursor {
+      lines.append("")
+      lines.append("More: --cursor \(nextCursor)")
+    }
+    return lines.joined(separator: "\n") + "\n"
   }
 }
 

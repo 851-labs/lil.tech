@@ -929,13 +929,16 @@ export interface MedicationRow {
   readonly generalForm: string;
   readonly isArchived: boolean;
   readonly hasSchedule: boolean;
+  /** As stored: a JSON array of `{ system, version, code }`. */
+  readonly codings: string;
 }
 
 /** Every shared medication, in no particular order. */
 export const medicationRows = (sql: StoreSql): ReadonlyArray<MedicationRow> =>
   sql
     .exec(
-      "SELECT id, name, nickname, general_form, is_archived, has_schedule FROM health_medication",
+      `SELECT id, name, nickname, general_form, is_archived, has_schedule, codings
+      FROM health_medication`,
     )
     .map((row) => ({
       id: row["id"] as string,
@@ -944,6 +947,7 @@ export const medicationRows = (sql: StoreSql): ReadonlyArray<MedicationRow> =>
       generalForm: row["general_form"] as string,
       isArchived: row["is_archived"] === 1,
       hasSchedule: row["has_schedule"] === 1,
+      codings: row["codings"] as string,
     }));
 
 export interface DoseRow {
@@ -984,6 +988,95 @@ export const lastTaken = (sql: StoreSql, medication: string): number | null =>
       doseTaken,
     )[0]?.["start"],
   );
+
+/** A dose in the dose log (`health_medication_dose`), as `medication_doses` reads it. */
+export interface DoseLogRow {
+  readonly id: string;
+  /** When it belongs: its scheduled time, else when it was logged. */
+  readonly day: number;
+  readonly startDate: number;
+  readonly medication: string;
+  readonly logStatus: number;
+  readonly scheduleType: number;
+  readonly scheduledDate: number | null;
+  readonly scheduledDoseQuantity: number | null;
+  readonly doseQuantity: number | null;
+  readonly unit: string;
+  readonly sourceName: string;
+  /** Its `HKTimeZone`, if it's a string (`recordedZoneSql`). */
+  readonly recordedTimeZone: unknown;
+}
+
+/** Where a page of the dose log ends: its last dose's day, logged time and ID. */
+export interface DoseCursor {
+  readonly day: number;
+  readonly startDate: number;
+  readonly id: string;
+}
+
+/**
+ * The doses of `medications` whose day (`DoseLogRow.day`) is in `[from, to)`, newest day first,
+ * then newest logged, then by ID, after `cursor`, at most `limit`, as the Mac's
+ * `HealthDatabase.doseLog`; and how many there are in the period, counted only when they don't
+ * all fit on a first page.
+ */
+export const doseLog = (
+  sql: StoreSql,
+  medications: ReadonlyArray<string>,
+  from: number,
+  to: number,
+  cursor: DoseCursor | null,
+  limit: number,
+) => {
+  const day = "coalesce(scheduled_date, start_date)";
+  const where = `medication IN (SELECT value FROM json_each(?)) AND ${day} >= ? AND ${day} < ?`;
+  const ids = JSON.stringify(medications);
+  const after =
+    cursor === null
+      ? ""
+      : ` AND (${day} < ? OR (${day} = ? AND (start_date < ? OR (start_date = ? AND id < ?))))`;
+  const afterArguments =
+    cursor === null ? [] : [cursor.day, cursor.day, cursor.startDate, cursor.startDate, cursor.id];
+  const doses = sql
+    .exec(
+      `SELECT id, ${day} AS day, start_date, medication, log_status, schedule_type, scheduled_date,
+        scheduled_dose_quantity, dose_quantity, unit, source_name,
+        ${recordedZoneSql} AS recorded_time_zone
+      FROM health_medication_dose WHERE ${where}${after}
+      ORDER BY day DESC, start_date DESC, id DESC LIMIT ?`,
+      ids,
+      from,
+      to,
+      ...afterArguments,
+      limit,
+    )
+    .map((row): DoseLogRow => ({
+      id: row["id"] as string,
+      day: Number(row["day"]),
+      startDate: Number(row["start_date"]),
+      medication: row["medication"] as string,
+      logStatus: Number(row["log_status"]),
+      scheduleType: Number(row["schedule_type"]),
+      scheduledDate: numberOrNull(row["scheduled_date"]),
+      scheduledDoseQuantity: numberOrNull(row["scheduled_dose_quantity"]),
+      doseQuantity: numberOrNull(row["dose_quantity"]),
+      unit: row["unit"] as string,
+      sourceName: row["source_name"] as string,
+      recordedTimeZone: row["recorded_time_zone"],
+    }));
+  const count =
+    cursor === null && doses.length < limit
+      ? doses.length
+      : Number(
+          sql.exec(
+            `SELECT count(*) AS count FROM health_medication_dose WHERE ${where}`,
+            ids,
+            from,
+            to,
+          )[0]?.["count"] ?? 0,
+        );
+  return { count, doses };
+};
 
 /** Every synced characteristic's value as stored (JSON), by type identifier, in ID order. */
 export const characteristicValues = (sql: StoreSql): ReadonlyArray<readonly [string, string]> =>

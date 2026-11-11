@@ -815,6 +815,8 @@ public struct HealthMedicationItem: Codable, Equatable, Sendable {
   public var last7Days: HealthMedicationAdherence
   public var last30Days: HealthMedicationAdherence
   public var lastTaken: String?
+  /// Its codes in clinical coding systems, e.g. RxNorm's (851-4154).
+  public var codings: [HealthMedicationCoding]
 
   public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
@@ -827,6 +829,20 @@ public struct HealthMedicationItem: Codable, Equatable, Sendable {
     try container.encode(last7Days, .last7Days)
     try container.encode(last30Days, .last30Days)
     try container.encode(lastTaken, .lastTaken)
+    try container.encode(codings, .codings)
+  }
+}
+
+public struct HealthMedicationCoding: Codable, Equatable, Sendable {
+  public var system: String
+  public var version: String?
+  public var code: String
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(system, .system)
+    try container.encode(version, .version)
+    try container.encode(code, .code)
   }
 }
 
