@@ -601,6 +601,16 @@
             "last": "2026-10-17T07:30:00+00:00"
           },
           {
+            "type": "HKDataTypeIdentifierAudiogram",
+            "name": "Audiograms",
+            "category": "Hearing",
+            "kind": "audiogram",
+            "unit": null,
+            "cumulative": false,
+            "first": "2025-09-10T10:00:00+00:00",
+            "last": "2026-10-19T08:00:00+00:00"
+          },
+          {
             "type": "HKCorrelationTypeIdentifierBloodPressure",
             "name": "Blood Pressure",
             "category": "Heart",
@@ -852,6 +862,16 @@
             "cumulative": false,
             "first": "2026-10-17T00:30:00-07:00",
             "last": "2026-10-17T00:30:00-07:00"
+          },
+          {
+            "type": "HKDataTypeIdentifierAudiogram",
+            "name": "Audiograms",
+            "category": "Hearing",
+            "kind": "audiogram",
+            "unit": null,
+            "cumulative": false,
+            "first": "2025-09-10T03:00:00-07:00",
+            "last": "2026-10-19T01:00:00-07:00"
           },
           {
             "type": "HKCorrelationTypeIdentifierBloodPressure",
@@ -1928,7 +1948,7 @@
         "type": "HKCategoryTypeIdentifierSleepAnalysis",
         "range": "W"
       },
-      "expectedError": "Sleep (HKCategoryTypeIdentifierSleepAnalysis) isn't a quantity type, so it has no statistics. Use samples, or the tool for its kind (sleep, activity_rings, state_of_mind, assessments, electrocardiograms, heartbeat_series, workouts, medications)."
+      "expectedError": "Sleep (HKCategoryTypeIdentifierSleepAnalysis) isn't a quantity type, so it has no statistics. Use samples, or the tool for its kind (sleep, activity_rings, state_of_mind, assessments, electrocardiograms, heartbeat_series, audiograms, workouts, medications)."
     },
     {
       "name": "metric of an unknown type fails",
@@ -5276,14 +5296,24 @@
       "expectedError": "samples doesn't list Heartbeat Series (HKDataTypeIdentifierHeartbeatSeries): use heartbeat_series."
     },
     {
-      "name": "samples of audiograms fails: no tool reads them yet",
+      "name": "samples of audiograms fails: audiograms has them",
       "tool": "samples",
       "now": "2026-10-20T15:00:00Z",
       "arguments": {
         "type": "HKDataTypeIdentifierAudiogram",
         "range": "W"
       },
-      "expectedError": "samples doesn't list Audiograms (HKDataTypeIdentifierAudiogram), and no other tool reads that kind yet."
+      "expectedError": "samples doesn't list Audiograms (HKDataTypeIdentifierAudiogram): use audiograms."
+    },
+    {
+      "name": "samples of Health Documents fails: no tool reads them yet",
+      "tool": "samples",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "type": "HKDocumentTypeIdentifierCDA",
+        "range": "W"
+      },
+      "expectedError": "samples doesn't list Health Documents (CDA) (HKDocumentTypeIdentifierCDA), and no other tool reads that kind yet."
     },
     {
       "name": "samples of State of Mind fails: state_of_mind has them",
@@ -9421,6 +9451,862 @@
         "seconds": 31
       },
       "expectedError": "Invalid parameters for tool 'electrocardiogram_voltages': Expected a value between 1 and 30\n  at [\"seconds\"]"
+    },
+    {
+      "name": "audiograms of a year in UTC, newest first: each ear's hearing level (halves away from zero, never -0) and every band's name, an ear not tested, tests ordered with the charted one first (unmasked air before masked, air before a later iOS's conduction), a side no ear has left out, clamping on both sides and from below, one without frequencies and a zone that isn't a name; a deleted one and one before the year aren't listed",
+      "tool": "audiograms",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "Y"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "Y",
+        "start": "2025-11-01T00:00:00+00:00",
+        "end": "2026-10-21T00:00:00+00:00",
+        "count": 5,
+        "audiograms": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000801",
+            "start": "2026-10-19T08:00:00+00:00",
+            "end": "2026-10-19T08:06:00+00:00",
+            "recordedTimeZone": "Europe/London",
+            "recordedStart": "2026-10-19T09:00:00+01:00",
+            "recordedEnd": "2026-10-19T09:06:00+01:00",
+            "leftEar": {
+              "hearingLevel": 18,
+              "hearingLoss": "Little to No Hearing Loss"
+            },
+            "rightEar": {
+              "hearingLevel": 38,
+              "hearingLoss": "Mild Hearing Loss"
+            },
+            "points": [
+              {
+                "frequency": 500,
+                "left": [
+                  {
+                    "sensitivity": 10,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 30,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 1000,
+                "left": [
+                  {
+                    "sensitivity": 15,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 35,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 2000,
+                "left": [
+                  {
+                    "sensitivity": 20,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 40,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 3000,
+                "left": [
+                  {
+                    "sensitivity": 25,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": true,
+                    "clampingLower": 20,
+                    "clampingUpper": 30
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 45,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 4000,
+                "left": [
+                  {
+                    "sensitivity": 25,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 45,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 6000,
+                "left": [
+                  {
+                    "sensitivity": 30,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 70,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 8000,
+                "left": [
+                  {
+                    "sensitivity": 35,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 90,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": true,
+                    "clampingLower": 90
+                  }
+                ]
+              }
+            ],
+            "source": "Hearing Test"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000802",
+            "start": "2026-10-15T16:30:00+00:00",
+            "end": "2026-10-15T16:50:00+00:00",
+            "leftEar": {
+              "hearingLevel": 50,
+              "hearingLoss": "Moderate Hearing Loss"
+            },
+            "rightEar": {
+              "hearingLevel": 71,
+              "hearingLoss": "Severe Hearing Loss"
+            },
+            "points": [
+              {
+                "frequency": 500,
+                "left": [
+                  {
+                    "sensitivity": 35,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  },
+                  {
+                    "sensitivity": 40,
+                    "conduction": "Air",
+                    "masked": true,
+                    "clamped": false
+                  }
+                ],
+                "right": []
+              },
+              {
+                "frequency": 1000,
+                "left": [
+                  {
+                    "sensitivity": 50,
+                    "conduction": "Air",
+                    "masked": true,
+                    "clamped": false
+                  },
+                  {
+                    "sensitivity": 45,
+                    "conduction": "Unknown",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": []
+              },
+              {
+                "frequency": 2000,
+                "left": [
+                  {
+                    "sensitivity": 55,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": []
+              },
+              {
+                "frequency": 3000,
+                "left": [],
+                "right": [
+                  {
+                    "sensitivity": 61,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 4000,
+                "left": [
+                  {
+                    "sensitivity": 60.5,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": []
+              },
+              {
+                "frequency": 6000,
+                "left": [],
+                "right": [
+                  {
+                    "sensitivity": 80,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  },
+                  {
+                    "sensitivity": 75,
+                    "conduction": "Unknown",
+                    "masked": true,
+                    "clamped": false
+                  }
+                ]
+              }
+            ],
+            "source": "Test Audiometry App"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000803",
+            "start": "2026-10-13T23:30:00+00:00",
+            "end": "2026-10-13T23:35:00+00:00",
+            "recordedTimeZone": "Asia/Tokyo",
+            "recordedStart": "2026-10-14T08:30:00+09:00",
+            "recordedEnd": "2026-10-14T08:35:00+09:00",
+            "leftEar": {
+              "hearingLevel": -3,
+              "hearingLoss": "Little to No Hearing Loss"
+            },
+            "rightEar": {
+              "hearingLevel": 0,
+              "hearingLoss": "Little to No Hearing Loss"
+            },
+            "points": [
+              {
+                "frequency": 500,
+                "left": [
+                  {
+                    "sensitivity": -5,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 0,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 1000,
+                "left": [
+                  {
+                    "sensitivity": 0,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": -1,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 2000,
+                "left": [
+                  {
+                    "sensitivity": -5,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 0,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 4000,
+                "left": [
+                  {
+                    "sensitivity": 0,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": -0.6,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              }
+            ],
+            "source": "Hearing Test"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000804",
+            "start": "2026-09-02T10:00:00+00:00",
+            "end": "2026-09-02T10:08:00+00:00",
+            "leftEar": {
+              "hearingLevel": null,
+              "hearingLoss": null
+            },
+            "rightEar": {
+              "hearingLevel": 98,
+              "hearingLoss": "Profound Hearing Loss"
+            },
+            "points": [
+              {
+                "frequency": 250,
+                "left": [],
+                "right": [
+                  {
+                    "sensitivity": 85,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 500,
+                "left": [],
+                "right": [
+                  {
+                    "sensitivity": 90,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 1000,
+                "left": [],
+                "right": [
+                  {
+                    "sensitivity": 95,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": true,
+                    "clampingLower": 95
+                  }
+                ]
+              },
+              {
+                "frequency": 2000,
+                "left": [],
+                "right": [
+                  {
+                    "sensitivity": 100,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 4000,
+                "left": [],
+                "right": [
+                  {
+                    "sensitivity": 105,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              }
+            ],
+            "source": "Test Audiometry App"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000807",
+            "start": "2026-08-01T12:00:00+00:00",
+            "end": "2026-08-01T12:01:00+00:00",
+            "leftEar": {
+              "hearingLevel": null,
+              "hearingLoss": null
+            },
+            "rightEar": {
+              "hearingLevel": null,
+              "hearingLoss": null
+            },
+            "points": [],
+            "source": "Test Audiometry App"
+          }
+        ]
+      }
+    },
+    {
+      "name": "audiograms of a week in London: one at 23:30 UTC on 13 October is on 14 October there",
+      "tool": "audiograms",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "W",
+        "timeZone": "Europe/London"
+      },
+      "expected": {
+        "timeZone": "Europe/London",
+        "range": "W",
+        "start": "2026-10-14T00:00:00+01:00",
+        "end": "2026-10-21T00:00:00+01:00",
+        "count": 3,
+        "audiograms": [
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000801",
+            "start": "2026-10-19T09:00:00+01:00",
+            "end": "2026-10-19T09:06:00+01:00",
+            "recordedTimeZone": "Europe/London",
+            "recordedStart": "2026-10-19T09:00:00+01:00",
+            "recordedEnd": "2026-10-19T09:06:00+01:00",
+            "leftEar": {
+              "hearingLevel": 18,
+              "hearingLoss": "Little to No Hearing Loss"
+            },
+            "rightEar": {
+              "hearingLevel": 38,
+              "hearingLoss": "Mild Hearing Loss"
+            },
+            "points": [
+              {
+                "frequency": 500,
+                "left": [
+                  {
+                    "sensitivity": 10,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 30,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 1000,
+                "left": [
+                  {
+                    "sensitivity": 15,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 35,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 2000,
+                "left": [
+                  {
+                    "sensitivity": 20,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 40,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 3000,
+                "left": [
+                  {
+                    "sensitivity": 25,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": true,
+                    "clampingLower": 20,
+                    "clampingUpper": 30
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 45,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 4000,
+                "left": [
+                  {
+                    "sensitivity": 25,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 45,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 6000,
+                "left": [
+                  {
+                    "sensitivity": 30,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 70,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 8000,
+                "left": [
+                  {
+                    "sensitivity": 35,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 90,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": true,
+                    "clampingLower": 90
+                  }
+                ]
+              }
+            ],
+            "source": "Hearing Test"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000802",
+            "start": "2026-10-15T17:30:00+01:00",
+            "end": "2026-10-15T17:50:00+01:00",
+            "leftEar": {
+              "hearingLevel": 50,
+              "hearingLoss": "Moderate Hearing Loss"
+            },
+            "rightEar": {
+              "hearingLevel": 71,
+              "hearingLoss": "Severe Hearing Loss"
+            },
+            "points": [
+              {
+                "frequency": 500,
+                "left": [
+                  {
+                    "sensitivity": 35,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  },
+                  {
+                    "sensitivity": 40,
+                    "conduction": "Air",
+                    "masked": true,
+                    "clamped": false
+                  }
+                ],
+                "right": []
+              },
+              {
+                "frequency": 1000,
+                "left": [
+                  {
+                    "sensitivity": 50,
+                    "conduction": "Air",
+                    "masked": true,
+                    "clamped": false
+                  },
+                  {
+                    "sensitivity": 45,
+                    "conduction": "Unknown",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": []
+              },
+              {
+                "frequency": 2000,
+                "left": [
+                  {
+                    "sensitivity": 55,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": []
+              },
+              {
+                "frequency": 3000,
+                "left": [],
+                "right": [
+                  {
+                    "sensitivity": 61,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 4000,
+                "left": [
+                  {
+                    "sensitivity": 60.5,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": []
+              },
+              {
+                "frequency": 6000,
+                "left": [],
+                "right": [
+                  {
+                    "sensitivity": 80,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  },
+                  {
+                    "sensitivity": 75,
+                    "conduction": "Unknown",
+                    "masked": true,
+                    "clamped": false
+                  }
+                ]
+              }
+            ],
+            "source": "Test Audiometry App"
+          },
+          {
+            "id": "0c0f0000-0000-4000-8000-000000000803",
+            "start": "2026-10-14T00:30:00+01:00",
+            "end": "2026-10-14T00:35:00+01:00",
+            "recordedTimeZone": "Asia/Tokyo",
+            "recordedStart": "2026-10-14T08:30:00+09:00",
+            "recordedEnd": "2026-10-14T08:35:00+09:00",
+            "leftEar": {
+              "hearingLevel": -3,
+              "hearingLoss": "Little to No Hearing Loss"
+            },
+            "rightEar": {
+              "hearingLevel": 0,
+              "hearingLoss": "Little to No Hearing Loss"
+            },
+            "points": [
+              {
+                "frequency": 500,
+                "left": [
+                  {
+                    "sensitivity": -5,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 0,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 1000,
+                "left": [
+                  {
+                    "sensitivity": 0,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": -1,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 2000,
+                "left": [
+                  {
+                    "sensitivity": -5,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": 0,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              },
+              {
+                "frequency": 4000,
+                "left": [
+                  {
+                    "sensitivity": 0,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ],
+                "right": [
+                  {
+                    "sensitivity": -0.6,
+                    "conduction": "Air",
+                    "masked": false,
+                    "clamped": false
+                  }
+                ]
+              }
+            ],
+            "source": "Hearing Test"
+          }
+        ]
+      }
+    },
+    {
+      "name": "audiograms of a month without any",
+      "tool": "audiograms",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "range": "M",
+        "date": "2026-07-01"
+      },
+      "expected": {
+        "timeZone": "UTC",
+        "range": "M",
+        "start": "2026-06-02T00:00:00+00:00",
+        "end": "2026-07-02T00:00:00+00:00",
+        "count": 0,
+        "audiograms": []
+      }
     },
     {
       "name": "samples on a day that doesn't exist before 2000 fails for the year",

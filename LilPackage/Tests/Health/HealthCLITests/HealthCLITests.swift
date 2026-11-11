@@ -186,8 +186,8 @@ struct HealthCLITests {
     for command in [
       ["summary"], ["types"], ["metric", "Steps", "-r", "6m"], ["samples", "Heart Rate"],
       ["workouts", "-r", "Y"], ["sleep"], ["activity", "-r", "M"], ["state-of-mind"],
-      ["assessments"], ["ecgs"], ["heartbeats"], ["medications"], ["doses", "-r", "M"],
-      ["details"], ["search", "steps"], ["sync", "status"],
+      ["assessments"], ["ecgs"], ["heartbeats"], ["audiograms"], ["medications"],
+      ["doses", "-r", "M"], ["details"], ["search", "steps"], ["sync", "status"],
     ] {
       for json in [false, true] {
         let arguments = command + (json ? ["--json"] : [])
@@ -355,7 +355,7 @@ struct LilHealthExecutableTests {
     let listed = try request(2, "tools/list")
     let tools = (listed["result"] as? [String: Any])?["tools"] as? [[String: Any]] ?? []
     #expect(tools.compactMap { $0["name"] as? String }.first == "summary")
-    #expect(tools.count == 29)
+    #expect(tools.count == 30)
 
     // Access is off: the call fails with what to do, and isn't logged.
     let refused = try request(

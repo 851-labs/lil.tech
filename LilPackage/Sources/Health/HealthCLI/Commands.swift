@@ -33,7 +33,7 @@ struct LilHealthCommand: ParsableCommand {
       WorkoutsCommand.self, WorkoutCommand.self, RoutesCommand.self, RouteCommand.self,
       SleepCommand.self, ActivityCommand.self, StateOfMindCommand.self,
       AssessmentsCommand.self, ECGsCommand.self, ECGCommand.self, HeartbeatsCommand.self,
-      HeartbeatCommand.self, MedicationsCommand.self, DosesCommand.self,
+      HeartbeatCommand.self, AudiogramsCommand.self, MedicationsCommand.self, DosesCommand.self,
       DetailsCommand.self,
       SearchCommand.self, SyncCommand.self, OpenCommand.self, ExportCommand.self,
       MCPCommand.self,
@@ -401,6 +401,21 @@ struct HeartbeatCommand: QueryCommand {
   func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
     Answer(
       try tools.heartbeatSeriesBeats(id: id, timeZone: timeZone, cursor: cursor, limit: limit, db))
+  }
+}
+
+struct AudiogramsCommand: QueryCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "audiograms",
+    abstract: "Audiograms in a range: each ear's hearing level, and its sensitivity by frequency.")
+
+  @Option(name: .shortAndLong, help: rangeHelp) var range = RangeArgument(.year)
+  @Option(help: dateHelp) var date: String?
+  @Option(help: timeZoneHelp) var timeZone: String?
+  @OptionGroup var output: OutputOptions
+
+  func answer(_ tools: HealthTools, _ db: Database) throws -> Answer {
+    Answer(try tools.audiograms(range: range.range, date: date, timeZone: timeZone, db))
   }
 }
 

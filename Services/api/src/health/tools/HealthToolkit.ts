@@ -1658,6 +1658,117 @@ export const HeartbeatSeriesBeats = readOnly(
 );
 
 // -------------------------------------------------------------------------------------------------
+// audiograms
+// -------------------------------------------------------------------------------------------------
+
+/** The most audiograms `audiograms` lists. */
+export const audiogramsLimit = 30;
+
+export const HealthAudiogramTest = Schema.Struct({
+  sensitivity: Schema.Finite.annotate({
+    description:
+      "The quietest sound heard at this frequency, in dBHL (decibels hearing level): 0 is " +
+      "typical hearing, and higher means a louder sound was needed. Can be below 0.",
+  }),
+  conduction: Schema.String.annotate({
+    description:
+      "How the sound was played: Air (through headphones or the air, as hearing tests do), or " +
+      "Unknown for a kind a later iOS adds.",
+  }),
+  masked: Schema.Boolean.annotate({
+    description: "Whether the other ear was masked with noise during the test.",
+  }),
+  clamped: Schema.Boolean.annotate({
+    description:
+      "Whether the result is a bound rather than a threshold: the test has a clamping range " +
+      "(clampingLower, clampingUpper), and the threshold lies within it. A lower bound alone " +
+      "means no response up to the device's loudest, so the threshold is at or past " +
+      "sensitivity; lil health's chart marks it with a down arrow.",
+  }),
+  clampingLower: Schema.optionalKey(
+    Schema.Finite.annotate({
+      description: "The clamping range's lower bound, in dBHL. Left out without one.",
+    }),
+  ),
+  clampingUpper: Schema.optionalKey(
+    Schema.Finite.annotate({
+      description: "The clamping range's upper bound, in dBHL. Left out without one.",
+    }),
+  ),
+}).annotate({ identifier: "HealthAudiogramTest" });
+
+const earTests = (ear: string) =>
+  Schema.Array(HealthAudiogramTest).annotate({
+    description:
+      `The ${ear} ear's tests at this frequency, the one lil health charts and averages first ` +
+      "(air conduction, unmasked before masked), then any others as recorded. Empty if that " +
+      "ear wasn't tested here.",
+  });
+
+export const HealthAudiogramPoint = Schema.Struct({
+  frequency: Schema.Finite.annotate({ description: "The tone's frequency, in Hz, e.g. 1000." }),
+  left: earTests("left"),
+  right: earTests("right"),
+}).annotate({ identifier: "HealthAudiogramPoint" });
+
+export const HealthAudiogramEar = Schema.Struct({
+  hearingLevel: Schema.NullOr(Schema.Finite).annotate({
+    description:
+      "The ear's hearing level, in whole dBHL, as lil health's Audiogram page shows it: the " +
+      "average of its charted sensitivities at 500, 1000, 2000 and 4000 Hz (the speech range), " +
+      "or of every frequency tested if none of those was. Null if the ear wasn't tested (Not " +
+      "Tested on the page).",
+  }),
+  hearingLoss: Schema.NullOr(Schema.String).annotate({
+    description:
+      "What the hearing level means, as the page says it: Little to No Hearing Loss (up to 25 " +
+      "dBHL), Mild Hearing Loss (up to 40), Moderate Hearing Loss (up to 60), Severe Hearing " +
+      "Loss (up to 80) or Profound Hearing Loss. Null if the ear wasn't tested.",
+  }),
+}).annotate({ identifier: "HealthAudiogramEar" });
+
+export const HealthAudiogramItem = Schema.Struct({
+  id: Schema.String.annotate({ description: "HealthKit's UUID for the audiogram." }),
+  start: LocalTime,
+  end: LocalTime,
+  ...recordedTimeFields,
+  leftEar: HealthAudiogramEar,
+  rightEar: HealthAudiogramEar,
+  points: Schema.Array(HealthAudiogramPoint).annotate({
+    description:
+      "Each frequency tested, as recorded (lowest first), with each ear's results. Empty if " +
+      "none can be read.",
+  }),
+  source: Schema.String.annotate({
+    description: "The app or device that recorded it, e.g. AirPods Pro's Hearing Test.",
+  }),
+}).annotate({ identifier: "HealthAudiogramItem" });
+
+export const HealthAudiogramsResult = Schema.Struct({
+  ...periodFields,
+  count: Schema.Int.annotate({ description: "Audiograms that start in the period, all of them." }),
+  audiograms: Schema.Array(HealthAudiogramItem).annotate({
+    description: `The audiograms, newest first, at most ${audiogramsLimit}.`,
+  }),
+});
+
+export const Audiograms = readOnly(
+  Tool.make("audiograms", {
+    description:
+      "Audiograms (hearing test results, from the Hearing Test on AirPods Pro or another app) " +
+      "that started in a period, newest first, as lil health's Audiogram page shows them: each " +
+      "ear's hearing level (its average in dBHL) and what it means (e.g. Mild Hearing Loss), " +
+      "and each frequency tested with each ear's sensitivity in dBHL, how it was tested " +
+      "(conduction, masking) and whether the result is a bound (clamped), with the period's " +
+      "count. A screening result, not a diagnosis.",
+    parameters: Schema.Struct({ range, date, timeZone }),
+    success: HealthAudiogramsResult,
+    failure: HealthToolError,
+  }),
+  "Health Audiograms",
+);
+
+// -------------------------------------------------------------------------------------------------
 // medications
 // -------------------------------------------------------------------------------------------------
 
@@ -1976,6 +2087,7 @@ export const HealthToolkit = Toolkit.make(
   ElectrocardiogramVoltages,
   HeartbeatSeries,
   HeartbeatSeriesBeats,
+  Audiograms,
   Medications,
   MedicationDoses,
   HealthDetails,
@@ -2006,6 +2118,7 @@ export const healthToolResultNames: Record<keyof typeof HealthToolkit.tools, str
   electrocardiogram_voltages: "HealthElectrocardiogramVoltagesResult",
   heartbeat_series: "HealthHeartbeatSeriesResult",
   heartbeat_series_beats: "HealthHeartbeatSeriesBeatsResult",
+  audiograms: "HealthAudiogramsResult",
   medications: "HealthMedicationsResult",
   medication_doses: "HealthMedicationDosesResult",
   health_details: "HealthDetailsResult",

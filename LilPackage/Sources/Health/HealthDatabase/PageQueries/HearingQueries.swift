@@ -55,6 +55,19 @@ extension HealthDatabase {
       .limit(limit)
       .fetchAll(db)
   }
+
+  /// The audiograms that start in `range`, newest first (then by ID), at most `limit`, and how
+  /// many there are in all: the `audiograms` tool's (851-4161).
+  public static func audiograms(in range: Range<Date>, limit: Int, _ db: Database) throws
+    -> (count: Int, audiograms: [HealthAudiogram])
+  {
+    let (lower, upper) = (range.lowerBound.unixMilliseconds, range.upperBound.unixMilliseconds)
+    let inRange = HealthAudiogram.where { $0.startDate >= lower && $0.startDate < upper }
+    let audiograms = try inRange.order { ($0.startDate.desc(), $0.id.desc()) }.limit(limit)
+      .fetchAll(db)
+    // Counted only when they don't all fit.
+    return (audiograms.count < limit ? audiograms.count : try inRange.fetchCount(db), audiograms)
+  }
 }
 
 /// A week's sound exposure against Health's limit (`HealthDatabase.soundExposure`).
@@ -134,11 +147,83 @@ public enum HearingLevel: Equatable, Sendable, CaseIterable {
   }
 }
 
+/// One test of an ear at a frequency (`HKAudiogramSensitivityTest`), as synced: sensitivity and
+/// clamping bounds in dBHL.
+public struct AudiogramTest: Equatable, Sendable {
+  /// `HKAudiogramSensitivityTestSide`: 0 the left ear, 1 the right (`Ear`).
+  public var side: Int
+  /// `HKAudiogramConductionType`, 0 air (the only one so far); `nil` counts as air.
+  public var type: Int?
+  public var masked: Bool?
+  public var sensitivity: Double
+  public var clampingLower: Double?
+  public var clampingUpper: Double?
+
+  public init(
+    side: Int, type: Int? = nil, masked: Bool? = nil, sensitivity: Double,
+    clampingLower: Double? = nil, clampingUpper: Double? = nil
+  ) {
+    self.side = side
+    self.type = type
+    self.masked = masked
+    self.sensitivity = sensitivity
+    self.clampingLower = clampingLower
+    self.clampingUpper = clampingUpper
+  }
+
+  /// Air conduction, as a test without a type is.
+  public var isAirConduction: Bool { (type ?? 0) == 0 }
+}
+
+/// A tested frequency with every test there, as synced.
+public struct AudiogramFrequency: Equatable, Sendable {
+  public var frequency: Double
+  public var tests: [AudiogramTest]
+
+  public init(frequency: Double, tests: [AudiogramTest]) {
+    self.frequency = frequency
+    self.tests = tests
+  }
+
+  /// An ear's tests: the one that counts first, as hearing tests report it (air conduction,
+  /// unmasked before masked, else the first), then the others as recorded. Empty if the ear
+  /// wasn't tested here.
+  public func tests(for ear: Ear) -> [AudiogramTest] {
+    var ears = tests.filter { $0.side == ear.rawValue }
+    guard
+      let index = ears.firstIndex(where: { $0.isAirConduction && $0.masked != true })
+        ?? ears.firstIndex(where: \.isAirConduction) ?? ears.indices.first
+    else { return [] }
+    let counted = ears.remove(at: index)
+    return [counted] + ears
+  }
+
+  /// Each ear's sensitivity here, from the test that counts.
+  public var point: AudiogramPoint {
+    AudiogramPoint(frequency: frequency, left: tests(for: .left), right: tests(for: .right))
+  }
+}
+
+extension AudiogramPoint {
+  /// A frequency's point from each ear's tests, the one that counts first
+  /// (`AudiogramFrequency.tests(for:)`).
+  public init(frequency: Double, left: [AudiogramTest], right: [AudiogramTest]) {
+    var clamped: Set<Ear> = []
+    for (ear, test) in [(Ear.left, left.first), (.right, right.first)]
+    where test?.clampingLower != nil && test?.clampingUpper == nil {
+      clamped.insert(ear)
+    }
+    self.init(
+      frequency: frequency, left: left.first?.sensitivity, right: right.first?.sensitivity,
+      clamped: clamped)
+  }
+}
+
 extension HealthAudiogram {
-  /// Its points, by frequency. For an ear tested more than one way at a frequency, an
-  /// air-conduction test counts, unmasked first, as hearing tests report it. Points and tests
-  /// that can't be read are left out, each on its own.
-  public var decodedPoints: [AudiogramPoint] {
+  /// Its frequencies, as recorded, with every test. Points and tests that can't be read are left
+  /// out, each on its own, as the `audiograms` tool on the server reads them
+  /// (`audiogramFrequencies`).
+  public var decodedFrequencies: [AudiogramFrequency] {
     struct Lossy<Value: Decodable>: Decodable {
       let value: Value?
       init(from decoder: any Decoder) throws { value = try? Value(from: decoder) }
@@ -159,22 +244,21 @@ extension HealthAudiogram {
       let points = try? JSONDecoder().decode([Lossy<Point>].self, from: Data(self.points.utf8))
     else { return [] }
     return points.compactMap(\.value).map { point in
-      let tests = point.tests.compactMap(\.value)
-      func test(_ ear: Ear) -> Point.Test? {
-        let ears = tests.filter { $0.side == ear.rawValue }
-        let air = ears.filter { ($0.type ?? 0) == 0 }
-        return air.first { $0.masked != true } ?? air.first ?? ears.first
-      }
-      let (left, right) = (test(.left), test(.right))
-      var clamped: Set<Ear> = []
-      for (ear, test) in [(Ear.left, left), (.right, right)]
-      where test?.clampingLower != nil && test?.clampingUpper == nil {
-        clamped.insert(ear)
-      }
-      return AudiogramPoint(
-        frequency: point.frequency, left: left?.sensitivity, right: right?.sensitivity,
-        clamped: clamped)
+      AudiogramFrequency(
+        frequency: point.frequency,
+        tests: point.tests.compactMap(\.value).map { test in
+          AudiogramTest(
+            side: test.side, type: test.type, masked: test.masked, sensitivity: test.sensitivity,
+            clampingLower: test.clampingLower, clampingUpper: test.clampingUpper)
+        })
     }
+  }
+
+  /// Its points, by frequency. For an ear tested more than one way at a frequency, an
+  /// air-conduction test counts, unmasked first, as hearing tests report it. Points and tests
+  /// that can't be read are left out, each on its own.
+  public var decodedPoints: [AudiogramPoint] {
+    decodedFrequencies.map(\.point)
   }
 }
 

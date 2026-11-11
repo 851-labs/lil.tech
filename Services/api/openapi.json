@@ -7144,6 +7144,194 @@
         ],
         "additionalProperties": true
       },
+      "HealthAudiogramEar": {
+        "type": "object",
+        "properties": {
+          "hearingLevel": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "The ear's hearing level, in whole dBHL, as lil health's Audiogram page shows it: the average of its charted sensitivities at 500, 1000, 2000 and 4000 Hz (the speech range), or of every frequency tested if none of those was. Null if the ear wasn't tested (Not Tested on the page)."
+          },
+          "hearingLoss": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the hearing level means, as the page says it: Little to No Hearing Loss (up to 25 dBHL), Mild Hearing Loss (up to 40), Moderate Hearing Loss (up to 60), Severe Hearing Loss (up to 80) or Profound Hearing Loss. Null if the ear wasn't tested."
+          }
+        },
+        "required": [
+          "hearingLevel",
+          "hearingLoss"
+        ],
+        "additionalProperties": true
+      },
+      "HealthAudiogramTest": {
+        "type": "object",
+        "properties": {
+          "sensitivity": {
+            "type": "number",
+            "description": "The quietest sound heard at this frequency, in dBHL (decibels hearing level): 0 is typical hearing, and higher means a louder sound was needed. Can be below 0."
+          },
+          "conduction": {
+            "type": "string",
+            "description": "How the sound was played: Air (through headphones or the air, as hearing tests do), or Unknown for a kind a later iOS adds."
+          },
+          "masked": {
+            "type": "boolean",
+            "description": "Whether the other ear was masked with noise during the test."
+          },
+          "clamped": {
+            "type": "boolean",
+            "description": "Whether the result is a bound rather than a threshold: the test has a clamping range (clampingLower, clampingUpper), and the threshold lies within it. A lower bound alone means no response up to the device's loudest, so the threshold is at or past sensitivity; lil health's chart marks it with a down arrow."
+          },
+          "clampingLower": {
+            "type": "number",
+            "description": "The clamping range's lower bound, in dBHL. Left out without one."
+          },
+          "clampingUpper": {
+            "type": "number",
+            "description": "The clamping range's upper bound, in dBHL. Left out without one."
+          }
+        },
+        "required": [
+          "sensitivity",
+          "conduction",
+          "masked",
+          "clamped"
+        ],
+        "additionalProperties": true
+      },
+      "HealthAudiogramPoint": {
+        "type": "object",
+        "properties": {
+          "frequency": {
+            "type": "number",
+            "description": "The tone's frequency, in Hz, e.g. 1000."
+          },
+          "left": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthAudiogramTest"
+            },
+            "description": "The left ear's tests at this frequency, the one lil health charts and averages first (air conduction, unmasked before masked), then any others as recorded. Empty if that ear wasn't tested here."
+          },
+          "right": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthAudiogramTest"
+            },
+            "description": "The right ear's tests at this frequency, the one lil health charts and averages first (air conduction, unmasked before masked), then any others as recorded. Empty if that ear wasn't tested here."
+          }
+        },
+        "required": [
+          "frequency",
+          "left",
+          "right"
+        ],
+        "additionalProperties": true
+      },
+      "HealthAudiogramItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "HealthKit's UUID for the audiogram."
+          },
+          "start": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "end": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "recordedTimeZone": {
+            "type": "string",
+            "description": "The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records."
+          },
+          "recordedStart": {
+            "type": "string",
+            "description": "When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+          },
+          "recordedEnd": {
+            "type": "string",
+            "description": "When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+          },
+          "leftEar": {
+            "$ref": "#/components/schemas/HealthAudiogramEar"
+          },
+          "rightEar": {
+            "$ref": "#/components/schemas/HealthAudiogramEar"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthAudiogramPoint"
+            },
+            "description": "Each frequency tested, as recorded (lowest first), with each ear's results. Empty if none can be read."
+          },
+          "source": {
+            "type": "string",
+            "description": "The app or device that recorded it, e.g. AirPods Pro's Hearing Test."
+          }
+        },
+        "required": [
+          "id",
+          "start",
+          "end",
+          "leftEar",
+          "rightEar",
+          "points",
+          "source"
+        ],
+        "additionalProperties": true
+      },
+      "HealthAudiogramsResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "range": {
+            "type": "string",
+            "description": "The range asked for: D, W, M, 6M or Y."
+          },
+          "start": {
+            "type": "string",
+            "description": "When the period starts."
+          },
+          "end": {
+            "type": "string",
+            "description": "When the period ends (exclusive)."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Audiograms that start in the period, all of them."
+          },
+          "audiograms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthAudiogramItem"
+            },
+            "description": "The audiograms, newest first, at most 30."
+          }
+        },
+        "required": [
+          "timeZone",
+          "range",
+          "start",
+          "end",
+          "count",
+          "audiograms"
+        ],
+        "additionalProperties": true
+      },
       "HealthMedicationCoding": {
         "type": "object",
         "properties": {

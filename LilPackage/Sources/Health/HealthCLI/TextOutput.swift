@@ -406,6 +406,59 @@ extension HealthHeartbeatSeriesBeatsResult: TextOutput {
   }
 }
 
+// MARK: - Audiograms (851-4161)
+
+extension HealthAudiogramsResult: TextOutput {
+  var text: String {
+    var lines = [
+      "Audiograms, \(range): \(day(start)) to \(lastDay(end)) (\(timeZone))",
+      "\(count) \(count == 1 ? "audiogram" : "audiograms")",
+    ]
+    if !audiograms.isEmpty { lines.append("") }
+    for audiogram in audiograms {
+      let ears = [("Left Ear", audiogram.leftEar), ("Right Ear", audiogram.rightEar)].map {
+        name, ear in
+        guard let level = ear.hearingLevel, let loss = ear.hearingLoss else {
+          return "\(name) Not Tested"
+        }
+        return "\(name) \(numberText(level)) dBHL (\(loss))"
+      }
+      lines.append(
+        "  \(time(audiogram.start))   " + (ears + [audiogram.source]).joined(separator: " · ")
+          + "   \(audiogram.id)")
+      // Each ear's charted result by frequency, a bound as one (≥, ≤ or its range), and how it
+      // was tested when that isn't plain air conduction.
+      for (name, tests) in [
+        ("Left", audiogram.points.map { ($0.frequency, $0.left.first) }),
+        ("Right", audiogram.points.map { ($0.frequency, $0.right.first) }),
+      ] {
+        let results = tests.compactMap { frequency, test in
+          test.map { test in
+            let value = numberText(test.sensitivity)
+            let result =
+              switch (test.clampingLower, test.clampingUpper) {
+              case (let lower?, let upper?):
+                "\(value) (\(numberText(lower)) to \(numberText(upper)))"
+              case (_?, nil): "≥\(value)"
+              case (nil, _?): "≤\(value)"
+              case (nil, nil): value
+              }
+            return "\(numberText(frequency)) Hz \(result)" + (test.masked ? " masked" : "")
+              + (test.conduction == "Air" ? "" : " (\(test.conduction) conduction)")
+          }
+        }
+        if !results.isEmpty {
+          lines.append("      \(name)   " + results.joined(separator: " · "))
+        }
+      }
+    }
+    if audiograms.count < count {
+      lines += ["", "Showing the \(audiograms.count) most recent audiograms."]
+    }
+    return lines.joined(separator: "\n") + "\n"
+  }
+}
+
 extension HealthMedicationsResult: TextOutput {
   var text: String {
     guard !medications.isEmpty else { return "No medications.\n" }
