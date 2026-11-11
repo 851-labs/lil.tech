@@ -298,7 +298,7 @@ TEST_RUNNER_LIL_HEALTHKIT_BENCHMARK=1 scripts/test-iphone-healthkit HealthKitCar
 
   - **Reading the zone** is a dictionary lookup in each record's metadata, on HealthKit's queue, and each name is checked (`CardTimeZone.named`) once a query: within the noise.
   - **Grouping** costs the core's runs and placement, about 5 ms a year here (unoptimized), as on the Mac (2.5 ms, release). The cards' times are HealthKit's reading of the readings, and don't change.
-  - **HealthKit checks the name itself** when a sample is made: it refuses `+09:00`, `europe/kyiv`, a blank or an unknown name (`_HKObjectValidationFailureException`, "not a valid time zone name string"), but takes `GMT+9` and abbreviations such as `PST`. So a zone the iPhone reads is always a name Foundation knows, and `CardTimeZone.named` leaves out only `GMT±N` (and takes abbreviations, as 851-4184 says).
+  - **HealthKit checks the name itself** when a sample is made: it refuses `+09:00`, `europe/kyiv`, a blank or an unknown name (`_HKObjectValidationFailureException`, "not a valid time zone name string"), but takes `GMT+9` and abbreviations such as `PST`. So a zone the iPhone reads is always a name Foundation knows, and `CardTimeZone.named` leaves out `GMT±N` and abbreviations, which aren't in its list of IANA names (851-4184).
 
 ## The iPhone's upload
 

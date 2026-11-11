@@ -1,9 +1,10 @@
 #!/bin/sh
 # Writes the server's card files from the Swift HealthCards module (LilPackage/Sources/Health/
 # HealthCards), their source of truth (851-3194): the card spec's JSON Schema
-# (Services/api/card-spec.schema.json), the welcome seed (Services/api/card-seed.json) and the
+# (Services/api/card-spec.schema.json), the welcome seed (Services/api/card-seed.json), the
 # validation cases the server's port must pass (Services/api/test/health/cards/
-# validation-cases.json). It compiles HealthCatalog and HealthCards on their own with swiftc,
+# validation-cases.json) and the time zone names both servers take (Services/api/time-zones.json,
+# 851-4184). It compiles HealthCatalog and HealthCards on their own with swiftc,
 # which takes seconds, rather than building the package.
 #
 # Usage: scripts/generate-health-cards [--check]

@@ -2,22 +2,27 @@ public import Foundation
 
 /// Time zone names: the tools' `timeZone` and the zone a record was recorded in
 /// (`HKMetadataKeyTimeZone`, kept as `HKTimeZone`), one check for both (851-4174,
-/// docs/decisions/health.md › Recorded time zones). The server checks names the same way
-/// (`ToolTime.ts`).
+/// docs/decisions/health.md › Recorded time zones). The server checks names against the same list
+/// (`time-zones.json`, generated from `names`, in `ToolTime.ts`), so the two take the same names
+/// (851-4184, 851-4185).
 public enum CardTimeZone {
-  /// The zone named `name`: an IANA name in its proper case, which Foundation knows, its old
-  /// aliases included (`Asia/Calcutta`, `Europe/Kiev`, `US/Pacific`), as Apple writes
-  /// `TimeZone.current.identifier`. `nil` for anything else, though `TimeZone(identifier:)` takes
-  /// some of it: a UTC offset (`+09:00`), `GMT+9`, or a name in the wrong case.
+  /// The zone named `name`, when it's one of `names`, exactly, and Foundation knows it. `nil` for
+  /// anything else, though `TimeZone(identifier:)` takes some of it: an abbreviation (`PST`,
+  /// `BST`), a UTC offset (`+09:00`), `GMT+9`, or ICU's old IDs (`AET`, `SystemV/AST4`).
   public static func named(_ name: String) -> TimeZone? {
-    guard isIANAName(name), let zone = TimeZone(identifier: name) else { return nil }
-    return zone
+    guard names.contains(name) else { return nil }
+    return TimeZone(identifier: name)
   }
 
-  /// An IANA name's shape: not a UTC offset such as `+01:00`, nor `GMT+0100`, which `TimeZone`
-  /// also accepts. The same pattern as the server's.
-  static func isIANAName(_ name: String) -> Bool {
-    name.wholeMatch(of: /[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*/) != nil
-      && !name.hasPrefix("GMT+") && !name.hasPrefix("GMT-")
+  /// The name `name` should have, when it's one of `names` in another case (`europe/kyiv` for
+  /// `Europe/Kyiv`), for the tools' error. `nil` for a name in its proper case, or none of them.
+  public static func properName(of name: String) -> String? {
+    guard let properName = namesByLowercase[name.lowercased()], properName != name else {
+      return nil
+    }
+    return properName
   }
+
+  private static let namesByLowercase = Dictionary(
+    uniqueKeysWithValues: names.map { ($0.lowercased(), $0) })
 }

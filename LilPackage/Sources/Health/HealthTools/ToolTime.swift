@@ -21,17 +21,19 @@ public struct ToolTime: Sendable {
   public let name: String
   public let calendar: Calendar
 
-  /// The time zone named `name` (an IANA name in its proper case), or the Mac's own without one.
-  /// Anything else is the call's error, as on the remote server: a UTC offset, or a name in the
-  /// wrong case.
+  /// The time zone named `name` (one of `CardTimeZone.names`, in its proper case), or the Mac's
+  /// own without one. Anything else is the call's error, in the remote server's words: an
+  /// abbreviation, a UTC offset, or a name in the wrong case.
   public init(timeZone name: String?) throws {
-    let name = name ?? TimeZone.current.identifier
+    guard let name else {
+      // The Mac's own zone, even one newer than the list.
+      let zone = TimeZone.current
+      self.init(zone: zone, name: zone.identifier)
+      return
+    }
     guard let zone = CardTimeZone.named(name) else {
-      // `TimeZone` is case-sensitive: say which name was meant, as the remote server does.
-      if let match = TimeZone.knownTimeZoneIdentifiers.first(where: {
-        $0.lowercased() == name.lowercased()
-      }) {
-        throw HealthToolError("Unknown time zone: \(name). Did you mean \(match)?")
+      if let properName = CardTimeZone.properName(of: name) {
+        throw HealthToolError("Unknown time zone: \(name). Did you mean \(properName)?")
       }
       throw HealthToolError("Unknown time zone: \(name). Use an IANA name, e.g. Europe/London.")
     }

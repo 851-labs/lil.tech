@@ -13,6 +13,19 @@ extension HealthCards {
         "Services/api/test/health/cards/validation-cases.json",
         validationCasesJSON.text(pretty: true) + "\n"
       ),
+      ("Services/api/time-zones.json", timeZonesJSON.text(pretty: true) + "\n"),
+    ]
+  }
+
+  /// `Services/api/time-zones.json`: the time zone names both servers take
+  /// (`CardTimeZone.names`), sorted.
+  static var timeZonesJSON: CardJSON {
+    [
+      "description": .string(
+        "The time zone names the tools' timeZone and records' HKTimeZone take, on both servers, "
+          + "in their proper case (docs/decisions/health.md, Time zones). Generated from "
+          + "CardTimeZone.names by scripts/generate-health-cards: don't edit."),
+      "names": .array(CardTimeZone.names.sorted().map(CardJSON.string)),
     ]
   }
 

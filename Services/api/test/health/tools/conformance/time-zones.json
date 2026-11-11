@@ -1,0 +1,275 @@
+{
+  "notes": [
+    "Time zone names (851-4184, 851-4185, docs/decisions/health.md, Time zones): which names both servers take for the tools' timeZone and records' HKTimeZone, CardTimeZone.named on the Mac and namedTimeZone on the remote server. Both check them against one list, CardTimeZone.names (Services/api/time-zones.json): the IANA names with an area, old aliases included, and UTC and GMT, in their proper case.",
+    "A case with zone true is a zone, with its offsets from UTC in seconds at each of the instants, in order. One with zone false isn't, and properName is the name the tools' error suggests (Did you mean …?), when it's a listed name in another case.",
+    "Refused, though Foundation, Intl or both take them: abbreviations (PST; BST, Dhaka in ICU), IANA's names without an area (EST, a fixed UTC−5; Japan; GMT0), ICU's old IDs (AET, SystemV/AST4), UTC offsets and GMT+9, and the wrong case, which Intl takes and turns into another name (europe/kyiv is Europe/Kiev there)."
+  ],
+  "instants": ["2026-01-15T12:00:00Z", "2026-07-15T12:00:00Z"],
+  "cases": [
+    {
+      "name": "Europe/London",
+      "zone": true,
+      "offsets": [0, 3600]
+    },
+    {
+      "name": "America/Los_Angeles",
+      "zone": true,
+      "offsets": [-28800, -25200]
+    },
+    {
+      "name": "Asia/Kolkata",
+      "zone": true,
+      "offsets": [19800, 19800]
+    },
+    {
+      "name": "Asia/Calcutta",
+      "zone": true,
+      "offsets": [19800, 19800]
+    },
+    {
+      "name": "Europe/Kyiv",
+      "zone": true,
+      "offsets": [7200, 10800]
+    },
+    {
+      "name": "Europe/Kiev",
+      "zone": true,
+      "offsets": [7200, 10800]
+    },
+    {
+      "name": "US/Pacific",
+      "zone": true,
+      "offsets": [-28800, -25200]
+    },
+    {
+      "name": "Asia/Tokyo",
+      "zone": true,
+      "offsets": [32400, 32400]
+    },
+    {
+      "name": "Asia/Kathmandu",
+      "zone": true,
+      "offsets": [20700, 20700]
+    },
+    {
+      "name": "Australia/Lord_Howe",
+      "zone": true,
+      "offsets": [39600, 37800]
+    },
+    {
+      "name": "America/Argentina/Buenos_Aires",
+      "zone": true,
+      "offsets": [-10800, -10800]
+    },
+    {
+      "name": "Etc/GMT+9",
+      "zone": true,
+      "offsets": [-32400, -32400]
+    },
+    {
+      "name": "Etc/UTC",
+      "zone": true,
+      "offsets": [0, 0]
+    },
+    {
+      "name": "UTC",
+      "zone": true,
+      "offsets": [0, 0]
+    },
+    {
+      "name": "GMT",
+      "zone": true,
+      "offsets": [0, 0]
+    },
+    {
+      "name": "PST",
+      "zone": false
+    },
+    {
+      "name": "BST",
+      "zone": false
+    },
+    {
+      "name": "EST",
+      "zone": false
+    },
+    {
+      "name": "IST",
+      "zone": false
+    },
+    {
+      "name": "JST",
+      "zone": false
+    },
+    {
+      "name": "CET",
+      "zone": false
+    },
+    {
+      "name": "MST",
+      "zone": false
+    },
+    {
+      "name": "HST",
+      "zone": false
+    },
+    {
+      "name": "WET",
+      "zone": false
+    },
+    {
+      "name": "EST5EDT",
+      "zone": false
+    },
+    {
+      "name": "PST8PDT",
+      "zone": false
+    },
+    {
+      "name": "Japan",
+      "zone": false
+    },
+    {
+      "name": "GB",
+      "zone": false
+    },
+    {
+      "name": "Zulu",
+      "zone": false
+    },
+    {
+      "name": "UCT",
+      "zone": false
+    },
+    {
+      "name": "Universal",
+      "zone": false
+    },
+    {
+      "name": "Greenwich",
+      "zone": false
+    },
+    {
+      "name": "GMT0",
+      "zone": false
+    },
+    {
+      "name": "GMT+0",
+      "zone": false
+    },
+    {
+      "name": "GMT-0",
+      "zone": false
+    },
+    {
+      "name": "AET",
+      "zone": false
+    },
+    {
+      "name": "VST",
+      "zone": false
+    },
+    {
+      "name": "SystemV/AST4",
+      "zone": false
+    },
+    {
+      "name": "Factory",
+      "zone": false
+    },
+    {
+      "name": "est",
+      "zone": false
+    },
+    {
+      "name": "+09:00",
+      "zone": false
+    },
+    {
+      "name": "GMT+9",
+      "zone": false
+    },
+    {
+      "name": "GMT-05:00",
+      "zone": false
+    },
+    {
+      "name": "Z",
+      "zone": false
+    },
+    {
+      "name": "",
+      "zone": false
+    },
+    {
+      "name": "Japan Standard Time",
+      "zone": false
+    },
+    {
+      "name": "Mars/Olympus_Mons",
+      "zone": false
+    },
+    {
+      "name": " Europe/London",
+      "zone": false
+    },
+    {
+      "name": "Europe/London ",
+      "zone": false
+    },
+    {
+      "name": "Europe/London/",
+      "zone": false
+    },
+    {
+      "name": "europe/kyiv",
+      "zone": false,
+      "properName": "Europe/Kyiv"
+    },
+    {
+      "name": "europe/kiev",
+      "zone": false,
+      "properName": "Europe/Kiev"
+    },
+    {
+      "name": "asia/kolkata",
+      "zone": false,
+      "properName": "Asia/Kolkata"
+    },
+    {
+      "name": "us/pacific",
+      "zone": false,
+      "properName": "US/Pacific"
+    },
+    {
+      "name": "europe/london",
+      "zone": false,
+      "properName": "Europe/London"
+    },
+    {
+      "name": "ASIA/TOKYO",
+      "zone": false,
+      "properName": "Asia/Tokyo"
+    },
+    {
+      "name": "Asia/tokyo",
+      "zone": false,
+      "properName": "Asia/Tokyo"
+    },
+    {
+      "name": "utc",
+      "zone": false,
+      "properName": "UTC"
+    },
+    {
+      "name": "gmt",
+      "zone": false,
+      "properName": "GMT"
+    },
+    {
+      "name": "etc/gmt+9",
+      "zone": false,
+      "properName": "Etc/GMT+9"
+    }
+  ]
+}

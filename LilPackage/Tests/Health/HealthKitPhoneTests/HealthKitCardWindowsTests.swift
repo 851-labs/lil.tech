@@ -330,14 +330,15 @@ extension HealthKitCardsTests {
   }
 
   /// A sleep record's zone is its `HKMetadataKeyTimeZone` when that's a zone's name, old aliases
-  /// included, as the Mac reads it (`onlyAZonesNameIsAZone`): `GMT+9`, which HealthKit takes but
-  /// the tools don't, or no zone loses only the zone, and the record stays. HealthKit itself
+  /// included, as the Mac reads it (`onlyAZonesNameIsAZone`): `GMT+9` or `PST`, which HealthKit
+  /// takes but the tools don't (851-4184), or no zone loses only the zone, and the record
+  /// stays. HealthKit itself
   /// refuses to make a sample whose zone is a UTC offset (`+09:00`), in the wrong case or blank.
   /// The name stays as written (851-4177): Foundation's zone for `UTC` is `GMT`.
   @Test
   func onlyAZonesNameIsAZone() async throws {
     let health = try await SyntheticHealthKit.empty()
-    let zones: [String?] = ["Europe/Kyiv", "Europe/Kiev", nil, "GMT+9", "US/Pacific", "UTC"]
+    let zones: [String?] = ["Europe/Kyiv", "Europe/Kiev", nil, "GMT+9", "US/Pacific", "UTC", "PST"]
     try await health.save(
       zones.enumerated().map { index, zone in
         SyntheticHealthKit.sleep(
@@ -348,9 +349,10 @@ extension HealthKitCardsTests {
       overlapping: day[0]..<day[1])
     #expect(
       records.map(\.timeZone?.identifier)
-        == ["Europe/Kyiv", "Europe/Kiev", nil, nil, "US/Pacific", "GMT"])
+        == ["Europe/Kyiv", "Europe/Kiev", nil, nil, "US/Pacific", "GMT", nil])
     #expect(
-      records.map(\.timeZoneName) == ["Europe/Kyiv", "Europe/Kiev", nil, nil, "US/Pacific", "UTC"])
+      records.map(\.timeZoneName)
+        == ["Europe/Kyiv", "Europe/Kiev", nil, nil, "US/Pacific", "UTC", nil])
   }
 
   // MARK: - Support
