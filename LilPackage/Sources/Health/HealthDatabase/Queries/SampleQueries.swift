@@ -98,7 +98,7 @@ extension HealthSample {
   }
 
   /// Its metadata as an object, empty when it has none or it isn't one.
-  var metadataObject: [String: Any] {
+  public var metadataObject: [String: Any] {
     guard let metadata,
       let object = try? JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [String: Any]
     else { return [:] }

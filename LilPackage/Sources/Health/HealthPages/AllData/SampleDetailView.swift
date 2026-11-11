@@ -28,9 +28,7 @@ struct SampleDetailView: View {
         LabeledContent(
           "Start", value: Date(unixMilliseconds: sample.startDate), format: dateStyle)
         LabeledContent("End", value: Date(unixMilliseconds: sample.endDate), format: dateStyle)
-        if let zone = RecordedTimeZone(
-          sample.timeZoneName, start: Date(unixMilliseconds: sample.startDate), calendar: calendar)
-        {
+        if let zone = recordedTimeZone {
           RecordedTimeZoneRow(zone: zone)
         }
       }
@@ -53,17 +51,24 @@ struct SampleDetailView: View {
           optional("Software Version", device.softwareVersion)
         }
       }
-      let metadata = sample.metadataEntries
+      // Without `HKTimeZone` when the Time Zone row shows it (851-4169).
+      let metadata = SampleFormat.metadata(
+        of: sample, timeZoneShown: recordedTimeZone != nil, calendar: calendar, locale: locale)
       if !metadata.isEmpty {
         Section("Metadata") {
-          ForEach(metadata, id: \.key) { entry in
-            LabeledContent(SampleFormat.key(entry.key), value: entry.value)
+          ForEach(metadata, id: \.key) { row in
+            LabeledContent(row.label, value: row.value)
           }
         }
       }
     }
     .formStyle(.grouped)
     .navigationTitle(type.name)
+  }
+
+  private var recordedTimeZone: RecordedTimeZone? {
+    RecordedTimeZone(
+      sample.timeZoneName, start: Date(unixMilliseconds: sample.startDate), calendar: calendar)
   }
 
   @ViewBuilder private func optional(_ title: String, _ value: String?) -> some View {
