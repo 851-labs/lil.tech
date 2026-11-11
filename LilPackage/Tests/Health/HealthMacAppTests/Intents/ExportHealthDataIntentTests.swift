@@ -90,6 +90,7 @@ struct ExportHealthDataIntentTests {
     #expect(try await answer() == .exported(saved))
     #expect(progress.value == [.preparing, .downloading(0), .downloading(0.5)])
     #expect(try String(contentsOf: saved, encoding: .utf8) == "synthetic archive")
+    await store.finish()
   }
 
   @Test(.timeLimit(.minutes(1)))
@@ -115,6 +116,7 @@ struct ExportHealthDataIntentTests {
     #expect(
       try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted()
         == ["lil-export-2026-10-21 2.tar", name])
+    await store.finish()
   }
 
   @Test(.timeLimit(.minutes(1)))
@@ -130,6 +132,7 @@ struct ExportHealthDataIntentTests {
     #expect(
       HealthAppActionError.exportRunning.localizedDescription == "An export is already running.")
     #expect(requests.value == 0)
+    await store.finish()
   }
 
   @Test
@@ -165,6 +168,7 @@ struct ExportHealthDataIntentTests {
     let error = await #expect(throws: HealthAppActionError.self) { try await answer() }
     #expect(error == .exportFailed(DataExportError.unavailable.message))
     #expect(error?.localizedDescription == DataExportError.unavailable.message)
+    await store.finish()
   }
 
   @Test(.timeLimit(.minutes(1)))
@@ -206,6 +210,7 @@ struct ExportHealthDataIntentTests {
       try await missingAnswer()
     }
     #expect(requests.value == 0)
+    await store.finish()
   }
 
   @Test(.timeLimit(.minutes(1)))
@@ -226,6 +231,7 @@ struct ExportHealthDataIntentTests {
       $0.account.dataExport.status = .idle
     }
     await #expect(throws: HealthAppActionError.exportCancelled) { try await answer() }
+    await store.finish()
   }
 
   @Test(.timeLimit(.minutes(1)))
@@ -358,7 +364,9 @@ struct ExportHealthDataIntentTests {
   }
 }
 
-/// A request for `AppFeature`, its answer once given, and the progress it reported.
+/// A request for `AppFeature`, its answer once given, and the progress it reported. The effect
+/// answering it ends only after it answers, so a test that ends on the answer ends with
+/// `store.finish()` (851-4206).
 private func makeRequest(
   _ action: HealthAppAction
 ) -> (
