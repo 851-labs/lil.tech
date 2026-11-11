@@ -4,12 +4,12 @@ import Testing
 @testable import HealthTools
 
 // `lil-health ecgs` and `ecg`'s text (851-4159): each recording's classification, heart rate and
-// symptoms, and a page of voltages a line a second. Synthetic data only.
+// symptoms (by name when its links say, 851-4187), and a page of voltages a line a second. Synthetic data only.
 @Suite struct ECGTextTests {
   @Test func listsEachRecording() {
     let result = HealthElectrocardiogramsResult(
       timeZone: "UTC", range: "W", start: "2026-10-14T00:00:00+00:00",
-      end: "2026-10-21T00:00:00+00:00", count: 3,
+      end: "2026-10-21T00:00:00+00:00", count: 4,
       recordings: [
         HealthElectrocardiogramItem(
           id: "e1", start: "2026-10-19T08:30:00+00:00", end: "2026-10-19T08:30:30+00:00",
@@ -20,16 +20,27 @@ import Testing
           id: "e2", start: "2026-10-17T06:00:00+00:00", end: "2026-10-17T06:00:30+00:00",
           duration: 30, classification: "Inconclusive", averageHeartRate: nil,
           samplingFrequency: nil, voltageCount: 0, symptoms: "Not Logged", source: "ECG"),
+        HealthElectrocardiogramItem(
+          id: "e3", start: "2026-10-16T21:00:00+00:00", end: "2026-10-16T21:00:30+00:00",
+          duration: 30, classification: "Atrial Fibrillation", averageHeartRate: 112.4,
+          samplingFrequency: 512, voltageCount: 15_360, symptoms: "Symptoms Logged",
+          loggedSymptoms: [
+            HealthElectrocardiogramSymptom(
+              type: "HKCategoryTypeIdentifierSkippedHeartbeat", name: "Skipped Heartbeat"),
+            HealthElectrocardiogramSymptom(
+              type: "HKCategoryTypeIdentifierDizziness", name: "Dizziness"),
+          ], source: "ECG"),
       ])
     #expect(
       result.text == """
         ECGs, W: 2026-10-14 to 2026-10-20 (UTC)
-        3 recordings
+        4 recordings
 
           2026-10-19 08:30   Sinus Rhythm · 68 BPM average · No Symptoms · ECG   e1
           2026-10-17 06:00   Inconclusive · Not Logged · ECG   e2
+          2026-10-16 21:00   Atrial Fibrillation · 112 BPM average · Skipped Heartbeat, Dizziness · ECG   e3
 
-        Showing the 2 most recent recordings.
+        Showing the 3 most recent recordings.
 
         """)
   }

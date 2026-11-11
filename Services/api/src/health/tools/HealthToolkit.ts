@@ -809,12 +809,37 @@ export const HealthWorkoutInterval = Schema.Struct({
   maximumSpeed: workoutMetadataFields.maximumSpeed,
 }).annotate({ identifier: "HealthWorkoutInterval" });
 
+/** Unnamed: a nullable schema in the spec can't be a reference (`normalize` in `OpenApiSpec.ts`). */
+export const HealthWorkoutEffortScore = Schema.Struct({
+  score: Schema.Finite.annotate({
+    description:
+      "How hard it was, from 1 to 10, as Health rates it: 1 to 3 Easy, 4 to 6 Moderate, 7 and " +
+      "8 Hard, 9 and 10 All Out.",
+  }),
+  estimated: Schema.Boolean.annotate({
+    description:
+      "Whether it's Apple Watch's estimate (HKQuantityTypeIdentifierEstimatedWorkoutEffortScore) " +
+      "rather than a score the person rated (HKQuantityTypeIdentifierWorkoutEffortScore).",
+  }),
+});
+
+/** A workout's, or one of its legs', effort score. */
+const workoutEffort = (what: string) =>
+  Schema.NullOr(HealthWorkoutEffortScore).annotate({
+    description:
+      `${what} effort score: the one HealthKit finds most relevant among those related to it ` +
+      "(HKWorkoutEffortRelationship), else, if that hasn't synced, the latest one the person " +
+      "rated, else Apple Watch's latest estimate. People often rate a workout after it ends. " +
+      "Null when it has none, or when linksRead is false and lil health doesn't know.",
+  });
+
 export const HealthWorkoutLeg = Schema.Struct({
   ...HealthWorkoutActivityItem.fields,
   elevationAscended: Schema.NullOr(Schema.Finite).annotate({
     description: fromMetadata("HKMetadataKeyElevationAscended", "Meters climbed"),
   }),
   ...workoutMetadataFields,
+  effort: workoutEffort("The leg's own"),
   statistics: workoutStatistics.annotate({ description: "The leg's own statistics." }),
 }).annotate({ identifier: "HealthWorkoutLeg" });
 
@@ -838,6 +863,14 @@ export const HealthWorkoutDetail = Schema.Struct({
       "Workout app writes it 100 times too large (72% as 7200 %), so a value over 100 is " +
       "divided by 100. To 12 significant digits, or 6 if an older lil health uploaded it.",
   }),
+  linksRead: Schema.Boolean.annotate({
+    description:
+      "Whether lil health has read what HealthKit links to the workout: its effort scores, " +
+      "and the samples recorded with it. False for a workout an older lil health on the " +
+      "iPhone uploaded, until an updated one reads its links. While it's false, a null effort " +
+      "means lil health doesn't know the score, not that there's none.",
+  }),
+  effort: workoutEffort("The workout's"),
   statistics: workoutStatistics,
   pauseCount: Schema.Int.annotate({ description: "How many times it was paused." }),
   pauses: Schema.Array(HealthWorkoutPause).annotate({
@@ -860,8 +893,8 @@ export const HealthWorkoutDetail = Schema.Struct({
   activities: Schema.Array(HealthWorkoutLeg).annotate({
     description:
       "A multisport workout's legs (e.g. swim, transition, bike, run), in order, each with " +
-      "its own statistics. Empty for a workout of one activity, whose statistics are the " +
-      "workout's.",
+      "its own statistics and effort score. Empty for a workout of one activity, whose " +
+      "statistics and score are the workout's.",
   }),
 }).annotate({ identifier: "HealthWorkoutDetail" });
 
@@ -876,8 +909,9 @@ export const Workout = readOnly(
       "One workout in full, by the ID workouts gives: everything workouts says, plus every " +
       "statistic HealthKit computed (maximum and minimum heart rate, power, cadence, stride " +
       "length, swimming strokes…), descent, speeds, METs, the weather, SWOLF and pool length, " +
-      "its pauses, laps (with each length's stroke and SWOLF) and segments, and a multisport " +
-      "workout's legs with their own statistics. Values from the workout's metadata have 12 " +
+      "its pauses, laps (with each length's stroke and SWOLF) and segments, its effort score " +
+      "(rated or Apple Watch's estimate), and a multisport workout's legs with their own " +
+      "statistics and scores. Values from the workout's metadata have 12 " +
       "significant digits, or 6 if an older lil health uploaded it.",
     parameters: Schema.Struct({
       id: Schema.String.annotate({ description: "The workout's ID, from workouts." }),
@@ -1363,6 +1397,16 @@ const electrocardiogramIdParameter = Schema.String.annotate({
   description: "An ECG's ID, from electrocardiograms.",
 });
 
+export const HealthElectrocardiogramSymptom = Schema.Struct({
+  type: healthType.annotate({
+    description:
+      "The symptom's category type, e.g. HKCategoryTypeIdentifierRapidPoundingOrFlutteringHeartbeat.",
+  }),
+  name: Schema.String.annotate({
+    description: "The name Health gives it, e.g. Rapid, Pounding, or Fluttering Heartbeat.",
+  }),
+}).annotate({ identifier: "HealthElectrocardiogramSymptom" });
+
 export const HealthElectrocardiogramItem = Schema.Struct({
   id: Schema.String.annotate({ description: "HealthKit's UUID for the recording." }),
   start: LocalTime,
@@ -1395,10 +1439,14 @@ export const HealthElectrocardiogramItem = Schema.Struct({
   symptoms: Schema.String.annotate({
     description:
       "Whether symptoms were logged with it, as lil health shows it: Symptoms Logged, No " +
-      "Symptoms, or Not Logged (they weren't asked about). lil health doesn't link a recording " +
-      "to its symptoms yet: they're symptom samples (e.g. " +
-      "HKCategoryTypeIdentifierRapidPoundingOrFlutteringHeartbeat, " +
-      "HKCategoryTypeIdentifierChestTightnessOrPain), logged around its time, which samples " +
+      "Symptoms, or Not Logged (they weren't asked about). loggedSymptoms says which.",
+  }),
+  loggedSymptoms: Schema.NullOr(Schema.Array(HealthElectrocardiogramSymptom)).annotate({
+    description:
+      "The symptoms logged with it (HKQuery.predicateForObjectsAssociated), in the order they " +
+      "were logged: empty when none were. Null when lil health doesn't know which: for a " +
+      "recording an older lil health on the iPhone uploaded, until an updated one reads its " +
+      "links. Its symptoms are then symptom samples logged around its time, which samples " +
       "lists by type.",
   }),
   algorithmVersion: Schema.optionalKey(
@@ -1428,7 +1476,7 @@ export const Electrocardiograms = readOnly(
       "ECG recordings (from the ECG app on Apple Watch, or another app) that started in a " +
       "period, newest first, as lil health's ECG page lists them: each one's classification " +
       "(e.g. Sinus Rhythm or Atrial Fibrillation), average heart rate, sampling frequency, " +
-      "how many voltage measurements it has and whether symptoms were logged, with the " +
+      "how many voltage measurements it has and the symptoms logged with it, with the " +
       "period's count. Its voltages come from electrocardiogram_voltages, a page at a time: " +
       "ask for them only when the classification and heart rate aren't enough.",
     parameters: Schema.Struct({ range, date, timeZone }),

@@ -5478,6 +5478,28 @@
             ],
             "description": "For swims: the SWOLF score (strokes plus seconds per length; lower is more efficient), if the app that recorded it says (HKMetadataKeySWOLFScore)."
           },
+          "effort": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "score": {
+                "type": "number",
+                "description": "How hard it was, from 1 to 10, as Health rates it: 1 to 3 Easy, 4 to 6 Moderate, 7 and 8 Hard, 9 and 10 All Out."
+              },
+              "estimated": {
+                "type": "boolean",
+                "description": "Whether it's Apple Watch's estimate (HKQuantityTypeIdentifierEstimatedWorkoutEffortScore) rather than a score the person rated (HKQuantityTypeIdentifierWorkoutEffortScore)."
+              }
+            },
+            "required": [
+              "score",
+              "estimated"
+            ],
+            "additionalProperties": true,
+            "description": "The leg's own effort score: the one HealthKit finds most relevant among those related to it (HKWorkoutEffortRelationship), else, if that hasn't synced, the latest one the person rated, else Apple Watch's latest estimate. People often rate a workout after it ends. Null when it has none, or when linksRead is false and lil health doesn't know."
+          },
           "statistics": {
             "type": "array",
             "items": {
@@ -5501,6 +5523,7 @@
           "averageMETs",
           "lapLength",
           "swolf",
+          "effort",
           "statistics"
         ],
         "additionalProperties": true
@@ -5694,7 +5717,7 @@
             "items": {
               "$ref": "#/components/schemas/HealthWorkoutLeg"
             },
-            "description": "A multisport workout's legs (e.g. swim, transition, bike, run), in order, each with its own statistics. Empty for a workout of one activity, whose statistics are the workout's."
+            "description": "A multisport workout's legs (e.g. swim, transition, bike, run), in order, each with its own statistics and effort score. Empty for a workout of one activity, whose statistics and score are the workout's."
           },
           "elevationDescended": {
             "type": [
@@ -5758,6 +5781,32 @@
               "null"
             ],
             "description": "Relative humidity, in percent from 0 to 100 (HKMetadataKeyWeatherHumidity). Apple's Workout app writes it 100 times too large (72% as 7200 %), so a value over 100 is divided by 100. To 12 significant digits, or 6 if an older lil health uploaded it."
+          },
+          "linksRead": {
+            "type": "boolean",
+            "description": "Whether lil health has read what HealthKit links to the workout: its effort scores, and the samples recorded with it. False for a workout an older lil health on the iPhone uploaded, until an updated one reads its links. While it's false, a null effort means lil health doesn't know the score, not that there's none."
+          },
+          "effort": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "score": {
+                "type": "number",
+                "description": "How hard it was, from 1 to 10, as Health rates it: 1 to 3 Easy, 4 to 6 Moderate, 7 and 8 Hard, 9 and 10 All Out."
+              },
+              "estimated": {
+                "type": "boolean",
+                "description": "Whether it's Apple Watch's estimate (HKQuantityTypeIdentifierEstimatedWorkoutEffortScore) rather than a score the person rated (HKQuantityTypeIdentifierWorkoutEffortScore)."
+              }
+            },
+            "required": [
+              "score",
+              "estimated"
+            ],
+            "additionalProperties": true,
+            "description": "The workout's effort score: the one HealthKit finds most relevant among those related to it (HKWorkoutEffortRelationship), else, if that hasn't synced, the latest one the person rated, else Apple Watch's latest estimate. People often rate a workout after it ends. Null when it has none, or when linksRead is false and lil health doesn't know."
           },
           "statistics": {
             "type": "array",
@@ -5830,6 +5879,8 @@
           "weatherCondition",
           "weatherTemperature",
           "weatherHumidity",
+          "linksRead",
+          "effort",
           "statistics",
           "pauseCount",
           "pauses",
@@ -6743,6 +6794,24 @@
         ],
         "additionalProperties": true
       },
+      "HealthElectrocardiogramSymptom": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "The symptom's category type, e.g. HKCategoryTypeIdentifierRapidPoundingOrFlutteringHeartbeat."
+          },
+          "name": {
+            "type": "string",
+            "description": "The name Health gives it, e.g. Rapid, Pounding, or Fluttering Heartbeat."
+          }
+        },
+        "required": [
+          "type",
+          "name"
+        ],
+        "additionalProperties": true
+      },
       "HealthElectrocardiogramItem": {
         "type": "object",
         "properties": {
@@ -6800,7 +6869,17 @@
           },
           "symptoms": {
             "type": "string",
-            "description": "Whether symptoms were logged with it, as lil health shows it: Symptoms Logged, No Symptoms, or Not Logged (they weren't asked about). lil health doesn't link a recording to its symptoms yet: they're symptom samples (e.g. HKCategoryTypeIdentifierRapidPoundingOrFlutteringHeartbeat, HKCategoryTypeIdentifierChestTightnessOrPain), logged around its time, which samples lists by type."
+            "description": "Whether symptoms were logged with it, as lil health shows it: Symptoms Logged, No Symptoms, or Not Logged (they weren't asked about). loggedSymptoms says which."
+          },
+          "loggedSymptoms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/HealthElectrocardiogramSymptom"
+            },
+            "description": "The symptoms logged with it (HKQuery.predicateForObjectsAssociated), in the order they were logged: empty when none were. Null when lil health doesn't know which: for a recording an older lil health on the iPhone uploaded, until an updated one reads its links. Its symptoms are then symptom samples logged around its time, which samples lists by type."
           },
           "algorithmVersion": {
             "type": "number",
@@ -6821,6 +6900,7 @@
           "samplingFrequency",
           "voltageCount",
           "symptoms",
+          "loggedSymptoms",
           "source"
         ],
         "additionalProperties": true
