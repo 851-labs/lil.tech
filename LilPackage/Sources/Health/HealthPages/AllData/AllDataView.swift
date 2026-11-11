@@ -181,7 +181,7 @@ struct SampleRow: View {
   }
 }
 
-/// How a sample's times read.
+/// How a sample's times and metadata (`SampleMetadata.swift`) read.
 enum SampleFormat {
   /// "9:41 AM", or "9:41 – 10:05 AM" for a sample that lasts more than a minute.
   static func time(_ sample: HealthSample, calendar: Calendar) -> String {
@@ -191,17 +191,5 @@ enum SampleFormat {
     guard end.timeIntervalSince(start) > 60 else { return start.formatted(style) }
     return (start..<end).formatted(
       Date.IntervalFormatStyle(date: .omitted, time: .shortened, timeZone: calendar.timeZone))
-  }
-
-  /// A metadata key as words: `HKMetadataKeyHeartRateMotionContext` reads "Heart Rate Motion
-  /// Context". Other apps' keys are left as they are.
-  static func key(_ key: String) -> String {
-    guard key.hasPrefix("HKMetadataKey") else { return key }
-    var words = ""
-    for character in key.dropFirst("HKMetadataKey".count) {
-      if character.isUppercase, let last = words.last, last.isLowercase { words.append(" ") }
-      words.append(character)
-    }
-    return words
   }
 }

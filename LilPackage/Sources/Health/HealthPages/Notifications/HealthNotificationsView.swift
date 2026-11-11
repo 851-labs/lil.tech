@@ -206,7 +206,7 @@ struct NotificationDetailContent: View {
   /// From dependencies, so snapshot catalogs fix it (`previewCalendar`).
   @Dependency(\.calendar) private var calendar
   /// Parsed once, not on every render.
-  private let metadata: [(key: String, value: String)]
+  private let metadata: [MetadataRow]
 
   init(
     kind: HealthNotificationKind, notification: HealthNotification,
@@ -215,7 +215,10 @@ struct NotificationDetailContent: View {
     self.kind = kind
     self.notification = notification
     self.heartRates = heartRates
-    metadata = notification.sample.metadataEntries
+    // Its recorded time zone included, which it has no Time Zone row for.
+    @Dependency(\.calendar) var calendar
+    @Dependency(\.locale) var locale
+    metadata = SampleFormat.metadata(of: notification.sample, calendar: calendar, locale: locale)
   }
 
   /// How long before and after a heart rate notification its chart reaches, so a short (or
@@ -283,8 +286,8 @@ struct NotificationDetailContent: View {
       }
       if !metadata.isEmpty {
         Section("Metadata") {
-          ForEach(metadata, id: \.key) { entry in
-            LabeledContent(SampleFormat.key(entry.key), value: entry.value)
+          ForEach(metadata, id: \.key) { row in
+            LabeledContent(row.label, value: row.value)
           }
         }
       }

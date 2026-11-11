@@ -79,6 +79,13 @@
             sample: recorded(in: "America/Los_Angeles", samples(heartRate, limit: 1)[0]))
         }
       },
+      // Apple's keys and values in words (851-4169): an enum's case, a date, a number and a
+      // Boolean, by label, with the recorded zone in the Time Zone row rather than Metadata.
+      CatalogState("Sample with metadata") {
+        NavigationStack {
+          SampleDetailView(type: cardioFitness, sample: cardioFitnessSample)
+        }
+      },
       CatalogState("Sources", minHeight: 420) {
         sources(
           .loaded(
@@ -120,6 +127,23 @@
   private let steps = HealthCatalog.type(id: "HKQuantityTypeIdentifierStepCount")!
   private let handwashing = HealthCatalog.type(id: HealthDatabase.handwashingType)!
   private let headache = HealthCatalog.type(id: "HKCategoryTypeIdentifierHeadache")!
+  private let cardioFitness = HealthCatalog.type(id: "HKQuantityTypeIdentifierVO2Max")!
+
+  /// A Watch's cardio fitness estimate, with the metadata such an estimate has.
+  private let cardioFitnessSample: HealthSample = {
+    let start = previewNow.addingTimeInterval(-26 * 3600)
+    var sample = HealthSample(
+      id: "synthetic-vo2max", type: cardioFitness.id, startDate: start.unixMilliseconds,
+      endDate: start.addingTimeInterval(1800).unixMilliseconds, value: 41.3, unit: "ml/(kg*min)",
+      sourceName: "Apple Watch", sourceBundleID: "com.apple.health.watch")
+    let earliest = previewCalendar.date(byAdding: .day, value: -30, to: start)!
+    sample.metadata = """
+      {"HKVO2MaxTestType":2,"HKAlgorithmVersion":2,"HKWasUserEntered":false,\
+      "HKMetadataKeyAppleDeviceCalibrated":true,"HKTimeZone":"America/Los_Angeles",\
+      "HKDateOfEarliestDataUsedForEstimate":{"date":"\(earliest.ISO8601Format())"}}
+      """
+    return sample
+  }()
 
   /// The newest of a type's samples in `catalogDatabase`.
   private func samples(_ type: HealthDataType, limit: Int = 60) -> [HealthSample] {

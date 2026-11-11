@@ -98,7 +98,7 @@ extension HealthSample {
   }
 
   /// Its metadata as an object, empty when it has none or it isn't one.
-  var metadataObject: [String: Any] {
+  public var metadataObject: [String: Any] {
     guard let metadata,
       let object = try? JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [String: Any]
     else { return [:] }
@@ -113,33 +113,37 @@ extension HealthSample {
 
   /// Its metadata as key and value text, by key. Nested values are written as JSON.
   public var metadataEntries: [(key: String, value: String)] {
-    metadataObject.map { key, value in
-      let text: String
-      switch value {
-      case let string as String: text = string
-      // JSON's `true` and `false` come back as numbers too.
-      case let number as NSNumber where CFGetTypeID(number) == CFBooleanGetTypeID():
-        text = number.boolValue ? "Yes" : "No"
-      case let number as NSNumber: text = number.stringValue
-      // The iPhone uploads values JSON can't hold (e.g. infinity) as `null`.
-      case is NSNull: text = "–"
-      // A quantity, `{ value, unit }` (851-4150), as its description would read: "84.6 m".
-      case let object as [String: Any] where object.count == 2:
-        if let (number, unit) = HealthMetadataValues.quantityParts(object) {
-          text = "\(String(format: "%.12g", number)) \(unit)"
-        } else {
-          text = Self.json(object)
-        }
-      // A date, `{ date }` (851-4150), as the iPhone wrote it: ISO 8601, in UTC.
-      case let object as [String: Any] where object.count == 1 && object["date"] is String:
-        text = object["date"] as? String ?? ""
-      default:
-        // Only arrays and objects reach here, which JSON writing accepts.
-        text = Self.json(value)
+    metadataObject.map { key, value in (key, Self.metadataText(value)) }
+      .sorted { $0.key < $1.key }
+  }
+
+  /// A metadata value as text, as recorded: a string as it is, a Boolean as Yes or No, a quantity
+  /// or date as its description would read, and other arrays and objects as JSON.
+  public static func metadataText(_ value: Any) -> String {
+    let text: String
+    switch value {
+    case let string as String: text = string
+    // JSON's `true` and `false` come back as numbers too.
+    case let number as NSNumber where CFGetTypeID(number) == CFBooleanGetTypeID():
+      text = number.boolValue ? "Yes" : "No"
+    case let number as NSNumber: text = number.stringValue
+    // The iPhone uploads values JSON can't hold (e.g. infinity) as `null`.
+    case is NSNull: text = "–"
+    // A quantity, `{ value, unit }` (851-4150), as its description would read: "84.6 m".
+    case let object as [String: Any] where object.count == 2:
+      if let (number, unit) = HealthMetadataValues.quantityParts(object) {
+        text = "\(String(format: "%.12g", number)) \(unit)"
+      } else {
+        text = Self.json(object)
       }
-      return (key, text)
+    // A date, `{ date }` (851-4150), as the iPhone wrote it: ISO 8601, in UTC.
+    case let object as [String: Any] where object.count == 1 && object["date"] is String:
+      text = object["date"] as? String ?? ""
+    default:
+      // Only arrays and objects reach here, which JSON writing accepts.
+      text = Self.json(value)
     }
-    .sorted { $0.key < $1.key }
+    return text
   }
 
   /// An array or object as JSON text.

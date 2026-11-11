@@ -259,9 +259,15 @@ public enum HealthMetadataValues {
 
   /// The case at an enum's raw value, if it's a whole number with one (not set is nil).
   public static func named(_ cases: [String?], _ value: Any?) -> String? {
+    caseIndex(cases, value).flatMap { cases[$0] }
+  }
+
+  /// An enum's raw value as an index into its `cases`, if it's a whole number with a case, named
+  /// or not.
+  public static func caseIndex(_ cases: [String?], _ value: Any?) -> Int? {
     guard let raw = number(value), raw >= 0, raw.rounded() == raw, raw < Double(cases.count)
     else { return nil }
-    return cases[Int(raw)]
+    return Int(raw)
   }
 
   /// A workout activity's name, by its `HKWorkoutActivityType` raw value.

@@ -88,6 +88,13 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sample-with-metadata-dark.png",
+      "id" : "all-data.sample-with-metadata",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sample-with-metadata-light.png",
+      "name" : "Sample with metadata",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/AllDataCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sources-dark.png",
       "id" : "all-data.sources",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/AllDataCatalog/all-data.sources-light.png",
