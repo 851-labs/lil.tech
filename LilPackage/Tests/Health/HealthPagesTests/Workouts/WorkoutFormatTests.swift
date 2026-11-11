@@ -161,7 +161,7 @@ struct WorkoutHeartRateTests {
     let samples = [
       sample("watch", 150), sample("strap", 90), sample("watch", 152), sample("watch", 149),
     ]
-    #expect(WorkoutDetailView.mainSource(samples).map(\.value) == [150, 152, 149])
+    #expect(HealthDatabase.mainSource(samples).map(\.value) == [150, 152, 149])
   }
 
   /// The chart is the heart rate linked to the workout (851-4186), even another source's, and
@@ -186,7 +186,8 @@ struct WorkoutHeartRateTests {
       }
       .execute(db)
     }
-    let guessed = try database.read { db in try WorkoutLinkedData(workout, db) }
+    let guessed = try database.read { db in try WorkoutLinkedDataRequest(workout: workout).fetch(db)
+    }
     #expect(guessed.heartRates.samples.map(\.id) == ["w1", "w2", "w3"])
     #expect(guessed.heartRates.origin == .notSynced)
     try database.write { db in
@@ -196,7 +197,8 @@ struct WorkoutHeartRateTests {
       }
       .execute(db)
     }
-    let linked = try database.read { db in try WorkoutLinkedData(workout, db) }
+    let linked = try database.read { db in try WorkoutLinkedDataRequest(workout: workout).fetch(db)
+    }
     #expect(linked.heartRates.samples.map(\.id) == ["s1"])
     #expect(linked.heartRates.origin == .linked)
     try database.write { db in
@@ -205,7 +207,8 @@ struct WorkoutHeartRateTests {
       }
       .execute(db)
     }
-    let tooMany = try database.read { db in try WorkoutLinkedData(workout, db) }
+    let tooMany = try database.read { db in try WorkoutLinkedDataRequest(workout: workout).fetch(db)
+    }
     #expect(tooMany.heartRates.samples.map(\.id) == ["w1", "w2", "w3"])
     #expect(tooMany.heartRates.origin == .tooMany)
   }

@@ -42,7 +42,7 @@
           symptoms: [
             symptom(1, "RapidPoundingOrFlutteringHeartbeat", value: 0, of: recordings[1]),
             symptom(2, "Dizziness", value: 2, of: recordings[1]),
-            symptom(3, "ShortnessOfBreath", value: 5, of: recordings[1]),
+            symptom(3, "ShortnessOfBreath", value: 4, of: recordings[1]),
           ])
       },
       // Stretches without a value, as when the finger leaves the crown.

@@ -138,7 +138,7 @@ struct ElectrocardiogramDetailView: View {
   /// Those linked to it (851-4186), none until read. Read by the view's task, not in its
   /// initializer, as a Health Document's row is, and followed, so links that sync while it's open
   /// show.
-  @Fetch private var symptoms: [HealthSample] = []
+  @ThrottledFetch private var symptoms: [HealthSample] = []
 
   init(recording: HealthElectrocardiogram) {
     self.recording = recording
@@ -148,8 +148,9 @@ struct ElectrocardiogramDetailView: View {
   var body: some View {
     ElectrocardiogramDetailContent(recording: recording, trace: trace, symptoms: symptoms)
       .task(id: recording.id) {
-        _ = try? await $symptoms.load(
-          ElectrocardiogramSymptomsRequest(id: recording.id), scheduler: MainQueueScheduler())
+        await $symptoms.load(
+          ElectrocardiogramSymptomsRequest(id: recording.id),
+          tables: HealthDatabase.electrocardiogramLinkTables)
       }
       // Again if sync brings the recording's voltages, or new ones.
       .task(id: [recording.id, recording.voltages ?? ""]) {

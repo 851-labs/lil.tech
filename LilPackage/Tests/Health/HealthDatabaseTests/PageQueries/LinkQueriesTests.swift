@@ -65,19 +65,23 @@ struct LinkQueriesTests {
       try HealthWorkoutSamples.insert {
         HealthWorkoutSamples(id: "big", count: 25_000, samples: nil)
         HealthWorkoutSamples(id: "empty", count: 0, samples: "{}")
+        // Not what the server documents: read as not synced, so readers fall back.
+        HealthWorkoutSamples(id: "odd", count: 1, samples: #"["hr1"]"#)
       }
       .execute(db)
     }
-    let (missing, big, empty) = try database.read { db in
+    let (missing, big, empty, odd) = try database.read { db in
       (
         try HealthDatabase.linkedSamples(ofWorkout: "none", db),
         try HealthDatabase.linkedSamples(ofWorkout: "big", db),
-        try HealthDatabase.linkedSamples(ofWorkout: "empty", db)
+        try HealthDatabase.linkedSamples(ofWorkout: "empty", db),
+        try HealthDatabase.linkedSamples(ofWorkout: "odd", db)
       )
     }
     #expect(missing == .notSynced)
     #expect(big == .tooMany(count: 25_000))
     #expect(empty == .linked([]))
+    #expect(odd == .notSynced)
   }
 
   @Test
@@ -105,8 +109,8 @@ struct LinkQueriesTests {
     #expect(missing == .notSynced)
   }
 
-  /// The most relevant score stands for the workout, else the latest that has arrived, and each
-  /// leg has its own.
+  /// The most relevant score stands for the workout, else the latest rated one that has arrived,
+  /// else the latest estimate, and each leg has its own.
   @Test
   func effortScores() throws {
     try database.write { db in
@@ -118,19 +122,25 @@ struct LinkQueriesTests {
         HealthWorkoutEffort(
           id: "w2", samples: #"["effort-early","effort-late","missing"]"#,
           mostRelevant: "missing", legs: "[]")
+        // A later estimate doesn't stand in for a rated score.
+        HealthWorkoutEffort(
+          id: "w3", samples: #"["effort-early","leg","missing"]"#, mostRelevant: "missing",
+          legs: "[]")
       }
       .execute(db)
     }
-    let (effort, second, none) = try database.read { db in
+    let (effort, second, third, none) = try database.read { db in
       (
         try HealthDatabase.workoutEffort(of: "w", db),
         try HealthDatabase.workoutEffort(of: "w2", db),
+        try HealthDatabase.workoutEffort(of: "w3", db),
         try HealthDatabase.workoutEffort(of: "none", db)
       )
     }
     #expect(effort?.score?.id == "effort-early")
     #expect(effort?.legs.mapValues(\.id) == ["a1": "leg"])
     #expect(second?.score?.id == "effort-late")
+    #expect(third?.score?.id == "effort-early")
     #expect(none == nil)
   }
 

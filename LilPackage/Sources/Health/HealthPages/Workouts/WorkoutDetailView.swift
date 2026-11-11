@@ -15,7 +15,9 @@ struct WorkoutDetailView: View {
   let workout: HealthWorkout
   @Dependency(\.defaultDatabase) private var database
   @Dependency(\.blobCache) private var blobCache
-  @State private var linked = WorkoutLinkedData()
+  /// Its heart rate and effort scores, read by the view's task and followed, so links and scores
+  /// that sync while it's open show (a score is often rated after the workout).
+  @ThrottledFetch private var linked = WorkoutLinkedData()
   /// `.none` until the workout's route is known to exist: a workout without one never shows a
   /// placeholder for it (851-3091).
   @State private var route = RouteState.none
@@ -25,15 +27,12 @@ struct WorkoutDetailView: View {
       workout: workout, heartRates: linked.heartRates, effort: linked.effort, route: route
     )
     .task(id: workout.id) {
-      let workout = workout
-      // Both at once: the route may have to be downloaded.
-      async let data = try? database.read { db in try WorkoutLinkedData(workout, db) }
-      async let row = routeRow(workout)
-      // Both from the local database, set together, so the heart rate and the route's
-      // placeholder arrive at once, and only then the route, which may have to be downloaded.
-      let found = await row
-      linked = await data ?? WorkoutLinkedData()
-      switch found {
+      // Both from the local database, set one after the other, so the heart rate and the
+      // route's placeholder arrive at once, and only then the route, which may have to be
+      // downloaded.
+      await $linked.load(
+        WorkoutLinkedDataRequest(workout: workout), tables: HealthDatabase.workoutLinkTables)
+      switch await routeRow(workout) {
       case .failure(let error):
         route = .failed(error.localizedDescription)
       case .success(nil):
@@ -43,15 +42,6 @@ struct WorkoutDetailView: View {
         self.route = await .load(route.locations, from: blobCache)
       }
     }
-  }
-
-  /// The samples of the source that recorded the most during the workout (usually the Watch),
-  /// so a second device's readings don't zig-zag through the chart.
-  nonisolated static func mainSource(_ samples: [HealthSample]) -> [HealthSample] {
-    let counts = Dictionary(grouping: samples, by: \.sourceBundleID).mapValues(\.count)
-    guard let source = counts.max(by: { ($0.value, $1.key) < ($1.value, $0.key) })?.key
-    else { return [] }
-    return samples.filter { $0.sourceBundleID == source }
   }
 
   /// The workout's route, if it has one.
@@ -65,54 +55,24 @@ struct WorkoutDetailView: View {
   }
 }
 
-/// A workout's heart rate, and how it was found (851-4186).
-struct WorkoutHeartRates: Equatable {
-  enum Origin: Equatable {
-    /// The readings its app added to it, as its link record says (851-4153).
-    case linked
-    /// The main source's readings during it (`WorkoutDetailView.mainSource`), since its link
-    /// record hasn't synced (`LinkedSamples.notSynced`).
-    case notSynced
-    /// The same guess, since it linked more samples than the iPhone uploads
-    /// (`LinkedSamples.tooMany`).
-    case tooMany
-  }
-
-  var samples: [HealthSample] = []
-  var origin = Origin.linked
-}
-
-/// What a workout's page reads besides its row: its heart rate and effort scores.
-struct WorkoutLinkedData: Equatable {
+/// What a workout's page reads besides its row: its heart rate (linked, or guessed until its
+/// links sync, `HealthDatabase.workoutHeartRates`) and effort scores.
+struct WorkoutLinkedData: Equatable, Sendable {
   var heartRates = WorkoutHeartRates()
   var effort: WorkoutEffort?
+}
 
-  init(heartRates: WorkoutHeartRates = WorkoutHeartRates(), effort: WorkoutEffort? = nil) {
-    self.heartRates = heartRates
-    self.effort = effort
-  }
+struct WorkoutLinkedDataRequest: FetchKeyRequest {
+  let workout: HealthWorkout
 
-  /// Its heart rate as linked to it, or guessed from its time and main source while its links
-  /// haven't synced, or are too many; and its effort scores.
-  init(_ workout: HealthWorkout, _ db: Database) throws {
-    let origin: WorkoutHeartRates.Origin
-    switch try HealthDatabase.linkedSamples(
-      ofWorkout: workout.id, types: [WorkoutFormat.heartRate], db)
-    {
-    case .linked(let samples):
-      heartRates = WorkoutHeartRates(samples: samples, origin: .linked)
-      origin = .linked
-    case .notSynced: origin = .notSynced
-    case .tooMany: origin = .tooMany
-    }
-    if origin != .linked {
-      let during = try HealthDatabase.samples(
-        of: WorkoutFormat.heartRate,
-        in: Date(unixMilliseconds: workout.startDate)..<Date(unixMilliseconds: workout.endDate), db)
-      heartRates = WorkoutHeartRates(
-        samples: WorkoutDetailView.mainSource(during), origin: origin)
-    }
-    effort = try HealthDatabase.workoutEffort(of: workout.id, db)
+  /// By its ID: equal requests are equal workouts, as `HealthWorkout` compares them.
+  func hash(into hasher: inout Hasher) { hasher.combine(workout.id) }
+
+  func fetch(_ db: Database) throws -> WorkoutLinkedData {
+    // Read on their own: effort scores that can't be read leave the heart rate.
+    WorkoutLinkedData(
+      heartRates: try HealthDatabase.workoutHeartRates(of: workout, db),
+      effort: try? HealthDatabase.workoutEffort(of: workout.id, db))
   }
 }
 

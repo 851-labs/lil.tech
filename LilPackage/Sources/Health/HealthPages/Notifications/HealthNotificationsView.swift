@@ -178,7 +178,7 @@ struct NotificationDetailView: View {
             try HealthDatabase.samples(
               of: HealthDatabase.heartRateType, in: window.start..<window.end, db)
           }
-          heartRates = .loaded(WorkoutDetailView.mainSource(samples))
+          heartRates = .loaded(HealthDatabase.mainSource(samples))
         } catch {
           heartRates = .failed(error.localizedDescription)
         }
