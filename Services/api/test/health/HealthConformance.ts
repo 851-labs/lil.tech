@@ -6,6 +6,7 @@ import { TestClock } from "effect/testing";
 import type { DeviceId, UserId } from "../../src/core/Ids.ts";
 import { healthBatchKey, ingestHealthBatch } from "../../src/health/HealthIngestion.ts";
 import type { HealthBlobReader } from "../../src/health/tools/WorkoutRoutes.ts";
+import { entities } from "../../src/store/Registry.ts";
 import { UserStores } from "../../src/store/UserStores.ts";
 import { TestCore } from "../core/TestCoreDatabase.ts";
 import { TestStores, TestUserStores } from "../store/TestUserStores.ts";
@@ -38,11 +39,49 @@ export const readJson = <S extends Schema.Top & { readonly DecodingServices: nev
   schema: S,
 ) => Schema.decodeUnknownSync(schema)(JSON.parse(readFileSync(url, "utf8")));
 
+/**
+ * Throws if a line sends a record of an entity with key fields (`Entity.key`) under other key
+ * values than an earlier line with its ID (851-4181). A record's key fields never change: the
+ * store would keep a second record, which it can't afford to look for, and a Mac, keyed by ID,
+ * would replace the first, so the two sides' answers would differ.
+ */
+export const checkRecordKeys = (batches: ReadonlyArray<Batch>) => {
+  const keyed = new Map(
+    entities.filter((entity) => entity.key.length > 0).map((entity) => [entity.name, entity]),
+  );
+  const keys = new Map<string, string>();
+  for (const line of batches.flatMap((batch) => batch.lines)) {
+    const {
+      entity: name,
+      op,
+      id,
+      row,
+    } = line as {
+      entity?: string;
+      op?: string;
+      id?: string;
+      row?: Record<string, unknown>;
+    };
+    const entity = name === undefined ? undefined : keyed.get(name);
+    if (entity === undefined || op !== "upsert" || id === undefined) continue;
+    const key = JSON.stringify(entity.key.map((field) => row?.[field] ?? null));
+    const earlier = keys.get(`${entity.name} ${id}`);
+    if (earlier !== undefined && earlier !== key) {
+      throw new Error(
+        `${entity.name} ${id} is sent under two keys, ${earlier} and ${key}: give it another ID`,
+      );
+    }
+    keys.set(`${entity.name} ${id}`, key);
+  }
+};
+
 /** A dataset's batches, those of the one it extends first. */
 export const readDataset = (url: URL): ReadonlyArray<Batch> => {
   const file = readJson(url, DatasetFile);
   const base = file.extends === undefined ? [] : readDataset(new URL(file.extends, url));
-  return [...base, ...file.batches];
+  const batches = [...base, ...file.batches];
+  checkRecordKeys(batches);
+  return batches;
 };
 
 /**

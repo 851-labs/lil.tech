@@ -48,7 +48,32 @@ public struct ConformanceBatch {
         ConformanceBatch(
           device: device, receivedAt: try Date(receivedAt, strategy: .iso8601), lines: lines))
     }
+    try checkRecordKeys(batches.flatMap(\.lines))
     return batches
+  }
+
+  /// The entities stored by key fields as well as ID, and their fields, as the server's
+  /// `Entity.key` has them (`Services/api/src/health/HealthEntities.ts`).
+  static let keyFields = ["health_sample": ["type", "startDate"]]
+
+  /// Throws if one of `lines` sends a record under other key fields' values than an earlier line
+  /// with its ID (851-4181), as the server's harnesses do (`checkRecordKeys`). A record's key
+  /// fields never change: the server would keep a second record, and the Mac, keyed by ID,
+  /// replaces the first, so the two sides' answers would differ.
+  public static func checkRecordKeys(_ lines: [[String: Any]]) throws {
+    var keys: [String: String] = [:]
+    for line in lines {
+      guard let entity = line["entity"] as? String, let fields = keyFields[entity],
+        line["op"] as? String == "upsert", let id = line["id"] as? String
+      else { continue }
+      let row = line["row"] as? [String: Any] ?? [:]
+      let key = fields.map { row[$0].map { "\($0)" } ?? "null" }.joined(separator: ", ")
+      if let earlier = keys["\(entity) \(id)"], earlier != key {
+        throw ConformanceError(
+          "\(entity) \(id) is sent under two keys, [\(earlier)] and [\(key)]: give it another ID")
+      }
+      keys["\(entity) \(id)"] = key
+    }
   }
 }
 
