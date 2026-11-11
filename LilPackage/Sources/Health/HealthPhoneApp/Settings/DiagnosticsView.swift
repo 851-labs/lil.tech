@@ -178,6 +178,7 @@
 
     private var detail: String {
       guard let atArrival = arrival.atArrival, let latest = arrival.latest else {
+        if arrival.stopped { return "Stopped before its links were counted" }
         return arrival.failed ? "Couldn't count its links" : "Counting…"
       }
       var parts = ["\(atArrival.formatted()) linked on arrival"]
@@ -189,6 +190,8 @@
       }
       if arrival.failed {
         parts.append("then a count failed")
+      } else if arrival.stopped {
+        parts.append("stopped")
       } else if !arrival.isDone {
         parts.append("counting…")
       }

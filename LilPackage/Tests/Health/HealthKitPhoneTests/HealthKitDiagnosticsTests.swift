@@ -107,7 +107,9 @@
     func aWorkoutArrivesWithItsLinksCountedAgain() async throws {
       let health = try await SyntheticHealthKit.empty()
       _ = try await run(health, adding: 1, at: start.addingTimeInterval(-86_400))
-      var events = HealthDiagnostics.arrivals(in: health.store).makeAsyncIterator()
+      var events = HealthDiagnostics.arrivals(
+        in: health.store, now: { [start] in start.addingTimeInterval(3600) }
+      ).makeAsyncIterator()
       guard case .started = try await events.next() else {
         Issue.record("Watching didn't start first")
         return

@@ -55,16 +55,14 @@
         var anchor: HKQueryAnchor?
         while true {
           try Task.checkCancellation()
-          let page = try await HKAnchoredObjectQueryDescriptor(
-            predicates: [.quantitySample(type: type)], anchor: anchor, limit: pageSize
-          ).result(for: store)
+          let page = try await HealthReader.anchoredPage(
+            type, after: anchor, limit: pageSize, in: store)
           for sample in page.addedSamples {
             count.samples += 1
-            if sample.count > 1 {
-              count.series += 1
-              count.values += sample.count
-              count.largest = max(count.largest, sample.count)
-            }
+            guard let sample = sample as? HKQuantitySample, sample.count > 1 else { continue }
+            count.series += 1
+            count.values += sample.count
+            count.largest = max(count.largest, sample.count)
           }
           anchor = page.newAnchor
           if page.addedSamples.count + page.deletedObjects.count < pageSize { break }
@@ -140,12 +138,15 @@
         guard let (linked, late) = try await order(of: workout, store) else { continue }
         workouts.add(linked: linked, late: late)
       }
-      guard asked(about: .electrocardiogramType(), store) else {
+      guard try await canRead(.electrocardiogramType(), store) else {
         return (workouts, electrocardiograms)
       }
+      let withSymptoms = NSCompoundPredicate(andPredicateWithSubpredicates: [
+        recent, HKQuery.predicateForElectrocardiograms(symptomsStatus: .present),
+      ])
       for ecg in try await HKSampleQueryDescriptor(
-        predicates: [.electrocardiogram(recent)], sortDescriptors: []
-      ).result(for: store) where ecg.symptomsStatus == .present {
+        predicates: [.electrocardiogram(withSymptoms)], sortDescriptors: []
+      ).result(for: store) {
         try Task.checkCancellation()
         guard let (linked, late) = try await order(of: ecg, store) else { continue }
         electrocardiograms.add(linked: linked, late: late)
@@ -158,7 +159,8 @@
     private static func order(of sample: HKSample, _ store: HKHealthStore) async throws
       -> (linked: Int, late: Int)?
     {
-      let links = linkPredicates(of: sample)
+      let links = HealthReader.linkQueries(of: sample)
+      guard !links.isEmpty else { return (0, 0) }
       let own = try await HKAnchoredObjectQueryDescriptor(
         predicates: [
           .sample(type: sample.sampleType, predicate: HKQuery.predicateForObject(with: sample.uuid))
@@ -174,25 +176,12 @@
       return (linked, late)
     }
 
-    /// Whether the app has asked for access to a type, as the app has for every type it reads
-    /// (`HealthAuthorization`). A query of one it hasn't fails, as one of the HealthKit tests'
-    /// host would of ECGs, which it can't write.
-    private static func asked(about type: HKObjectType, _ store: HKHealthStore) -> Bool {
-      store.authorizationStatus(for: type) != .notDetermined
-    }
-
-    /// The queries of what the upload reads as its links (`HealthReader.links(of:store:)`).
-    static func linkPredicates(of sample: HKSample) -> [HKSamplePredicate<HKSample>] {
-      switch sample {
-      case let workout as HKWorkout:
-        let predicate = HKQuery.predicateForObjects(from: workout)
-        return HealthReader.linkedTypes(of: workout).map { .sample(type: $0, predicate: predicate) }
-      case let ecg as HKElectrocardiogram:
-        let predicate = HKQuery.predicateForObjectsAssociated(electrocardiogram: ecg)
-        return HealthReader.symptomTypes.map { .sample(type: $0, predicate: predicate) }
-      default:
-        return []
-      }
+    /// Whether the app has asked to read a type, as it has every type it reads
+    /// (`HealthAuthorization.requestRead`, which asks to share none): a query of one it hasn't
+    /// fails. Not `authorizationStatus(for:)`, which is about sharing. The HealthKit tests' host
+    /// never asks about ECGs, which it can't write.
+    private static func canRead(_ type: HKObjectType, _ store: HKHealthStore) async throws -> Bool {
+      try await store.statusForAuthorizationRequest(toShare: [], read: [type]) == .unnecessary
     }
   }
 
@@ -220,18 +209,30 @@
       case arrived(Arrival)
     }
 
+    /// The app hasn't asked to read workouts or ECGs, so there's nothing to watch.
+    public struct NothingToWatch: LocalizedError {
+      public var errorDescription: String? { "lil health can't read workouts or ECGs." }
+    }
+
     /// Workouts and ECGs as HealthKit adds them, once watching has started (`started`): none of
-    /// those already there. It ends when the task reading it is cancelled.
-    public static func arrivals(in store: HKHealthStore = HKHealthStore())
-      -> AsyncThrowingStream<Watched, any Error>
-    {
+    /// those already there. Only those that started in the last 2 days, so the first result,
+    /// what's there already, isn't every workout ever, while one a Watch syncs late still counts.
+    /// It ends when the task reading it is cancelled.
+    public static func arrivals(
+      in store: HKHealthStore = HKHealthStore(), now: @escaping @Sendable () -> Date = { Date() }
+    ) -> AsyncThrowingStream<Watched, any Error> {
       AsyncThrowingStream { continuation in
         let task = Task {
           do {
-            let types: [HKSampleType] = [.workoutType(), .electrocardiogramType()]
-            let descriptor = HKAnchoredObjectQueryDescriptor(
-              predicates: types.filter { asked(about: $0, store) }.map { .sample(type: $0) },
-              anchor: nil)
+            let recent = HKQuery.predicateForSamples(
+              withStart: now().addingTimeInterval(-2 * 86_400), end: nil)
+            var predicates: [HKSamplePredicate<HKSample>] = []
+            for type: HKSampleType in [.workoutType(), .electrocardiogramType()]
+            where try await canRead(type, store) {
+              predicates.append(.sample(type: type, predicate: recent))
+            }
+            guard !predicates.isEmpty else { throw NothingToWatch() }
+            let descriptor = HKAnchoredObjectQueryDescriptor(predicates: predicates, anchor: nil)
             var isFirst = true
             for try await result in descriptor.results(for: store) {
               // The first result is everything already there.
@@ -241,12 +242,10 @@
                 continue
               }
               for sample in result.addedSamples {
-                let links = linkPredicates(of: sample)
+                // What the upload would read: none for an ECG without symptoms logged.
+                let links = HealthReader.linkQueries(of: sample)
                 let arrival = Arrival(kind: sample is HKWorkout ? .workout : .electrocardiogram) {
-                  // An ECG without symptoms logged has none to read, as the upload has it.
-                  if let ecg = sample as? HKElectrocardiogram, ecg.symptomsStatus != .present {
-                    return 0
-                  }
+                  guard !links.isEmpty else { return 0 }
                   return try await HKSampleQueryDescriptor(predicates: links, sortDescriptors: [])
                     .result(for: store).count
                 }

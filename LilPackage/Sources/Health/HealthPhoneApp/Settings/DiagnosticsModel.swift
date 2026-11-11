@@ -52,6 +52,8 @@
       var isDone = false
       /// Whether a count failed, which ends its counts.
       var failed = false
+      /// Whether watching stopped before its counts were done.
+      var stopped = false
     }
 
     private(set) var series: SeriesPhase
@@ -138,6 +140,8 @@
         do {
           try await withThrowingDiscardingTaskGroup { group in
             for try await event in client.arrivals() {
+              // Stopped while this event was on its way: it's not this screen's any more.
+              if Task.isCancelled { break }
               switch event {
               case .started:
                 watch = .watching
@@ -172,11 +176,9 @@
       watch = .off
     }
 
-    /// Counts an arrival's links now, then at each of `recounts`.
+    /// Counts an arrival's links now, then at each of `recounts`, until watching stops.
     private func follow(_ id: Int, _ arrival: HealthDiagnostics.Arrival) async {
-      guard let first = try? await arrival.countLinks() else {
-        return update(id) { $0.failed = true }
-      }
+      guard let first = await count(id, arrival) else { return }
       update(id) {
         $0.atArrival = first
         $0.latest = first
@@ -187,12 +189,10 @@
         do {
           try await clock.sleep(for: recount - elapsed)
         } catch {
-          return
+          return update(id) { $0.stopped = true }
         }
         elapsed = recount
-        guard let count = try? await arrival.countLinks() else {
-          return update(id) { $0.failed = true }
-        }
+        guard let count = await count(id, arrival) else { return }
         update(id) {
           $0.latest = count
           $0.counted = recount
@@ -201,6 +201,22 @@
         last = count
       }
       update(id) { $0.isDone = true }
+    }
+
+    /// An arrival's links now, or `nil` once a count failed or watching stopped, which it says.
+    private func count(_ id: Int, _ arrival: HealthDiagnostics.Arrival) async -> Int? {
+      do {
+        let count = try await arrival.countLinks()
+        if Task.isCancelled {
+          update(id) { $0.stopped = true }
+          return nil
+        }
+        return count
+      } catch {
+        let stopped = Task.isCancelled
+        update(id) { if stopped { $0.stopped = true } else { $0.failed = true } }
+        return nil
+      }
     }
 
     private func update(_ id: Int, _ change: (inout Arrival) -> Void) {

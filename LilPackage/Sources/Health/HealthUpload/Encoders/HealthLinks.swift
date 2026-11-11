@@ -203,24 +203,34 @@ extension HealthReader {
     return HKObjectType.categoryType(forIdentifier: .init(rawValue: type.id))
   }
 
+  /// The queries of a workout's samples (of `linkedTypes(of:)`) or an ECG's symptoms: none for
+  /// an ECG unless it says some were logged, and none for anything else. The Debug builds'
+  /// diagnostics (`HealthDiagnostics`) ask the same.
+  static func linkQueries(of sample: HKSample) -> [HKSamplePredicate<HKSample>] {
+    switch sample {
+    case let workout as HKWorkout:
+      let predicate = HKQuery.predicateForObjects(from: workout)
+      return linkedTypes(of: workout).map { .sample(type: $0, predicate: predicate) }
+    case let ecg as HKElectrocardiogram where ecg.symptomsStatus == .present:
+      let predicate = HKQuery.predicateForObjectsAssociated(electrocardiogram: ecg)
+      return symptomTypes.map { .sample(type: $0, predicate: predicate) }
+    default:
+      return []
+    }
+  }
+
   /// The samples added to a workout, of `linkedTypes(of:)`.
   static func samples(of workout: HKWorkout, store: HKHealthStore) async throws -> LinkedSamples {
-    let predicate = HKQuery.predicateForObjects(from: workout)
-    return LinkedSamples(
-      id: workout.uuid,
-      try await linked(
-        linkedTypes(of: workout).map { .sample(type: $0, predicate: predicate) }, store))
+    LinkedSamples(id: workout.uuid, try await linked(linkQueries(of: workout), store))
   }
 
   /// The symptoms logged with an ECG: none to read unless it says some were.
   static func symptoms(of ecg: HKElectrocardiogram, store: HKHealthStore) async throws
     -> LinkedSamples
   {
-    guard ecg.symptomsStatus == .present else { return LinkedSamples(id: ecg.uuid, samples: [:]) }
-    let predicate = HKQuery.predicateForObjectsAssociated(electrocardiogram: ecg)
-    return LinkedSamples(
-      id: ecg.uuid,
-      try await linked(symptomTypes.map { .sample(type: $0, predicate: predicate) }, store))
+    let queries = linkQueries(of: ecg)
+    guard !queries.isEmpty else { return LinkedSamples(id: ecg.uuid, samples: [:]) }
+    return LinkedSamples(id: ecg.uuid, try await linked(queries, store))
   }
 
   /// A query of linked samples. One that fails throws `SeriesUnavailable`, as a series' does: it

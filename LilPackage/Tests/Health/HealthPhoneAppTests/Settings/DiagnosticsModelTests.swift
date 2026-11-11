@@ -135,9 +135,31 @@
       try await clock.waitUntilAsleep(endingIn: .seconds(15))
       model.disappeared()
       #expect(model.watch == .off)
-      try await eventually { !clock.isAsleep(dueWithin: .seconds(300)) }
-      #expect(
-        model.arrivals == [.init(id: 1, kind: .electrocardiogram, atArrival: 1, latest: 1)])
+      // Not counting, nor failed: stopped.
+      try await eventually {
+        model.arrivals == [
+          .init(id: 1, kind: .electrocardiogram, atArrival: 1, latest: 1, stopped: true)
+        ]
+      }
+      #expect(!clock.isAsleep(dueWithin: .seconds(300)))
+    }
+
+    /// What arrives after Stop Watching isn't shown, and doesn't start watching again.
+    @Test
+    func nothingArrivesAfterStopping() async throws {
+      let (events, arrive) = AsyncThrowingStream<HealthDiagnostics.Watched, any Error>.makeStream()
+      let model = makeModel(
+        DiagnosticsClient(
+          quantityTypeCount: { 0 }, countSeries: { _ in [] }, linkOrder: { _ in fatalError() },
+          arrivals: { events }))
+      model.startWatchingButtonTapped()
+      model.stopWatchingButtonTapped()
+      arrive.yield(.started)
+      arrive.yield(.arrived(.init(kind: .workout) { 1 }))
+      // Let the stopped task run, if it would.
+      for _ in 0..<100 { await Task.yield() }
+      #expect(model.watch == .off)
+      #expect(model.arrivals == [])
     }
 
     private func makeModel(_ client: DiagnosticsClient, clock: ManualClock = ManualClock())
