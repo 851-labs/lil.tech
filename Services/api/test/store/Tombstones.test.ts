@@ -136,8 +136,9 @@ describe("samples by type and start", () => {
       page.changes.map((change) => ("row" in change ? change.row["startDate"] : null)),
       [1760400060000, moved],
     );
-    // A delete, by ID, takes both.
+    // A delete, by ID, takes both: their ID's tombstone hides them until a sweep removes them.
     assert.strictEqual(apply([remove(1)]).appended, 1);
+    assert.deepStrictEqual(tombstoned(sql), [1]);
     assert.deepStrictEqual(log(sql), ["delete 1", "delete 1", "delete 1"]);
   });
 

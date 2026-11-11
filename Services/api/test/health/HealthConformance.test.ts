@@ -1,4 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
+import { entities } from "../../src/store/Registry.ts";
 import { type Batch, checkRecordKeys } from "./HealthConformance.ts";
 
 // Synthetic data only (AGENTS.md).
@@ -43,6 +44,14 @@ describe("checkRecordKeys", () => {
           ),
         ]),
       "give it another ID",
+    );
+  });
+
+  it("knows the keyed entities the Mac's check copies", () => {
+    // Change `ConformanceBatch.keyFields` (`LilPackage/Tests/Health/HealthConformance`) with them.
+    assert.deepStrictEqual(
+      entities.filter((entity) => entity.key.length > 0).map((entity) => [entity.name, entity.key]),
+      [["health_sample", ["type", "startDate"]]],
     );
   });
 });

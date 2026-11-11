@@ -43,12 +43,11 @@ struct ConformanceRecordKeysTests {
         Self.sample("HKQuantityTypeIdentifierHeartRate", 1_748_736_000_000),
       ])
     }
-  }
-
-  @Test
-  func theDatasetsSendEachRecordUnderOneKey() throws {
-    // `read` checks them.
-    _ = try ConformanceBatch.read(ConformanceFiles.tools.appending(path: "dataset.json"))
-    _ = try ConformanceBatch.read(ConformanceFiles.cards.appending(path: "dataset.json"))
+    // Compared as JSON, as the server does: a number isn't the same text in a string.
+    var text = Self.sample(Self.steps, 1_748_736_000_000)
+    text["row"] = ["type": Self.steps, "startDate": "1748736000000"]
+    #expect(throws: ConformanceError.self) {
+      try ConformanceBatch.checkRecordKeys([Self.sample(Self.steps, 1_748_736_000_000), text])
+    }
   }
 }
