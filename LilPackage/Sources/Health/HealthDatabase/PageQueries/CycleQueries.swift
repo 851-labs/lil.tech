@@ -384,7 +384,7 @@ extension HealthSample {
   /// Whether its metadata marks the start of a cycle (`HKMetadataKeyMenstrualCycleStart`), as
   /// true or 1.
   var startsCycle: Bool {
-    guard let value = metadataObject["HKMenstrualCycleStart"] else { return false }
+    guard let value = metadataObject[.menstrualCycleStart] else { return false }
     return (value as? Bool) == true || (value as? NSNumber)?.intValue == 1
   }
 }

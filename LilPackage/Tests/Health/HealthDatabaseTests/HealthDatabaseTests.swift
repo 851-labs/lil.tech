@@ -837,12 +837,12 @@ struct SampleQueriesTests {
     heartRate.device = #"{"name":"Apple Watch","manufacturer":"Apple Inc."}"#
     heartRate.sourceRevision = #"{"version":"26.0","productType":"Watch7,1"}"#
     heartRate.metadata =
-      #"{"HKMetadataKeyHeartRateMotionContext":1,"Custom":{"a":true},"HKMetadataKeyWasUserEntered":true,"Infinite":null}"#
+      #"{"HKMetadataKeyHeartRateMotionContext":1,"Custom":{"a":true},"HKWasUserEntered":true,"Infinite":null}"#
     #expect(heartRate.decodedDevice?.manufacturer == "Apple Inc.")
     #expect(heartRate.decodedSourceRevision?.productType == "Watch7,1")
     #expect(
       heartRate.metadataEntries.map(\.key) == [
-        "Custom", "HKMetadataKeyHeartRateMotionContext", "HKMetadataKeyWasUserEntered", "Infinite",
+        "Custom", "HKMetadataKeyHeartRateMotionContext", "HKWasUserEntered", "Infinite",
       ])
     // Booleans read as words, and nulls (values JSON can't hold) as a dash.
     #expect(heartRate.metadataEntries.map(\.value) == [#"{"a":true}"#, "1", "Yes", "–"])
@@ -2117,6 +2117,27 @@ struct PreviewHealthDatabaseTests {
     #expect(correlations == 7)
   }
 
+  /// Its samples' and workouts' metadata is under HealthKit's keys (851-4168), so what the
+  /// catalogs show is what the pages read from an iPhone's uploads.
+  @Test
+  func metadataIsUnderHealthKitsKeys() throws {
+    let database = makePreviewHealthDatabase(now: now, calendar: calendar("UTC"))
+    let metadata = try database.read { db in
+      try HealthSample.select(\.metadata).fetchAll(db)
+        + HealthWorkout.select(\.metadata).fetchAll(db)
+    }
+    var keys = Set<String>()
+    for json in metadata.compactMap(\.self) {
+      let object = try #require(
+        try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+      keys.formUnion(object.keys)
+    }
+    #expect(keys.contains(HealthMetadataKey.Name.indoorWorkout.rawValue))
+    for key in keys {
+      #expect(HealthCatalog.healthKitMetadataKeysByKey[key] != nil, "\(key)")
+    }
+  }
+
   @Test
   func previewBucketsAreOnUTCHalfHoursEvenInQuarterHourZones() throws {
     let database = makePreviewHealthDatabase(now: now, calendar: calendar("Asia/Kathmandu"))
@@ -3332,7 +3353,8 @@ struct FoodQueriesTests {
   func pagesReadFoodsWithTheirSummaryNutrients() throws {
     let database = try database([
       food(
-        "a", at: time(14, 8), metadata: #"{"HKFoodType":"Oatmeal","HKFoodMeal":"Breakfast"}"#,
+        "a", at: time(14, 8),
+        metadata: #"{"HKFoodType":"Oatmeal","com.example.food.meal":"Breakfast"}"#,
         [
           ("DietaryEnergyConsumed", 310), ("DietaryCarbohydrates", 54), ("DietaryProtein", 9.5),
           ("DietaryFatTotal", 6.1), ("DietaryFiber", 8),

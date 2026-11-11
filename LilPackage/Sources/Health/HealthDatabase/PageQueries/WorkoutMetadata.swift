@@ -87,26 +87,26 @@ public struct WorkoutMetadata: Equatable, Sendable {
       self.init()
       return
     }
-    func value(_ key: String) -> HealthMetadataValues.Value? {
+    func value(_ key: HealthMetadataKey.Name) -> HealthMetadataValues.Value? {
       HealthMetadataValues.value(key, in: metadata)
     }
     self.init(
-      indoor: value("HKIndoorWorkout")?.bool,
-      swimmingLocation: value("HKSwimmingLocationType")?.string,
-      brandName: value("HKWorkoutBrandName")?.string,
-      elevationAscended: value("HKElevationAscended")?.double,
+      indoor: value(.indoorWorkout)?.bool,
+      swimmingLocation: value(.swimmingLocationType)?.string,
+      brandName: value(.workoutBrandName)?.string,
+      elevationAscended: value(.elevationAscended)?.double,
       planName: HealthMetadataValues.text((metadata["LilWorkoutPlan"] as? [String: Any])?["name"]),
-      elevationDescended: value("HKElevationDescended")?.double,
-      averageSpeed: value("HKAverageSpeed")?.double,
-      maximumSpeed: value("HKMaximumSpeed")?.double,
-      averageMETs: value("HKAverageMETs")?.double,
-      lapLength: value("HKLapLength")?.double,
-      swolf: value("HKSWOLFScore")?.double,
-      weatherCondition: value("HKWeatherCondition")?.string,
-      weatherTemperature: value("HKWeatherTemperature")?.double,
-      weatherHumidity: value("HKWeatherHumidity")?.double,
-      strokeStyle: value("HKSwimmingStrokeStyle")?.string,
-      timeZoneName: value("HKTimeZone")?.string)
+      elevationDescended: value(.elevationDescended)?.double,
+      averageSpeed: value(.averageSpeed)?.double,
+      maximumSpeed: value(.maximumSpeed)?.double,
+      averageMETs: value(.averageMETs)?.double,
+      lapLength: value(.lapLength)?.double,
+      swolf: value(.swolfScore)?.double,
+      weatherCondition: value(.weatherCondition)?.string,
+      weatherTemperature: value(.weatherTemperature)?.double,
+      weatherHumidity: value(.weatherHumidity)?.double,
+      strokeStyle: value(.swimmingStrokeStyle)?.string,
+      timeZoneName: value(.timeZone)?.string)
   }
 
   /// Indoors or not, by an `HKWorkoutSessionLocationType` raw value: 2 indoor, 3 outdoor, and

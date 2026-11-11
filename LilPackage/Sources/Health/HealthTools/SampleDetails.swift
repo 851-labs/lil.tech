@@ -25,8 +25,8 @@ enum SampleDetails {
     var details = HealthSampleDetails()
     guard let metadata else { return details }
     for set in metadataFields { set(&details, metadata) }
-    if let earliest = HealthMetadataValues.value(
-      "HKDateOfEarliestDataUsedForEstimate", in: metadata)?.double,
+    if let earliest = HealthMetadataValues.value(.dateOfEarliestDataUsedForEstimate, in: metadata)?
+      .double,
       estimateDates.contains(earliest)
     {
       details.earliestDataUsedForEstimate = time.localTime(
@@ -49,9 +49,10 @@ enum SampleDetails {
 
   /// `field`'s setter from `key`, whose kind must read values of the field's type.
   static func set<Value>(
-    _ field: any WritableKeyPath<HealthSampleDetails, Value?> & Sendable, _ key: String
+    _ field: any WritableKeyPath<HealthSampleDetails, Value?> & Sendable,
+    _ key: HealthMetadataKey.Name
   ) -> Setter {
-    let kind = HealthMetadataValues.kinds[key]
+    let kind = HealthMetadataValues.kinds[key.rawValue]
     assert(
       kind.map { HealthMetadataValues.valueType(of: $0) == Value.self } == true,
       "\(key) isn't read as \(Value.self)")
@@ -71,40 +72,40 @@ enum SampleDetails {
   /// `sensorLocation` has two keys, heart rate's and body temperature's, and takes the first a
   /// sample has.
   static let metadataFields: [Setter] = [
-    set(\.userEntered, "HKWasUserEntered"),
-    set(\.food, "HKFoodType"),
-    set(\.motionContext, "HKMetadataKeyHeartRateMotionContext"),
-    set(\.userMotionContext, "HKMetadataKeyUserMotionContext"),
-    set(\.sensorLocation, "HKHeartRateSensorLocation"),
-    set(\.sensorLocation, "HKBodyTemperatureSensorLocation"),
-    set(\.mealTime, "HKBloodGlucoseMealTime"),
-    set(\.insulinDeliveryReason, "HKInsulinDeliveryReason"),
-    set(\.vo2MaxTestType, "HKVO2MaxTestType"),
-    set(\.vo2Max, "HKVO2MaxValue"),
-    set(\.lowCardioFitnessThreshold, "HKLowCardioFitnessEventThreshold"),
-    set(\.heartRateEventThreshold, "HKHeartRateEventThreshold"),
-    set(\.heartRateRecoveryTestType, "HKMetadataKeyHeartRateRecoveryTestType"),
-    set(\.heartRateRecoveryActivity, "HKMetadataKeyHeartRateRecoveryActivityType"),
-    set(\.heartRateRecoveryActivityDuration, "HKMetadataKeyHeartRateRecoveryActivityDuration"),
+    set(\.userEntered, .wasUserEntered),
+    set(\.food, .foodType),
+    set(\.motionContext, .heartRateMotionContext),
+    set(\.userMotionContext, .userMotionContext),
+    set(\.sensorLocation, .heartRateSensorLocation),
+    set(\.sensorLocation, .bodyTemperatureSensorLocation),
+    set(\.mealTime, .bloodGlucoseMealTime),
+    set(\.insulinDeliveryReason, .insulinDeliveryReason),
+    set(\.vo2MaxTestType, .vo2MaxTestType),
+    set(\.vo2Max, .vo2MaxValue),
+    set(\.lowCardioFitnessThreshold, .lowCardioFitnessEventThreshold),
+    set(\.heartRateEventThreshold, .heartRateEventThreshold),
+    set(\.heartRateRecoveryTestType, .heartRateRecoveryTestType),
+    set(\.heartRateRecoveryActivity, .heartRateRecoveryActivityType),
+    set(\.heartRateRecoveryActivityDuration, .heartRateRecoveryActivityDuration),
     set(
-      \.maxObservedRecoveryHeartRate, "HKMetadataKeyHeartRateRecoveryMaxObservedRecoveryHeartRate"),
-    set(\.audioExposureLevel, "HKMetadataKeyAudioExposureLevel"),
-    set(\.audioExposureDuration, "HKMetadataKeyAudioExposureDuration"),
-    set(\.headphoneGain, "HKMetadataKeyHeadphoneGain"),
-    set(\.physicalEffortEstimationType, "HKPhysicalEffortEstimationType"),
-    set(\.activity, "HKActivityType"),
-    set(\.placementSide, "HKMetadataKeyDevicePlacementSide"),
-    set(\.deviceCalibrated, "HKMetadataKeyAppleDeviceCalibrated"),
-    set(\.algorithmVersion, "HKAlgorithmVersion"),
-    set(\.clampedToLowerBound, "HKMetadataKeyQuantityClampedToLowerBound"),
-    set(\.clampedToUpperBound, "HKMetadataKeyQuantityClampedToUpperBound"),
-    set(\.referenceRangeLowerLimit, "HKReferenceRangeLowerLimit"),
-    set(\.referenceRangeUpperLimit, "HKReferenceRangeUpperLimit"),
-    set(\.takenInLab, "HKWasTakenInLab"),
-    set(\.waterSalinity, "HKMetadataKeyWaterSalinity"),
-    set(\.maximumLightIntensity, "HKMetadataKeyMaximumLightIntensity"),
-    set(\.menstrualCycleStart, "HKMenstrualCycleStart"),
-    set(\.protectionUsed, "HKSexualActivityProtectionUsed"),
+      \.maxObservedRecoveryHeartRate, .heartRateRecoveryMaxObservedRecoveryHeartRate),
+    set(\.audioExposureLevel, .audioExposureLevel),
+    set(\.audioExposureDuration, .audioExposureDuration),
+    set(\.headphoneGain, .headphoneGain),
+    set(\.physicalEffortEstimationType, .physicalEffortEstimationType),
+    set(\.activity, .activityType),
+    set(\.placementSide, .devicePlacementSide),
+    set(\.deviceCalibrated, .appleDeviceCalibrated),
+    set(\.algorithmVersion, .algorithmVersion),
+    set(\.clampedToLowerBound, .quantityClampedToLowerBound),
+    set(\.clampedToUpperBound, .quantityClampedToUpperBound),
+    set(\.referenceRangeLowerLimit, .referenceRangeLowerLimit),
+    set(\.referenceRangeUpperLimit, .referenceRangeUpperLimit),
+    set(\.takenInLab, .wasTakenInLab),
+    set(\.waterSalinity, .waterSalinity),
+    set(\.maximumLightIntensity, .maximumLightIntensity),
+    set(\.menstrualCycleStart, .menstrualCycleStart),
+    set(\.protectionUsed, .sexualActivityProtectionUsed),
   ]
 
   // MARK: - Device
@@ -114,9 +115,9 @@ enum SampleDetails {
   static func device(_ device: [String: Any]?, metadata: [String: Any]?) -> HealthSampleDevice? {
     let result = HealthSampleDevice(
       name: HealthMetadataValues.text(device?["name"])
-        ?? HealthMetadataValues.value("HKDeviceName", in: metadata)?.string,
+        ?? HealthMetadataValues.value(.deviceName, in: metadata)?.string,
       manufacturer: HealthMetadataValues.text(device?["manufacturer"])
-        ?? HealthMetadataValues.value("HKDeviceManufacturerName", in: metadata)?.string,
+        ?? HealthMetadataValues.value(.deviceManufacturerName, in: metadata)?.string,
       model: HealthMetadataValues.text(device?["model"]),
       hardwareVersion: HealthMetadataValues.text(device?["hardwareVersion"]),
       firmwareVersion: HealthMetadataValues.text(device?["firmwareVersion"]),

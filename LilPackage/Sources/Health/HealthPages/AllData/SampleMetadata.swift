@@ -25,7 +25,7 @@ extension SampleFormat {
     of sample: HealthSample, timeZoneShown: Bool = false, calendar: Calendar, locale: Locale
   ) -> [MetadataRow] {
     sample.metadataObject
-      .filter { !(timeZoneShown && $0.key == timeZoneKey) }
+      .filter { !(timeZoneShown && $0.key == HealthMetadataKey.Name.timeZone.rawValue) }
       .map { key, raw in
         MetadataRow(
           key: key, label: label(key),
@@ -37,8 +37,6 @@ extension SampleFormat {
         return order == .orderedSame ? $0.key < $1.key : order == .orderedAscending
       }
   }
-
-  static let timeZoneKey = "HKTimeZone"
 
   /// A metadata key as words: HealthKit's as the allow-list labels it ("Heart Rate Event
   /// Threshold" for `HKHeartRateEventThreshold`), another with `HKMetadataKey` in front as its
@@ -52,7 +50,7 @@ extension SampleFormat {
   private static func value(
     _ key: String, _ raw: Any?, in sample: HealthSample, calendar: Calendar, locale: Locale
   ) -> String? {
-    if key == timeZoneKey, let name = HealthMetadataValues.text(raw) {
+    if key == HealthMetadataKey.Name.timeZone.rawValue, let name = HealthMetadataValues.text(raw) {
       return RecordedTimeZone(name, start: sample.start, calendar: calendar)?.name ?? name
     }
     let declared = HealthCatalog.metadataQuantityUnits[key]
@@ -76,7 +74,9 @@ extension SampleFormat {
         return nil
       }
       // A session estimate is a reading of the sample's own kind, so it's in the sample's unit.
-      let typeID = declared == .sample ? sample.type : displayTypes[key] ?? ""
+      let typeID =
+        declared == .sample
+        ? sample.type : HealthMetadataKey.Name(rawValue: key).flatMap { displayTypes[$0] } ?? ""
       return quantity(number, unit: unit, typeID: typeID, locale: locale)
     }
     switch kind {
@@ -85,7 +85,8 @@ extension SampleFormat {
     case .named(let cases):
       // A raw value HealthKit says nothing with: not set, unknown or none.
       return HealthMetadataValues.caseIndex(cases, raw).map { index in
-        cases[index].map(words) ?? noneNames[key] ?? "Unknown"
+        cases[index].map(words) ?? HealthMetadataKey.Name(rawValue: key).flatMap { noneNames[$0] }
+          ?? "Unknown"
       }
     case .activity, .text:
       return HealthMetadataValues.read(kind, raw)?.string
@@ -140,17 +141,17 @@ extension SampleFormat {
 
   /// The sample type whose units a quantity the tools don't read is shown in, where it isn't a
   /// length's default (m or ft): a gym machine's distance, in km or mi.
-  private static let displayTypes = [
-    "HKCrossTrainerDistance": "HKQuantityTypeIdentifierDistanceWalkingRunning",
-    "HKIndoorBikeDistance": "HKQuantityTypeIdentifierDistanceCycling",
+  private static let displayTypes: [HealthMetadataKey.Name: String] = [
+    .crossTrainerDistance: "HKQuantityTypeIdentifierDistanceWalkingRunning",
+    .indoorBikeDistance: "HKQuantityTypeIdentifierDistanceCycling",
   ]
 
   /// What an enum's case that says nothing reads as, where it isn't "Unknown": HealthKit's
   /// `notSet` and `none`.
-  private static let noneNames = [
-    "HKMetadataKeyHeartRateMotionContext": "Not Set",
-    "HKMetadataKeyUserMotionContext": "Not Set",
-    "HKWeatherCondition": "None",
+  private static let noneNames: [HealthMetadataKey.Name: String] = [
+    .heartRateMotionContext: "Not Set",
+    .userMotionContext: "Not Set",
+    .weatherCondition: "None",
   ]
 
   /// Names a value's case reads better as than its words.

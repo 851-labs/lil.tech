@@ -67,6 +67,6 @@ final class RecordedZones {
 
   /// A record's `HKTimeZone`, if it's text.
   static func zoneName(_ metadata: [String: Any]?) -> String? {
-    HealthMetadataValues.value("HKTimeZone", in: metadata)?.string
+    HealthMetadataValues.value(.timeZone, in: metadata)?.string
   }
 }

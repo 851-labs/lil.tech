@@ -108,7 +108,7 @@ extension HealthSample {
   /// `HKTimeZone`, the zone it was recorded in, as text (`WorkoutMetadata.timeZoneName`'s for a
   /// sample): its details' Time Zone row shows it when it's a name (851-4179).
   public var timeZoneName: String? {
-    HealthMetadataValues.value("HKTimeZone", in: metadataObject)?.string
+    HealthMetadataValues.value(.timeZone, in: metadataObject)?.string
   }
 
   /// Its metadata as key and value text, by key. Nested values are written as JSON.
