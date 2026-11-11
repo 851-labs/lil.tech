@@ -3,6 +3,13 @@
 # Set up once per clone with `lefthook install`; skip in an emergency with `LEFTHOOK=0 git commit …`.
 # Nothing runs before a push: Pixelbook, which used to render and publish there, is published by
 # CI from the committed state catalog images (851-2955).
+#
+# A job's part is the paths after `--` in its `skip:`, git pathspecs that match as lefthook's `glob:`
+# did (`*` matches `/` too, ignoring case). The job is skipped when `git diff --cached` finds nothing
+# staged in them, and runs when it does or fails. Not `glob:`, whose list of staged files has a
+# moved file only under its new path, so moving a file out of a part skipped that part's checks
+# (851-4205). `--no-renames` keeps a move its old path, deleted, and its new one, added.
+# `scripts/test-lefthook` checks which jobs run for moves, deletions and edits.
 
 pre-commit:
   parallel: true
@@ -11,32 +18,45 @@ pre-commit:
     # so renaming one in Swift is checked against them.
     - name: pixelbook
       run: scripts/check --hook --pixelbook
-      glob:
-        - "LilPackage/Tests/*/*/Catalogs/**/*.swift"
-        - "LilPackage/Tests/*/*/Catalogs/**/*.json"
-        - "Web/pixelbook/graphs/**"
-        - "Web/pixelbook/src/lib/Graph.ts"
-        - "Web/pixelbook/scripts/graphs.ts"
-        - "scripts/check"
+      skip:
+        - run: >-
+            git --icase-pathspecs diff --cached --no-renames --quiet --
+            'LilPackage/Tests/*/*/Catalogs/**/*.swift'
+            'LilPackage/Tests/*/*/Catalogs/**/*.json'
+            'Web/pixelbook/graphs/**'
+            Web/pixelbook/src/lib/Graph.ts
+            Web/pixelbook/scripts/graphs.ts
+            scripts/check
+    # The TypeScript workspace and its root config, the apps' Info.plists (which a test checks
+    # against the server's Google client IDs), and the generated Swift client, whose stamp covers
+    # the generator's pin and config.
     - name: services
       run: scripts/check --hook --services
-      glob:
-        - "Services/**"
-        - "Web/**"
-        - "package.json"
-        - "pnpm-workspace.yaml"
-        - "pnpm-lock.yaml"
-        - ".node-version"
-        - "vite.config.ts"
-        - "tsconfig.json"
-        - "tsconfig.base.json"
-        # The apps' Info.plists, which a test checks against the server's Google client IDs.
-        - "Apps/LilHealth/*-Info.plist"
-        # The generated client's stamp covers the generator's pin and config.
-        - "Tools/Package.*"
-        - "Tools/openapi-generator-config.yaml"
-        - "scripts/format"
-        - "scripts/check"
-        - "scripts/generate-api-client"
-        - "LilPackage/Sources/Lil/LilAPIGenerated/**"
-        - "lefthook.yml"
+      skip:
+        - run: >-
+            git --icase-pathspecs diff --cached --no-renames --quiet --
+            'Services/**'
+            'Web/**'
+            package.json
+            pnpm-workspace.yaml
+            pnpm-lock.yaml
+            .node-version
+            vite.config.ts
+            tsconfig.json
+            tsconfig.base.json
+            'Apps/LilHealth/*-Info.plist'
+            'Tools/Package.*'
+            Tools/openapi-generator-config.yaml
+            scripts/format
+            scripts/check
+            scripts/generate-api-client
+            'LilPackage/Sources/Lil/LilAPIGenerated/**'
+            lefthook.yml
+    # The hook itself: which jobs run for which commits.
+    - name: lefthook
+      run: scripts/check --hook --lefthook
+      skip:
+        - run: >-
+            git --icase-pathspecs diff --cached --no-renames --quiet --
+            lefthook.yml
+            scripts/test-lefthook

@@ -1,8 +1,9 @@
 #!/bin/sh
-# Runs our checks (`docs/DECISIONS.md`). The pre-commit hook (`lefthook.yml`) runs the services and
-# Pixelbook parts a commit touches; GitHub runs the Swift and Pixelbook parts on our Mac minis
+# Runs our checks (`docs/DECISIONS.md`). The pre-commit hook (`lefthook.yml`) runs the services,
+# Pixelbook and lefthook parts a commit touches; GitHub runs the Swift and Pixelbook parts on our Mac minis
 # (`swift-check.yml`), which compare every snapshot (851-3070).
-# Usage: scripts/check [--hook] [--swift] [--services] [--pixelbook]   (every part when none is given)
+# Usage: scripts/check [--hook] [--swift] [--services] [--pixelbook] [--lefthook]
+#   (every part when none is given)
 #   --swift     Swift lint (with a check that the server's copy of the Health catalog is fresh),
 #               `scripts/snapshot --sheet`'s check, `scripts/swift`'s reruns' check, CI's step
 #               shell's (`scripts/test-ci-shell`), the changes action's (`scripts/test-changes`),
@@ -15,6 +16,8 @@
 #   --pixelbook  Pixelbook's graph files against the state catalogs they name, and the catalogs'
 #               manifests against their sources (`Web/pixelbook/scripts/graphs.ts`), so renaming
 #               a state can't break a graph.
+#   --lefthook  The pre-commit hook's config: that each job runs for the commits that change its
+#               part, moving a file out of it included (`scripts/test-lefthook`, 851-4205).
 #   --hook      Refuse to run while the checked paths have unstaged or untracked changes: the
 #               checks see the working tree, so it has to match what's being committed.
 # Every step runs even after one fails, so one failure doesn't hide another.
@@ -23,23 +26,26 @@ set -u
 swift=false
 services=false
 pixelbook=false
+lefthook=false
 hook=false
 for arg in "$@"; do
   case "$arg" in
     --swift) swift=true ;;
     --services) services=true ;;
     --pixelbook) pixelbook=true ;;
+    --lefthook) lefthook=true ;;
     --hook) hook=true ;;
     *)
-      echo "usage: scripts/check [--hook] [--swift] [--services] [--pixelbook]" >&2
+      echo "usage: scripts/check [--hook] [--swift] [--services] [--pixelbook] [--lefthook]" >&2
       exit 2
       ;;
   esac
 done
-if ! $swift && ! $services && ! $pixelbook; then
+if ! $swift && ! $services && ! $pixelbook && ! $lefthook; then
   swift=true
   services=true
   pixelbook=true
+  lefthook=true
 fi
 
 cd "$(dirname "$0")/.."
@@ -59,10 +65,12 @@ swift_paths="LilPackage Apps Tools Lil.xcworkspace .swift-format scripts Service
 # The TypeScript workspace, with its root config, plus what the generated client depends on.
 services_paths="Services Web Apps/LilHealth/LilHealth-Info.plist Apps/LilHealth/LilHealthiOS-Info.plist package.json pnpm-workspace.yaml pnpm-lock.yaml .node-version vite.config.ts tsconfig.json tsconfig.base.json Tools LilPackage/Sources/Lil/LilAPIGenerated scripts"
 pixelbook_paths="LilPackage/Tests/*/*/Catalogs Web/pixelbook/graphs Web/pixelbook/src/lib/Graph.ts Web/pixelbook/scripts"
+lefthook_paths="scripts/test-lefthook"
 paths=""
 $swift && paths="$paths $swift_paths"
 $services && paths="$paths $services_paths"
 $pixelbook && paths="$paths $pixelbook_paths"
+$lefthook && paths="$paths $lefthook_paths"
 if $hook; then
   # shellcheck disable=SC2086
   dirty=$(git status --porcelain --untracked-files=all -- $paths lefthook.yml |
@@ -141,6 +149,10 @@ if $pixelbook; then
   else
     step node Web/pixelbook/scripts/graphs.ts
   fi
+fi
+
+if $lefthook; then
+  step scripts/test-lefthook
 fi
 
 exit "$status"

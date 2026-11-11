@@ -1,0 +1,125 @@
+#!/bin/bash
+# Checks the pre-commit hook (`lefthook.yml`): runs lefthook on commits staged in a scratch
+# repository that has the hook's config, with a `scripts/check` that records what it was asked to
+# check, so each job is seen to run for the commits that change its part (a move out of it
+# included, 851-4205, and a deletion) and not for others.
+# `scripts/check --lefthook` runs it: in the hook, when the hook's config changes.
+set -eu
+# Not the repository a hook or another git command is working on, and none of the user's config
+# (hooks, templates, signing, `git -c …`), nor what the hook running this was told (`LEFTHOOK=0`, …).
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR GIT_PREFIX
+unset GIT_CONFIG GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT
+unset "${!LEFTHOOK@}"
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com
+export GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com
+
+if ! command -v lefthook >/dev/null; then
+  echo "scripts/test-lefthook: lefthook isn't installed (brew install lefthook)" >&2
+  exit 1
+fi
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+temporary=$(mktemp -d)
+trap 'rm -rf "$temporary"' EXIT
+repo="$temporary/repo"
+export LIL_TEST_LEFTHOOK_LOG="$temporary/checks"
+failures=0
+
+fail() {
+  echo "scripts/test-lefthook: $*" >&2
+  failures=$((failures + 1))
+}
+
+git init -q "$repo"
+cd "$repo"
+mkdir -p scripts
+cp "$root/lefthook.yml" .
+cat >scripts/check <<'EOF'
+#!/bin/sh
+echo "$*" >>"$LIL_TEST_LEFTHOOK_LOG"
+EOF
+chmod +x scripts/check
+# A file in each part, and outside them. Each has its own content, so git pairs a moved file with
+# its old path, rather than another file's.
+for file in Services/api/src/Foo.ts \
+  LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/FooCatalog.swift \
+  Web/pixelbook/graphs/health.json scripts/test-lefthook docs/notes.md notes/other.md; do
+  mkdir -p "$(dirname "$file")"
+  for line in 1 2 3 4 5 6 7 8; do echo "$file $line"; done >"$file"
+done
+git add -A
+git commit -qm base
+base=$(git rev-parse HEAD)
+
+# check <description> <expected> <command>…: stages what <command> does, from the base commit, and
+# runs the hook, which should call `scripts/check` with each of <expected>'s lines.
+check() {
+  local description=$1 expected=$2 output actual
+  shift 2
+  git reset -q --hard "$base"
+  git clean -qfd
+  if ! "$@"; then
+    fail "$description: couldn't stage it"
+    return
+  fi
+  if [ "$1" = git ] && [ "$2" = mv ] && ! git diff --cached -M --name-status | grep -q '^R'; then
+    fail "$description: git doesn't see the move as a rename, so the case tests nothing"
+  fi
+  rm -f "$LIL_TEST_LEFTHOOK_LOG"
+  touch "$LIL_TEST_LEFTHOOK_LOG"
+  if ! output=$(lefthook run pre-commit --no-tty 2>&1); then
+    fail "$description: lefthook failed:"
+    echo "$output" >&2
+    return
+  fi
+  actual=$(sort "$LIL_TEST_LEFTHOOK_LOG")
+  if [ "$actual" != "$expected" ]; then
+    fail "$description ran $(listed "$actual"), not $(listed "$expected")"
+  fi
+}
+
+# The checks a run asked for, on one line.
+listed() {
+  if [ -z "$1" ]; then
+    echo "no checks"
+  else
+    printf '%s' "$1" | tr '\n' ';' | sed 's/;/; /g'
+  fi
+}
+
+edit() {
+  mkdir -p "$(dirname "$1")"
+  echo "# edited" >>"$1"
+  git add "$1"
+}
+
+catalog=LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthMacApp/FooCatalog.swift
+check "moving a services file to docs/" "--hook --services" \
+  git mv Services/api/src/Foo.ts docs/Foo.ts
+check "moving a catalog to docs/" "--hook --pixelbook" \
+  git mv "$catalog" docs/FooCatalog.swift
+check "moving a catalog into Services/" "--hook --pixelbook
+--hook --services" \
+  git mv "$catalog" Services/api/src/FooCatalog.swift
+check "moving a doc into Services/" "--hook --services" \
+  git mv docs/notes.md Services/api/notes.md
+check "deleting a services file" "--hook --services" \
+  git rm -q Services/api/src/Foo.ts
+check "editing a Pixelbook graph" "--hook --pixelbook
+--hook --services" \
+  edit Web/pixelbook/graphs/health.json
+check "adding an Info.plist, its path in another case" "--hook --services" \
+  edit apps/lilhealth/Test-info.plist
+check "editing lefthook.yml" "--hook --lefthook
+--hook --services" \
+  edit lefthook.yml
+check "editing scripts/test-lefthook" "--hook --lefthook" \
+  edit scripts/test-lefthook
+check "moving a doc to notes/" "" \
+  git mv docs/notes.md notes/notes.md
+
+if [ "$failures" -gt 0 ]; then
+  exit 1
+fi
+echo "scripts/test-lefthook: ok"
