@@ -4,9 +4,11 @@
 # Nothing runs before a push: Pixelbook, which used to render and publish there, is published by
 # CI from the committed state catalog images (851-2955).
 #
-# A job's paths are globs given to `scripts/staged-matches` in its `only:`, not lefthook's `glob:`,
-# whose staged files list a moved file by its new path only, so moving a file out of a part skipped
-# that part's checks (851-4205). They match as `glob:`'s did: `*` matches `/` too, ignoring case.
+# A job's part is the paths after `--` in its `skip:`, git pathspecs that match as lefthook's `glob:`
+# did (`*` matches `/` too, ignoring case). The job is skipped when `git diff --cached` finds nothing
+# staged in them, and runs when it does or fails. Not `glob:`, whose list of staged files has a
+# moved file only under its new path, so moving a file out of a part skipped that part's checks
+# (851-4205). `--no-renames` keeps a move its old path, deleted, and its new one, added.
 # `scripts/test-lefthook` checks which jobs run for moves, deletions and edits.
 
 pre-commit:
@@ -16,9 +18,9 @@ pre-commit:
     # so renaming one in Swift is checked against them.
     - name: pixelbook
       run: scripts/check --hook --pixelbook
-      only:
+      skip:
         - run: >-
-            scripts/staged-matches
+            git --icase-pathspecs diff --cached --no-renames --quiet --
             'LilPackage/Tests/*/*/Catalogs/**/*.swift'
             'LilPackage/Tests/*/*/Catalogs/**/*.json'
             'Web/pixelbook/graphs/**'
@@ -30,9 +32,9 @@ pre-commit:
     # the generator's pin and config.
     - name: services
       run: scripts/check --hook --services
-      only:
+      skip:
         - run: >-
-            scripts/staged-matches
+            git --icase-pathspecs diff --cached --no-renames --quiet --
             'Services/**'
             'Web/**'
             package.json
@@ -53,10 +55,8 @@ pre-commit:
     # The hook itself: which jobs run for which commits.
     - name: lefthook
       run: scripts/check --hook --lefthook
-      only:
+      skip:
         - run: >-
-            scripts/staged-matches
+            git --icase-pathspecs diff --cached --no-renames --quiet --
             lefthook.yml
-            scripts/staged-matches
             scripts/test-lefthook
-            scripts/check
