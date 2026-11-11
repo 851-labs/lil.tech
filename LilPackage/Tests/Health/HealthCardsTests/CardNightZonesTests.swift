@@ -50,26 +50,6 @@ private func tokyoNight(_ zone: TimeZone? = tokyo) -> [CardSleepRecord] {
 }
 
 struct CardNightZonesTests {
-  // MARK: - Zone names
-
-  /// IANA names, and the old aliases Apple may write (`TimeZone.current.identifier`), are zones.
-  @Test(arguments: [
-    "Asia/Kolkata", "Asia/Calcutta", "Europe/Kyiv", "Europe/Kiev", "US/Pacific", "Asia/Tokyo",
-    "America/Argentina/Buenos_Aires", "UTC",
-  ])
-  func zoneNames(_ name: String) {
-    #expect(CardTimeZone.named(name) != nil)
-  }
-
-  /// UTC offsets, `GMT+9` (which `TimeZone(identifier:)` takes) and the wrong case aren't.
-  @Test(arguments: [
-    "+09:00", "GMT+9", "GMT-05:00", "asia/tokyo", "ASIA/TOKYO", "Asia/tokyo", "",
-    "Japan Standard Time", "Mars/Olympus_Mons",
-  ])
-  func notZoneNames(_ name: String) {
-    #expect(CardTimeZone.named(name) == nil)
-  }
-
   // MARK: - Nights
 
   /// A night slept in Tokyo, seen from London, is Tokyo's: the night of the 12th, at 23:00 on

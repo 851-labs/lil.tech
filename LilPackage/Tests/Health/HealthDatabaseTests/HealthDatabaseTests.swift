@@ -1121,13 +1121,14 @@ struct SleepQueriesTests {
   }
 
   /// A record's zone is read only from JSON metadata whose `HKTimeZone` is a zone's name: other
-  /// metadata loses only the zone, and the record stays.
+  /// metadata, an abbreviation (`PST`) or a name in the wrong case, loses only the zone, and the
+  /// record stays.
   @Test
   func onlyAZonesNameIsAZone() throws {
     let metadata: [String?] = [
       #"{"HKTimeZone":"Europe/Kyiv"}"#, #"{"HKTimeZone":"Europe/Kiev"}"#, nil, "not JSON",
       #"{"HKTimeZone":9}"#, #"{"HKTimeZone":"+09:00"}"#, #"{"HKTimeZone":"europe/kyiv"}"#,
-      #"{"HKTimeZone":null}"#, "{}", #"["Europe/Kyiv"]"#,
+      #"{"HKTimeZone":null}"#, "{}", #"["Europe/Kyiv"]"#, #"{"HKTimeZone":"PST"}"#,
     ]
     try database.write { db in
       try HealthSample.insert {
@@ -1142,7 +1143,7 @@ struct SleepQueriesTests {
     }
     #expect(
       records.map(\.timeZone?.identifier)
-        == ["Europe/Kyiv", "Europe/Kiev", nil, nil, nil, nil, nil, nil, nil, nil])
+        == ["Europe/Kyiv", "Europe/Kiev", nil, nil, nil, nil, nil, nil, nil, nil, nil])
   }
 }
 

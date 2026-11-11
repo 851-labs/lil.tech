@@ -523,6 +523,119 @@
       "expectedError": "Unknown time zone: +01:00. Use an IANA name, e.g. Europe/London."
     },
     {
+      "name": "summary in GMT, the one name without an area the tools take but UTC",
+      "tool": "summary",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "timeZone": "GMT"
+      },
+      "expected": {
+        "timeZone": "GMT",
+        "date": "2026-10-20",
+        "pinned": false,
+        "metrics": [
+          {
+            "type": "HKQuantityTypeIdentifierStepCount",
+            "unit": "count",
+            "latest": {
+              "start": "2026-10-20T14:10:00+00:00",
+              "end": "2026-10-20T14:15:00+00:00",
+              "value": 412,
+              "categoryValue": null
+            },
+            "today": 3200,
+            "last7Days": 8500
+          },
+          {
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "unit": "count/min",
+            "latest": {
+              "start": "2026-10-20T14:45:30+00:00",
+              "end": "2026-10-20T14:45:30+00:00",
+              "value": 72,
+              "categoryValue": null
+            },
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+            "unit": "kcal",
+            "latest": {
+              "start": "2026-10-20T08:10:00+00:00",
+              "end": "2026-10-20T08:20:00+00:00",
+              "value": 12.5,
+              "categoryValue": null
+            },
+            "today": 120.5,
+            "last7Days": 420.75
+          },
+          {
+            "type": "HKQuantityTypeIdentifierDistanceWalkingRunning",
+            "unit": null,
+            "latest": null,
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierRestingHeartRate",
+            "unit": "count/min",
+            "latest": {
+              "start": "2026-10-19T07:00:00+00:00",
+              "end": "2026-10-19T07:00:00+00:00",
+              "value": 58,
+              "categoryValue": null
+            },
+            "today": null,
+            "last7Days": null
+          },
+          {
+            "type": "HKQuantityTypeIdentifierBodyMass",
+            "unit": "kg",
+            "latest": {
+              "start": "2026-10-17T07:30:00+00:00",
+              "end": "2026-10-17T07:30:00+00:00",
+              "value": 70.5,
+              "categoryValue": null
+            },
+            "today": null,
+            "last7Days": null
+          }
+        ],
+        "workouts": {
+          "count": 2,
+          "duration": 4500
+        }
+      }
+    },
+    {
+      "name": "summary with an abbreviation instead of a time zone fails: PST, which both platforms would read as Los Angeles, and others they read differently",
+      "tool": "summary",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "timeZone": "PST"
+      },
+      "expectedError": "Unknown time zone: PST. Use an IANA name, e.g. Europe/London."
+    },
+    {
+      "name": "summary with EST, an IANA name without an area (UTC−5 all year, not New York's), fails",
+      "tool": "summary",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "timeZone": "EST"
+      },
+      "expectedError": "Unknown time zone: EST. Use an IANA name, e.g. Europe/London."
+    },
+    {
+      "name": "summary with an old alias in the wrong case fails, suggesting the alias, not the name Intl turns it into",
+      "tool": "summary",
+      "now": "2026-10-20T15:00:00Z",
+      "arguments": {
+        "timeZone": "europe/kyiv"
+      },
+      "expectedError": "Unknown time zone: europe/kyiv. Did you mean Europe/Kyiv?"
+    },
+    {
       "name": "list_types in UTC: types with data, by category then name",
       "tool": "list_types",
       "now": "2026-10-20T15:00:00Z",

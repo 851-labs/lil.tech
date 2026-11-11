@@ -12,7 +12,7 @@ import {
   waking,
 } from "../../../src/health/cards/CardNights.ts";
 import { cardSleepRecords } from "../../../src/health/cards/CardQueries.ts";
-import { namedTimeZone, startOfLocalDay } from "../../../src/health/tools/ToolTime.ts";
+import { startOfLocalDay } from "../../../src/health/tools/ToolTime.ts";
 import { migrate } from "../../../src/store/Migrations.ts";
 import { makeTestStoreSql } from "../../store/TestStoreSql.ts";
 
@@ -60,39 +60,6 @@ const tokyoNight = [
   record(utc(11, 17, 30), utc(11, 17, 45), awake, tokyo),
   record(utc(11, 17, 45), utc(11, 21, 30), rem, tokyo),
 ];
-
-describe("zone names", () => {
-  // IANA names, and the old aliases Apple may write (`TimeZone.current.identifier`), are zones.
-  it.each([
-    "Asia/Kolkata",
-    "Asia/Calcutta",
-    "Europe/Kyiv",
-    "Europe/Kiev",
-    "US/Pacific",
-    "Asia/Tokyo",
-    "America/Argentina/Buenos_Aires",
-    "UTC",
-  ])("%s is a zone", (name) => {
-    assert.isDefined(namedTimeZone(name));
-  });
-
-  // UTC offsets, `GMT+9` and the wrong case aren't. An alias in the wrong case (`europe/kyiv`)
-  // still passes here, though not on the Mac (851-4185).
-  it.each([
-    "+09:00",
-    "GMT+9",
-    "GMT-05:00",
-    "GMT+0",
-    "asia/tokyo",
-    "ASIA/TOKYO",
-    "Asia/tokyo",
-    "",
-    "Japan Standard Time",
-    "Mars/Olympus_Mons",
-  ])("%j isn't a zone", (name) => {
-    assert.isUndefined(namedTimeZone(name));
-  });
-});
 
 describe("nights in their recorded zones", () => {
   // A night slept in Tokyo, seen from London, is Tokyo's: the night of the 12th, at 23:00 on its
@@ -232,8 +199,9 @@ describe("nights in their recorded zones", () => {
 
 describe("the store's sleep records", () => {
   // A record's zone is read only from JSON metadata whose `HKTimeZone` is a zone's name: other
-  // metadata loses only the zone, and the record stays (the Mac's `onlyAZonesNameIsAZone`, with
-  // a canonical name in the wrong case for its `europe/kyiv`, 851-4185).
+  // metadata, an abbreviation (`PST`) or a name in the wrong case (`europe/kyiv`, which `Intl`
+  // takes, 851-4185), loses only the zone, and the record stays (the Mac's
+  // `onlyAZonesNameIsAZone`).
   it("have a zone only when their metadata names one", () => {
     const sql = makeTestStoreSql();
     migrate(sql);
@@ -245,6 +213,8 @@ describe("the store's sleep records", () => {
       '{"HKTimeZone":9}',
       '{"HKTimeZone":"+09:00"}',
       '{"HKTimeZone":"europe/london"}',
+      '{"HKTimeZone":"europe/kyiv"}',
+      '{"HKTimeZone":"PST"}',
       '{"HKTimeZone":null}',
       "{}",
       '["Europe/Kyiv"]',
@@ -265,7 +235,7 @@ describe("the store's sleep records", () => {
     const records = cardSleepRecords(sql, { start: utc(10, 0), end: utc(11, 0) });
     assert.deepStrictEqual(
       records.map((record) => record.timeZone),
-      ["Europe/Kyiv", "Europe/Kiev", ...Array(9).fill(undefined)],
+      ["Europe/Kyiv", "Europe/Kiev", ...Array(11).fill(undefined)],
     );
   });
 });

@@ -1,4 +1,5 @@
 import { DateTime, Effect, Option } from "effect";
+import timeZonesJson from "../../../time-zones.json" with { type: "json" };
 import { HealthToolError } from "./HealthToolkit.ts";
 
 // Days and local times for the Health tools, in the time zone a call asks for. Outputs give times
@@ -9,56 +10,54 @@ import { HealthToolError } from "./HealthToolkit.ts";
 export const defaultToolTimeZone = "UTC";
 
 /**
- * An IANA name's shape: no UTC offsets such as `+01:00`, which `Intl` would also accept, nor
- * `GMT+9` (the Swift core's `CardTimeZone.isIANAName`).
+ * The names both servers take (851-4184): the IANA time zone database's names with an area
+ * (`Europe/London`), old aliases included (`Asia/Calcutta`, `US/Pacific`), and `UTC` and `GMT`,
+ * as the Swift core's `CardTimeZone.names` lists them (`time-zones.json` is generated from it).
+ * `Intl` takes more: abbreviations (`PST`, `BST`, which it reads as Dhaka), UTC offsets
+ * (`+01:00`), ICU's old IDs (`AET`) and any case, turning aliases into other names, so only the
+ * list says which names are a zone, and their case.
  */
-const ianaName = /^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*$/;
+const zoneNames: ReadonlySet<string> = new Set(timeZonesJson.names);
 
-/**
- * Looks up a zone's name: the zone when it's an IANA name in its proper case, its old aliases
- * included (`Asia/Calcutta`, `Europe/Kiev`, `US/Pacific`); else, when only its case is wrong, the
- * name it should have, for the tools' error. `Intl` takes any case and turns aliases into other
- * names, so the case is checked against the name it gives: an alias in the wrong case
- * (`europe/kyiv`) isn't caught (851-4185).
- */
-const lookUpTimeZone = (
-  name: string,
-): { readonly zone: DateTime.TimeZone.Named } | { readonly properName?: string } => {
-  if (!ianaName.test(name) || name.startsWith("GMT+") || name.startsWith("GMT-")) return {};
-  const zone = DateTime.zoneMakeNamed(name);
-  if (Option.isNone(zone)) return {};
-  const { id } = zone.value;
-  return id !== name && id.toLowerCase() === name.toLowerCase()
-    ? { properName: id }
-    : { zone: zone.value };
-};
+/** The listed names by their lowercase, for the error's suggestion. */
+const zoneNamesByLowercase: ReadonlyMap<string, string> = new Map(
+  timeZonesJson.names.map((name) => [name.toLowerCase(), name]),
+);
 
 /**
  * The zone named `name`, the one check for the tools' `timeZone` and the zone a record was
- * recorded in (`HKTimeZone`, 851-4175, `docs/decisions/health.md` › Recorded time zones): an IANA
- * name in its proper case, old aliases included, never a UTC offset (`+09:00`), `GMT+9` or another
- * case. Undefined for anything else (the Swift core's `CardTimeZone.named`).
+ * recorded in (`HKTimeZone`, 851-4175, `docs/decisions/health.md` › Time zones): one of the
+ * listed names, exactly, which `Intl` knows. Undefined for anything else (the Swift core's
+ * `CardTimeZone.named`).
  */
-export const namedTimeZone = (name: string): DateTime.TimeZone.Named | undefined => {
-  const found = lookUpTimeZone(name);
-  return "zone" in found ? found.zone : undefined;
+export const namedTimeZone = (name: string): DateTime.TimeZone.Named | undefined =>
+  zoneNames.has(name) ? Option.getOrUndefined(DateTime.zoneMakeNamed(name)) : undefined;
+
+/**
+ * The name `name` should have, when it's a listed name in another case (`europe/kyiv` for
+ * `Europe/Kyiv`), for the tools' error (the Swift core's `CardTimeZone.properName`).
+ */
+const properZoneName = (name: string): string | undefined => {
+  const properName = zoneNamesByLowercase.get(name.toLowerCase());
+  return properName === name ? undefined : properName;
 };
 
 /**
  * The time zone a call asked for, or UTC, with the name outputs give: the one asked for, as is,
  * so both servers echo the same string (`Intl` would turn some aliases into their canonical
- * names). Anything but an IANA name in its proper case is the call's error (`namedTimeZone`).
+ * names). Anything but a listed name in its proper case is the call's error (`namedTimeZone`).
  */
 export const toolTimeZone = (requested: string | undefined) => {
   const name = requested ?? defaultToolTimeZone;
-  const found = lookUpTimeZone(name);
-  if ("zone" in found) return Effect.succeed({ zone: found.zone, name });
+  const zone = namedTimeZone(name);
+  if (zone !== undefined) return Effect.succeed({ zone, name });
+  const properName = properZoneName(name);
   return Effect.fail(
     new HealthToolError({
       message:
-        found.properName === undefined
+        properName === undefined
           ? `Unknown time zone: ${name}. Use an IANA name, e.g. Europe/London.`
-          : `Unknown time zone: ${name}. Did you mean ${found.properName}?`,
+          : `Unknown time zone: ${name}. Did you mean ${properName}?`,
     }),
   );
 };
