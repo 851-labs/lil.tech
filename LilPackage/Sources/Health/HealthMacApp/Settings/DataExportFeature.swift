@@ -52,16 +52,24 @@ public struct DataExportFeature {
 
   enum CancelID { case export }
 
-  /// How often to ask whether a prepared export is ready, and how many times at most: 70 minutes,
-  /// past the hour the server may wait out a bulk upload for.
+  /// How often to ask whether a prepared export is ready.
   static let pollInterval: Duration = .seconds(3)
-  static let maxPolls = 1_400
+
+  /// How many times at most to ask whether a prepared export is ready: 1,400, 70 minutes, past
+  /// the hour the server may wait out a bulk upload for. Tests give up sooner (851-4209).
+  let maxPolls: Int
 
   @Dependency(\.continuousClock) var clock
   @Dependency(\.dataExports) var dataExports
   @Dependency(\.archiveSaver) var archiveSaver
 
-  public init() {}
+  public init() {
+    self.init(maxPolls: 1_400)
+  }
+
+  init(maxPolls: Int) {
+    self.maxPolls = maxPolls
+  }
 
   public var body: some ReducerOf<Self> {
     Reduce { state, action in
@@ -70,9 +78,9 @@ public struct DataExportFeature {
         // One export at a time, whichever started it: the button is hidden meanwhile anyway.
         guard !state.isBusy else { return .none }
         state.status = .preparing
-        return .run { [clock, dataExports] send in
+        return .run { [clock, dataExports, maxPolls] send in
           let (file, name) = try await Self.download(
-            dataExports: dataExports, clock: clock, send: send)
+            dataExports: dataExports, clock: clock, maxPolls: maxPolls, send: send)
           await send(.downloaded(file: file, name: name))
         } catch: { error, send in
           guard !(error is CancellationError) else { return }
@@ -85,7 +93,7 @@ public struct DataExportFeature {
           return .run { _ in request.finish(.failure(HealthAppActionError.exportRunning)) }
         }
         state.status = .preparing
-        return .run { [clock, dataExports, archiveSaver] send in
+        return .run { [clock, dataExports, archiveSaver, maxPolls] send in
           // Caught here rather than in `catch:`, which a cancelled effect never reaches: the
           // request is answered however the export ends.
           do {
@@ -93,7 +101,8 @@ public struct DataExportFeature {
             try await archiveSaver.checkFolder(folder)
             request.report(.preparing)
             let (file, name) = try await Self.download(
-              dataExports: dataExports, clock: clock, send: send, report: request.report)
+              dataExports: dataExports, clock: clock, maxPolls: maxPolls, send: send,
+              report: request.report)
             // Cancelled as the download finished: the archive doesn't go into the folder.
             do {
               try Task.checkCancellation()
@@ -156,11 +165,11 @@ public struct DataExportFeature {
   /// temporary file and name. Reports progress as actions (`prepared`, `downloadProgressed`),
   /// and to `report`.
   private static func download(
-    dataExports: DataExportClient, clock: any Clock<Duration>, send: Send<Action>,
+    dataExports: DataExportClient, clock: any Clock<Duration>, maxPolls: Int, send: Send<Action>,
     report: HealthAppActions.Progress = { _ in }
   ) async throws -> (file: URL, name: String) {
     @Sendable func attempt() async throws -> (file: URL, name: String) {
-      let url = try await readyURL(dataExports: dataExports, clock: clock)
+      let url = try await readyURL(dataExports: dataExports, clock: clock, maxPolls: maxPolls)
       await send(.prepared)
       report(.downloading(0))
       for try await event in dataExports.download(url) {
@@ -184,7 +193,7 @@ public struct DataExportFeature {
 
   /// Asks for an export, and waits until it's ready: its download URL.
   private static func readyURL(
-    dataExports: DataExportClient, clock: any Clock<Duration>
+    dataExports: DataExportClient, clock: any Clock<Duration>, maxPolls: Int
   ) async throws -> URL {
     var export = try await dataExports.request()
     for _ in 0..<maxPolls {

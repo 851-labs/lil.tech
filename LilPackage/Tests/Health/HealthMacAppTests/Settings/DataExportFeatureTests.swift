@@ -99,15 +99,20 @@ struct DataExportFeatureTests {
 
   @Test
   func givesUpOnAnExportThatNeverGetsReady() async {
+    let clock = RecordingClock()
+    let polls = LockIsolated(0)
     let store = TestStore(initialState: DataExportFeature.State()) {
-      DataExportFeature()
+      // A few polls rather than the app's 1,400, which a busy Mac takes longer than `receive`'s
+      // second to make, even with sleeps that return at once (851-4209).
+      DataExportFeature(maxPolls: 3)
     } withDependencies: {
-      $0.continuousClock = RecordingClock()
+      $0.continuousClock = clock
       $0.dataExports.request = { () throws(DataExportError) in
         DataExport(requestedAt: .now, url: nil)
       }
       $0.dataExports.latest = { () throws(DataExportError) in
-        DataExport(requestedAt: .now, url: nil)
+        polls.withValue { $0 += 1 }
+        return DataExport(requestedAt: .now, url: nil)
       }
     }
 
@@ -119,6 +124,9 @@ struct DataExportFeatureTests {
         "Preparing the export is taking longer than usual. Please try again later.")
     }
     await store.finish()
+    // It waited between every poll, and gave up after the last.
+    #expect(clock.sleeps.value == Array(repeating: DataExportFeature.pollInterval, count: 3))
+    #expect(polls.value == 3)
   }
 
   @Test
