@@ -25,6 +25,7 @@ struct AppFeatureTests {
     await store.receive(\.accessChecked) {
       $0.hasFullDiskAccess = true
     }
+    await store.finish()
   }
 
   @Test
@@ -58,6 +59,7 @@ struct AppFeatureTests {
       $0.hasFullDiskAccess = true
       $0.fullDiskAccess = nil
     }
+    await store.finish()
   }
 }
 
@@ -151,6 +153,7 @@ extension AppFeatureTests {
     await store.receive(\.conversationList.contactsLoaded) {
       $0.conversationList.contactNames = ["+14155550100": "Grace Hopper"]
     }
+    await store.finish()
   }
 }
 

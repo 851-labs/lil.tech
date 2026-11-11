@@ -31,6 +31,7 @@ struct MessageThreadFeatureTests {
       $0.hasEarlierMessages = false
       $0.messages = [threadMessage(1), threadMessage(2), threadMessage(3)]
     }
+    await store.finish()
   }
 
   @Test
@@ -51,7 +52,7 @@ struct MessageThreadFeatureTests {
       $0.chatDatabaseChanges = ChatDatabaseChanges { changes }
     }
 
-    let task = await store.send(.task)
+    await store.send(.task)
     await store.receive(\.latestMessagesLoaded.success) {
       $0.hasEarlierMessages = false
       $0.messages = [threadMessage(1), threadMessage(2)]
@@ -69,7 +70,7 @@ struct MessageThreadFeatureTests {
     }
 
     change.finish()
-    await task.finish()
+    await store.finish()
   }
 
   @Test
@@ -104,6 +105,7 @@ struct MessageThreadFeatureTests {
     }
 
     await store.send(.scrolledNearTop)
+    await store.finish()
   }
 
   @Test
@@ -126,6 +128,7 @@ struct MessageThreadFeatureTests {
     await store.receive(\.latestMessagesLoaded.failure) {
       $0.loadFailed = true
     }
+    await store.finish()
   }
 }
 
@@ -174,6 +177,7 @@ extension MessageThreadFeatureTests {
       $0.messages = [confirmed]
       $0.pendingMessages = []
     }
+    await store.finish()
   }
 
   @Test
@@ -217,6 +221,7 @@ extension MessageThreadFeatureTests {
     }
     await store.receive(\.sendResponse)
     #expect(attempts.value == 2)
+    await store.finish()
   }
 
   @Test
@@ -363,6 +368,7 @@ extension MessageThreadFeatureTests {
       ]
       $0.hasEarlierMessages = false
     }
+    await store.finish()
   }
 
   @Test
@@ -396,6 +402,7 @@ extension MessageThreadFeatureTests {
     }
 
     await store.send(.linkTapped(URL(string: "tel:4155550100")!))
+    await store.finish()
     #expect(opened.value == [URL(string: "tel:4155550100")!])
   }
 

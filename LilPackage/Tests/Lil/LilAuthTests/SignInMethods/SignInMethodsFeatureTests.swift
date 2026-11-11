@@ -28,6 +28,7 @@ struct SignInMethodsFeatureTests {
     #expect(store.state.linkableProviders == [.google])
     // The only method stays.
     #expect(!store.state.canUnlink)
+    await store.finish()
   }
 
   @Test
@@ -80,6 +81,7 @@ struct SignInMethodsFeatureTests {
       $0.methods = .loaded([apple, google])
     }
     await store.receive(\.methodsLoaded.success)
+    await store.finish()
   }
 
   @Test
@@ -108,6 +110,7 @@ struct SignInMethodsFeatureTests {
       $0.linking = nil
       $0.failure = SignInMethodError.inUse(.apple).message
     }
+    await store.finish()
   }
 
   @Test
@@ -184,6 +187,7 @@ struct SignInMethodsFeatureTests {
     await store.receive(\.methodsLoaded.success) {
       $0.methods = .loaded([apple])
     }
+    await store.finish()
   }
 
   @Test
@@ -196,6 +200,7 @@ struct SignInMethodsFeatureTests {
 
     await store.send(.task)
     await store.receive(\.methodsLoaded.failure)
+    await store.finish()
   }
 
   @Test
@@ -212,6 +217,7 @@ struct SignInMethodsFeatureTests {
     await store.receive(\.methodsLoaded.success) {
       $0.methods = .loaded([apple])
     }
+    await store.finish()
   }
 
   @Test
@@ -287,5 +293,6 @@ struct SignInMethodsFeatureTests {
       $0.methods = .loaded([google, apple])
     }
     await store.receive(\.methodsLoaded.success)
+    await store.finish()
   }
 }
