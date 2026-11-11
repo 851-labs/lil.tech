@@ -647,8 +647,10 @@ struct LilSyncEngineTests {
     let engine = engine()
 
     let issues = try await issuesReported { try await engine.pull() }
-    #expect(issues.count == 1)
-    #expect(issues.first?.hasPrefix("Skipped note change 1: ") == true)
+    #expect(
+      issues == [
+        "Skipped note change 1: DecodingError.typeMismatch: Expected value of type String. Path: title. Debug description: Expected to decode String but found number instead."
+      ])
     #expect(try storedNotes() == [Note(id: "n2", title: "Two")])
     #expect(try cursor() == 2)
   }
@@ -962,8 +964,10 @@ struct LilSyncBootstrapTests {
     let database = try makeDatabase(bootstrapped: false)
     let engine = engine(database: database)
     let issues = try await issuesReported { try await engine.bootstrap() }
-    #expect(issues.count == 1)
-    #expect(issues.first?.hasPrefix("Skipped a note record from the snapshot: ") == true)
+    #expect(
+      issues == [
+        "Skipped a note record from the snapshot: DecodingError.typeMismatch: Expected value of type String. Path: title. Debug description: Expected to decode String but found number instead."
+      ])
     #expect(try storedNotes(database).map(\.id) == ["b"])
   }
 
