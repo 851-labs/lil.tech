@@ -20,46 +20,61 @@ private func expectNoValues(_ summary: String, sourceLocation: SourceLocation = 
   }
 }
 
-/// An operation's input holding a value, as a new operation's could.
-struct SyntheticInput: Sendable {
-  var name = "Ada Lovelace"
-  var weight = 72.5
-}
-
-struct SyntheticFailure: Error {
-  let statusCode: Int
-  let expected: Int
-  let note: String
-  let weight: Double
-}
-
-enum SyntheticReason: Error {
-  case refused(note: String)
-  case gone
-}
-
-enum SyntheticDescribed: Error, CustomStringConvertible {
-  case gone
-  var description: String { "Ada Lovelace's sample is gone" }
-}
-
-struct Key: CodingKey {
-  var stringValue: String
-  var intValue: Int?
-  init(_ string: String) { stringValue = string }
-  init(stringValue: String) { self.stringValue = stringValue }
-  init(intValue: Int) {
-    stringValue = "Index \(intValue)"
-    self.intValue = intValue
-  }
-}
-
 @Suite struct BackfillLogErrorTests {
+  /// An operation's input holding a value, as a new operation's could.
+  struct SyntheticInput: Sendable {
+    var name = "Ada Lovelace"
+    var weight = 72.5
+  }
+
+  struct SyntheticFailure: Error {
+    let statusCode: Int
+    let expected: Int?
+    let note: String
+    let weight: Double
+  }
+
+  enum SyntheticReason: Error {
+    case refused(note: String)
+    case gone
+  }
+
+  enum SyntheticDescribed: Error, CustomStringConvertible {
+    case gone
+    var description: String { "Ada Lovelace's sample is gone" }
+  }
+
+  /// Keys a type declares, as synthesized `CodingKeys` are.
+  enum Field: String, CodingKey {
+    case samples, value, metadata, batches, status, failure
+  }
+
+  /// A dictionary's key, or a coder's index (`Index 3`).
+  struct Key: CodingKey {
+    var stringValue: String
+    var intValue: Int?
+    init(stringValue: String) { self.stringValue = stringValue }
+    init(intValue: Int) {
+      stringValue = "\(intValue)"
+      self.intValue = intValue
+    }
+    static func index(_ index: Int) -> Self {
+      var key = Self(intValue: index)
+      key.stringValue = "Index \(index)"
+      return key
+    }
+  }
+
+  struct Sample: Codable {
+    var value: Double
+    var metadata: [String: Double] = [:]
+  }
+
   @Test func clientErrorKeepsItsOperationStatusAndUnderlyingType() {
     let underlying = EncodingError.invalidValue(
       72.5,
       .init(
-        codingPath: [Key("samples"), Key(intValue: 3), Key("value")],
+        codingPath: [Field.samples, Key.index(3), Field.value],
         debugDescription: "Ada's note: 72.5 isn't valid"))
     let error = ClientError(
       operationID: "healthUploadBatch",
@@ -90,7 +105,7 @@ struct Key: CodingKey {
     let error = EncodingError.invalidValue(
       "Ada Lovelace",
       .init(
-        codingPath: [Key("metadata"), Key("ada@example.com")],
+        codingPath: [Field.metadata, Key(stringValue: "ada@example.com")],
         debugDescription: "Ada Lovelace isn't valid",
         underlyingError: NSError(
           domain: "Synthetic", code: 7,
@@ -106,9 +121,47 @@ struct Key: CodingKey {
     expectNoValues(summary)
   }
 
+  @Test func aDictionarysKeysAreData() {
+    // Even when they read as names or numbers.
+    let named = EncodingError.invalidValue(
+      72.5, .init(codingPath: [Field.metadata, Key(stringValue: "Ada")], debugDescription: ""))
+    #expect(BackfillLog.describe(named) == "EncodingError.invalidValue(Double, at: metadata.<key>)")
+    let numbered = DecodingError.typeMismatch(
+      Int.self, .init(codingPath: [Key(intValue: 72)], debugDescription: ""))
+    #expect(BackfillLog.describe(numbered) == "DecodingError.typeMismatch(Int, at: <key>)")
+  }
+
+  @Test func theCodersOwnErrors() throws {
+    // What JSONEncoder and JSONDecoder throw, not errors made up to look like theirs.
+    let encoding = #expect(throws: EncodingError.self) {
+      try JSONEncoder().encode([Sample(value: 1), Sample(value: 2, metadata: ["Ada": .nan])])
+    }
+    let encoded = BackfillLog.describe(try #require(encoding))
+    #expect(encoded == "EncodingError.invalidValue(Double, at: [1].metadata.<key>)")
+    expectNoValues(encoded)
+
+    let decoding = #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(
+        [Sample].self,
+        from: Data(
+          #"[{"value": 1, "metadata": {}}, {"value": "Ada Lovelace", "metadata": {}}]"#.utf8))
+    }
+    let decoded = BackfillLog.describe(try #require(decoding))
+    #expect(decoded == "DecodingError.typeMismatch(Double, at: [1].value)")
+    expectNoValues(decoded)
+
+    let keyed = #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(
+        [String: Sample].self, from: Data(#"{"Ada": {"value": 1, "metadata": {"Ada": "x"}}}"#.utf8))
+    }
+    let decodedKeyed = BackfillLog.describe(try #require(keyed))
+    #expect(decodedKeyed == "DecodingError.typeMismatch(Double, at: <key>.metadata.<key>)")
+    expectNoValues(decodedKeyed)
+  }
+
   @Test func decodingErrorsKeepTheirCaseTypeAndPath() {
     let context = DecodingError.Context(
-      codingPath: [Key("batches"), Key(intValue: 0), Key("status")],
+      codingPath: [Field.batches, Key.index(0), Field.status],
       debugDescription: "Cannot decode 'Ada Lovelace' as Int")
     #expect(
       BackfillLog.describe(DecodingError.typeMismatch(Int.self, context))
@@ -117,7 +170,7 @@ struct Key: CodingKey {
       BackfillLog.describe(DecodingError.valueNotFound(String.self, context))
         == "DecodingError.valueNotFound(String, at: batches[0].status)")
     #expect(
-      BackfillLog.describe(DecodingError.keyNotFound(Key("failure"), context))
+      BackfillLog.describe(DecodingError.keyNotFound(Field.failure, context))
         == "DecodingError.keyNotFound(failure, at: batches[0].status)")
     let corrupted = DecodingError.dataCorrupted(
       .init(
@@ -156,15 +209,18 @@ struct Key: CodingKey {
     let summary = BackfillLog.describe(failure)
     #expect(
       summary
-        == "SyntheticFailure(statusCode: 500, expected: 4, note: <String>, weight: <Double>)")
+        == "BackfillLogErrorTests.SyntheticFailure(statusCode: 500, expected: 4, note: <String>, weight: <Double>)"
+    )
     expectNoValues(summary)
 
     #expect(
       BackfillLog.describe(SyntheticReason.refused(note: "Ada Lovelace"))
-        == "SyntheticReason.refused")
-    #expect(BackfillLog.describe(SyntheticReason.gone) == "SyntheticReason.gone")
+        == "BackfillLogErrorTests.SyntheticReason.refused")
+    #expect(
+      BackfillLog.describe(SyntheticReason.gone) == "BackfillLogErrorTests.SyntheticReason.gone")
     // Its description could say anything.
-    #expect(BackfillLog.describe(SyntheticDescribed.gone) == "SyntheticDescribed")
+    #expect(
+      BackfillLog.describe(SyntheticDescribed.gone) == "BackfillLogErrorTests.SyntheticDescribed")
     #expect(BackfillLog.describe(CancellationError()) == "CancellationError")
   }
 

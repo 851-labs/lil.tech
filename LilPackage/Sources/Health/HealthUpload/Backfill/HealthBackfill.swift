@@ -622,6 +622,7 @@ public actor HealthBackfill {
                 try? storage.saveState(state)
               }
               // One type can't hold up the rest. Its page is read again next time.
+              BackfillLog.write("\(BackfillLog.name(type.id)) failed", error: error)
               failures[type.id] = error
               if let pending = state.pending, pending.type == type.id {
                 for file in pending.files { try? storage.removeFile(file) }
@@ -981,8 +982,11 @@ public actor HealthBackfill {
       let failed = answered.filter { $0.status == "failed" }
       for status in failed {
         // The server's message can quote what it failed on, such as a line of the batch.
-        BackfillLog.write(
-          "batch \(status.id) of \(name) failed", privateDetail: status.failure ?? "no reason")
+        if let failure = status.failure {
+          BackfillLog.write("batch \(status.id) of \(name) failed", privateDetail: failure)
+        } else {
+          BackfillLog.write("batch \(status.id) of \(name) failed: no reason")
+        }
       }
       for status in answered
       where !["queued", "applying", "applied", "failed"].contains(status.status) {

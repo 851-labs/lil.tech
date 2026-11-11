@@ -1,12 +1,14 @@
+import Dependencies
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
 
 extension BackfillLog {
   /// Logs `message`, then `error` as ``describe(_:)`` summarizes it: `run stopped after 1.25s:
-  /// ClientError(operation: healthUploadBatch, status: 500, underlying: URLError(NSURLErrorDomain
+  /// ClientError(operation: healthUploadBatch, status: 500, underlying: NSError(NSURLErrorDomain
   /// -1001))`. Every error the backfill logs goes through here, never `\(error)`.
   public static func write(_ message: String, error: any Error) {
+    guard isEnabled.value else { return }
     write("\(message): \(describe(error))")
   }
 
@@ -19,13 +21,15 @@ extension BackfillLog {
   /// its framework put there. So a summary is built from the parts that are codes:
   /// - `ClientError`: the operation ID, the response's status and the underlying error, itself
   ///   summarized.
-  /// - `DecodingError` and `EncodingError`: the case, the type and the coding path, with keys
-  ///   that aren't identifiers (a dictionary's) shown as `<key>`. Never the value or the debug
+  /// - `DecodingError` and `EncodingError`: the case, the type and the coding path. A path shows
+  ///   the keys a type declares (its `CodingKeys`, an enum) and array indexes; any other key, such
+  ///   as a dictionary's, whose keys are data, is `<key>`. Never the value or the debug
   ///   description.
-  /// - A Cocoa error (`HKError`, `URLError`, which arrive as `NSError`): its domain and code, and
-  ///   its underlying error, summarized. Never its user info.
-  /// - Any other Swift error: its type, an enum's case, and the fields named in ``keptFields``.
-  ///   Other fields show their type only.
+  /// - A Cocoa error (`HKError`, `URLError`, which arrive as `NSError`, so `NSError(com.apple.healthkit
+  ///   6)`): its domain and code, and its underlying error, summarized. Never its user info.
+  /// - Any other Swift error: its type and an enum's case. Our own errors (`Health…` and `Lil…`
+  ///   modules) show the fields named in ``keptFields`` too; other fields, and every field of
+  ///   another module's error, show their type only.
   public static func describe(_ error: any Error) -> String {
     describe(error, depth: 0)
   }
@@ -45,10 +49,9 @@ extension BackfillLog {
     guard depth < maxDepth else { return typeName(error) }
     switch error {
     case let error as ClientError:
-      var parts = ["operation: \(identifier(error.operationID))"]
-      if let status = error.response?.status.code { parts.append("status: \(status)") }
-      parts.append("underlying: \(describe(error.underlyingError, depth: depth + 1))")
-      return "ClientError(\(parts.joined(separator: ", ")))"
+      let status = error.response.map { ", status: \($0.status.code)" } ?? ""
+      return "ClientError(operation: \(identifier(error.operationID))\(status)"
+        + "\(underlying(error.underlyingError, depth: depth)))"
     case let error as DecodingError:
       return describe(error, depth: depth)
     case let error as EncodingError:
@@ -68,9 +71,8 @@ extension BackfillLog {
     // A Swift error's domain is its type's name, unless it says otherwise (`CustomNSError`).
     // Anything else is Cocoa's, whose user info and description can hold anything.
     if nsError.domain != String(reflecting: type(of: error)) {
-      let underlying =
-        (nsError.userInfo[NSUnderlyingErrorKey] as? any Error)
-        .map { ", underlying: \(describe($0, depth: depth + 1))" } ?? ""
+      let underlying = underlying(
+        nsError.userInfo[NSUnderlyingErrorKey] as? any Error, depth: depth)
       return "\(typeName(error))(\(identifier(nsError.domain)) \(nsError.code)\(underlying))"
     }
     return describeFields(of: error)
@@ -105,19 +107,22 @@ extension BackfillLog {
     guard !path.isEmpty else { return "" }
     var text = ""
     for key in path {
-      if let index = key.intValue {
-        text += "[\(index)]"
-      } else {
-        text += (text.isEmpty ? "" : ".") + name(of: key)
-      }
+      let name = name(of: key)
+      text += name.hasPrefix("[") || text.isEmpty ? name : ".\(name)"
     }
     return ", at: \(text)"
   }
 
-  /// A key as written in code (`startDate`, `HKQuantityTypeIdentifierStepCount`), or `<key>` for
-  /// one that isn't an identifier, such as a dictionary's whose keys are data.
+  /// A key a type declares (`startDate`), as written in code; an array's index (`[3]`); or
+  /// `<key>` for any other, such as a dictionary's, whose keys are data even when they read as
+  /// names (`Ada`, `72`). Declared keys are cases of a `CodingKeys` enum, without payloads; the
+  /// coders' own keys are an enum too, Foundation's `_CodingKey`, but with them (`.index(3)`,
+  /// which reads `Index 3`, or a dictionary's `.string("Ada")`).
   private static func name(of key: any CodingKey) -> String {
-    key.intValue.map { "[\($0)]" } ?? identifier(key.stringValue)
+    if let index = key.intValue, key.stringValue == "Index \(index)" { return "[\(index)]" }
+    let mirror = Mirror(reflecting: key)
+    if mirror.displayStyle == .enum, mirror.children.isEmpty { return identifier(key.stringValue) }
+    return "<key>"
   }
 
   /// `text` if it reads as a name in code (letters, digits, `_`, `.`, `-`, at most 100), as
@@ -136,6 +141,8 @@ extension BackfillLog {
   /// 4, read: 2)`, `Failure.server`, `LineTooLong(entity: health_sample, id: <String>)`.
   private static func describeFields(of error: any Error) -> String {
     let name = typeName(error)
+    let module = String(reflecting: type(of: error)).prefix { $0 != "." }
+    let isOurs = module.hasPrefix("Health") || module.hasPrefix("Lil")
     let mirror = Mirror(reflecting: error)
     switch mirror.displayStyle {
     case .enum:
@@ -151,7 +158,8 @@ extension BackfillLog {
     case .struct, .class:
       let fields = mirror.children.compactMap { child -> String? in
         guard let label = child.label else { return nil }
-        return "\(label): \(field(label, child.value))"
+        return
+          "\(label): \(isOurs ? field(label, child.value) : "<\(typeName(of: type(of: child.value)))>")"
       }
       return fields.isEmpty ? name : "\(name)(\(fields.joined(separator: ", ")))"
     default:
@@ -159,9 +167,14 @@ extension BackfillLog {
     }
   }
 
-  /// A kept field's value if it's a number, a flag or a name, otherwise its type.
+  /// A kept field's value if it's a number, a flag or a name, or one of those optional, otherwise
+  /// its type.
   private static func field(_ label: String, _ value: Any) -> String {
     guard keptFields.contains(label) else { return "<\(typeName(of: type(of: value)))>" }
+    let mirror = Mirror(reflecting: value)
+    if mirror.displayStyle == .optional {
+      return mirror.children.first.map { field(label, $0.value) } ?? "nil"
+    }
     switch value {
     case let value as any BinaryInteger: return "\(value)"
     case let value as Double: return "\(value)"

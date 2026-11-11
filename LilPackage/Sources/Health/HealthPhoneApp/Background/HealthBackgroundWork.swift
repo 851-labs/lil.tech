@@ -197,8 +197,8 @@ public enum HealthBackgroundWork {
       case .failed(let reason, let madeProgress):
         if madeProgress { failures = 0 }
         guard failures < retryDelays.count else {
-          // Not `reason`: an error's description, for the task's UI. The run's error is logged
-          // as the backfill stopped (`run stopped after …`).
+          // Not `reason`: an error's description, for the task's UI. The backfill logged the
+          // run's errors as they happened (`run stopped after …`, `StepCount failed: …`).
           log.error("Gave up after \(failures) retries")
           BackfillLog.write("continued task: gave up after \(failures) retries")
           await notice(.failed(reason))
