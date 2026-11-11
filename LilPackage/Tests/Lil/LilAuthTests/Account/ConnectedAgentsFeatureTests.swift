@@ -148,6 +148,7 @@ struct ConnectedAgentsFeatureTests {
       $0.log = [Self.access(1), Self.access(2), Self.access(3)]
       $0.logNextBefore = nil
     }
+    await store.finish()
   }
 
   @Test
@@ -302,6 +303,7 @@ struct ConnectedAgentsFeatureTests {
       $0.isLoadingLog = false
       $0.log = [Self.access(1)]
     }
+    await store.finish()
   }
 
   @Test
@@ -331,6 +333,7 @@ struct ConnectedAgentsFeatureTests {
     }
     // Once a page is read, Show More reads on instead.
     await store.send(.retryLogButtonTapped)
+    await store.finish()
   }
 
   @Test
@@ -368,6 +371,7 @@ struct ConnectedAgentsFeatureTests {
       $0.isShowingLog = true
     }
     #expect(reads.value == 1)
+    await store.finish()
   }
 
   @Test
@@ -445,5 +449,6 @@ struct ConnectedAgentsFeatureTests {
     await store.receive(\.agentsLoaded) {
       $0.agents = .loaded([claude])
     }
+    await store.finish()
   }
 }

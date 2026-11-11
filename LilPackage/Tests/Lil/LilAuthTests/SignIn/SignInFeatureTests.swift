@@ -40,6 +40,7 @@ struct SignInFeatureTests {
       $0.status = .signedIn
     }
     await store.receive(\.delegate.signedIn)
+    await store.finish()
   }
 
   #if os(macOS)
@@ -105,6 +106,7 @@ struct SignInFeatureTests {
         $0.status = .signedIn
       }
       await store.receive(\.delegate.signedIn)
+      await store.finish()
     }
 
     @Test
@@ -266,6 +268,7 @@ struct SignInFeatureTests {
       $0.status = .signedIn
     }
     await store.receive(\.delegate.signedIn)
+    await store.finish()
   }
 
   @Test
@@ -306,6 +309,7 @@ struct SignInFeatureTests {
       $0.status = .signedIn
     }
     await store.receive(\.delegate.signedIn)
+    await store.finish()
   }
 
   @Test
@@ -339,6 +343,7 @@ struct SignInFeatureTests {
       $0.status = .signedIn
     }
     await store.receive(\.delegate.signedIn)
+    await store.finish()
   }
 
   @Test
@@ -361,6 +366,7 @@ struct SignInFeatureTests {
       $0.status = .signedIn
     }
     await store.receive(\.delegate.signedIn)
+    await store.finish()
   }
 
   @Test
@@ -388,6 +394,7 @@ struct SignInFeatureTests {
       $0.status = .signedIn
     }
     await store.receive(\.delegate.signedIn)
+    await store.finish()
   }
 
   @Test
@@ -437,6 +444,7 @@ struct SignInFeatureTests {
       $0.authorization.googleRequest = nil
     }
     await store.receive(\.authorization.delegate.canceled)
+    await store.finish()
   }
 
   @Test
@@ -496,6 +504,7 @@ struct SignInFeatureTests {
       $0.status = .failed(
         "Signing in didn't work: The Internet connection appears to be offline.")
     }
+    await store.finish()
   }
 
   @Test

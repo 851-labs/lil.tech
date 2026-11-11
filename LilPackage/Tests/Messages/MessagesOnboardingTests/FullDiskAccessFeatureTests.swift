@@ -20,6 +20,7 @@ struct FullDiskAccessFeatureTests {
     await store.receive(\.checkResponse) {
       $0.isChecking = false
     }
+    await store.finish()
   }
 
   @Test
@@ -50,6 +51,7 @@ struct FullDiskAccessFeatureTests {
       $0.isChecking = false
     }
     await store.receive(\.delegate.accessGranted)
+    await store.finish()
   }
 
   @Test
@@ -65,6 +67,7 @@ struct FullDiskAccessFeatureTests {
     }
 
     await store.send(.openSystemSettingsButtonTapped)
+    await store.finish()
     #expect(openedURL.value == .fullDiskAccessSettings)
   }
 }

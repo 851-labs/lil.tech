@@ -92,6 +92,7 @@ struct ConversationListFeatureTests {
     await store.receive(\.contactsLoaded) {
       $0.contactNames = ["+15550000001": "Ada Lovelace"]
     }
+    await store.finish()
   }
 
   @Test
@@ -168,6 +169,7 @@ struct ConversationListFeatureTests {
     }
     await store.receive(\.contactsLoaded)
     await store.send(.filterChanged(.spam))
+    await store.finish()
   }
 
   @Test
@@ -243,6 +245,7 @@ struct ConversationListFeatureTests {
       $0.isLoading = false
       $0.loadFailed = true
     }
+    await store.finish()
   }
 
   @Test
@@ -279,6 +282,7 @@ struct ConversationListFeatureTests {
       $0.selection = nil
     }
     await store.receive(\.contactsLoaded)
+    await store.finish()
   }
 
   @Test
@@ -297,6 +301,7 @@ struct ConversationListFeatureTests {
     await store.receive(\.contactsLoaded) {
       $0.contactNames = ["+14155550100": "Grace Hopper"]
     }
+    await store.finish()
   }
 }
 
