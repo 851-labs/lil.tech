@@ -54,9 +54,12 @@ public struct DataExportFeature {
 
   /// How often to ask whether a prepared export is ready.
   static let pollInterval: Duration = .seconds(3)
+  /// How long to wait for a prepared export at most: past the hour the server may wait out a bulk
+  /// upload for.
+  static let maxWait: Duration = .seconds(70 * 60)
 
-  /// How many times at most to ask whether a prepared export is ready: 1,400, 70 minutes, past
-  /// the hour the server may wait out a bulk upload for. Tests give up sooner (851-4209).
+  /// How many times at most to ask whether a prepared export is ready: `maxWait` of polls in the
+  /// app, 1,400. Tests give up sooner (851-4209).
   let maxPolls: Int
 
   @Dependency(\.continuousClock) var clock
@@ -64,7 +67,7 @@ public struct DataExportFeature {
   @Dependency(\.archiveSaver) var archiveSaver
 
   public init() {
-    self.init(maxPolls: 1_400)
+    self.init(maxPolls: Int(Self.maxWait / Self.pollInterval))
   }
 
   init(maxPolls: Int) {

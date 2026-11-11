@@ -130,6 +130,11 @@ struct DataExportFeatureTests {
   }
 
   @Test
+  func theAppWaitsSeventyMinutesForAnExport() {
+    #expect(DataExportFeature().maxPolls == 1_400)
+  }
+
+  @Test
   func cancelingStopsTheExport() async {
     let store = TestStore(initialState: DataExportFeature.State()) {
       DataExportFeature()
