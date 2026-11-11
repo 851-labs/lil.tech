@@ -172,7 +172,7 @@ struct AuthSessionsTests {
     } operation: {
       AuthSessions()
     }
-    await withKnownIssue {
+    let issues = await issuesReported {
       await #expect(throws: AuthSessions.SessionUnavailable.self) {
         try await sessions.accessToken()
       }
@@ -180,6 +180,7 @@ struct AuthSessionsTests {
         try await sessions.accessToken()
       }
     }
+    #expect(issues == Array(repeating: "Caught error: KeychainError(status: -25308)", count: 2))
     #expect(try await sessions.accessToken() == "access-1")
     #expect(reads.value == 3)
   }
@@ -196,10 +197,11 @@ struct AuthSessionsTests {
       AuthSessions()
     }
     let stream = LockIsolated<AsyncStream<Bool>?>(nil)
-    await withKnownIssue {
+    let issues = await issuesReported {
       let updates = await sessions.signedInUpdates()
       stream.setValue(updates)
     }
+    #expect(issues == ["Caught error: KeychainError(status: -25308)"])
     var updates = try #require(stream.value).makeAsyncIterator()
     // Not "signed out": the store is read again a little later.
     try await clock.waitUntilAsleep(dueWithin: AuthSessions.rereadInterval)

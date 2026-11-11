@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import LilTestSupport
 import Testing
 
 @testable import LilAuth
@@ -313,9 +314,10 @@ struct SignInFeatureTests {
       SignInFeature()
     }
 
-    await withKnownIssue {
+    let issues = await issuesReported {
       await store.send(.authorization(.googleButtonTapped))
     }
+    #expect(issues == ["No Google OAuth client ID: set GIDClientID in the app's Info.plist"])
     await store.receive(\.authorization.delegate.failed) {
       $0.status = .failed("Signing in isn't available right now. Please try again later.")
     }

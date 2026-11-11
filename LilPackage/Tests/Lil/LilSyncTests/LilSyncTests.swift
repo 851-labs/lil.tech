@@ -646,11 +646,9 @@ struct LilSyncEngineTests {
     server.append(upsert("n2", "Two"))
     let engine = engine()
 
-    try await withKnownIssue {
-      try await engine.pull()
-    } matching: {
-      $0.description.contains("Skipped note change 1")
-    }
+    let issues = try await issuesReported { try await engine.pull() }
+    #expect(issues.count == 1)
+    #expect(issues.first?.hasPrefix("Skipped note change 1: ") == true)
     #expect(try storedNotes() == [Note(id: "n2", title: "Two")])
     #expect(try cursor() == 2)
   }
@@ -672,12 +670,9 @@ struct LilSyncEngineTests {
   }
 
   @Test
-  func reportsEntitiesRegisteredTwice() {
-    withKnownIssue {
-      _ = engine(entities: [notes, notes])
-    } matching: {
-      $0.description.contains("registered more than once")
-    }
+  func reportsEntitiesRegisteredTwice() async {
+    let issues = await issuesReported { _ = engine(entities: [notes, notes]) }
+    #expect(issues == ["SyncEntity note is registered more than once; the first one is used."])
   }
 
   // A hang would block the pre-commit hook: fail instead.
@@ -966,11 +961,9 @@ struct LilSyncBootstrapTests {
     }
     let database = try makeDatabase(bootstrapped: false)
     let engine = engine(database: database)
-    try await withKnownIssue {
-      try await engine.bootstrap()
-    } matching: {
-      $0.description.contains("Skipped a note record")
-    }
+    let issues = try await issuesReported { try await engine.bootstrap() }
+    #expect(issues.count == 1)
+    #expect(issues.first?.hasPrefix("Skipped a note record from the snapshot: ") == true)
     #expect(try storedNotes(database).map(\.id) == ["b"])
   }
 
@@ -1538,10 +1531,12 @@ struct LilSyncPushTests {
   func aPushTheServerRefusesIsDroppedAndTheDataStartsOver() async throws {
     server.state.withValue { $0.refusingPushes = true }
     let engine = engine()
-    await withKnownIssue {
+    let issues = try await issuesReported {
       try await engine.push([mine()])
       await #expect(throws: SyncError.needsBootstrap) { try await engine.pull() }
     }
+    let refused = try #require(server.state.value.pushes.first)
+    #expect(issues == ["The server refused pushed mutations \(refused); starting over"])
     #expect(try pending().isEmpty)
     try await engine.bootstrap()
     #expect(try storedNotes().isEmpty)

@@ -3,6 +3,7 @@ import DependenciesTestSupport
 import Foundation
 import HTTPTypes
 import LilAPI
+import LilTestSupport
 import OpenAPIRuntime
 import Testing
 
@@ -49,18 +50,10 @@ struct LilAPITests {
   @Test
   func testDependencyFailsRequests() async {
     @Dependency(\.api) var api
-    // The issue it reports is the known one. The error it throws is caught, not recorded, since
-    // a known issue's description (the whole request, with its generic types) fills pages, and
-    // checked outside, so a request that stops failing fails the test.
-    var threw = false
-    await withKnownIssue {
-      do {
-        _ = try await api.status()
-      } catch {
-        threw = true
-      }
+    let issues = await issuesReported {
+      await #expect(throws: (any Error).self) { try await api.status() }
     }
-    #expect(threw)
+    #expect(issues == [#"Unimplemented: @Dependency(\.api) received status"#])
   }
 
   @Test

@@ -3,6 +3,7 @@ import DependenciesTestSupport
 import Foundation
 import HTTPTypes
 import LilAPI
+import LilTestSupport
 import OpenAPIRuntime
 import Testing
 
@@ -45,16 +46,17 @@ struct AuthClientTests {
   }
 
   @Test
-  func unusableAuthorizationCodesAreLeftOut() {
+  func unusableAuthorizationCodesAreLeftOut() async {
     #expect(AppleCredential.authorizationCode("c0de") == "c0de")
     #expect(AppleCredential.authorizationCode(Data("c0de".utf8)) == "c0de")
     #expect(AppleCredential.authorizationCode(nil as String?) == nil)
     #expect(AppleCredential.authorizationCode(nil as Data?) == nil)
     #expect(AppleCredential.authorizationCode("") == nil)
     #expect(AppleCredential.authorizationCode(String(repeating: "c", count: 1025)) == nil)
-    withKnownIssue {
+    let issues = await issuesReported {
       #expect(AppleCredential.authorizationCode(Data([0xFF, 0xFE])) == nil)
     }
+    #expect(issues == ["Apple's authorization code isn't UTF-8"])
   }
 
   @Test

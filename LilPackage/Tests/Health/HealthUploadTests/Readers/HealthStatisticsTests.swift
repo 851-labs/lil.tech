@@ -1,6 +1,7 @@
 import Dependencies
 import Foundation
 import LilGzip
+import LilTestSupport
 import Testing
 
 @testable import HealthUpload
@@ -205,9 +206,11 @@ struct HealthStatisticsTests {
       buckets: [HealthBucket(start: HealthEncoder.bucketStart(of: firstSample), sum: 1)],
       uploads: uploads, storage: storage, asked: asked)
 
-    await withKnownIssue {
-      try await backfill.run()
-    }
+    let issues = try await issuesReported { try await backfill.run() }
+    #expect(
+      issues == [
+        "Caught error: Offline(): Uploading HKQuantityTypeIdentifierStepCount's sums; trying again next run"
+      ])
     // The samples are done; the sums resume after the chunk that went up.
     let state = try #require(try storage.loadState())
     #expect(state.finished == [steps.id])

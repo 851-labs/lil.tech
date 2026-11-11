@@ -4,6 +4,7 @@ import Foundation
 import HealthCards
 import HealthDatabase
 import LilSync
+import LilTestSupport
 import SQLiteData
 import Testing
 
@@ -265,10 +266,11 @@ struct CardsAgentWriteTests {
     let store = store(push: { _ in throw Full() })
     store.exhaustivity = .off
     let (request, answers) = agentRequest(.deleteCard(id: "card_seed_steps"))
-    await withKnownIssue {
+    let issues = await issuesReported {
       await store.send(.agentRequested(request))
       await store.receive(\.pushFailed)
     }
+    #expect(issues == ["Caught error: Full()"])
     #expect(answers.value == [.failed("lil health couldn't save the card.")])
   }
 }
