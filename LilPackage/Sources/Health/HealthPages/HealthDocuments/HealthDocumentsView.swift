@@ -117,11 +117,3 @@ struct HealthDocumentRow: View {
     .padding(.vertical, 4)
   }
 }
-
-extension HealthDocument {
-  /// Its title, or a generic one if HealthKit found none.
-  var displayTitle: String {
-    let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-    return title.isEmpty ? "Health Document" : title
-  }
-}

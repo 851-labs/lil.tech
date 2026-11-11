@@ -472,6 +472,43 @@ extension HealthAudiogramsResult: TextOutput {
   }
 }
 
+// MARK: - Health Documents (851-4163)
+
+extension HealthDocumentsResult: TextOutput {
+  var text: String {
+    var lines = [
+      "Health Documents, \(range): \(day(start)) to \(lastDay(end)) (\(timeZone))",
+      "\(count) \(count == 1 ? "document" : "documents")",
+    ]
+    if !documents.isEmpty { lines.append("") }
+    // As the page lists them: its title, who it's from (its author, or else its custodian) and
+    // its date.
+    for document in documents {
+      let parts = [document.title, document.author ?? document.custodian]
+      lines.append(
+        "  \(day(document.start))   " + parts.compactMap(\.self).joined(separator: " · ")
+          + "   \(document.id)")
+    }
+    if documents.count < count {
+      lines += ["", "Showing the \(documents.count) most recent documents."]
+    }
+    return lines.joined(separator: "\n") + "\n"
+  }
+}
+
+extension HealthDocumentResult: TextOutput {
+  var text: String {
+    var lines = [
+      "\(title)   \(time(start)) (\(timeZone))   \(id)",
+      "Characters \(offset) to \(offset + xml.utf16.count) of \(length):",
+      "",
+      xml,
+    ]
+    if let nextCursor { lines += ["", "More: --cursor \(nextCursor)"] }
+    return lines.joined(separator: "\n") + "\n"
+  }
+}
+
 extension HealthMedicationsResult: TextOutput {
   var text: String {
     guard !medications.isEmpty else { return "No medications.\n" }

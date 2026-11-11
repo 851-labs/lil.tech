@@ -178,6 +178,9 @@ const healthToolLog: ToolLog = { askedFor };
  */
 const workoutToolLog: ToolLog = { askedFor, rows: () => 1 };
 
+/** `health_document` reads a page of one document (851-4163), which is one row. */
+const documentToolLog: ToolLog = { askedFor, rows: () => 1 };
+
 /**
  * Wraps a tool's handler: it runs in its `turn`, its answer is held to `ceiling` bytes, and the
  * call is logged (`record`) before anything goes back, so nothing is read without a row.
@@ -278,7 +281,7 @@ export const healthMcpApp = (options: {
   readonly sql: StoreSql;
   readonly record: (access: AgentAccess) => Effect.Effect<void, AccountDeleted>;
   readonly turns: Turns;
-  /** The user's blobs, which the route tools read (none in tests that don't). */
+  /** The user's blobs, which the route, ECG and document tools read (none in tests that don't). */
   readonly blobs?: HealthBlobReader | undefined;
   /** The largest answer, as JSON (`healthMcpResultCeiling`, but tests make it smaller). */
   readonly resultCeiling?: number;
@@ -325,6 +328,8 @@ export const healthMcpApp = (options: {
     heartbeat_series: wrap(tools.heartbeat_series, handlers.heartbeat_series),
     heartbeat_series_beats: wrap(tools.heartbeat_series_beats, handlers.heartbeat_series_beats),
     audiograms: wrap(tools.audiograms, handlers.audiograms),
+    health_documents: wrap(tools.health_documents, handlers.health_documents),
+    health_document: wrap(tools.health_document, handlers.health_document, documentToolLog),
     medications: wrap(tools.medications, handlers.medications),
     medication_doses: wrap(tools.medication_doses, handlers.medication_doses),
     health_details: wrap(tools.health_details, handlers.health_details),

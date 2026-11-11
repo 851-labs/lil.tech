@@ -1817,6 +1817,138 @@ export const Audiograms = readOnly(
 );
 
 // -------------------------------------------------------------------------------------------------
+// health_documents and health_document
+// -------------------------------------------------------------------------------------------------
+
+/** The most Health Documents `health_documents` lists. */
+export const healthDocumentsLimit = 100;
+/**
+ * The most characters (UTF-16 code units) a page of a document's XML has, and its default: 40,000
+ * is at most 240 KB as JSON, a character at its longest escaped (`\u0001`), under the 256 KB
+ * ceiling; an XML document's are mostly 1 byte.
+ */
+export const healthDocumentPageLimit = 40_000;
+
+/** A name HealthKit read from a document, as the Mac's Health Documents page shows it. */
+const documentName = (row: string, what: string) =>
+  Schema.NullOr(Schema.String).annotate({
+    description:
+      `${what}, as HealthKit read it from the document and lil health's Health Documents page ` +
+      `shows it (its ${row} row). Null if HealthKit found none.`,
+  });
+
+export const HealthDocumentItem = Schema.Struct({
+  id: Schema.String.annotate({ description: "HealthKit's UUID for the document." }),
+  title: Schema.String.annotate({
+    description:
+      "The document's title, as HealthKit read it from the document (e.g. Visit Summary), or " +
+      "Health Document if it has none, as lil health's Health Documents page shows it.",
+  }),
+  patient: documentName("Patient", "Who the document is about"),
+  author: documentName("Author", "Who wrote it: a clinician, or the system that made it"),
+  custodian: documentName("Custodian", "The organization that keeps it, e.g. a clinic"),
+  start: LocalTime.annotate({
+    description:
+      "The document's date (its Date on lil health's page), as the app that saved it to Health " +
+      "dated it: usually the visit or period it covers.",
+  }),
+  end: LocalTime,
+  ...recordedTimeFields,
+  source: Schema.String.annotate({
+    description: "The app that saved it to Health, e.g. a clinic's or a health records app.",
+  }),
+}).annotate({ identifier: "HealthDocumentItem" });
+
+export const HealthDocumentsResult = Schema.Struct({
+  ...periodFields,
+  count: Schema.Int.annotate({
+    description: "Health Documents that start in the period, all of them.",
+  }),
+  documents: Schema.Array(HealthDocumentItem).annotate({
+    description: `The documents, newest first, at most ${healthDocumentsLimit}.`,
+  }),
+});
+
+export const HealthDocuments = readOnly(
+  Tool.make("health_documents", {
+    description:
+      "Health Documents (clinical documents in HL7's CDA format, such as a visit summary a " +
+      "provider sent, that the person shared with Health) whose date is in a period, newest " +
+      "first, as lil health's Health Documents page lists them: each one's title, patient, " +
+      "author, custodian (the organization that keeps it), date and source, with the " +
+      "period's count. What a document says (diagnoses, medications, test results, the " +
+      "patient's details) comes from health_document, a page at a time: ask for it only when " +
+      "its title and names aren't enough.",
+    parameters: Schema.Struct({ range, date, timeZone }),
+    success: HealthDocumentsResult,
+    failure: HealthToolError,
+  }),
+  "Health Documents",
+);
+
+export const HealthDocumentResult = Schema.Struct({
+  timeZone: usedTimeZone,
+  id: Schema.String.annotate({ description: "The document's ID." }),
+  title: Schema.String.annotate({
+    description: "Its title, as health_documents gives it.",
+  }),
+  start: LocalTime.annotate({ description: "The document's date." }),
+  length: Schema.Int.annotate({
+    description:
+      "How long the document's XML is, in characters (UTF-16 code units, as JavaScript counts " +
+      "a string's length: a character outside the Basic Multilingual Plane, such as an emoji, " +
+      "is 2).",
+  }),
+  offset: Schema.Int.annotate({
+    description: "Where this page starts in the XML, in the same characters.",
+  }),
+  xml: Schema.String.annotate({
+    description:
+      "This page of the document's CDA XML, exactly as the provider wrote it (namespace " +
+      "urn:hl7-org:v3), decoded as text: the header (recordTarget is the patient, with their " +
+      "address and birth date; author, custodian, the visit), then the structured body, each " +
+      "<section> a <title>, a human-readable <text> (paragraphs, lists, tables) and coded " +
+      "<entry>s that repeat it with codes (e.g. SNOMED CT, LOINC, RxNorm), values, units and " +
+      "reference ranges. A page can end inside an element: the next page goes on from there.",
+  }),
+  nextCursor: Schema.NullOr(Schema.String).annotate({
+    description: "Pass it as `cursor` for the next page; null on the last page.",
+  }),
+});
+
+export const HealthDocumentContent = readOnly(
+  Tool.make("health_document", {
+    description:
+      "One Health Document's content: its CDA XML, as the provider wrote it, " +
+      `${healthDocumentPageLimit.toLocaleString("en-US")} characters a page, in order. By its ` +
+      "ID, from health_documents, whose titles and names usually answer what's asked: call " +
+      "this only to read what a document says, such as its diagnoses, medications or test " +
+      "results. The XML is decoded as text by its byte order mark or XML declaration (UTF-8, " +
+      "UTF-16, ISO-8859-1 or windows-1252; UTF-8 otherwise).",
+    parameters: Schema.Struct({
+      id: Schema.String.annotate({ description: "A document's ID, from health_documents." }),
+      timeZone,
+      cursor: Schema.optionalKey(
+        Schema.String.annotate({ description: "The previous page's nextCursor." }),
+      ),
+      limit: Schema.optionalKey(
+        Schema.Int.check(
+          Schema.isBetween({ minimum: 1, maximum: healthDocumentPageLimit }),
+        ).annotate({
+          description:
+            `Characters per page, at most ${healthDocumentPageLimit.toLocaleString("en-US")}, ` +
+            "the default. A page never splits a character outside the Basic Multilingual Plane, " +
+            "so it can have one more.",
+        }),
+      ),
+    }),
+    success: HealthDocumentResult,
+    failure: HealthToolError,
+  }),
+  "Health Document",
+);
+
+// -------------------------------------------------------------------------------------------------
 // medications
 // -------------------------------------------------------------------------------------------------
 
@@ -2136,6 +2268,8 @@ export const HealthToolkit = Toolkit.make(
   HeartbeatSeries,
   HeartbeatSeriesBeats,
   Audiograms,
+  HealthDocuments,
+  HealthDocumentContent,
   Medications,
   MedicationDoses,
   HealthDetails,
@@ -2167,6 +2301,8 @@ export const healthToolResultNames: Record<keyof typeof HealthToolkit.tools, str
   heartbeat_series: "HealthHeartbeatSeriesResult",
   heartbeat_series_beats: "HealthHeartbeatSeriesBeatsResult",
   audiograms: "HealthAudiogramsResult",
+  health_documents: "HealthDocumentsResult",
+  health_document: "HealthDocumentResult",
   medications: "HealthMedicationsResult",
   medication_doses: "HealthMedicationDosesResult",
   health_details: "HealthDetailsResult",

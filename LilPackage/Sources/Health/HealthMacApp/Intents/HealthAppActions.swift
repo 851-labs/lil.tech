@@ -97,8 +97,9 @@ public enum HealthAppActionError: Error, Equatable, LocalizedError,
   case folderNotWritable(String)
   /// A card write was refused, saying why as the remote server's card tools do (851-4014).
   case cardNotSaved(String)
-  /// A route's points (851-4164) or an ECG's voltages (851-4159) couldn't be downloaded for
-  /// `lil-health`. The request names only the blob, so the messages name both kinds.
+  /// A route's points (851-4164), an ECG's voltages (851-4159) or a document's XML (851-4163)
+  /// couldn't be downloaded for `lil-health`. The request names only the blob, so the messages
+  /// name every kind.
   case downloadFailed
   /// The blob isn't on the server: not uploaded yet, or gone.
   case blobNotFound
@@ -118,10 +119,10 @@ public enum HealthAppActionError: Error, Equatable, LocalizedError,
       "lil health can't save to \(path). Check its access in System Settings › Privacy & Security › Files & Folders."
     case .cardNotSaved(let message): message
     case .downloadFailed:
-      "lil health couldn't download what this reads (a route's points or an ECG's voltages). Check that this Mac is online, then try again."
+      "lil health couldn't download what this reads (a route's points, an ECG's voltages or a document's XML). Check that this Mac is online, then try again."
     // The remote server names the kind; the request names only the blob.
     case .blobNotFound:
-      "What this reads (a route's points or an ECG's voltages) isn't on the server. Try again later."
+      "What this reads (a route's points, an ECG's voltages or a document's XML) isn't on the server. Try again later."
     }
   }
 

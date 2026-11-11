@@ -7412,6 +7412,173 @@
         ],
         "additionalProperties": true
       },
+      "HealthDocumentItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "HealthKit's UUID for the document."
+          },
+          "title": {
+            "type": "string",
+            "description": "The document's title, as HealthKit read it from the document (e.g. Visit Summary), or Health Document if it has none, as lil health's Health Documents page shows it."
+          },
+          "patient": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who the document is about, as HealthKit read it from the document and lil health's Health Documents page shows it (its Patient row). Null if HealthKit found none."
+          },
+          "author": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who wrote it: a clinician, or the system that made it, as HealthKit read it from the document and lil health's Health Documents page shows it (its Author row). Null if HealthKit found none."
+          },
+          "custodian": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The organization that keeps it, e.g. a clinic, as HealthKit read it from the document and lil health's Health Documents page shows it (its Custodian row). Null if HealthKit found none."
+          },
+          "start": {
+            "type": "string",
+            "description": "The document's date (its Date on lil health's page), as the app that saved it to Health dated it: usually the visit or period it covers."
+          },
+          "end": {
+            "type": "string",
+            "description": "A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00."
+          },
+          "recordedTimeZone": {
+            "type": "string",
+            "description": "The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records."
+          },
+          "recordedStart": {
+            "type": "string",
+            "description": "When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+          },
+          "recordedEnd": {
+            "type": "string",
+            "description": "When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone."
+          },
+          "source": {
+            "type": "string",
+            "description": "The app that saved it to Health, e.g. a clinic's or a health records app."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "patient",
+          "author",
+          "custodian",
+          "start",
+          "end",
+          "source"
+        ],
+        "additionalProperties": true
+      },
+      "HealthDocumentsResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "range": {
+            "type": "string",
+            "description": "The range asked for: D, W, M, 6M or Y."
+          },
+          "start": {
+            "type": "string",
+            "description": "When the period starts."
+          },
+          "end": {
+            "type": "string",
+            "description": "When the period ends (exclusive)."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Health Documents that start in the period, all of them."
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthDocumentItem"
+            },
+            "description": "The documents, newest first, at most 100."
+          }
+        },
+        "required": [
+          "timeZone",
+          "range",
+          "start",
+          "end",
+          "count",
+          "documents"
+        ],
+        "additionalProperties": true
+      },
+      "HealthDocumentResult": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "description": "The IANA time zone of the output's days and local times."
+          },
+          "id": {
+            "type": "string",
+            "description": "The document's ID."
+          },
+          "title": {
+            "type": "string",
+            "description": "Its title, as health_documents gives it."
+          },
+          "start": {
+            "type": "string",
+            "description": "The document's date."
+          },
+          "length": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "How long the document's XML is, in characters (UTF-16 code units, as JavaScript counts a string's length: a character outside the Basic Multilingual Plane, such as an emoji, is 2)."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Where this page starts in the XML, in the same characters."
+          },
+          "xml": {
+            "type": "string",
+            "description": "This page of the document's CDA XML, exactly as the provider wrote it (namespace urn:hl7-org:v3), decoded as text: the header (recordTarget is the patient, with their address and birth date; author, custodian, the visit), then the structured body, each <section> a <title>, a human-readable <text> (paragraphs, lists, tables) and coded <entry>s that repeat it with codes (e.g. SNOMED CT, LOINC, RxNorm), values, units and reference ranges. A page can end inside an element: the next page goes on from there."
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass it as `cursor` for the next page; null on the last page."
+          }
+        },
+        "required": [
+          "timeZone",
+          "id",
+          "title",
+          "start",
+          "length",
+          "offset",
+          "xml",
+          "nextCursor"
+        ],
+        "additionalProperties": true
+      },
       "HealthMedicationCoding": {
         "type": "object",
         "properties": {

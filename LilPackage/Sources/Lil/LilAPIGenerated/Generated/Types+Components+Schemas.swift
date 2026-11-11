@@ -14878,6 +14878,506 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthDocumentItem`.
+        public struct HealthDocumentItem: Codable, Hashable, Sendable {
+            /// HealthKit's UUID for the document.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentItem/id`.
+            public var id: Swift.String
+            /// The document's title, as HealthKit read it from the document (e.g. Visit Summary), or Health Document if it has none, as lil health's Health Documents page shows it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentItem/title`.
+            public var title: Swift.String
+            /// Who the document is about, as HealthKit read it from the document and lil health's Health Documents page shows it (its Patient row). Null if HealthKit found none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentItem/patient`.
+            public var patient: Swift.String?
+            /// Who wrote it: a clinician, or the system that made it, as HealthKit read it from the document and lil health's Health Documents page shows it (its Author row). Null if HealthKit found none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentItem/author`.
+            public var author: Swift.String?
+            /// The organization that keeps it, e.g. a clinic, as HealthKit read it from the document and lil health's Health Documents page shows it (its Custodian row). Null if HealthKit found none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentItem/custodian`.
+            public var custodian: Swift.String?
+            /// The document's date (its Date on lil health's page), as the app that saved it to Health dated it: usually the visit or period it covers.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentItem/start`.
+            public var start: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentItem/end`.
+            public var end: Swift.String
+            /// The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentItem/recordedTimeZone`.
+            public var recordedTimeZone: Swift.String?
+            /// When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentItem/recordedStart`.
+            public var recordedStart: Swift.String?
+            /// When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentItem/recordedEnd`.
+            public var recordedEnd: Swift.String?
+            /// The app that saved it to Health, e.g. a clinic's or a health records app.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentItem/source`.
+            public var source: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthDocumentItem`.
+            ///
+            /// - Parameters:
+            ///   - id: HealthKit's UUID for the document.
+            ///   - title: The document's title, as HealthKit read it from the document (e.g. Visit Summary), or Health Document if it has none, as lil health's Health Documents page shows it.
+            ///   - patient: Who the document is about, as HealthKit read it from the document and lil health's Health Documents page shows it (its Patient row). Null if HealthKit found none.
+            ///   - author: Who wrote it: a clinician, or the system that made it, as HealthKit read it from the document and lil health's Health Documents page shows it (its Author row). Null if HealthKit found none.
+            ///   - custodian: The organization that keeps it, e.g. a clinic, as HealthKit read it from the document and lil health's Health Documents page shows it (its Custodian row). Null if HealthKit found none.
+            ///   - start: The document's date (its Date on lil health's page), as the app that saved it to Health dated it: usually the visit or period it covers.
+            ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - recordedTimeZone: The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///   - recordedStart: When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///   - recordedEnd: When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///   - source: The app that saved it to Health, e.g. a clinic's or a health records app.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                title: Swift.String,
+                patient: Swift.String? = nil,
+                author: Swift.String? = nil,
+                custodian: Swift.String? = nil,
+                start: Swift.String,
+                end: Swift.String,
+                recordedTimeZone: Swift.String? = nil,
+                recordedStart: Swift.String? = nil,
+                recordedEnd: Swift.String? = nil,
+                source: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.title = title
+                self.patient = patient
+                self.author = author
+                self.custodian = custodian
+                self.start = start
+                self.end = end
+                self.recordedTimeZone = recordedTimeZone
+                self.recordedStart = recordedStart
+                self.recordedEnd = recordedEnd
+                self.source = source
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case title
+                case patient
+                case author
+                case custodian
+                case start
+                case end
+                case recordedTimeZone
+                case recordedStart
+                case recordedEnd
+                case source
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.title = try container.decode(
+                    Swift.String.self,
+                    forKey: .title
+                )
+                self.patient = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .patient
+                )
+                self.author = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .author
+                )
+                self.custodian = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .custodian
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.recordedTimeZone = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTimeZone
+                )
+                self.recordedStart = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedStart
+                )
+                self.recordedEnd = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedEnd
+                )
+                self.source = try container.decode(
+                    Swift.String.self,
+                    forKey: .source
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "title",
+                    "patient",
+                    "author",
+                    "custodian",
+                    "start",
+                    "end",
+                    "recordedTimeZone",
+                    "recordedStart",
+                    "recordedEnd",
+                    "source"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.title,
+                    forKey: .title
+                )
+                try container.encodeIfPresent(
+                    self.patient,
+                    forKey: .patient
+                )
+                try container.encodeIfPresent(
+                    self.author,
+                    forKey: .author
+                )
+                try container.encodeIfPresent(
+                    self.custodian,
+                    forKey: .custodian
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encodeIfPresent(
+                    self.recordedTimeZone,
+                    forKey: .recordedTimeZone
+                )
+                try container.encodeIfPresent(
+                    self.recordedStart,
+                    forKey: .recordedStart
+                )
+                try container.encodeIfPresent(
+                    self.recordedEnd,
+                    forKey: .recordedEnd
+                )
+                try container.encode(
+                    self.source,
+                    forKey: .source
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthDocumentsResult`.
+        public struct HealthDocumentsResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentsResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The range asked for: D, W, M, 6M or Y.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentsResult/range`.
+            public var range: Swift.String
+            /// When the period starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentsResult/start`.
+            public var start: Swift.String
+            /// When the period ends (exclusive).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentsResult/end`.
+            public var end: Swift.String
+            /// Health Documents that start in the period, all of them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentsResult/count`.
+            public var count: Swift.Int
+            /// The documents, newest first, at most 100.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentsResult/documents`.
+            public var documents: [Components.Schemas.HealthDocumentItem]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthDocumentsResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - range: The range asked for: D, W, M, 6M or Y.
+            ///   - start: When the period starts.
+            ///   - end: When the period ends (exclusive).
+            ///   - count: Health Documents that start in the period, all of them.
+            ///   - documents: The documents, newest first, at most 100.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                range: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                count: Swift.Int,
+                documents: [Components.Schemas.HealthDocumentItem],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.range = range
+                self.start = start
+                self.end = end
+                self.count = count
+                self.documents = documents
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case range
+                case start
+                case end
+                case count
+                case documents
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.range = try container.decode(
+                    Swift.String.self,
+                    forKey: .range
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.documents = try container.decode(
+                    [Components.Schemas.HealthDocumentItem].self,
+                    forKey: .documents
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "range",
+                    "start",
+                    "end",
+                    "count",
+                    "documents"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.range,
+                    forKey: .range
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.count,
+                    forKey: .count
+                )
+                try container.encode(
+                    self.documents,
+                    forKey: .documents
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthDocumentResult`.
+        public struct HealthDocumentResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The document's ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentResult/id`.
+            public var id: Swift.String
+            /// Its title, as health_documents gives it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentResult/title`.
+            public var title: Swift.String
+            /// The document's date.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentResult/start`.
+            public var start: Swift.String
+            /// How long the document's XML is, in characters (UTF-16 code units, as JavaScript counts a string's length: a character outside the Basic Multilingual Plane, such as an emoji, is 2).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentResult/length`.
+            public var length: Swift.Int
+            /// Where this page starts in the XML, in the same characters.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentResult/offset`.
+            public var offset: Swift.Int
+            /// This page of the document's CDA XML, exactly as the provider wrote it (namespace urn:hl7-org:v3), decoded as text: the header (recordTarget is the patient, with their address and birth date; author, custodian, the visit), then the structured body, each <section> a <title>, a human-readable <text> (paragraphs, lists, tables) and coded <entry>s that repeat it with codes (e.g. SNOMED CT, LOINC, RxNorm), values, units and reference ranges. A page can end inside an element: the next page goes on from there.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentResult/xml`.
+            public var xml: Swift.String
+            /// Pass it as `cursor` for the next page; null on the last page.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthDocumentResult/nextCursor`.
+            public var nextCursor: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthDocumentResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - id: The document's ID.
+            ///   - title: Its title, as health_documents gives it.
+            ///   - start: The document's date.
+            ///   - length: How long the document's XML is, in characters (UTF-16 code units, as JavaScript counts a string's length: a character outside the Basic Multilingual Plane, such as an emoji, is 2).
+            ///   - offset: Where this page starts in the XML, in the same characters.
+            ///   - xml: This page of the document's CDA XML, exactly as the provider wrote it (namespace urn:hl7-org:v3), decoded as text: the header (recordTarget is the patient, with their address and birth date; author, custodian, the visit), then the structured body, each <section> a <title>, a human-readable <text> (paragraphs, lists, tables) and coded <entry>s that repeat it with codes (e.g. SNOMED CT, LOINC, RxNorm), values, units and reference ranges. A page can end inside an element: the next page goes on from there.
+            ///   - nextCursor: Pass it as `cursor` for the next page; null on the last page.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                id: Swift.String,
+                title: Swift.String,
+                start: Swift.String,
+                length: Swift.Int,
+                offset: Swift.Int,
+                xml: Swift.String,
+                nextCursor: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.id = id
+                self.title = title
+                self.start = start
+                self.length = length
+                self.offset = offset
+                self.xml = xml
+                self.nextCursor = nextCursor
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case id
+                case title
+                case start
+                case length
+                case offset
+                case xml
+                case nextCursor
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.title = try container.decode(
+                    Swift.String.self,
+                    forKey: .title
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.length = try container.decode(
+                    Swift.Int.self,
+                    forKey: .length
+                )
+                self.offset = try container.decode(
+                    Swift.Int.self,
+                    forKey: .offset
+                )
+                self.xml = try container.decode(
+                    Swift.String.self,
+                    forKey: .xml
+                )
+                self.nextCursor = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .nextCursor
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "id",
+                    "title",
+                    "start",
+                    "length",
+                    "offset",
+                    "xml",
+                    "nextCursor"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.title,
+                    forKey: .title
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.length,
+                    forKey: .length
+                )
+                try container.encode(
+                    self.offset,
+                    forKey: .offset
+                )
+                try container.encode(
+                    self.xml,
+                    forKey: .xml
+                )
+                try container.encodeIfPresent(
+                    self.nextCursor,
+                    forKey: .nextCursor
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthMedicationCoding`.
         public struct HealthMedicationCoding: Codable, Hashable, Sendable {
             /// The coding system, as HealthKit names it, e.g. http://www.nlm.nih.gov/research/umls/rxnorm.

@@ -865,8 +865,9 @@ export const UserStoreLive = UserStore.make(
         sql,
         record: store.recordAgentAccess,
         write: store.applyMutations,
-        // The route tools' locations (851-4164) and ECGs' voltages (851-4159), under the prefix
-        // the store recorded with its first blob: a store without one has none.
+        // The route tools' locations (851-4164), ECGs' voltages (851-4159) and Health Documents'
+        // XML (851-4163), under the prefix the store recorded with its first blob: a store
+        // without one has none.
         blobs: (sha256, what) => {
           const prefix = readBlobPrefix(sql);
           if (prefix === null) return Effect.succeed(null);

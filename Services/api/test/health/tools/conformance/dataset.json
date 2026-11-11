@@ -15,7 +15,8 @@
     "Heartbeat series (851-4162), in health_heartbeat_series, each beat's time in seconds since the start (to 0.1 ms) and the indices of beats preceded by a gap, as JSON in the row: be47\u2026001 (19 October, recorded in London) has 60 beats without a gap; be47\u2026002 (18 October, recorded in Paris) has 40, with gaps before beats 10 and 11 (so 10 stands alone) and 30, and beat 20 at the same time as 19; 003 has three beats, 004 two, 005 two with a gap between, 006 one and 007 none; be47\u2026008 is a third-party app's, 1,250 beats, its first preceded by a gap and gaps before 400, 401 and 900; 009 starts a minute before 14 October in UTC; 010 was deleted by ph2. Their beats come from sines, so their HRV is worked out by a reference implementation.",
     "Medication doses (851-4167): the inhaler (\u2026d4) is due at 23:00 UTC; its doses are 0c0f\u2026151 (recorded in Tokyo), 152 (a status and schedule a later iOS might add, a zone that isn't a name), 153 and 154 (due and logged at the same instant), 156 (deleted by ph2) and 157 (as needed); 155 is a dose of \u2026e5, a medication that isn't shared. Atorvastatin and Amoxicillin have RxNorm and SNOMED codings.",
     "Audiograms (851-4161), in health_audiogram, frequencies in Hz and results in dBHL: 0c0f…801 (19 October, recorded in London) is a hearing test of both ears, its left ear averaging 17.5 in the speech range (18, Little to No Hearing Loss) and its right 37.5 (38, Mild), a left result at 3000 Hz clamped on both sides and a right one at 8000 Hz only from below (no response); 0c0f…802 (15 October, a third-party app's) tests the left ear twice at 500 Hz (masked first) and at 1000 Hz (a conduction type a later iOS might add, then air masked), a side of 2 no ear has, the left averaging 50.125 (50, Moderate) and the right tested only outside the speech range (3000 and 6000 Hz: 70.5, so 71, Severe); 0c0f…803 (13 October at 23:30, 14 October in London, recorded in Tokyo) averages -2.5 on the left (-3) and -0.4 on the right (0, never -0); 0c0f…804 (2 September, from ph2) tests only the right ear (97.5, so 98, Profound); 0c0f…805 was deleted by ph2; 0c0f…806 is from September 2025, before a year's range; 0c0f…807 (1 August) has no frequencies and a zone that isn't a name.",
-    "Links (851-4187), as iPhones upload them since 851-4153: health_workout_samples for the 1 to 6 September run, pool swim and triathlon (empty for the swim and the triathlon), so the ride and every other workout have no links read. Effort scores (health_workout_effort): the run's rated 7 during it, its most relevant, and the Watch's estimate of 6 after it; the triathlon's most relevant (eff0…005) never arrived and a rated 9 was deleted by ph2, leaving the Watch's estimate of 8.25; its swim has its own rated 5, its ride an estimated 7.5 (no most relevant), and its run a rated 6 and a later estimate of 6.5 whose most relevant (eff0…011) never arrived, so the rated one stands. ECG symptoms (health_electrocardiogram_symptoms): 0c0f…182 has a rapid, pounding or fluttering heartbeat and chest tightness logged after it, in that order, and dizziness that never arrived; 0c0f…181 has none; every other ECG has no links read, though 186 logged symptoms."
+    "Links (851-4187), as iPhones upload them since 851-4153: health_workout_samples for the 1 to 6 September run, pool swim and triathlon (empty for the swim and the triathlon), so the ride and every other workout have no links read. Effort scores (health_workout_effort): the run's rated 7 during it, its most relevant, and the Watch's estimate of 6 after it; the triathlon's most relevant (eff0…005) never arrived and a rated 9 was deleted by ph2, leaving the Watch's estimate of 8.25; its swim has its own rated 5, its ride an estimated 7.5 (no most relevant), and its run a rated 6 and a later estimate of 6.5 whose most relevant (eff0…011) never arrived, so the rated one stands. ECG symptoms (health_electrocardiogram_symptoms): 0c0f…182 has a rapid, pounding or fluttering heartbeat and chest tightness logged after it, in that order, and dizziness that never arrived; 0c0f…181 has none; every other ECG has no links read, though 186 logged symptoms.",
+    "Health Documents (851-4163), in health_document, their CDA XML a blob each, in blobs.json: 0c0f\u2026901 (19 October, recorded in New York) is a visit summary in UTF-8, with an emoji (two UTF-16 code units) in its Assessment that a page must not split; 0c0f\u2026902 (16 October) declares ISO-8859-1, and 0c0f\u2026903 (12 October) windows-1252, with a byte it leaves out (0x81); 0c0f\u2026904 (30 September) is UTF-16 with a byte order mark and a character outside the Basic Multilingual Plane; 0c0f\u2026905 (20 August, a zone that isn't a name) is UTF-8 with a byte order mark and bytes UTF-8 can't read; 0c0f\u2026906 (18 October at 22:30) is UTF-16 without a byte order mark, big-endian, with a lone surrogate and an odd last byte, and a blank title and names with whitespace Foundation trims around them, some that JavaScript's trim doesn't (U+0085, U+200B), or nothing else; 0c0f\u2026907 was deleted by ph2; 0c0f\u2026908 is from June 2025, before a year's range."
   ],
   "batches": [
     {
@@ -3969,6 +3970,140 @@
           "op": "upsert",
           "id": "0c0f0000-0000-4000-8000-000000000181",
           "row": { "count": 0, "samples": {} }
+        },
+        {
+          "entity": "health_document",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000901",
+          "row": {
+            "startDate": 1792418400000,
+            "endDate": 1792422000000,
+            "title": "Visit Summary",
+            "patientName": "Jane Example",
+            "authorName": "Dr. Sam Placeholder",
+            "custodianName": "Synthetic Health Clinic",
+            "xml": "86ea499e262ff1f7b99a03db2ba0ff4379650a0d63ec63efc20a56983867543d",
+            "sourceName": "Synthetic Clinic",
+            "sourceBundleId": "com.example.clinic",
+            "metadata": {
+              "HKTimeZone": "America/New_York"
+            }
+          }
+        },
+        {
+          "entity": "health_document",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000902",
+          "row": {
+            "startDate": 1792141200000,
+            "endDate": 1792141200000,
+            "title": "Lab Report",
+            "patientName": "Jane Example",
+            "authorName": "",
+            "custodianName": "Laboratoire Synth\u00e9tique",
+            "xml": "ea04cea33233d6cfa891163c7065a47ca1b7debdf03ba70d32b18ef9978abda3",
+            "sourceName": "Synthetic Records",
+            "sourceBundleId": "com.example.records"
+          }
+        },
+        {
+          "entity": "health_document",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000903",
+          "row": {
+            "startDate": 1791799200000,
+            "endDate": 1791801000000,
+            "title": "Referral",
+            "patientName": "Jane Example",
+            "authorName": "Dr. Sam Placeholder",
+            "custodianName": "",
+            "xml": "d83a025906bce205c801ea58e75236d41235d624caf49b5efceb2ce5d349f72b",
+            "sourceName": "Synthetic Records",
+            "sourceBundleId": "com.example.records"
+          }
+        },
+        {
+          "entity": "health_document",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000904",
+          "row": {
+            "startDate": 1790755200000,
+            "endDate": 1790755200000,
+            "title": "Immunizations",
+            "patientName": "Jane Example",
+            "authorName": "",
+            "custodianName": "Synthetic Health Clinic",
+            "xml": "c44768dbf9276843aae944ffddcc74881197a8ee2f5dab2f6514a54031e2f227",
+            "sourceName": "Synthetic Records",
+            "sourceBundleId": "com.example.records"
+          }
+        },
+        {
+          "entity": "health_document",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000905",
+          "row": {
+            "startDate": 1787227200000,
+            "endDate": 1787230800000,
+            "title": "Discharge Note",
+            "patientName": "Jane Example",
+            "authorName": "Dr. Sam Placeholder",
+            "custodianName": "Synthetic Hospital",
+            "xml": "c919c6d42466a011966b5bbef88c4d958823ccc25dc301509db3745911c4d047",
+            "sourceName": "Synthetic Records",
+            "sourceBundleId": "com.example.records",
+            "metadata": {
+              "HKTimeZone": "+09:00"
+            }
+          }
+        },
+        {
+          "entity": "health_document",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000906",
+          "row": {
+            "startDate": 1792362600000,
+            "endDate": 1792362600000,
+            "title": " \u00a0\n",
+            "patientName": "\u0085",
+            "authorName": "\u2003Dr. Em Space",
+            "custodianName": "\u200bSynthetic Clinic\u2028",
+            "xml": "57810158f372186529219943478eb69849ee0c5bd08abcce8ebe44853302d06a",
+            "sourceName": "Synthetic Records",
+            "sourceBundleId": "com.example.records"
+          }
+        },
+        {
+          "entity": "health_document",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000907",
+          "row": {
+            "startDate": 1792227600000,
+            "endDate": 1792227600000,
+            "title": "Deleted Note",
+            "patientName": "Jane Example",
+            "authorName": "",
+            "custodianName": "",
+            "xml": "a6b077908590fa04d6f9a7eb8bbe006d5eab7e66ef40d37a33d8c1e11fd9068c",
+            "sourceName": "Synthetic Records",
+            "sourceBundleId": "com.example.records"
+          }
+        },
+        {
+          "entity": "health_document",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000908",
+          "row": {
+            "startDate": 1748768400000,
+            "endDate": 1748768400000,
+            "title": "Old Summary",
+            "patientName": "Jane Example",
+            "authorName": "",
+            "custodianName": "Synthetic Health Clinic",
+            "xml": "19f7476aa6dd3649349d76955ad57a6bd4819c554f42dc17f7304956007bbfe1",
+            "sourceName": "Synthetic Records",
+            "sourceBundleId": "com.example.records"
+          }
         }
       ]
     },
@@ -4330,7 +4465,12 @@
           "op": "delete",
           "id": "0c0f0000-0000-4000-8000-000000000805"
         },
-        { "entity": "health_sample", "op": "delete", "id": "eff00000-0000-4000-8000-000000000008" }
+        { "entity": "health_sample", "op": "delete", "id": "eff00000-0000-4000-8000-000000000008" },
+        {
+          "entity": "health_document",
+          "op": "delete",
+          "id": "0c0f0000-0000-4000-8000-000000000907"
+        }
       ]
     }
   ]
