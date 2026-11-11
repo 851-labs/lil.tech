@@ -231,7 +231,6 @@ struct ExportHealthDataIntentTests {
       $0.account.dataExport.status = .idle
     }
     await #expect(throws: HealthAppActionError.exportCancelled) { try await answer() }
-    // The effect answers, then returns: the answer can come before it ends (851-4206).
     await store.finish()
   }
 
@@ -365,7 +364,9 @@ struct ExportHealthDataIntentTests {
   }
 }
 
-/// A request for `AppFeature`, its answer once given, and the progress it reported.
+/// A request for `AppFeature`, its answer once given, and the progress it reported. The effect
+/// answering it ends only after it answers, so a test that ends on the answer ends with
+/// `store.finish()` (851-4206).
 private func makeRequest(
   _ action: HealthAppAction
 ) -> (
