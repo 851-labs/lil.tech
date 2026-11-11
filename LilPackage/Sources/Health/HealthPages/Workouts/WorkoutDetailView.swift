@@ -8,53 +8,40 @@ import MapKit
 import SQLiteData
 import SwiftUI
 
-/// A workout, as in Health: its summary figures and recorded time zone, heart rate over the
-/// workout, the route colored by pace with its splits (per kilometer or mile, by the locale), and
-/// its segments.
+/// A workout, as in Health: its summary figures (with its effort score) and recorded time zone,
+/// heart rate over the workout, the route colored by pace with its splits (per kilometer or mile,
+/// by the locale), a multisport workout's legs, and its segments.
 struct WorkoutDetailView: View {
   let workout: HealthWorkout
   @Dependency(\.defaultDatabase) private var database
   @Dependency(\.blobCache) private var blobCache
-  @State private var heartRates: [HealthSample] = []
+  /// Its heart rate and effort scores, read by the view's task and followed, so links and scores
+  /// that sync while it's open show (a score is often rated after the workout).
+  @ThrottledFetch private var linked = WorkoutLinkedData()
   /// `.none` until the workout's route is known to exist: a workout without one never shows a
   /// placeholder for it (851-3091).
   @State private var route = RouteState.none
 
   var body: some View {
-    WorkoutDetailContent(workout: workout, heartRates: heartRates, route: route)
-      .task(id: workout.id) {
-        let workout = workout
-        // Both at once: the route may have to be downloaded.
-        async let samples = try? database.read { db in
-          try HealthDatabase.samples(
-            of: WorkoutFormat.heartRate,
-            in: Date(unixMilliseconds: workout.startDate)..<Date(unixMilliseconds: workout.endDate),
-            db)
-        }
-        async let row = routeRow(workout)
-        // Both from the local database, set together, so the heart rate and the route's
-        // placeholder arrive at once, and only then the route, which may have to be downloaded.
-        let found = await row
-        heartRates = Self.mainSource(await samples ?? [])
-        switch found {
-        case .failure(let error):
-          route = .failed(error.localizedDescription)
-        case .success(nil):
-          route = .none
-        case .success(let route?):
-          self.route = .loading
-          self.route = await .load(route.locations, from: blobCache)
-        }
+    WorkoutDetailContent(
+      workout: workout, heartRates: linked.heartRates, effort: linked.effort, route: route
+    )
+    .task(id: workout.id) {
+      // Both from the local database, set one after the other, so the heart rate and the
+      // route's placeholder arrive at once, and only then the route, which may have to be
+      // downloaded.
+      await $linked.load(
+        WorkoutLinkedDataRequest(workout: workout), tables: HealthDatabase.workoutLinkTables)
+      switch await routeRow(workout) {
+      case .failure(let error):
+        route = .failed(error.localizedDescription)
+      case .success(nil):
+        route = .none
+      case .success(let route?):
+        self.route = .loading
+        self.route = await .load(route.locations, from: blobCache)
       }
-  }
-
-  /// The samples of the source that recorded the most during the workout (usually the Watch),
-  /// so a second device's readings don't zig-zag through the chart.
-  static func mainSource(_ samples: [HealthSample]) -> [HealthSample] {
-    let counts = Dictionary(grouping: samples, by: \.sourceBundleID).mapValues(\.count)
-    guard let source = counts.max(by: { ($0.value, $1.key) < ($1.value, $0.key) })?.key
-    else { return [] }
-    return samples.filter { $0.sourceBundleID == source }
+    }
   }
 
   /// The workout's route, if it has one.
@@ -68,10 +55,32 @@ struct WorkoutDetailView: View {
   }
 }
 
+/// What a workout's page reads besides its row: its heart rate (linked, or guessed until its
+/// links sync, `HealthDatabase.workoutHeartRates`) and effort scores.
+struct WorkoutLinkedData: Equatable, Sendable {
+  var heartRates = WorkoutHeartRates()
+  var effort: WorkoutEffort?
+}
+
+struct WorkoutLinkedDataRequest: FetchKeyRequest {
+  let workout: HealthWorkout
+
+  /// By its ID: equal requests are equal workouts, as `HealthWorkout` compares them.
+  func hash(into hasher: inout Hasher) { hasher.combine(workout.id) }
+
+  func fetch(_ db: Database) throws -> WorkoutLinkedData {
+    // Read on their own: effort scores that can't be read leave the heart rate.
+    WorkoutLinkedData(
+      heartRates: try HealthDatabase.workoutHeartRates(of: workout, db),
+      effort: try? HealthDatabase.workoutEffort(of: workout.id, db))
+  }
+}
+
 /// What a workout's detail shows, however it got it.
 struct WorkoutDetailContent: View {
   let workout: HealthWorkout
-  let heartRates: [HealthSample]
+  let heartRates: WorkoutHeartRates
+  let effort: WorkoutEffort?
   let route: RouteState
   /// Decoded and worked out once, not on every render.
   private let statistics: [String: WorkoutStatistic]
@@ -84,11 +93,19 @@ struct WorkoutDetailContent: View {
   private let distance: (meters: Double, unit: MetricFormat.DisplayUnit)?
   /// The zone it was recorded in, if it has one (851-4179).
   private let timeZone: RecordedTimeZone?
+  /// A multisport workout's legs; none for one activity.
+  private let legs: [WorkoutActivityRecord]
 
-  init(workout: HealthWorkout, heartRates: [HealthSample], route: RouteState) {
+  init(
+    workout: HealthWorkout, heartRates: WorkoutHeartRates, effort: WorkoutEffort? = nil,
+    route: RouteState
+  ) {
     self.workout = workout
     self.heartRates = heartRates
+    self.effort = effort
     self.route = route
+    let activities = workout.decodedActivities
+    legs = activities.count > 1 ? activities : []
     @Dependency(\.locale) var locale
     self.locale = locale
     statistics = workout.decodedStatistics
@@ -115,7 +132,7 @@ struct WorkoutDetailContent: View {
         summary
         if let timeZone { RecordedTimeZoneRow(zone: timeZone) }
       }
-      if !heartRates.isEmpty { heartRateSection }
+      if !heartRates.samples.isEmpty { heartRateSection }
       let map = RouteMapRow(route: route, height: 300)
       if map.showsSomething {
         Section("Route") { map }
@@ -123,6 +140,7 @@ struct WorkoutDetailContent: View {
       if case .loaded(let loaded) = route, loaded.hasMap, !splits.isEmpty {
         splitsSection
       }
+      if !legs.isEmpty { legsSection }
       segmentsSection
     }
     .formStyle(.grouped)
@@ -193,21 +211,24 @@ struct WorkoutDetailContent: View {
     if let average = statistics[WorkoutFormat.heartRate]?.average {
       figures.append(("Avg. Heart Rate", "\(Int(average.rounded())) BPM", .red))
     }
+    if let score = effort?.score, let value = WorkoutFormat.effort(score) {
+      figures.append((WorkoutFormat.effortLabel(score), value, .orange))
+    }
     return figures.map { (label: $0.0, value: $0.1, color: $0.2) }
   }
 
   // MARK: Heart rate
 
   private var heartRateSection: some View {
-    let values = heartRates.compactMap(\.value)
-    return Section("Heart Rate") {
+    let values = heartRates.samples.compactMap(\.value)
+    return Section {
       VStack(alignment: .leading, spacing: 12) {
         if let low = values.min(), let high = values.max() {
           Text("\(Int(low.rounded()))–\(Int(high.rounded())) BPM")
             .font(.system(.title3, design: .rounded).weight(.semibold))
             .foregroundStyle(.red)
         }
-        Chart(heartRates) { sample in
+        Chart(heartRates.samples) { sample in
           if let value = sample.value {
             LineMark(
               x: .value("Time", Date(unixMilliseconds: sample.startDate)),
@@ -227,6 +248,54 @@ struct WorkoutDetailContent: View {
         .frame(height: 160)
       }
       .padding(.vertical, 6)
+    } header: {
+      Text("Heart Rate")
+    } footer: {
+      if let footer = heartRateFooter { Text(footer) }
+    }
+  }
+
+  /// Says when the chart is a guess (851-4186): the readings during the workout of the source
+  /// that recorded the most, not those its app added to it.
+  private var heartRateFooter: String? {
+    let source = heartRates.samples.first?.sourceName ?? ""
+    switch heartRates.origin {
+    case .linked:
+      return nil
+    case .notSynced:
+      return
+        "Readings by \(source) during the workout. Which readings belong to it hasn't synced from your iPhone yet."
+    case .tooMany:
+      return
+        "Readings by \(source) during the workout. It recorded too many samples for lil health to sync which belong to it."
+    }
+  }
+
+  // MARK: Legs
+
+  /// A multisport workout's legs, in order: each one's activity, time and effort score.
+  private var legsSection: some View {
+    Section("Legs") {
+      ForEach(Array(legs.enumerated()), id: \.offset) { _, leg in
+        LabeledContent {
+          VStack(alignment: .trailing, spacing: 2) {
+            Text(WorkoutFormat.duration(leg.duration))
+              .monospacedDigit()
+              .foregroundStyle(.yellow)
+            if let score = leg.id.flatMap({ effort?.legs[$0] }),
+              let value = WorkoutFormat.effort(score)
+            {
+              Text("\(WorkoutFormat.effortLabel(score)) \(value)")
+                .font(.caption)
+                .foregroundStyle(.orange)
+            }
+          }
+        } label: {
+          Label(
+            WorkoutActivity.name(leg.activityType),
+            systemImage: WorkoutActivity.symbol(leg.activityType))
+        }
+      }
     }
   }
 

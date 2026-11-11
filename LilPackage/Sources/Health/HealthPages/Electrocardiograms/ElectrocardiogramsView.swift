@@ -1,4 +1,5 @@
 import Dependencies
+import HealthCatalog
 import HealthDatabase
 import HealthUI
 import LilSync
@@ -128,12 +129,16 @@ struct ElectrocardiogramRow: View {
 }
 
 /// A recording, as in Health: its classification, average heart rate and time, the trace on ECG
-/// paper, and whether symptoms were logged.
+/// paper, and the symptoms logged with it.
 struct ElectrocardiogramDetailView: View {
   let recording: HealthElectrocardiogram
   @Dependency(\.blobCache) private var blobCache
   /// None at once for a recording without measurements, rather than paper for them first.
   @State private var trace: ElectrocardiogramDetailContent.Trace
+  /// Those linked to it (851-4186), none until read. Read by the view's task, not in its
+  /// initializer, as a Health Document's row is, and followed, so links that sync while it's open
+  /// show.
+  @ThrottledFetch private var symptoms: [HealthSample] = []
 
   init(recording: HealthElectrocardiogram) {
     self.recording = recording
@@ -141,7 +146,12 @@ struct ElectrocardiogramDetailView: View {
   }
 
   var body: some View {
-    ElectrocardiogramDetailContent(recording: recording, trace: trace)
+    ElectrocardiogramDetailContent(recording: recording, trace: trace, symptoms: symptoms)
+      .task(id: recording.id) {
+        await $symptoms.load(
+          ElectrocardiogramSymptomsRequest(id: recording.id),
+          tables: HealthDatabase.electrocardiogramLinkTables)
+      }
       // Again if sync brings the recording's voltages, or new ones.
       .task(id: [recording.id, recording.voltages ?? ""]) {
         guard let sha256 = recording.voltages else {
@@ -159,6 +169,15 @@ struct ElectrocardiogramDetailView: View {
   }
 }
 
+/// The symptoms linked to a recording that have arrived, none if its links haven't synced.
+struct ElectrocardiogramSymptomsRequest: FetchKeyRequest {
+  let id: String
+
+  func fetch(_ db: Database) throws -> [HealthSample] {
+    try HealthDatabase.symptoms(ofElectrocardiogram: id, db).samples ?? []
+  }
+}
+
 /// What a recording's detail shows, however it got its voltages.
 struct ElectrocardiogramDetailContent: View {
   enum Trace {
@@ -171,6 +190,11 @@ struct ElectrocardiogramDetailContent: View {
 
   let recording: HealthElectrocardiogram
   let trace: Trace
+  /// The symptoms logged with it, as its link record says (851-4153), those that have arrived,
+  /// listed in a section of their own. None when its record hasn't synced (an iPhone from
+  /// before): the Symptoms row only says whether any were logged (`symptomsName`), as it always
+  /// does.
+  var symptoms: [HealthSample] = []
 
   var body: some View {
     // A grouped form, as Metric Detail is (851-2989, 851-3032): the headline and the trace, then
@@ -202,6 +226,14 @@ struct ElectrocardiogramDetailContent: View {
           LabeledContent(
             "Sample Rate",
             value: "\(frequency.formatted(.number.precision(.fractionLength(0...1)))) Hz")
+        }
+      }
+      // Last, since they load after the page opens: nothing moves when they arrive (851-3091).
+      if !symptoms.isEmpty {
+        Section("Symptoms Logged") {
+          ForEach(symptoms) { symptom in
+            LabeledContent(ECGFormat.symptomName(symptom), value: ECGFormat.severity(symptom))
+          }
         }
       }
     }
@@ -350,6 +382,16 @@ enum ECGFormat {
   static func averageHeartRate(_ recording: HealthElectrocardiogram) -> String {
     guard let bpm = recording.averageHeartRate else { return "No Average Heart Rate" }
     return "\(Int(bpm.rounded())) BPM Average"
+  }
+
+  /// A symptom logged with a recording, by the name Health gives its type: "Dizziness".
+  static func symptomName(_ sample: HealthSample) -> String {
+    HealthCatalog.type(id: sample.type)?.name ?? HealthCatalog.shortID(sample.type)
+  }
+
+  /// How it was logged, as Health names it: "Present" (the ECG app gives no severity), "Mild"…
+  static func severity(_ sample: HealthSample) -> String {
+    (SymptomScale(typeID: sample.type) ?? .severity).name(sample.categoryValue)
   }
 
 }

@@ -145,6 +145,9 @@ public struct WorkoutEventRecord: Equatable, Sendable {
 
 /// One of a workout's activities (`HKWorkoutActivity`), the legs of a multisport workout.
 public struct WorkoutActivityRecord: Equatable, Sendable {
+  /// Its `HKWorkoutActivity`'s UUID, lowercase, as effort scores' legs name it
+  /// (``WorkoutEffortLinks/Leg/activity``); nil if missing.
+  public var id: String?
   /// `HKWorkoutActivityType`'s raw value.
   public var activityType: Int
   public var startDate: Double
@@ -166,8 +169,9 @@ public struct WorkoutActivityRecord: Equatable, Sendable {
   public init(
     activityType: Int, startDate: Double, endDate: Double?, duration: Double,
     locationType: Double? = nil, swimmingLocationType: Double? = nil, metadata: WorkoutMetadata,
-    statistics: [String: WorkoutStatistic] = [:]
+    statistics: [String: WorkoutStatistic] = [:], id: String? = nil
   ) {
+    self.id = id
     self.activityType = activityType
     self.startDate = startDate
     self.endDate = endDate
@@ -246,7 +250,8 @@ extension HealthWorkout {
           duration: duration, locationType: locationType,
           swimmingLocationType: swimmingLocationType,
           metadata: WorkoutMetadata(metadata),
-          statistics: WorkoutStatistic.statistics(object["statistics"]) ?? [:]))
+          statistics: WorkoutStatistic.statistics(object["statistics"]) ?? [:],
+          id: object["id"] as? String))
     }
     return records
   }
