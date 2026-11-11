@@ -20,15 +20,25 @@ interface LinkedSample {
   readonly value: number | null;
 }
 
-/** The samples with these IDs that have arrived (and aren't deleted), in order of start, then ID. */
-const samplesWithIds = (sql: StoreSql, ids: ReadonlyArray<string>): ReadonlyArray<LinkedSample> =>
-  ids.length === 0
+/**
+ * The samples with these IDs that have arrived (and aren't deleted), in order of start, then ID.
+ * `types` are theirs: `health_sample` is keyed by type, start and ID, with no index of IDs alone
+ * (store migration 16), so the type is what keeps this from reading every sample.
+ */
+const samplesWithIds = (
+  sql: StoreSql,
+  types: ReadonlyArray<string>,
+  ids: ReadonlyArray<string>,
+): ReadonlyArray<LinkedSample> =>
+  ids.length === 0 || types.length === 0
     ? []
     : sql
         .exec(
           `SELECT s.id, s.type, s.start_date, s.value FROM health_sample s
-          WHERE s.id IN (SELECT value FROM json_each(?)) AND ${liveSample}
+          WHERE s.type IN (SELECT value FROM json_each(?))
+            AND s.id IN (SELECT value FROM json_each(?)) AND ${liveSample}
           ORDER BY s.start_date, s.id`,
+          JSON.stringify(types),
           JSON.stringify(ids),
         )
         .map((row) => ({
@@ -105,7 +115,11 @@ export const workoutEffort = (sql: StoreSql, id: string): WorkoutEffort => {
   const legs = decodeLegs(row["legs"]);
   if (Option.isNone(ids) || Option.isNone(legs)) return none;
   const all = [...ids.value, ...legs.value.flatMap((leg) => leg.samples)];
-  const samples = samplesWithIds(sql, all);
+  const samples = samplesWithIds(
+    sql,
+    [workoutEffortScoreType, estimatedWorkoutEffortScoreType],
+    all,
+  );
   const mostRelevant = row["most_relevant"];
   const legScores = new Map<string, EffortScore>();
   for (const leg of legs.value) {
@@ -156,6 +170,7 @@ export const electrocardiogramSymptoms = (
     });
   const samples = samplesWithIds(
     sql,
+    [...new Set(records.flatMap(([, linked]) => Object.keys(linked)))],
     records.flatMap(([, linked]) => Object.values(linked).flat()),
   );
   return new Map(

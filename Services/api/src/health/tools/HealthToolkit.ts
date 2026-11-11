@@ -867,8 +867,8 @@ export const HealthWorkoutDetail = Schema.Struct({
     description:
       "Whether lil health has read what HealthKit links to the workout: its effort scores, " +
       "and the samples recorded with it. False for a workout an older lil health on the " +
-      "iPhone uploaded, until an updated one reads its links: its effort is then null because " +
-      "it isn't known, not because there's none.",
+      "iPhone uploaded, until an updated one reads its links. While it's false, a null effort " +
+      "means lil health doesn't know the score, not that there's none.",
   }),
   effort: workoutEffort("The workout's"),
   statistics: workoutStatistics,

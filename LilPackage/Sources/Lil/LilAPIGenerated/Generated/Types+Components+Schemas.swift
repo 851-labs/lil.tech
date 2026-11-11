@@ -9628,7 +9628,7 @@ extension Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/weatherHumidity`.
             public var weatherHumidity: Swift.Double?
-            /// Whether lil health has read what HealthKit links to the workout: its effort scores, and the samples recorded with it. False for a workout an older lil health on the iPhone uploaded, until an updated one reads its links: its effort is then null because it isn't known, not because there's none.
+            /// Whether lil health has read what HealthKit links to the workout: its effort scores, and the samples recorded with it. False for a workout an older lil health on the iPhone uploaded, until an updated one reads its links. While it's false, a null effort means lil health doesn't know the score, not that there's none.
             ///
             /// - Remark: Generated from `#/components/schemas/HealthWorkoutDetail/linksRead`.
             public var linksRead: Swift.Bool
@@ -9754,7 +9754,7 @@ extension Components {
             ///   - weatherCondition: The weather (HKMetadataKeyWeatherCondition), as HKWeatherCondition names it, e.g. clear, partlyCloudy, showers or snow, or null if it doesn't say.
             ///   - weatherTemperature: The temperature, in °C, if the app that recorded it says (HKMetadataKeyWeatherTemperature). To 12 significant digits, or 6 if an older lil health uploaded it.
             ///   - weatherHumidity: Relative humidity, in percent from 0 to 100 (HKMetadataKeyWeatherHumidity). Apple's Workout app writes it 100 times too large (72% as 7200 %), so a value over 100 is divided by 100. To 12 significant digits, or 6 if an older lil health uploaded it.
-            ///   - linksRead: Whether lil health has read what HealthKit links to the workout: its effort scores, and the samples recorded with it. False for a workout an older lil health on the iPhone uploaded, until an updated one reads its links: its effort is then null because it isn't known, not because there's none.
+            ///   - linksRead: Whether lil health has read what HealthKit links to the workout: its effort scores, and the samples recorded with it. False for a workout an older lil health on the iPhone uploaded, until an updated one reads its links. While it's false, a null effort means lil health doesn't know the score, not that there's none.
             ///   - effort: The workout's effort score: the one HealthKit finds most relevant among those related to it (HKWorkoutEffortRelationship), else, if that hasn't synced, the latest one the person rated, else Apple Watch's latest estimate. People often rate a workout after it ends. Null when it has none, or when linksRead is false and lil health doesn't know.
             ///   - statistics: Every statistic HealthKit computed over it, one per quantity type, by type: energy, distance, heart rate (average, minimum, maximum), power, cadence, speed, stride length, ground contact time, vertical oscillation, swimming strokes, flights climbed… whatever was recorded. Null where HealthKit gives none.
             ///   - pauseCount: How many times it was paused.
