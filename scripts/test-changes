@@ -1,0 +1,98 @@
+#!/bin/bash
+# Checks `.github/actions/changes`, which decides which parts of the repo a pull request or merge
+# affects, by running its script, as it is in `action.yml`, on commits made in a scratch repository:
+# a file moved out of a part counts as a change there, not only where it went (851-4199), and one
+# moved between folders no part watches changes nothing. `scripts/check --swift` runs it.
+set -eu
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+temporary=$(mktemp -d)
+trap 'rm -rf "$temporary"' EXIT
+failures=0
+
+fail() {
+  echo "scripts/test-changes: $*" >&2
+  failures=$((failures + 1))
+}
+
+# The step's environment (its single-quoted patterns) and its `run:` script, from the action.
+python3 -I - "$root/.github/actions/changes/action.yml" "$temporary/environment" "$temporary/run" <<'EOF'
+import re, shlex, sys
+
+action_path, environment_path, run_path = sys.argv[1:]
+action = open(action_path).read()
+patterns = re.findall(r"^\s*([A-Z]+): '(.*)'$", action, re.MULTILINE)
+names = {name for name, _ in patterns}
+if not {"SWIFT", "IPHONE", "HEALTHKIT", "SERVICES"} <= names:
+    sys.exit(f"error: {action_path} doesn't have the four parts' paths (has {sorted(names)})")
+with open(environment_path, "w") as environment:
+    for name, pattern in patterns:
+        # YAML doubles a single-quoted string's quotes.
+        value = shlex.quote(pattern.replace("''", "'"))
+        environment.write(f"export {name}={value}\n")
+run = re.search(r"^( *)run: \|\n((?:\1  .*\n|\n)+)", action, re.MULTILINE)
+if not run:
+    sys.exit(f"error: no run script in {action_path}")
+indent = len(run.group(1)) + 2
+open(run_path, "w").write("".join(line[indent:] + "\n" for line in run.group(2).splitlines()))
+EOF
+# shellcheck disable=SC1091
+. "$temporary/environment"
+
+# A repository of its own, with itself as `origin`, for the script's fetch of the base. Its
+# history starts with one file in each part.
+repository="$temporary/repository"
+git() { command git -C "$repository" -c user.name=test -c user.email=test@example.com \
+  -c commit.gpgsign=false "$@"; }
+command git init --quiet --initial-branch=main "$repository"
+git remote add origin "file://$repository"
+for path in Apps/Moved.swift LilPackage/Sources/Health/HealthPhoneApp/Moved.swift \
+  LilPackage/Tests/Health/HealthKitPhoneTests/Moved.swift Services/api/src/Moved.ts docs/Moved.md; do
+  mkdir -p "$repository/$(dirname "$path")"
+  # Contents of their own, so git would pair each move by its contents, as a rename.
+  printf 'synthetic file %s\nwith a few lines\nso git pairs its moves\n' "$path" >"$repository/$path"
+done
+git add -A
+git commit --quiet -m base
+
+# moved <from> <to> <outputs>: the outputs (`swift=… services=… iphone=… healthkit=…`) of the
+# action for a commit moving <from> to <to>, against the one before.
+moved() {
+  local base outputs
+  base=$(git rev-parse HEAD)
+  mkdir -p "$repository/$(dirname "$2")"
+  git mv "$1" "$2"
+  git commit --quiet -m "move $1"
+  [ -n "$(git diff --find-renames --diff-filter=R --name-only "$base" HEAD)" ] ||
+    fail "git doesn't see moving $1 as a rename, so this doesn't test that"
+  : >"$temporary/output"
+  if ! (cd "$repository" && BASE=$base GITHUB_OUTPUT="$temporary/output" \
+    bash --noprofile --norc -eo pipefail "$temporary/run" >"$temporary/log" 2>&1); then
+    fail "moving $1 to $2: the script failed:"
+    cat "$temporary/log" >&2
+    return
+  fi
+  outputs=$(tr '\n' ' ' <"$temporary/output")
+  [ "${outputs% }" = "$3" ] || fail "moving $1 to $2 gave '${outputs% }', not '$3'"
+}
+
+# Out of each part, to a folder none watches.
+moved Apps/Moved.swift docs/Apps.swift \
+  "swift=true services=false iphone=false healthkit=false"
+moved LilPackage/Sources/Health/HealthPhoneApp/Moved.swift docs/HealthPhoneApp.swift \
+  "swift=true services=false iphone=true healthkit=false"
+moved LilPackage/Tests/Health/HealthKitPhoneTests/Moved.swift docs/HealthKitPhoneTests.swift \
+  "swift=true services=false iphone=false healthkit=true"
+moved Services/api/src/Moved.ts docs/Moved.ts \
+  "swift=false services=true iphone=false healthkit=false"
+# Into a part, from a folder none watches.
+moved docs/Moved.ts Services/api/src/Back.ts \
+  "swift=false services=true iphone=false healthkit=false"
+# Between folders none watches.
+moved docs/Moved.md docs/elsewhere/Moved.md \
+  "swift=false services=false iphone=false healthkit=false"
+
+if [ "$failures" != 0 ]; then
+  exit 1
+fi
+echo "scripts/test-changes: ok"
