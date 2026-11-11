@@ -18,6 +18,8 @@ struct SampleDetailView: View {
     // `.dateTime`'s style, in the calendar's time zone.
     let dateStyle = Date.FormatStyle(
       locale: calendar.locale ?? .current, calendar: calendar, timeZone: calendar.timeZone)
+    let recordedTimeZone = RecordedTimeZone(
+      sample.timeZoneName, start: Date(unixMilliseconds: sample.startDate), calendar: calendar)
     Form {
       Section {
         if let value = sample.value {
@@ -64,11 +66,6 @@ struct SampleDetailView: View {
     }
     .formStyle(.grouped)
     .navigationTitle(type.name)
-  }
-
-  private var recordedTimeZone: RecordedTimeZone? {
-    RecordedTimeZone(
-      sample.timeZoneName, start: Date(unixMilliseconds: sample.startDate), calendar: calendar)
   }
 
   @ViewBuilder private func optional(_ title: String, _ value: String?) -> some View {

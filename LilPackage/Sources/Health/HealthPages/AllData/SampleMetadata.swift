@@ -17,21 +17,20 @@ extension SampleFormat {
   /// as the shared table's kind for it (`HealthMetadataValues.kinds`): an enum's case and a
   /// workout activity by name, a Boolean as Yes or No, a quantity in the unit the Mac shows its
   /// kind in, a date on the Mac's clock, and the recorded time zone by its name. A value its kind
-  /// can't read, and a key the table doesn't read, show as recorded (`metadataEntries`).
+  /// can't read, and a key the table doesn't read, show as recorded (`metadataText`).
   ///
   /// `HKTimeZone` is left out when `timeZoneShown`: the details' Time Zone row (851-4179) says
   /// the same, in words and with the start on its clock.
   static func metadata(
     of sample: HealthSample, timeZoneShown: Bool = false, calendar: Calendar, locale: Locale
   ) -> [MetadataRow] {
-    let object = sample.metadataObject
-    return sample.metadataEntries
+    sample.metadataObject
       .filter { !(timeZoneShown && $0.key == timeZoneKey) }
-      .map { key, recorded in
+      .map { key, raw in
         MetadataRow(
           key: key, label: label(key),
-          value: value(
-            key, object[key], in: sample, calendar: calendar, locale: locale) ?? recorded)
+          value: value(key, raw, in: sample, calendar: calendar, locale: locale)
+            ?? HealthSample.metadataText(raw))
       }
       .sorted {
         let order = $0.label.localizedStandardCompare($1.label)
@@ -56,30 +55,44 @@ extension SampleFormat {
     if key == timeZoneKey, let name = HealthMetadataValues.text(raw) {
       return RecordedTimeZone(name, start: sample.start, calendar: calendar)?.name ?? name
     }
+    let declared = HealthCatalog.metadataQuantityUnits[key]
+    // A pool's length, in the unit it was measured in, as the swim page shows it (851-3176):
+    // a 25-yard pool is 25 yd anywhere.
+    if case .recorded(let units)? = declared {
+      guard let (number, unit) = HealthMetadataValues.quantityParts(raw) else { return nil }
+      if units.contains(unit) {
+        let shown = MetricFormat.swimmingUnit(yards: unit == "yd", locale: locale)
+        return "\(shown.format(number)) \(shown.label)"
+      }
+      // Another length, in metres.
+      guard let meters = HealthMetadataValues.quantity(.length, raw) else { return nil }
+      let shown = MetricFormat.swimmingUnit(yards: false, locale: locale)
+      return "\(shown.format(meters)) \(shown.label)"
+    }
     guard let kind = HealthMetadataValues.kinds[key] else {
-      // A quantity the tools don't read (barometric pressure, a slope's grade, a session
-      // estimate): its number and unit, in the unit the Mac shows them in.
-      guard let declared = HealthCatalog.metadataQuantityUnits[key],
-        let (number, unit) = HealthMetadataValues.quantityParts(raw)
-      else { return nil }
+      // A quantity the tools don't read (barometric pressure, a slope's grade, a gym machine's
+      // distance, a session estimate): its number and unit, in the unit the Mac shows them in.
+      guard let declared, let (number, unit) = HealthMetadataValues.quantityParts(raw) else {
+        return nil
+      }
       // A session estimate is a reading of the sample's own kind, so it's in the sample's unit.
-      let typeID = declared == .sample ? sample.type : ""
+      let typeID = declared == .sample ? sample.type : displayTypes[key] ?? ""
       return quantity(number, unit: unit, typeID: typeID, locale: locale)
     }
     switch kind {
     case .boolean:
       return HealthMetadataValues.boolean(raw).map { $0 ? "Yes" : "No" }
     case .named(let cases):
-      if let name = HealthMetadataValues.named(cases, raw) { return words(name) }
-      // A raw value HealthKit says nothing with (not set, unknown, none).
-      guard let number = HealthMetadataValues.number(raw), number >= 0,
-        number.rounded() == number, number < Double(cases.count)
-      else { return nil }
-      return "Not Set"
+      // A raw value HealthKit says nothing with: not set, unknown or none.
+      return HealthMetadataValues.caseIndex(cases, raw).map { index in
+        cases[index].map(words) ?? noneNames[key] ?? "Unknown"
+      }
     case .activity, .text:
       return HealthMetadataValues.read(kind, raw)?.string
+    // As recorded, without grouping: an algorithm version, a lab's reference limit.
     case .number:
-      return HealthMetadataValues.number(raw)?.formatted(.number.locale(locale))
+      return HealthMetadataValues.number(raw)?.formatted(
+        .number.grouping(.never).precision(.significantDigits(1...12)).locale(locale))
     case .quantity(let quantity):
       return HealthMetadataValues.quantity(quantity, raw).map {
         self.quantity($0, unit: quantity.unit, typeID: "", locale: locale)
@@ -101,8 +114,16 @@ extension SampleFormat {
   static func quantity(_ number: Double, unit: String, typeID: String, locale: Locale) -> String {
     let parts: (number: String, unit: String)
     switch unit {
+    // As Health writes a session's (`MetricFormat.duration`), in `locale`.
+    case "s" where number.rounded() < 60:
+      parts = (Int(number.rounded()).formatted(.number.locale(locale)), "sec")
     case "s":
-      parts = MetricFormat.duration(number)
+      parts = (
+        (number / 60).formatted(.number.precision(.fractionLength(0...1)).locale(locale)), "min"
+      )
+    // A barometer's reading, whose tenths matter.
+    case "kPa":
+      parts = (number.formatted(.number.precision(.fractionLength(0...2)).locale(locale)), unit)
     case "kcal/hr·kg":
       parts = (number.formatted(.number.precision(.fractionLength(0...2)).locale(locale)), "METs")
     // VO2 max, as Health writes Cardio Fitness's.
@@ -116,6 +137,21 @@ extension SampleFormat {
     }
     return parts.unit.isEmpty ? parts.number : "\(parts.number) \(parts.unit)"
   }
+
+  /// The sample type whose units a quantity the tools don't read is shown in, where it isn't a
+  /// length's default (m or ft): a gym machine's distance, in km or mi.
+  private static let displayTypes = [
+    "HKCrossTrainerDistance": "HKQuantityTypeIdentifierDistanceWalkingRunning",
+    "HKIndoorBikeDistance": "HKQuantityTypeIdentifierDistanceCycling",
+  ]
+
+  /// What an enum's case that says nothing reads as, where it isn't "Unknown": HealthKit's
+  /// `notSet` and `none`.
+  private static let noneNames = [
+    "HKMetadataKeyHeartRateMotionContext": "Not Set",
+    "HKMetadataKeyUserMotionContext": "Not Set",
+    "HKWeatherCondition": "None",
+  ]
 
   /// Names a value's case reads better as than its words.
   private static let caseNames = [

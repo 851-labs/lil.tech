@@ -42,9 +42,12 @@ struct SampleFormatTests {
       "HKAverageMETs":{"value":6.25,"unit":"kcal/hr·kg"},\
       "HKVO2MaxValue":"45.6 mL/min·kg",\
       "HKWeatherHumidity":{"value":0.72,"unit":"%"},\
-      "HKMetadataKeyBarometricPressure":{"value":101.325,"unit":"kPa"},\
+      "HKMetadataKeyBarometricPressure":{"value":101.42,"unit":"kPa"},\
       "HKDateOfEarliestDataUsedForEstimate":{"date":"2025-10-01T16:00:00.000Z"},\
-      "HKActivityType":37,"HKAlgorithmVersion":2,"HKTimeZone":"Asia/Tokyo",\
+      "HKLapLength":{"value":25,"unit":"yd"},"HKIndoorBikeDistance":{"value":16093.44,"unit":"m"},\
+      "HKSwimmingLocationType":0,"HKWeatherCondition":0,"HKReferenceRangeLowerLimit":0.000123456,\
+      "HKMetadataKeyHeadphoneGain":"84.6 dBASPL","HKFitnessMachineDuration":{"value":90,"unit":"s"},\
+      "HKActivityType":37,"HKAlgorithmVersion":20250101,"HKTimeZone":"Asia/Tokyo",\
       "HKFoodType":"Oatmeal","com.example.reading":"7"}
       """
     let rows = SampleFormat.metadata(of: sample, calendar: calendar, locale: locale)
@@ -66,13 +69,23 @@ struct SampleFormatTests {
     #expect(values["HKVO2MaxValue"] == "45.6 VO₂ max")
     #expect(values["HKWeatherHumidity"] == "72 %")
     // A quantity the tools don't read, in its unit.
-    #expect(values["HKMetadataKeyBarometricPressure"] == "101 kPa")
+    #expect(values["HKMetadataKeyBarometricPressure"] == "101.42 kPa")
+    // A pool in its own unit, and a gym machine's distance as a distance covered.
+    #expect(values["HKLapLength"] == "25 yd")
+    #expect(values["HKIndoorBikeDistance"] == "10 mi")
+    #expect(values["HKFitnessMachineDuration"] == "1.5 min")
+    #expect(values["HKMetadataKeyHeadphoneGain"] == "85 dB")
+    // HealthKit's unknown and none.
+    #expect(values["HKSwimmingLocationType"] == "Unknown")
+    #expect(values["HKWeatherCondition"] == "None")
     #expect(
       values["HKDateOfEarliestDataUsedForEstimate"]
         == Date(timeIntervalSince1970: 1_759_334_400).formatted(
           Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)))
     #expect(values["HKActivityType"] == "Running")
-    #expect(values["HKAlgorithmVersion"] == "2")
+    // Numbers as recorded, without grouping.
+    #expect(values["HKAlgorithmVersion"] == "20250101")
+    #expect(values["HKReferenceRangeLowerLimit"] == "0.000123456")
     #expect(values["HKTimeZone"] == "Japan Standard Time")
     #expect(values["HKFoodType"] == "Oatmeal")
     #expect(values["com.example.reading"] == "7")
