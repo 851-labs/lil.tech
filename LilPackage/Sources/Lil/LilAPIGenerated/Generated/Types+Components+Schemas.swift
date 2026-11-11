@@ -13456,6 +13456,599 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesItem`.
+        public struct HealthHeartbeatSeriesItem: Codable, Hashable, Sendable {
+            /// HealthKit's UUID for the series.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesItem/id`.
+            public var id: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesItem/start`.
+            public var start: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesItem/end`.
+            public var end: Swift.String
+            /// The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesItem/recordedTimeZone`.
+            public var recordedTimeZone: Swift.String?
+            /// When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesItem/recordedStart`.
+            public var recordedStart: Swift.String?
+            /// When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesItem/recordedEnd`.
+            public var recordedEnd: Swift.String?
+            /// How many beats it has, all of them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesItem/beatCount`.
+            public var beatCount: Swift.Int
+            /// Seconds from its first beat to its last, to 4 decimal places (0.1 ms).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesItem/duration`.
+            public var duration: Swift.Double
+            /// How many of its beats are preceded by a gap (precededByGap).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesItem/gapCount`.
+            public var gapCount: Swift.Int
+            /// How many intervals between beats the averages below are worked out from.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesItem/intervalCount`.
+            public var intervalCount: Swift.Int
+            /// 60 over the mean interval in seconds, in beats per minute, to 2 decimal places; null without an interval.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesItem/averageHeartRate`.
+            public var averageHeartRate: Swift.Double?
+            /// SDNN, in ms, to 2 decimal places: the sample standard deviation of the intervals (dividing by their count less 1). Apple Health's Heart Rate Variability is an SDNN, which Apple works out itself, so it can differ a little. Null with fewer than 2 intervals.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesItem/sdnn`.
+            public var sdnn: Swift.Double?
+            /// RMSSD, in ms, to 2 decimal places: the root mean square of the differences between each interval and the one before it, within each run of beats without a gap. Null without two intervals in a row.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesItem/rmssd`.
+            public var rmssd: Swift.Double?
+            /// The app or device that measured it, e.g. Apple Watch.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesItem/source`.
+            public var source: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthHeartbeatSeriesItem`.
+            ///
+            /// - Parameters:
+            ///   - id: HealthKit's UUID for the series.
+            ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - recordedTimeZone: The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///   - recordedStart: When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///   - recordedEnd: When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///   - beatCount: How many beats it has, all of them.
+            ///   - duration: Seconds from its first beat to its last, to 4 decimal places (0.1 ms).
+            ///   - gapCount: How many of its beats are preceded by a gap (precededByGap).
+            ///   - intervalCount: How many intervals between beats the averages below are worked out from.
+            ///   - averageHeartRate: 60 over the mean interval in seconds, in beats per minute, to 2 decimal places; null without an interval.
+            ///   - sdnn: SDNN, in ms, to 2 decimal places: the sample standard deviation of the intervals (dividing by their count less 1). Apple Health's Heart Rate Variability is an SDNN, which Apple works out itself, so it can differ a little. Null with fewer than 2 intervals.
+            ///   - rmssd: RMSSD, in ms, to 2 decimal places: the root mean square of the differences between each interval and the one before it, within each run of beats without a gap. Null without two intervals in a row.
+            ///   - source: The app or device that measured it, e.g. Apple Watch.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                recordedTimeZone: Swift.String? = nil,
+                recordedStart: Swift.String? = nil,
+                recordedEnd: Swift.String? = nil,
+                beatCount: Swift.Int,
+                duration: Swift.Double,
+                gapCount: Swift.Int,
+                intervalCount: Swift.Int,
+                averageHeartRate: Swift.Double? = nil,
+                sdnn: Swift.Double? = nil,
+                rmssd: Swift.Double? = nil,
+                source: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.start = start
+                self.end = end
+                self.recordedTimeZone = recordedTimeZone
+                self.recordedStart = recordedStart
+                self.recordedEnd = recordedEnd
+                self.beatCount = beatCount
+                self.duration = duration
+                self.gapCount = gapCount
+                self.intervalCount = intervalCount
+                self.averageHeartRate = averageHeartRate
+                self.sdnn = sdnn
+                self.rmssd = rmssd
+                self.source = source
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case start
+                case end
+                case recordedTimeZone
+                case recordedStart
+                case recordedEnd
+                case beatCount
+                case duration
+                case gapCount
+                case intervalCount
+                case averageHeartRate
+                case sdnn
+                case rmssd
+                case source
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.recordedTimeZone = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTimeZone
+                )
+                self.recordedStart = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedStart
+                )
+                self.recordedEnd = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedEnd
+                )
+                self.beatCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .beatCount
+                )
+                self.duration = try container.decode(
+                    Swift.Double.self,
+                    forKey: .duration
+                )
+                self.gapCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .gapCount
+                )
+                self.intervalCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .intervalCount
+                )
+                self.averageHeartRate = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .averageHeartRate
+                )
+                self.sdnn = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .sdnn
+                )
+                self.rmssd = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .rmssd
+                )
+                self.source = try container.decode(
+                    Swift.String.self,
+                    forKey: .source
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "start",
+                    "end",
+                    "recordedTimeZone",
+                    "recordedStart",
+                    "recordedEnd",
+                    "beatCount",
+                    "duration",
+                    "gapCount",
+                    "intervalCount",
+                    "averageHeartRate",
+                    "sdnn",
+                    "rmssd",
+                    "source"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encodeIfPresent(
+                    self.recordedTimeZone,
+                    forKey: .recordedTimeZone
+                )
+                try container.encodeIfPresent(
+                    self.recordedStart,
+                    forKey: .recordedStart
+                )
+                try container.encodeIfPresent(
+                    self.recordedEnd,
+                    forKey: .recordedEnd
+                )
+                try container.encode(
+                    self.beatCount,
+                    forKey: .beatCount
+                )
+                try container.encode(
+                    self.duration,
+                    forKey: .duration
+                )
+                try container.encode(
+                    self.gapCount,
+                    forKey: .gapCount
+                )
+                try container.encode(
+                    self.intervalCount,
+                    forKey: .intervalCount
+                )
+                try container.encodeIfPresent(
+                    self.averageHeartRate,
+                    forKey: .averageHeartRate
+                )
+                try container.encodeIfPresent(
+                    self.sdnn,
+                    forKey: .sdnn
+                )
+                try container.encodeIfPresent(
+                    self.rmssd,
+                    forKey: .rmssd
+                )
+                try container.encode(
+                    self.source,
+                    forKey: .source
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesResult`.
+        public struct HealthHeartbeatSeriesResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The range asked for: D, W, M, 6M or Y.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesResult/range`.
+            public var range: Swift.String
+            /// When the period starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesResult/start`.
+            public var start: Swift.String
+            /// When the period ends (exclusive).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesResult/end`.
+            public var end: Swift.String
+            /// Heartbeat series that start in the period, all of them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesResult/count`.
+            public var count: Swift.Int
+            /// The series, newest first, at most 100.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesResult/series`.
+            public var series: [Components.Schemas.HealthHeartbeatSeriesItem]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthHeartbeatSeriesResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - range: The range asked for: D, W, M, 6M or Y.
+            ///   - start: When the period starts.
+            ///   - end: When the period ends (exclusive).
+            ///   - count: Heartbeat series that start in the period, all of them.
+            ///   - series: The series, newest first, at most 100.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                range: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                count: Swift.Int,
+                series: [Components.Schemas.HealthHeartbeatSeriesItem],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.range = range
+                self.start = start
+                self.end = end
+                self.count = count
+                self.series = series
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case range
+                case start
+                case end
+                case count
+                case series
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.range = try container.decode(
+                    Swift.String.self,
+                    forKey: .range
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.series = try container.decode(
+                    [Components.Schemas.HealthHeartbeatSeriesItem].self,
+                    forKey: .series
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "range",
+                    "start",
+                    "end",
+                    "count",
+                    "series"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.range,
+                    forKey: .range
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.count,
+                    forKey: .count
+                )
+                try container.encode(
+                    self.series,
+                    forKey: .series
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthHeartbeat`.
+        public struct HealthHeartbeat: Codable, Hashable, Sendable {
+            /// Seconds from the series' start to the beat, to 4 decimal places (0.1 ms).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeat/time`.
+            public var time: Swift.Double
+            /// Milliseconds since the beat before, to 1 decimal place; null for the series' first beat and a beat preceded by a gap, and 0 for a duplicate beat (at the same time as the one before), which heartbeat_series' averages skip.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeat/interval`.
+            public var interval: Swift.Double?
+            /// Whether beats HealthKit couldn't measure came before it, so the time since the beat before isn't an interval between two beats.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeat/precededByGap`.
+            public var precededByGap: Swift.Bool
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthHeartbeat`.
+            ///
+            /// - Parameters:
+            ///   - time: Seconds from the series' start to the beat, to 4 decimal places (0.1 ms).
+            ///   - interval: Milliseconds since the beat before, to 1 decimal place; null for the series' first beat and a beat preceded by a gap, and 0 for a duplicate beat (at the same time as the one before), which heartbeat_series' averages skip.
+            ///   - precededByGap: Whether beats HealthKit couldn't measure came before it, so the time since the beat before isn't an interval between two beats.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                time: Swift.Double,
+                interval: Swift.Double? = nil,
+                precededByGap: Swift.Bool,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.time = time
+                self.interval = interval
+                self.precededByGap = precededByGap
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case time
+                case interval
+                case precededByGap
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.time = try container.decode(
+                    Swift.Double.self,
+                    forKey: .time
+                )
+                self.interval = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .interval
+                )
+                self.precededByGap = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .precededByGap
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "time",
+                    "interval",
+                    "precededByGap"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.time,
+                    forKey: .time
+                )
+                try container.encodeIfPresent(
+                    self.interval,
+                    forKey: .interval
+                )
+                try container.encode(
+                    self.precededByGap,
+                    forKey: .precededByGap
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesBeatsResult`.
+        public struct HealthHeartbeatSeriesBeatsResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesBeatsResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The series' ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesBeatsResult/id`.
+            public var id: Swift.String
+            /// When the series starts: its beats' time 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesBeatsResult/start`.
+            public var start: Swift.String
+            /// How many beats the series has, all of them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesBeatsResult/beatCount`.
+            public var beatCount: Swift.Int
+            /// This page's beats, in order.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesBeatsResult/beats`.
+            public var beats: [Components.Schemas.HealthHeartbeat]
+            /// Pass it as `cursor` for the next page; null on the last page.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthHeartbeatSeriesBeatsResult/nextCursor`.
+            public var nextCursor: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthHeartbeatSeriesBeatsResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - id: The series' ID.
+            ///   - start: When the series starts: its beats' time 0.
+            ///   - beatCount: How many beats the series has, all of them.
+            ///   - beats: This page's beats, in order.
+            ///   - nextCursor: Pass it as `cursor` for the next page; null on the last page.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                id: Swift.String,
+                start: Swift.String,
+                beatCount: Swift.Int,
+                beats: [Components.Schemas.HealthHeartbeat],
+                nextCursor: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.id = id
+                self.start = start
+                self.beatCount = beatCount
+                self.beats = beats
+                self.nextCursor = nextCursor
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case id
+                case start
+                case beatCount
+                case beats
+                case nextCursor
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.beatCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .beatCount
+                )
+                self.beats = try container.decode(
+                    [Components.Schemas.HealthHeartbeat].self,
+                    forKey: .beats
+                )
+                self.nextCursor = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .nextCursor
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "id",
+                    "start",
+                    "beatCount",
+                    "beats",
+                    "nextCursor"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.beatCount,
+                    forKey: .beatCount
+                )
+                try container.encode(
+                    self.beats,
+                    forKey: .beats
+                )
+                try container.encodeIfPresent(
+                    self.nextCursor,
+                    forKey: .nextCursor
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthMedicationItem`.
         public struct HealthMedicationItem: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HealthMedicationItem/id`.

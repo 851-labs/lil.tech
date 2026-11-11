@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 public import SQLiteData
 
 extension HealthDatabase {
@@ -18,11 +18,26 @@ extension HealthDatabase {
       .limit(limit)
       .fetchAll(db)
   }
+
+  /// The heartbeat series that start in `range`, newest first (then by ID), at most `limit`, and
+  /// how many there are in all: the `heartbeat_series` tool's (851-4162).
+  public static func heartbeatSeries(in range: Range<Date>, limit: Int, _ db: Database) throws
+    -> (count: Int, series: [HealthHeartbeatSeries])
+  {
+    let (lower, upper) = (range.lowerBound.unixMilliseconds, range.upperBound.unixMilliseconds)
+    let inRange = HealthHeartbeatSeries.where { $0.startDate >= lower && $0.startDate < upper }
+    let series = try inRange.order { ($0.startDate.desc(), $0.id.desc()) }.limit(limit)
+      .fetchAll(db)
+    // Counted only when they don't all fit.
+    return (series.count < limit ? series.count : try inRange.fetchCount(db), series)
+  }
 }
 
 /// What a heartbeat series says: each beat's instantaneous heart rate, and its average and
 /// variability, from the time between beats. A beat after a gap starts afresh: the time back to
-/// the one before isn't an interval between two beats.
+/// the one before isn't an interval between two beats. An interval that isn't positive (two beats
+/// at the same time) is skipped as a duplicate beat. The `heartbeat_series` tools work out the
+/// same, on both servers (851-4162).
 public struct HeartbeatAnalysis: Equatable, Sendable {
   /// An interval between two beats: when it ended (seconds into the series) and its heart rate.
   public struct Beat: Equatable, Sendable {
@@ -88,11 +103,18 @@ extension HealthHeartbeatSeries {
   /// Its beats' times (seconds since its start) and the beats that came after a gap. Gaps that
   /// can't be read leave no intervals rather than false ones across them: just the beat count.
   public var analysis: HeartbeatAnalysis {
+    let (times, gaps) = decodedBeats
+    return HeartbeatAnalysis(beats: times, gaps: gaps)
+  }
+
+  /// Its beats' times (seconds since its start), and the indices of those preceded by a gap:
+  /// beats that can't be read are none, and gaps that can't be read make every beat follow one.
+  public var decodedBeats: (times: [Double], gaps: Set<Int>) {
     let decoder = JSONDecoder()
     let times = (try? decoder.decode([Double].self, from: Data(beats.utf8))) ?? []
     guard let gaps = try? decoder.decode([Int].self, from: Data(self.gaps.utf8)) else {
-      return HeartbeatAnalysis(beats: times, gaps: Set(times.indices))
+      return (times, Set(times.indices))
     }
-    return HeartbeatAnalysis(beats: times, gaps: Set(gaps))
+    return (times, Set(gaps))
   }
 }

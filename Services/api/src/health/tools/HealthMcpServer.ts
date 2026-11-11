@@ -322,6 +322,8 @@ export const healthMcpApp = (options: {
       tools.electrocardiogram_voltages,
       handlers.electrocardiogram_voltages,
     ),
+    heartbeat_series: wrap(tools.heartbeat_series, handlers.heartbeat_series),
+    heartbeat_series_beats: wrap(tools.heartbeat_series_beats, handlers.heartbeat_series_beats),
     medications: wrap(tools.medications, handlers.medications),
     health_details: wrap(tools.health_details, handlers.health_details),
     search: wrap(tools.search, handlers.search),

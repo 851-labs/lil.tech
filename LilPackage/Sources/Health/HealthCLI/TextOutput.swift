@@ -360,6 +360,52 @@ extension HealthElectrocardiogramVoltagesResult: TextOutput {
   }
 }
 
+// MARK: - Heartbeat series (851-4162)
+
+extension HealthHeartbeatSeriesResult: TextOutput {
+  var text: String {
+    var lines = [
+      "Heartbeat series, \(range): \(day(start)) to \(lastDay(end)) (\(timeZone))",
+      "\(count) series",
+    ]
+    if !series.isEmpty { lines.append("") }
+    for item in series {
+      let parts = [
+        item.averageHeartRate.map { "\(numberText($0)) BPM average" },
+        item.sdnn.map { "SDNN \(numberText($0)) ms" },
+        item.rmssd.map { "RMSSD \(numberText($0)) ms" },
+        "\(item.beatCount) \(item.beatCount == 1 ? "beat" : "beats")",
+        item.gapCount == 0 ? nil : "\(item.gapCount) \(item.gapCount == 1 ? "gap" : "gaps")",
+        item.source,
+      ]
+      lines.append(
+        "  \(time(item.start))   " + parts.compactMap(\.self).joined(separator: " · ")
+          + "   \(item.id)")
+    }
+    if series.count < count {
+      lines += ["", "Showing the \(series.count) most recent series."]
+    }
+    return lines.joined(separator: "\n") + "\n"
+  }
+}
+
+extension HealthHeartbeatSeriesBeatsResult: TextOutput {
+  var text: String {
+    var lines = [
+      "Heartbeat series \(id)   \(time(start)) (\(timeZone))",
+      "\(beatCount) \(beatCount == 1 ? "beat" : "beats"). Seconds from the start, and ms since "
+        + "the beat before:",
+    ]
+    for beat in beats {
+      let interval = beat.interval.map { "\(numberText($0)) ms" } ?? "–"
+      lines.append(
+        "  \(numberText(beat.time)) s   \(interval)" + (beat.precededByGap ? "   after a gap" : ""))
+    }
+    if let nextCursor { lines += ["", "More: --cursor \(nextCursor)"] }
+    return lines.joined(separator: "\n") + "\n"
+  }
+}
+
 extension HealthMedicationsResult: TextOutput {
   var text: String {
     guard !medications.isEmpty else { return "No medications.\n" }

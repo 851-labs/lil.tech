@@ -1505,6 +1505,159 @@ export const ElectrocardiogramVoltages = readOnly(
 );
 
 // -------------------------------------------------------------------------------------------------
+// heartbeat_series and heartbeat_series_beats
+// -------------------------------------------------------------------------------------------------
+
+/** The most heartbeat series `heartbeat_series` lists. */
+export const heartbeatSeriesLimit = 100;
+/**
+ * The most beats `heartbeat_series_beats` gives a page, and how many it gives by default: an Apple
+ * Watch series' hundred or so in one page, and about 120 KB at most, with every value at its
+ * longest.
+ */
+export const heartbeatBeatsLimit = 2000;
+export const heartbeatBeatsDefaultLimit = 1000;
+
+const heartbeatSeriesIdParameter = Schema.String.annotate({
+  description: "A heartbeat series' ID, from heartbeat_series.",
+});
+
+/**
+ * How the tools work out a series' intervals and HRV (851-4162), as lil health's Beat-to-Beat
+ * Measurements page does (`HeartbeatAnalysis` on the Mac).
+ */
+const heartbeatIntervals =
+  "An interval is the time from one beat to the next. A beat preceded by a gap (beats " +
+  "HealthKit couldn't measure came before it) starts afresh: there's no interval from the beat " +
+  "before it, and no difference of intervals spans the gap. An interval of 0 (two beats at the " +
+  "same time) is skipped as a duplicate beat. Beats aren't filtered otherwise: no ectopic or " +
+  "artifact correction.";
+
+export const HealthHeartbeatSeriesItem = Schema.Struct({
+  id: Schema.String.annotate({ description: "HealthKit's UUID for the series." }),
+  start: LocalTime,
+  end: LocalTime,
+  ...recordedTimeFields,
+  beatCount: Schema.Int.annotate({ description: "How many beats it has, all of them." }),
+  duration: Schema.Finite.annotate({
+    description: "Seconds from its first beat to its last, to 4 decimal places (0.1 ms).",
+  }),
+  gapCount: Schema.Int.annotate({
+    description: "How many of its beats are preceded by a gap (precededByGap).",
+  }),
+  intervalCount: Schema.Int.annotate({
+    description: "How many intervals between beats the averages below are worked out from.",
+  }),
+  averageHeartRate: Schema.NullOr(Schema.Finite).annotate({
+    description:
+      "60 over the mean interval in seconds, in beats per minute, to 2 decimal places; null " +
+      "without an interval.",
+  }),
+  sdnn: Schema.NullOr(Schema.Finite).annotate({
+    description:
+      "SDNN, in ms, to 2 decimal places: the sample standard deviation of the intervals " +
+      "(dividing by their count less 1). Apple Health's Heart Rate Variability is an SDNN, " +
+      "which Apple works out itself, so it can differ a little. Null with fewer than 2 intervals.",
+  }),
+  rmssd: Schema.NullOr(Schema.Finite).annotate({
+    description:
+      "RMSSD, in ms, to 2 decimal places: the root mean square of the differences between " +
+      "each interval and the one before it, within each run of beats without a gap. Null " +
+      "without two intervals in a row.",
+  }),
+  source: Schema.String.annotate({
+    description: "The app or device that measured it, e.g. Apple Watch.",
+  }),
+}).annotate({ identifier: "HealthHeartbeatSeriesItem" });
+
+export const HealthHeartbeatSeriesResult = Schema.Struct({
+  ...periodFields,
+  count: Schema.Int.annotate({
+    description: "Heartbeat series that start in the period, all of them.",
+  }),
+  series: Schema.Array(HealthHeartbeatSeriesItem).annotate({
+    description: `The series, newest first, at most ${heartbeatSeriesLimit}.`,
+  }),
+});
+
+export const HeartbeatSeries = readOnly(
+  Tool.make("heartbeat_series", {
+    description:
+      "Heartbeat series (Apple Watch's beat-to-beat measurements, behind Health's Heart Rate " +
+      "Variability readings, about a minute and a hundred beats each, or another app's) that " +
+      "started in a period, newest first, as lil health's Beat-to-Beat Measurements page lists " +
+      "them: each one's beat count, duration, gaps, and its average heart rate, SDNN and RMSSD " +
+      `worked out from its intervals, with the period's count. ${heartbeatIntervals} Each ` +
+      "series' beats come from heartbeat_series_beats, a page at a time: ask for them only " +
+      "when these summaries aren't enough. For HRV over weeks or months, metric of " +
+      "HKQuantityTypeIdentifierHeartRateVariabilitySDNN is shorter.",
+    parameters: Schema.Struct({ range, date, timeZone }),
+    success: HealthHeartbeatSeriesResult,
+    failure: HealthToolError,
+  }),
+  "Health Heartbeat Series",
+);
+
+export const HealthHeartbeat = Schema.Struct({
+  time: Schema.Finite.annotate({
+    description: "Seconds from the series' start to the beat, to 4 decimal places (0.1 ms).",
+  }),
+  interval: Schema.NullOr(Schema.Finite).annotate({
+    description:
+      "Milliseconds since the beat before, to 1 decimal place; null for the series' first " +
+      "beat and a beat preceded by a gap, and 0 for a duplicate beat (at the same time as the " +
+      "one before), which heartbeat_series' averages skip.",
+  }),
+  precededByGap: Schema.Boolean.annotate({
+    description:
+      "Whether beats HealthKit couldn't measure came before it, so the time since the beat " +
+      "before isn't an interval between two beats.",
+  }),
+}).annotate({ identifier: "HealthHeartbeat" });
+
+export const HealthHeartbeatSeriesBeatsResult = Schema.Struct({
+  timeZone: usedTimeZone,
+  id: Schema.String.annotate({ description: "The series' ID." }),
+  start: LocalTime.annotate({ description: "When the series starts: its beats' time 0." }),
+  beatCount: Schema.Int.annotate({ description: "How many beats the series has, all of them." }),
+  beats: Schema.Array(HealthHeartbeat).annotate({ description: "This page's beats, in order." }),
+  nextCursor: Schema.NullOr(Schema.String).annotate({
+    description: "Pass it as `cursor` for the next page; null on the last page.",
+  }),
+});
+
+export const HeartbeatSeriesBeats = readOnly(
+  Tool.make("heartbeat_series_beats", {
+    description:
+      "One heartbeat series' beats, in order, a page at a time: each beat's time since the " +
+      "series' start, the interval since the beat before in ms, and whether a gap preceded it, " +
+      `to work out HRV or look at the rhythm another way. ${heartbeatIntervals} ` +
+      "heartbeat_series works out the average heart rate, SDNN and RMSSD by these rules. By " +
+      "its ID, from heartbeat_series, " +
+      "whose average heart rate, SDNN and RMSSD usually answer what's asked: call this only " +
+      `when they don't. ${heartbeatBeatsDefaultLimit.toLocaleString("en-US")} beats a page ` +
+      "by default, which is a whole Apple Watch series.",
+    parameters: Schema.Struct({
+      id: heartbeatSeriesIdParameter,
+      timeZone,
+      cursor: Schema.optionalKey(
+        Schema.String.annotate({ description: "The previous page's nextCursor." }),
+      ),
+      limit: Schema.optionalKey(
+        Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: heartbeatBeatsLimit })).annotate({
+          description:
+            `Beats per page, at most ${heartbeatBeatsLimit.toLocaleString("en-US")}. ` +
+            `Defaults to ${heartbeatBeatsDefaultLimit.toLocaleString("en-US")}.`,
+        }),
+      ),
+    }),
+    success: HealthHeartbeatSeriesBeatsResult,
+    failure: HealthToolError,
+  }),
+  "Health Heartbeat Series Beats",
+);
+
+// -------------------------------------------------------------------------------------------------
 // medications
 // -------------------------------------------------------------------------------------------------
 
@@ -1701,6 +1854,8 @@ export const HealthToolkit = Toolkit.make(
   Assessments,
   Electrocardiograms,
   ElectrocardiogramVoltages,
+  HeartbeatSeries,
+  HeartbeatSeriesBeats,
   Medications,
   HealthDetails,
   Search,
@@ -1728,6 +1883,8 @@ export const healthToolResultNames: Record<keyof typeof HealthToolkit.tools, str
   assessments: "HealthAssessmentsResult",
   electrocardiograms: "HealthElectrocardiogramsResult",
   electrocardiogram_voltages: "HealthElectrocardiogramVoltagesResult",
+  heartbeat_series: "HealthHeartbeatSeriesResult",
+  heartbeat_series_beats: "HealthHeartbeatSeriesBeatsResult",
   medications: "HealthMedicationsResult",
   health_details: "HealthDetailsResult",
   search: "HealthSearchResult",

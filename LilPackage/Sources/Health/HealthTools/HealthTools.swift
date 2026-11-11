@@ -119,7 +119,7 @@ public struct HealthTools: Sendable {
       throw HealthToolError(
         "\(type.name) (\(type.id)) isn't a quantity type, so it has no statistics. Use samples, "
           + "or the tool for its kind (sleep, activity_rings, state_of_mind, assessments, "
-          + "electrocardiograms, workouts, medications).")
+          + "electrocardiograms, heartbeat_series, workouts, medications).")
     }
     let period = try ToolPeriod(range, date: date, now: now, time: time)
     let cumulative = aggregation.isCumulative
@@ -330,7 +330,8 @@ public struct HealthTools: Sendable {
     case .stateOfMind: .elsewhere("state_of_mind")
     case .scoredAssessment: .elsewhere("assessments")
     case .electrocardiogram: .elsewhere("electrocardiograms")
-    case .heartbeatSeries, .audiogram, .document:
+    case .heartbeatSeries: .elsewhere("heartbeat_series")
+    case .audiogram, .document:
       .unread
     }
   }

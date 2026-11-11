@@ -80,8 +80,8 @@ struct HealthMCPServerTests {
       return
     }
     #expect(roundTrip == fileJSON)
-    #expect(listed.map(\.name).count == 26)
-    #expect(fileTools.count == 26)
+    #expect(listed.map(\.name).count == 28)
+    #expect(fileTools.count == 28)
     await connection.close()
   }
 
@@ -236,6 +236,7 @@ struct HealthMCPServerTests {
       ("workouts", ["range": "Y"]), ("sleep", ["range": "W"]),
       ("activity_rings", ["range": "M"]), ("state_of_mind", ["range": "M"]),
       ("assessments", ["range": "Y"]), ("electrocardiograms", ["range": "Y"]),
+      ("heartbeat_series", ["range": "W"]),
       ("medications", [:]),
       ("health_details", [:]), ("search", ["query": "steps"]), ("sync_status", [:]),
     ] {

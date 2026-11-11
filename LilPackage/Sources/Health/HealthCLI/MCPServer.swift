@@ -452,6 +452,23 @@ private struct ToolCall {
         try tools.electrocardiogramVoltages(
           id: id, timeZone: timeZone, cursor: cursor, seconds: seconds, db)
       }
+    case "heartbeat_series":
+      let range = arguments.required("range", arguments.range)
+      let date = arguments.string("date")
+      let timeZone = arguments.string("timeZone")
+      guard let range, arguments.isValid else { throw arguments.invalid }
+      query = { tools, db in
+        try tools.heartbeatSeries(range: range, date: date, timeZone: timeZone, db)
+      }
+    case "heartbeat_series_beats":
+      let id = arguments.required("id", arguments.string)
+      let timeZone = arguments.string("timeZone")
+      let cursor = arguments.string("cursor")
+      let limit = arguments.integer("limit", in: 1...HealthTools.heartbeatBeatsLimit)
+      guard let id, arguments.isValid else { throw arguments.invalid }
+      query = { tools, db in
+        try tools.heartbeatSeriesBeats(id: id, timeZone: timeZone, cursor: cursor, limit: limit, db)
+      }
     case "medications":
       let timeZone = arguments.string("timeZone")
       try arguments.check()
