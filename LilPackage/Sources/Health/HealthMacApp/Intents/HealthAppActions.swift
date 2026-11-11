@@ -255,8 +255,8 @@ final class HealthAppActionChannel: Sendable {
   /// How many actions are waiting for an answer.
   var pendingCount: Int { state.withLock { $0.pending.count } }
 
-  /// Whether a store is serving actions: it starts reading `requests()` in an effect of its own
-  /// once signed in, so tests wait for it before asking (851-4208).
+  /// Whether a store has asked for `requests()` and not stopped reading them. `AppFeature` asks in
+  /// an effect it starts on signing in, so tests wait for this before asking (851-4208).
   var hasServer: Bool { state.withLock { $0.server != nil } }
 
   func perform(

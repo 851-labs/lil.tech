@@ -107,10 +107,7 @@ struct HealthAppIntentsTests {
     store.exhaustivity = .off
 
     let task = await store.send(.task)
-    session.yield(true)
-    await store.receive(\.signedInChanged)
-    // The store serves actions from an effect of its own, which may not have started yet.
-    try await eventually { channel.hasServer }
+    try await signIn(store, session: session, servingFrom: channel)
 
     let category = Task {
       try await actions.perform(.open(.category(.bodyMeasurements)), { _ in })
@@ -178,10 +175,7 @@ struct HealthAppIntentsTests {
     store.exhaustivity = .off
 
     let task = await store.send(.task)
-    session.yield(true)
-    await store.receive(\.signedInChanged)
-    // The store serves actions from an effect of its own, which may not have started yet.
-    try await eventually { channel.hasServer }
+    try await signIn(store, session: session, servingFrom: channel)
 
     let opened = Task { try await actions.perform(.open(steps), { _ in }) }
     await store.receive(\.appActionRequested)

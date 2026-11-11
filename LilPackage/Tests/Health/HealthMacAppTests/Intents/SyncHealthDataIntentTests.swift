@@ -164,10 +164,7 @@ struct SyncHealthDataIntentTests {
     store.exhaustivity = .off
 
     let task = await store.send(.task)
-    session.yield(true)
-    await store.receive(\.signedInChanged)
-    // The store serves actions from an effect of its own, which may not have started yet.
-    try await eventually { channel.hasServer }
+    try await signIn(store, session: session, servingFrom: channel)
 
     let syncing = Task { try await actions.perform(.sync, { _ in }) }
     await store.receive(\.appActionRequested)
