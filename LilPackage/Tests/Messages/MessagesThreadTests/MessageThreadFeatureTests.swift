@@ -52,7 +52,7 @@ struct MessageThreadFeatureTests {
       $0.chatDatabaseChanges = ChatDatabaseChanges { changes }
     }
 
-    let task = await store.send(.task)
+    await store.send(.task)
     await store.receive(\.latestMessagesLoaded.success) {
       $0.hasEarlierMessages = false
       $0.messages = [threadMessage(1), threadMessage(2)]
@@ -70,7 +70,7 @@ struct MessageThreadFeatureTests {
     }
 
     change.finish()
-    await task.finish()
+    await store.finish()
   }
 
   @Test

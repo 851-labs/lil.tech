@@ -199,7 +199,7 @@ struct ConversationListFeatureTests {
       $0.contactNames = .constant(contactIndex)
     }
 
-    let task = await store.send(.task) {
+    await store.send(.task) {
       $0.isLoading = true
     }
     await store.receive(\.conversationsLoaded.success) {
@@ -225,7 +225,7 @@ struct ConversationListFeatureTests {
     await store.receive(\.contactsLoaded)
 
     change.finish()
-    await task.finish()
+    await store.finish()
   }
 
   @Test
