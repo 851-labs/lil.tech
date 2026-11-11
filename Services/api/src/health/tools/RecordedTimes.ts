@@ -1,5 +1,5 @@
 import { type DateTime, Predicate } from "effect";
-import { metadataValue } from "../MetadataValues.ts";
+import { type MetadataKey, metadataValue } from "../MetadataValues.ts";
 import type { Metadata } from "../WorkoutMetadata.ts";
 import { localTime, namedTimeZone } from "./ToolTime.ts";
 
@@ -8,13 +8,15 @@ import { localTime, namedTimeZone } from "./ToolTime.ts";
 // with a zone (`HKTimeZone`, a name `namedTimeZone` takes) adds that zone's name and the same
 // instants on its clock. The Mac's tools give the same (`RecordedTimes` in `HealthTools`).
 
+/** The key a record's zone is under, one the metadata table reads (`MetadataKey`). */
+const timeZoneKey = "HKTimeZone" satisfies MetadataKey;
+
 /**
  * A row's `HKTimeZone`, read in SQL for the tools that don't otherwise read a record's metadata, as
  * the cards' sleep records read it (`cardSleepRecords`): metadata that isn't JSON loses only the
  * zone, and a value that isn't a string isn't one (`RecordedZones.named`).
  */
-export const recordedZoneSql =
-  "CASE WHEN json_valid(metadata) THEN metadata ->> '$.HKTimeZone' END";
+export const recordedZoneSql = `CASE WHEN json_valid(metadata) THEN metadata ->> '$.${timeZoneKey}' END`;
 
 /** A record's zone and its start and end on that zone's clock; empty without a zone. */
 export interface RecordedTimes {
@@ -56,7 +58,7 @@ export class RecordedZones {
 
   /** The recorded times of a record from `start` to `end` whose metadata is `metadata`. */
   times(metadata: Metadata | null | undefined, start: number, end: number): RecordedTimes {
-    return this.named(metadataValue(metadata, "HKTimeZone"), start, end);
+    return this.named(metadataValue(metadata, timeZoneKey), start, end);
   }
 
   /** The zone named `name` (`named`), with `time` on its clock: a record of one time's. */

@@ -8,9 +8,6 @@ extension HealthDatabase {
   public static let dietaryCarbohydratesType = "HKQuantityTypeIdentifierDietaryCarbohydrates"
   public static let dietaryProteinType = "HKQuantityTypeIdentifierDietaryProtein"
   public static let dietaryFatType = "HKQuantityTypeIdentifierDietaryFatTotal"
-  /// `HKMetadataKeyFoodType`'s raw value: the food's name, as the app that logged it wrote it.
-  static let foodNameKey = "HKFoodType"
-
   /// Up to `limit` foods (Food correlations), newest first, after `cursor` (the previous page's
   /// end), each with its energy and macronutrients from its samples (joined by
   /// `correlationID`). A food missing some of them still counts.
@@ -101,7 +98,7 @@ extension HealthDatabase {
   static func foodName(metadata: String?) -> String? {
     guard let metadata,
       let object = try? JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [String: Any],
-      let name = object[foodNameKey] as? String
+      let name = object[.foodType] as? String
     else { return nil }
     let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed

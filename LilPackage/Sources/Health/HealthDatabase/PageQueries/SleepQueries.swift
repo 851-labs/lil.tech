@@ -1,5 +1,6 @@
 public import Foundation
 import HealthCards
+import HealthCatalog
 public import SQLiteData
 
 /// HealthKit's sleep values (`HKCategoryValueSleepAnalysis`).
@@ -134,6 +135,7 @@ extension HealthDatabase {
   ) throws -> [CardSleepRecord] {
     let (lower, upper) = (range.lowerBound, range.upperBound)
     var zones: [String: TimeZone?] = [:]
+    let timeZonePath = "$." + HealthMetadataKey.Name.timeZone.rawValue
     return
       try HealthSample
       .where {
@@ -146,8 +148,8 @@ extension HealthDatabase {
           $0.startDate, $0.endDate, $0.categoryValue, $0.sourceBundleID,
           #sql(
             """
-            CASE WHEN json_valid(\($0.metadata)) AND json_type(\($0.metadata), '$.HKTimeZone') = 'text'
-            THEN json_extract(\($0.metadata), '$.HKTimeZone') END
+            CASE WHEN json_valid(\($0.metadata)) AND json_type(\($0.metadata), \(bind: timeZonePath)) = 'text'
+            THEN json_extract(\($0.metadata), \(bind: timeZonePath)) END
             """, as: String?.self)
         )
       }

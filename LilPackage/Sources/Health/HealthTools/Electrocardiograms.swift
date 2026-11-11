@@ -54,8 +54,8 @@ extension HealthTools {
                 type: symptom.type, name: HealthCatalog.type(id: symptom.type)?.name ?? symptom.type
               )
             },
-          algorithmVersion: HealthMetadataValues.value(
-            "HKMetadataKeyAppleECGAlgorithmVersion", in: metadata)?.double,
+          algorithmVersion: HealthMetadataValues.value(.appleECGAlgorithmVersion, in: metadata)?
+            .double,
           source: recording.sourceName)
       })
   }

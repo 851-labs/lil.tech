@@ -165,7 +165,7 @@ extension HealthWorkout {
   public var lapLengthUnit: String? {
     guard let metadata,
       let object = try? JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [String: Any],
-      let (_, unit) = HealthDatabase.quantity(object["HKLapLength"]), !unit.isEmpty
+      let (_, unit) = HealthDatabase.quantity(object[.lapLength]), !unit.isEmpty
     else { return nil }
     return unit
   }

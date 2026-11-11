@@ -45,18 +45,6 @@ public struct HealthNotification: Equatable, Identifiable, Sendable {
 }
 
 extension HealthDatabase {
-  /// HealthKit's metadata keys for what notifications say, as the iPhone uploads them: the
-  /// constants' string values, printed from the SDK, which drop the `HKMetadataKey` prefix for
-  /// some keys and keep it for others (`HKMetadataKeyHeartRateEventThreshold` is
-  /// `HKHeartRateEventThreshold`, but `HKMetadataKeyAudioExposureLevel` is itself, 851-4148).
-  enum NotificationMetadataKey {
-    static let heartRateThreshold = "HKHeartRateEventThreshold"
-    static let vo2Max = "HKVO2MaxValue"
-    static let cardioFitnessThreshold = "HKLowCardioFitnessEventThreshold"
-    static let audioLevel = "HKMetadataKeyAudioExposureLevel"
-    static let audioDuration = "HKMetadataKeyAudioExposureDuration"
-  }
-
   /// A kind of notification, newest first by the date it's listed under (`listedByEnd`), at
   /// most `limit`, with their provenance filled in so each can say which device it came from.
   /// The limit takes the latest by start; kinds listed by their end are then put in that order.
@@ -78,18 +66,18 @@ extension HealthDatabase {
     switch kind {
     case .highHeartRate, .lowHeartRate:
       guard
-        let threshold = beatsPerMinute(metadata[NotificationMetadataKey.heartRateThreshold])
+        let threshold = beatsPerMinute(metadata[.heartRateEventThreshold])
       else { return nil }
       return kind == .highHeartRate ? .heartRateAbove(threshold) : .heartRateBelow(threshold)
     case .lowCardioFitness:
-      let threshold = quantity(metadata[NotificationMetadataKey.cardioFitnessThreshold])?.number
-      if let vo2Max = quantity(metadata[NotificationMetadataKey.vo2Max])?.number {
+      let threshold = quantity(metadata[.lowCardioFitnessEventThreshold])?.number
+      if let vo2Max = quantity(metadata[.vo2MaxValue])?.number {
         return .cardioFitness(vo2Max: vo2Max, threshold: threshold)
       }
       return threshold.map(HealthNotificationSummary.cardioFitnessThreshold)
     case .noise, .headphone:
-      let duration = seconds(metadata[NotificationMetadataKey.audioDuration])
-      if let level = quantity(metadata[NotificationMetadataKey.audioLevel])?.number {
+      let duration = seconds(metadata[.audioExposureDuration])
+      if let level = quantity(metadata[.audioExposureLevel])?.number {
         return .soundExposure(level: level, duration: duration)
       }
       return duration.map(HealthNotificationSummary.soundDuration)
