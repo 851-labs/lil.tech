@@ -65,7 +65,8 @@ jobs:
       - uses: actions/checkout@v7
         # Quiets git's hint about the initial branch's name when checkout runs `git init`, and its
         # advice after checking out a commit, 13 and 15 lines (851-4052), as `-c` would. On the
-        # checkout steps only, since a workflow's `env` is listed in every step's header.
+        # checkout steps only, since a workflow's `env` is listed in every step's header. Anchors
+        # don't reach other files, so main.yml has the same block.
         env: &quiet-git
           GIT_CONFIG_COUNT: "2"
           GIT_CONFIG_KEY_0: init.defaultBranch
