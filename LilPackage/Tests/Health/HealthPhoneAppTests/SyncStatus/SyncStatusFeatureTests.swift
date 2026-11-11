@@ -363,5 +363,6 @@ struct SyncStatusFeatureTests {
       $0.isChoosing = false
       $0.alert = .chooseFailed("Health data is unavailable on this device.")
     }
+    await store.finish()
   }
 }

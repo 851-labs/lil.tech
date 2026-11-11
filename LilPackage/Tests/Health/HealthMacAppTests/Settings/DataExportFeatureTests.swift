@@ -94,6 +94,7 @@ struct DataExportFeatureTests {
     await store.receive(\.failed) {
       $0.status = .failed(DataExportError.unavailable.message)
     }
+    await store.finish()
   }
 
   @Test
@@ -117,6 +118,7 @@ struct DataExportFeatureTests {
       $0.status = .failed(
         "Preparing the export is taking longer than usual. Please try again later.")
     }
+    await store.finish()
   }
 
   @Test
