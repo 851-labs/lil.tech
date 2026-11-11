@@ -66,16 +66,13 @@ jobs:
         # Quiets git's hint about the initial branch's name when checkout runs `git init`, and its
         # advice after checking out a commit, 13 and 15 lines (851-4052), as `-c` would. On the
         # checkout steps only, since a workflow's `env` is listed in every step's header. Anchors
-        # don't reach other files, so main.yml has the same block. `show-progress: false` drops the
-        # meter git prints when a fetch or checkout takes over 2 seconds, about 30 lines.
+        # don't reach other files, so main.yml has the same block.
         env: &quiet-git
           GIT_CONFIG_COUNT: "2"
           GIT_CONFIG_KEY_0: init.defaultBranch
           GIT_CONFIG_VALUE_0: main
           GIT_CONFIG_KEY_1: advice.detachedHead
           GIT_CONFIG_VALUE_1: "false"
-        with:
-          show-progress: false
       - name: determine changes
         id: changes
         uses: ./.github/actions/changes
@@ -152,8 +149,6 @@ jobs:
       - if: steps.open.outputs.open == 'true'
         uses: actions/checkout@v7
         env: *quiet-git
-        with:
-          show-progress: false
       - name: set up services
         if: steps.open.outputs.open == 'true'
         uses: ./.github/actions/setup-services
@@ -216,8 +211,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         env: *quiet-git
-        with:
-          show-progress: false
       - name: set up services
         uses: ./.github/actions/setup-services
       # Destroying a stage that was never deployed is a no-op.
@@ -270,7 +263,6 @@ jobs:
       - uses: actions/checkout@v7
         env: *quiet-git
         with:
-          show-progress: false
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
       - name: set up services
