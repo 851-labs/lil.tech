@@ -148,7 +148,8 @@ struct SyncHealthDataIntentTests {
 
   @Test(.timeLimit(.minutes(1)))
   func signingOutWhileWaitingFailsTheSync() async throws {
-    let actions = HealthAppActions(channel: HealthAppActionChannel(signInWait: .zero))
+    let channel = HealthAppActionChannel(signInWait: .zero)
+    let actions = HealthAppActions(channel: channel)
     let (updates, session) = AsyncStream<Bool>.makeStream()
     let sync = FakeSync(.upToDate(at: lastSynced))
     let store = TestStore(initialState: AppFeature.State()) {
@@ -163,8 +164,7 @@ struct SyncHealthDataIntentTests {
     store.exhaustivity = .off
 
     let task = await store.send(.task)
-    session.yield(true)
-    await store.receive(\.signedInChanged)
+    try await signIn(store, session: session, servingFrom: channel)
 
     let syncing = Task { try await actions.perform(.sync, { _ in }) }
     await store.receive(\.appActionRequested)

@@ -237,7 +237,8 @@ struct ExportHealthDataIntentTests {
   @Test(.timeLimit(.minutes(1)))
   func signingOutWhileExportingFailsTheExport() async throws {
     let folder = try makeFolder()
-    let actions = HealthAppActions(channel: HealthAppActionChannel(signInWait: .zero))
+    let channel = HealthAppActionChannel(signInWait: .zero)
+    let actions = HealthAppActions(channel: channel)
     let (updates, session) = AsyncStream<Bool>.makeStream()
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
@@ -255,8 +256,7 @@ struct ExportHealthDataIntentTests {
     store.exhaustivity = .off
 
     let task = await store.send(.task)
-    session.yield(true)
-    await store.receive(\.signedInChanged)
+    try await signIn(store, session: session, servingFrom: channel)
 
     let exporting = Task { try await actions.perform(.export(to: folder), { _ in }) }
     await store.receive(\.account.dataExport.exportToFolderRequested) {
