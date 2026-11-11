@@ -14049,6 +14049,586 @@ extension Components {
                 try encoder.encodeAdditionalProperties(additionalProperties)
             }
         }
+        /// - Remark: Generated from `#/components/schemas/HealthAudiogramEar`.
+        public struct HealthAudiogramEar: Codable, Hashable, Sendable {
+            /// The ear's hearing level, in whole dBHL, as lil health's Audiogram page shows it: the average of its charted sensitivities at 500, 1000, 2000 and 4000 Hz (the speech range), or of every frequency tested if none of those was. Null if the ear wasn't tested (Not Tested on the page).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramEar/hearingLevel`.
+            public var hearingLevel: Swift.Double?
+            /// What the hearing level means, as the page says it: Little to No Hearing Loss (up to 25 dBHL), Mild Hearing Loss (up to 40), Moderate Hearing Loss (up to 60), Severe Hearing Loss (up to 80) or Profound Hearing Loss. Null if the ear wasn't tested.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramEar/hearingLoss`.
+            public var hearingLoss: Swift.String?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthAudiogramEar`.
+            ///
+            /// - Parameters:
+            ///   - hearingLevel: The ear's hearing level, in whole dBHL, as lil health's Audiogram page shows it: the average of its charted sensitivities at 500, 1000, 2000 and 4000 Hz (the speech range), or of every frequency tested if none of those was. Null if the ear wasn't tested (Not Tested on the page).
+            ///   - hearingLoss: What the hearing level means, as the page says it: Little to No Hearing Loss (up to 25 dBHL), Mild Hearing Loss (up to 40), Moderate Hearing Loss (up to 60), Severe Hearing Loss (up to 80) or Profound Hearing Loss. Null if the ear wasn't tested.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                hearingLevel: Swift.Double? = nil,
+                hearingLoss: Swift.String? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.hearingLevel = hearingLevel
+                self.hearingLoss = hearingLoss
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case hearingLevel
+                case hearingLoss
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.hearingLevel = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .hearingLevel
+                )
+                self.hearingLoss = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .hearingLoss
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "hearingLevel",
+                    "hearingLoss"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encodeIfPresent(
+                    self.hearingLevel,
+                    forKey: .hearingLevel
+                )
+                try container.encodeIfPresent(
+                    self.hearingLoss,
+                    forKey: .hearingLoss
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthAudiogramTest`.
+        public struct HealthAudiogramTest: Codable, Hashable, Sendable {
+            /// The quietest sound heard at this frequency, in dBHL (decibels hearing level): 0 is typical hearing, and higher means a louder sound was needed. Can be below 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramTest/sensitivity`.
+            public var sensitivity: Swift.Double
+            /// How the sound was played: Air (through headphones or the air, as hearing tests do), or Unknown for a kind a later iOS adds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramTest/conduction`.
+            public var conduction: Swift.String
+            /// Whether the other ear was masked with noise during the test.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramTest/masked`.
+            public var masked: Swift.Bool
+            /// Whether the result is a bound rather than a threshold: the test has a clamping range (clampingLower, clampingUpper), and the threshold lies within it. A lower bound alone means no response up to the device's loudest, so the threshold is at or past sensitivity; lil health's chart marks it with a down arrow.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramTest/clamped`.
+            public var clamped: Swift.Bool
+            /// The clamping range's lower bound, in dBHL. Left out without one.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramTest/clampingLower`.
+            public var clampingLower: Swift.Double?
+            /// The clamping range's upper bound, in dBHL. Left out without one.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramTest/clampingUpper`.
+            public var clampingUpper: Swift.Double?
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthAudiogramTest`.
+            ///
+            /// - Parameters:
+            ///   - sensitivity: The quietest sound heard at this frequency, in dBHL (decibels hearing level): 0 is typical hearing, and higher means a louder sound was needed. Can be below 0.
+            ///   - conduction: How the sound was played: Air (through headphones or the air, as hearing tests do), or Unknown for a kind a later iOS adds.
+            ///   - masked: Whether the other ear was masked with noise during the test.
+            ///   - clamped: Whether the result is a bound rather than a threshold: the test has a clamping range (clampingLower, clampingUpper), and the threshold lies within it. A lower bound alone means no response up to the device's loudest, so the threshold is at or past sensitivity; lil health's chart marks it with a down arrow.
+            ///   - clampingLower: The clamping range's lower bound, in dBHL. Left out without one.
+            ///   - clampingUpper: The clamping range's upper bound, in dBHL. Left out without one.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                sensitivity: Swift.Double,
+                conduction: Swift.String,
+                masked: Swift.Bool,
+                clamped: Swift.Bool,
+                clampingLower: Swift.Double? = nil,
+                clampingUpper: Swift.Double? = nil,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.sensitivity = sensitivity
+                self.conduction = conduction
+                self.masked = masked
+                self.clamped = clamped
+                self.clampingLower = clampingLower
+                self.clampingUpper = clampingUpper
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case sensitivity
+                case conduction
+                case masked
+                case clamped
+                case clampingLower
+                case clampingUpper
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.sensitivity = try container.decode(
+                    Swift.Double.self,
+                    forKey: .sensitivity
+                )
+                self.conduction = try container.decode(
+                    Swift.String.self,
+                    forKey: .conduction
+                )
+                self.masked = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .masked
+                )
+                self.clamped = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .clamped
+                )
+                self.clampingLower = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .clampingLower
+                )
+                self.clampingUpper = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .clampingUpper
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "sensitivity",
+                    "conduction",
+                    "masked",
+                    "clamped",
+                    "clampingLower",
+                    "clampingUpper"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.sensitivity,
+                    forKey: .sensitivity
+                )
+                try container.encode(
+                    self.conduction,
+                    forKey: .conduction
+                )
+                try container.encode(
+                    self.masked,
+                    forKey: .masked
+                )
+                try container.encode(
+                    self.clamped,
+                    forKey: .clamped
+                )
+                try container.encodeIfPresent(
+                    self.clampingLower,
+                    forKey: .clampingLower
+                )
+                try container.encodeIfPresent(
+                    self.clampingUpper,
+                    forKey: .clampingUpper
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthAudiogramPoint`.
+        public struct HealthAudiogramPoint: Codable, Hashable, Sendable {
+            /// The tone's frequency, in Hz, e.g. 1000.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramPoint/frequency`.
+            public var frequency: Swift.Double
+            /// The left ear's tests at this frequency, the one lil health charts and averages first (air conduction, unmasked before masked), then any others as recorded. Empty if that ear wasn't tested here.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramPoint/left`.
+            public var left: [Components.Schemas.HealthAudiogramTest]
+            /// The right ear's tests at this frequency, the one lil health charts and averages first (air conduction, unmasked before masked), then any others as recorded. Empty if that ear wasn't tested here.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramPoint/right`.
+            public var right: [Components.Schemas.HealthAudiogramTest]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthAudiogramPoint`.
+            ///
+            /// - Parameters:
+            ///   - frequency: The tone's frequency, in Hz, e.g. 1000.
+            ///   - left: The left ear's tests at this frequency, the one lil health charts and averages first (air conduction, unmasked before masked), then any others as recorded. Empty if that ear wasn't tested here.
+            ///   - right: The right ear's tests at this frequency, the one lil health charts and averages first (air conduction, unmasked before masked), then any others as recorded. Empty if that ear wasn't tested here.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                frequency: Swift.Double,
+                left: [Components.Schemas.HealthAudiogramTest],
+                right: [Components.Schemas.HealthAudiogramTest],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.frequency = frequency
+                self.left = left
+                self.right = right
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case frequency
+                case left
+                case right
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.frequency = try container.decode(
+                    Swift.Double.self,
+                    forKey: .frequency
+                )
+                self.left = try container.decode(
+                    [Components.Schemas.HealthAudiogramTest].self,
+                    forKey: .left
+                )
+                self.right = try container.decode(
+                    [Components.Schemas.HealthAudiogramTest].self,
+                    forKey: .right
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "frequency",
+                    "left",
+                    "right"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.frequency,
+                    forKey: .frequency
+                )
+                try container.encode(
+                    self.left,
+                    forKey: .left
+                )
+                try container.encode(
+                    self.right,
+                    forKey: .right
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthAudiogramItem`.
+        public struct HealthAudiogramItem: Codable, Hashable, Sendable {
+            /// HealthKit's UUID for the audiogram.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramItem/id`.
+            public var id: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramItem/start`.
+            public var start: Swift.String
+            /// A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramItem/end`.
+            public var end: Swift.String
+            /// The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramItem/recordedTimeZone`.
+            public var recordedTimeZone: Swift.String?
+            /// When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramItem/recordedStart`.
+            public var recordedStart: Swift.String?
+            /// When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramItem/recordedEnd`.
+            public var recordedEnd: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramItem/leftEar`.
+            public var leftEar: Components.Schemas.HealthAudiogramEar
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramItem/rightEar`.
+            public var rightEar: Components.Schemas.HealthAudiogramEar
+            /// Each frequency tested, as recorded (lowest first), with each ear's results. Empty if none can be read.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramItem/points`.
+            public var points: [Components.Schemas.HealthAudiogramPoint]
+            /// The app or device that recorded it, e.g. AirPods Pro's Hearing Test.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramItem/source`.
+            public var source: Swift.String
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthAudiogramItem`.
+            ///
+            /// - Parameters:
+            ///   - id: HealthKit's UUID for the audiogram.
+            ///   - start: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - end: A time in the output's `timeZone`, to the second, with its UTC offset, e.g. 2026-10-20T08:15:00+01:00.
+            ///   - recordedTimeZone: The time zone it was recorded in (HKMetadataKeyTimeZone), e.g. Asia/Tokyo, as an IANA name. Left out when it has none, or one that isn't an IANA name. Its other times stay in the output's `timeZone`, so they compare across records.
+            ///   - recordedStart: When it starts, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///   - recordedEnd: When it ends, on recordedTimeZone's clock, to the second, with that zone's UTC offset, e.g. 2026-08-10T23:00:00+09:00: the same instant as in the output's `timeZone`. Only with recordedTimeZone.
+            ///   - leftEar:
+            ///   - rightEar:
+            ///   - points: Each frequency tested, as recorded (lowest first), with each ear's results. Empty if none can be read.
+            ///   - source: The app or device that recorded it, e.g. AirPods Pro's Hearing Test.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                id: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                recordedTimeZone: Swift.String? = nil,
+                recordedStart: Swift.String? = nil,
+                recordedEnd: Swift.String? = nil,
+                leftEar: Components.Schemas.HealthAudiogramEar,
+                rightEar: Components.Schemas.HealthAudiogramEar,
+                points: [Components.Schemas.HealthAudiogramPoint],
+                source: Swift.String,
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.id = id
+                self.start = start
+                self.end = end
+                self.recordedTimeZone = recordedTimeZone
+                self.recordedStart = recordedStart
+                self.recordedEnd = recordedEnd
+                self.leftEar = leftEar
+                self.rightEar = rightEar
+                self.points = points
+                self.source = source
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case start
+                case end
+                case recordedTimeZone
+                case recordedStart
+                case recordedEnd
+                case leftEar
+                case rightEar
+                case points
+                case source
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.recordedTimeZone = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedTimeZone
+                )
+                self.recordedStart = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedStart
+                )
+                self.recordedEnd = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .recordedEnd
+                )
+                self.leftEar = try container.decode(
+                    Components.Schemas.HealthAudiogramEar.self,
+                    forKey: .leftEar
+                )
+                self.rightEar = try container.decode(
+                    Components.Schemas.HealthAudiogramEar.self,
+                    forKey: .rightEar
+                )
+                self.points = try container.decode(
+                    [Components.Schemas.HealthAudiogramPoint].self,
+                    forKey: .points
+                )
+                self.source = try container.decode(
+                    Swift.String.self,
+                    forKey: .source
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "id",
+                    "start",
+                    "end",
+                    "recordedTimeZone",
+                    "recordedStart",
+                    "recordedEnd",
+                    "leftEar",
+                    "rightEar",
+                    "points",
+                    "source"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.id,
+                    forKey: .id
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encodeIfPresent(
+                    self.recordedTimeZone,
+                    forKey: .recordedTimeZone
+                )
+                try container.encodeIfPresent(
+                    self.recordedStart,
+                    forKey: .recordedStart
+                )
+                try container.encodeIfPresent(
+                    self.recordedEnd,
+                    forKey: .recordedEnd
+                )
+                try container.encode(
+                    self.leftEar,
+                    forKey: .leftEar
+                )
+                try container.encode(
+                    self.rightEar,
+                    forKey: .rightEar
+                )
+                try container.encode(
+                    self.points,
+                    forKey: .points
+                )
+                try container.encode(
+                    self.source,
+                    forKey: .source
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HealthAudiogramsResult`.
+        public struct HealthAudiogramsResult: Codable, Hashable, Sendable {
+            /// The IANA time zone of the output's days and local times.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramsResult/timeZone`.
+            public var timeZone: Swift.String
+            /// The range asked for: D, W, M, 6M or Y.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramsResult/range`.
+            public var range: Swift.String
+            /// When the period starts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramsResult/start`.
+            public var start: Swift.String
+            /// When the period ends (exclusive).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramsResult/end`.
+            public var end: Swift.String
+            /// Audiograms that start in the period, all of them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramsResult/count`.
+            public var count: Swift.Int
+            /// The audiograms, newest first, at most 30.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HealthAudiogramsResult/audiograms`.
+            public var audiograms: [Components.Schemas.HealthAudiogramItem]
+            /// A container of undocumented properties.
+            public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `HealthAudiogramsResult`.
+            ///
+            /// - Parameters:
+            ///   - timeZone: The IANA time zone of the output's days and local times.
+            ///   - range: The range asked for: D, W, M, 6M or Y.
+            ///   - start: When the period starts.
+            ///   - end: When the period ends (exclusive).
+            ///   - count: Audiograms that start in the period, all of them.
+            ///   - audiograms: The audiograms, newest first, at most 30.
+            ///   - additionalProperties: A container of undocumented properties.
+            public init(
+                timeZone: Swift.String,
+                range: Swift.String,
+                start: Swift.String,
+                end: Swift.String,
+                count: Swift.Int,
+                audiograms: [Components.Schemas.HealthAudiogramItem],
+                additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()
+            ) {
+                self.timeZone = timeZone
+                self.range = range
+                self.start = start
+                self.end = end
+                self.count = count
+                self.audiograms = audiograms
+                self.additionalProperties = additionalProperties
+            }
+            public enum CodingKeys: String, CodingKey {
+                case timeZone
+                case range
+                case start
+                case end
+                case count
+                case audiograms
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.timeZone = try container.decode(
+                    Swift.String.self,
+                    forKey: .timeZone
+                )
+                self.range = try container.decode(
+                    Swift.String.self,
+                    forKey: .range
+                )
+                self.start = try container.decode(
+                    Swift.String.self,
+                    forKey: .start
+                )
+                self.end = try container.decode(
+                    Swift.String.self,
+                    forKey: .end
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.audiograms = try container.decode(
+                    [Components.Schemas.HealthAudiogramItem].self,
+                    forKey: .audiograms
+                )
+                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [
+                    "timeZone",
+                    "range",
+                    "start",
+                    "end",
+                    "count",
+                    "audiograms"
+                ])
+            }
+            public func encode(to encoder: any Swift.Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(
+                    self.timeZone,
+                    forKey: .timeZone
+                )
+                try container.encode(
+                    self.range,
+                    forKey: .range
+                )
+                try container.encode(
+                    self.start,
+                    forKey: .start
+                )
+                try container.encode(
+                    self.end,
+                    forKey: .end
+                )
+                try container.encode(
+                    self.count,
+                    forKey: .count
+                )
+                try container.encode(
+                    self.audiograms,
+                    forKey: .audiograms
+                )
+                try encoder.encodeAdditionalProperties(additionalProperties)
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HealthMedicationCoding`.
         public struct HealthMedicationCoding: Codable, Hashable, Sendable {
             /// The coding system, as HealthKit names it, e.g. http://www.nlm.nih.gov/research/umls/rxnorm.

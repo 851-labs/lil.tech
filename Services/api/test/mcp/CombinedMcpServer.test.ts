@@ -196,7 +196,7 @@ describe("the combined MCP server in the store", () => {
       const both = headers("health:read mail:read");
       assert.strictEqual((yield* postMcp(send, url, initialized, both)).status, 202);
       const list = yield* postMcp(send, url, inSession("tools/list"), both);
-      assert.lengthOf(toolNames(list), 31);
+      assert.lengthOf(toolNames(list), 32);
       const summary = yield* postMcp(
         send,
         url,

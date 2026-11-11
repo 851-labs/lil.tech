@@ -469,6 +469,14 @@ private struct ToolCall {
       query = { tools, db in
         try tools.heartbeatSeriesBeats(id: id, timeZone: timeZone, cursor: cursor, limit: limit, db)
       }
+    case "audiograms":
+      let range = arguments.required("range", arguments.range)
+      let date = arguments.string("date")
+      let timeZone = arguments.string("timeZone")
+      guard let range, arguments.isValid else { throw arguments.invalid }
+      query = { tools, db in
+        try tools.audiograms(range: range, date: date, timeZone: timeZone, db)
+      }
     case "medications":
       let timeZone = arguments.string("timeZone")
       try arguments.check()

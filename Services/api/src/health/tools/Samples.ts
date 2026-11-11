@@ -37,7 +37,7 @@ const samplesElsewhere: Readonly<
   activitySummary: "activity_rings",
   heartbeatSeries: "heartbeat_series",
   electrocardiogram: "electrocardiograms",
-  audiogram: null,
+  audiogram: "audiograms",
   stateOfMind: "state_of_mind",
   scoredAssessment: "assessments",
   document: null,

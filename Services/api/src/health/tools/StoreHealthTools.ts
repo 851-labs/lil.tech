@@ -1,5 +1,6 @@
 import type { StoreSql } from "../../store/StoreSql.ts";
 import { healthActivityRings } from "./ActivityRings.ts";
+import { healthAudiograms } from "./Audiograms.ts";
 import { healthDetails } from "./Details.ts";
 import { healthElectrocardiograms, healthElectrocardiogramVoltages } from "./Electrocardiograms.ts";
 import type { Effect } from "effect";
@@ -60,6 +61,7 @@ export const storeHealthTools = (
   electrocardiogram_voltages: (params) => healthElectrocardiogramVoltages(sql, blobs, params),
   heartbeat_series: (params) => healthHeartbeatSeries(sql, params),
   heartbeat_series_beats: (params) => healthHeartbeatSeriesBeats(sql, params),
+  audiograms: (params) => healthAudiograms(sql, params),
   medications: (params) => healthMedications(sql, params),
   medication_doses: (params) => healthMedicationDoses(sql, params),
   health_details: (params) => healthDetails(sql, params),

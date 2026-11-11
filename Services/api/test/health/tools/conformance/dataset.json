@@ -13,7 +13,8 @@
     "Mental Wellbeing (851-4160): State of Mind logs from 13 September to 20 October, momentary emotions and daily moods logged in Health and on the Watch: one with every label and association, one with none, raw values a later iOS might add (a kind of 3, a classification of 9, a label of 39, 0s), one at the start of 14 September and one a second before, and one ph2 deleted. GAD-7 and PHQ-9 assessments from 25 September to 20 October: PHQ-9's 9th question skipped (Prefer not to answer), an answer of 5 and a risk of 6 a later iOS might add, and a GAD-7 ph2 deleted.",
     "ECGs (851-4159), in health_electrocardiogram: their voltages are blobs in blobs.json, one little-endian 32-bit float per measurement, in microvolts. 0c0f\u2026181 (19 October, recorded in London, algorithm version 2) has 60 measurements at 2 Hz, with a NaN (5), an infinity (12) and values that round on their halves; 0c0f\u2026182 (18 October, a third-party app's, at 600 Hz) has 15,362, so a 30-second page has more than 15,360 and is downsampled; 0c0f\u2026183 has no measurements, a zone that isn't a name and an algorithm version that's a Boolean; 0c0f\u2026184 to 189 have every classification (7, a later iOS's, reads Not Classified), 189 just before 14 October in UTC; 0c0f\u2026190 was deleted by ph2; 0c0f\u2026191 doesn't say its sampling frequency (4 measurements in 2 s) and 0c0f\u2026192 says 0 and lasts no time (so 512 Hz).",
     "Heartbeat series (851-4162), in health_heartbeat_series, each beat's time in seconds since the start (to 0.1 ms) and the indices of beats preceded by a gap, as JSON in the row: be47\u2026001 (19 October, recorded in London) has 60 beats without a gap; be47\u2026002 (18 October, recorded in Paris) has 40, with gaps before beats 10 and 11 (so 10 stands alone) and 30, and beat 20 at the same time as 19; 003 has three beats, 004 two, 005 two with a gap between, 006 one and 007 none; be47\u2026008 is a third-party app's, 1,250 beats, its first preceded by a gap and gaps before 400, 401 and 900; 009 starts a minute before 14 October in UTC; 010 was deleted by ph2. Their beats come from sines, so their HRV is worked out by a reference implementation.",
-    "Medication doses (851-4167): the inhaler (\u2026d4) is due at 23:00 UTC; its doses are 0c0f\u2026151 (recorded in Tokyo), 152 (a status and schedule a later iOS might add, a zone that isn't a name), 153 and 154 (due and logged at the same instant), 156 (deleted by ph2) and 157 (as needed); 155 is a dose of \u2026e5, a medication that isn't shared. Atorvastatin and Amoxicillin have RxNorm and SNOMED codings."
+    "Medication doses (851-4167): the inhaler (\u2026d4) is due at 23:00 UTC; its doses are 0c0f\u2026151 (recorded in Tokyo), 152 (a status and schedule a later iOS might add, a zone that isn't a name), 153 and 154 (due and logged at the same instant), 156 (deleted by ph2) and 157 (as needed); 155 is a dose of \u2026e5, a medication that isn't shared. Atorvastatin and Amoxicillin have RxNorm and SNOMED codings.",
+    "Audiograms (851-4161), in health_audiogram, frequencies in Hz and results in dBHL: 0c0f…801 (19 October, recorded in London) is a hearing test of both ears, its left ear averaging 17.5 in the speech range (18, Little to No Hearing Loss) and its right 37.5 (38, Mild), a left result at 3000 Hz clamped on both sides and a right one at 8000 Hz only from below (no response); 0c0f…802 (15 October, a third-party app's) tests the left ear twice at 500 Hz (masked first) and at 1000 Hz (a conduction type a later iOS might add, then air masked), a side of 2 no ear has, the left averaging 50.125 (50, Moderate) and the right tested only outside the speech range (3000 and 6000 Hz: 70.5, so 71, Severe); 0c0f…803 (13 October at 23:30, 14 October in London, recorded in Tokyo) averages -2.5 on the left (-3) and -0.4 on the right (0, never -0); 0c0f…804 (2 September, from ph2) tests only the right ear (97.5, so 98, Profound); 0c0f…805 was deleted by ph2; 0c0f…806 is from September 2025, before a year's range; 0c0f…807 (1 August) has no frequencies and a zone that isn't a name."
   ],
   "batches": [
     {
@@ -3265,6 +3266,475 @@
             "sourceName": "Test Apple Watch",
             "sourceBundleId": "com.apple.health.00000000-0000-4000-8000-000000000001"
           }
+        },
+        {
+          "entity": "health_audiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000801",
+          "row": {
+            "startDate": 1792396800000,
+            "endDate": 1792397160000,
+            "points": [
+              {
+                "frequency": 500,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 10,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  },
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 30,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 1000,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 15,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  },
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 35,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 2000,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 20,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  },
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 40,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 3000,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 25,
+                    "clampingLower": 20,
+                    "clampingUpper": 30
+                  },
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 45,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 4000,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 25,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  },
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 45,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 6000,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 30,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  },
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 70,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 8000,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 35,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  },
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 90,
+                    "clampingLower": 90,
+                    "clampingUpper": null
+                  }
+                ]
+              }
+            ],
+            "sourceName": "Hearing Test",
+            "sourceBundleId": "com.apple.health.hearing",
+            "metadata": {
+              "HKTimeZone": "Europe/London"
+            }
+          }
+        },
+        {
+          "entity": "health_audiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000802",
+          "row": {
+            "startDate": 1792081800000,
+            "endDate": 1792083000000,
+            "points": [
+              {
+                "frequency": 500,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": true,
+                    "sensitivity": 40,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  },
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 35,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 1000,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 1,
+                    "masked": false,
+                    "sensitivity": 45,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  },
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": true,
+                    "sensitivity": 50,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 2000,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 55,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  },
+                  {
+                    "side": 2,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 60,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 3000,
+                "tests": [
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 61,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 4000,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 60.5,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 6000,
+                "tests": [
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 80,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  },
+                  {
+                    "side": 1,
+                    "type": 1,
+                    "masked": true,
+                    "sensitivity": 75,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              }
+            ],
+            "sourceName": "Test Audiometry App",
+            "sourceBundleId": "com.example.audiometry"
+          }
+        },
+        {
+          "entity": "health_audiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000803",
+          "row": {
+            "startDate": 1791934200000,
+            "endDate": 1791934500000,
+            "points": [
+              {
+                "frequency": 500,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": -5,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  },
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 0,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 1000,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 0,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  },
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": -1,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 2000,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": -5,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  },
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 0,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 4000,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 0,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  },
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": -0.6,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              }
+            ],
+            "sourceName": "Hearing Test",
+            "sourceBundleId": "com.apple.health.hearing",
+            "metadata": {
+              "HKTimeZone": "Asia/Tokyo"
+            }
+          }
+        },
+        {
+          "entity": "health_audiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000805",
+          "row": {
+            "startDate": 1792317600000,
+            "endDate": 1792317960000,
+            "points": [
+              {
+                "frequency": 1000,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 20,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  },
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 20,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              }
+            ],
+            "sourceName": "Hearing Test",
+            "sourceBundleId": "com.apple.health.hearing"
+          }
+        },
+        {
+          "entity": "health_audiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000806",
+          "row": {
+            "startDate": 1757498400000,
+            "endDate": 1757498760000,
+            "points": [
+              {
+                "frequency": 1000,
+                "tests": [
+                  {
+                    "side": 0,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 20,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  },
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 20,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              }
+            ],
+            "sourceName": "Hearing Test",
+            "sourceBundleId": "com.apple.health.hearing"
+          }
+        },
+        {
+          "entity": "health_audiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000807",
+          "row": {
+            "startDate": 1785585600000,
+            "endDate": 1785585660000,
+            "points": [],
+            "sourceName": "Test Audiometry App",
+            "sourceBundleId": "com.example.audiometry",
+            "metadata": {
+              "HKTimeZone": "+09:00"
+            }
+          }
         }
       ]
     },
@@ -3542,6 +4012,89 @@
           "entity": "health_medication_dose",
           "op": "delete",
           "id": "0c0f0000-0000-4000-8000-000000000156"
+        },
+        {
+          "entity": "health_audiogram",
+          "op": "upsert",
+          "id": "0c0f0000-0000-4000-8000-000000000804",
+          "row": {
+            "startDate": 1788343200000,
+            "endDate": 1788343680000,
+            "points": [
+              {
+                "frequency": 250,
+                "tests": [
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 85,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 500,
+                "tests": [
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 90,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 1000,
+                "tests": [
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 95,
+                    "clampingLower": 95,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 2000,
+                "tests": [
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 100,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              },
+              {
+                "frequency": 4000,
+                "tests": [
+                  {
+                    "side": 1,
+                    "type": 0,
+                    "masked": false,
+                    "sensitivity": 105,
+                    "clampingLower": null,
+                    "clampingUpper": null
+                  }
+                ]
+              }
+            ],
+            "sourceName": "Test Audiometry App",
+            "sourceBundleId": "com.example.audiometry"
+          }
+        },
+        {
+          "entity": "health_audiogram",
+          "op": "delete",
+          "id": "0c0f0000-0000-4000-8000-000000000805"
         }
       ]
     }
