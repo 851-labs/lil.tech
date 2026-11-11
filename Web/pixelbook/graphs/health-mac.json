@@ -344,6 +344,11 @@
         "Run with route, US",
         "Strength, no route",
         "Strength, recorded in Tokyo",
+        "Strength, rated effort",
+        "Run, estimated effort",
+        "Multisport, legs with effort",
+        "Run, links not synced",
+        "Run, too many samples to link",
         "Route loading",
         "Route failed"
       ]
@@ -386,6 +391,7 @@
       "states": [
         "Sinus rhythm",
         "Atrial fibrillation, symptoms",
+        "Atrial fibrillation, linked symptoms",
         "Poor recording, with gaps",
         "Tall waves, narrow window",
         "Recording loading",

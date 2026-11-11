@@ -53,6 +53,13 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ElectrocardiogramsCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.atrial-fibrillation-linked-symptoms-dark.png",
+      "id" : "electrocardiograms.atrial-fibrillation-linked-symptoms",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.atrial-fibrillation-linked-symptoms-light.png",
+      "name" : "Atrial fibrillation, linked symptoms",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/ElectrocardiogramsCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.poor-recording-with-gaps-dark.png",
       "id" : "electrocardiograms.poor-recording-with-gaps",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/ElectrocardiogramsCatalog/electrocardiograms.poor-recording-with-gaps-light.png",

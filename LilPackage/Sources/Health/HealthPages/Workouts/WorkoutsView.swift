@@ -271,6 +271,26 @@ enum WorkoutFormat {
       : String(format: "%d:%02d", minutes, rest)
   }
 
+  /// An effort score as Health rates it, 1 to 10: "7 · Hard". Nil for a sample without a value.
+  static func effort(_ score: HealthSample) -> String? {
+    guard let value = score.value, value.isFinite else { return nil }
+    let rounded = Int(value.rounded())
+    let level: String? =
+      switch rounded {
+      case 1...3: "Easy"
+      case 4...6: "Moderate"
+      case 7...8: "Hard"
+      case 9...10: "All Out"
+      default: nil
+      }
+    return level.map { "\(rounded) · \($0)" } ?? "\(rounded)"
+  }
+
+  /// "Effort" for a score the person rated, "Est. Effort" for Apple Watch's estimate.
+  static func effortLabel(_ score: HealthSample) -> String {
+    score.type == HealthDatabase.estimatedWorkoutEffortScoreType ? "Est. Effort" : "Effort"
+  }
+
   /// `seconds` to cover `meters`, per `unit`'s one: "5'12\"/km", "8'22\"/mi".
   static func pace(_ seconds: TimeInterval, over meters: Double, in unit: MetricFormat.DisplayUnit)
     -> String

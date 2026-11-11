@@ -6,7 +6,7 @@
   import Testing
 
   // Workouts (`WorkoutsContent`) and a workout (`WorkoutDetailContent`): the catalog database's
-  // workouts, and a made-up route. Synthetic data only.
+  // workouts, a made-up route, effort scores and a multisport workout's legs. Synthetic data only.
 
   extension MacSnapshotTests {
     @Test(arguments: workoutsCatalog.selectedStates)
@@ -41,6 +41,23 @@
       // Recorded in Tokyo (851-4179): a Time Zone row, with its start on Tokyo's clock.
       CatalogState("Strength, recorded in Tokyo", width: 760) {
         detail({ _ in .none }, kind: 50, timeZone: "Asia/Tokyo")
+      },
+      // Its effort score (851-4186): one the person rated, and Apple Watch's estimate.
+      CatalogState("Strength, rated effort", width: 760) {
+        detail({ _ in .none }, kind: 50, effort: { effortScore(7, after: $0) })
+      },
+      CatalogState("Run, estimated effort", width: 760) {
+        detail({ _ in .none }, effort: { effortScore(4.4, after: $0, estimated: true) })
+      },
+      // A swim, a ride and a run, each with an effort score of its own, and one for the whole.
+      CatalogState("Multisport, legs with effort", width: 760) { multisport() },
+      // Its heart rate guessed from its time (851-4186): its links haven't synced, or there were
+      // too many to.
+      CatalogState("Run, links not synced", width: 760) {
+        detail({ _ in .none }, heartRates: .notSynced)
+      },
+      CatalogState("Run, too many samples to link", width: 760) {
+        detail({ _ in .none }, heartRates: .tooMany)
       },
       CatalogState("Route loading", width: 760) { detail { _ in .loading } },
       CatalogState("Route failed", width: 760) {
@@ -80,23 +97,90 @@
     }
   }
 
-  /// The catalog database's latest workout of `kind` (37, a run), with its heart rates, and
-  /// recorded in the zone named `timeZone` (`HKTimeZone`) if given.
+  /// The catalog database's latest workout of `kind` (37, a run), with its heart rates (found as
+  /// `heartRates` says), recorded in the zone named `timeZone` (`HKTimeZone`) if given, and with
+  /// the effort score `effort` gives it, if any.
   @MainActor
   private func detail(
-    _ route: (HealthWorkout) -> RouteState, kind: Int = 37, timeZone: String? = nil
+    _ route: (HealthWorkout) -> RouteState, kind: Int = 37, timeZone: String? = nil,
+    heartRates origin: WorkoutHeartRates.Origin = .linked,
+    effort: (HealthWorkout) -> HealthSample? = { _ in nil }
   ) -> some View {
     var workout = workouts.first { $0.activityType == kind }!
     if let timeZone {
       workout.metadata = metadataRecorded(in: timeZone, workout.metadata)
     }
-    let heartRates = try! catalogDatabase.read { db in
+    return NavigationStack {
+      WorkoutDetailContent(
+        workout: workout,
+        heartRates: WorkoutHeartRates(samples: heartRates(during: workout), origin: origin),
+        effort: effort(workout).map { WorkoutEffort(score: $0) }, route: route(workout))
+    }
+  }
+
+  /// The catalog database's heart rates during `workout`: what its app would have added to it.
+  private func heartRates(during workout: HealthWorkout) -> [HealthSample] {
+    try! catalogDatabase.read { db in
       try HealthDatabase.samples(
         of: HealthDatabase.heartRateType,
         in: Date(unixMilliseconds: workout.startDate)..<Date(unixMilliseconds: workout.endDate), db)
     }
+  }
+
+  /// A made-up effort score of `value`, rated (or estimated) `minutes` after `workout` ended, as
+  /// scores often are.
+  private func effortScore(
+    _ value: Double, after workout: HealthWorkout, minutes: Int = 12, estimated: Bool = false,
+    id: String = "e1f0a7c3-0000-4000-8000-000000000001"
+  ) -> HealthSample {
+    let at = workout.endDate + minutes * 60_000
+    return HealthSample(
+      id: id,
+      type: estimated
+        ? HealthDatabase.estimatedWorkoutEffortScoreType : HealthDatabase.workoutEffortScoreType,
+      startDate: at, endDate: at, value: value, unit: "appleEffortScore",
+      sourceName: estimated ? "Apple Watch" : "Fitness",
+      sourceBundleID: estimated ? "com.apple.health" : "com.apple.Fitness")
+  }
+
+  /// The catalog database's latest run, made a multisport workout: a swim, a ride and a run in
+  /// turn, each with its own effort score, and one for the whole.
+  @MainActor
+  private func multisport() -> some View {
+    var workout = workouts.first { $0.activityType == 37 }!
+    workout.activityType = 82
+    let (start, end) = (workout.startDate, workout.endDate)
+    let third = (end - start) / 3
+    let legs = [(46, "a1"), (13, "a2"), (37, "a3")].enumerated().map { index, leg in
+      (
+        id: "5b2d9e10-0000-4000-8000-0000000000\(leg.1)", activityType: leg.0,
+        start: start + index * third, end: start + (index + 1) * third
+      )
+    }
+    workout.activities =
+      "["
+      + legs.map {
+        #"{"id":"\#($0.id)","activityType":\#($0.activityType),"startDate":\#($0.start),"#
+          + #""endDate":\#($0.end),"duration":\#(Double($0.end - $0.start) / 1000),"#
+          + #""locationType":3,"swimmingLocationType":0,"metadata":null,"statistics":{}}"#
+      }.joined(separator: ",") + "]"
+    let scores = [(6.0, "a1"), (8, "a2"), (9, "a3")]
+    let effort = WorkoutEffort(
+      score: effortScore(8, after: workout),
+      legs: Dictionary(
+        uniqueKeysWithValues: zip(legs, scores).map { leg, score in
+          (
+            leg.id,
+            effortScore(
+              score.0, after: workout, minutes: 13,
+              id: "e1f0a7c3-0000-4000-8000-0000000000\(score.1)")
+          )
+        }))
     return NavigationStack {
-      WorkoutDetailContent(workout: workout, heartRates: heartRates, route: route(workout))
+      WorkoutDetailContent(
+        workout: workout,
+        heartRates: WorkoutHeartRates(samples: heartRates(during: workout), origin: .linked),
+        effort: effort, route: .none)
     }
   }
 #endif

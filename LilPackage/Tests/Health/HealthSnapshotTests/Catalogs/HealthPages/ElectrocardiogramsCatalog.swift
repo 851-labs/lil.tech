@@ -28,9 +28,22 @@
       CatalogState("Sinus rhythm", width: 860) {
         detail(recordings[0], .loaded(HealthDatabase.syntheticElectrocardiogram()))
       },
+      // Symptoms logged, whose links haven't synced (an iPhone from before 851-4153): only that
+      // some were.
       CatalogState("Atrial fibrillation, symptoms", width: 860) {
         detail(
           recordings[1], .loaded(HealthDatabase.syntheticElectrocardiogram(beatsPerMinute: 104)))
+      },
+      // The symptoms linked to it, by name (851-4186), and how they were logged: in a section of
+      // their own after the details, since they load after the page opens.
+      CatalogState("Atrial fibrillation, linked symptoms", width: 860) {
+        detail(
+          recordings[1], .loaded(HealthDatabase.syntheticElectrocardiogram(beatsPerMinute: 104)),
+          symptoms: [
+            symptom(1, "RapidPoundingOrFlutteringHeartbeat", value: 0, of: recordings[1]),
+            symptom(2, "Dizziness", value: 2, of: recordings[1]),
+            symptom(3, "ShortnessOfBreath", value: 5, of: recordings[1]),
+          ])
       },
       // Stretches without a value, as when the finger leaves the crown.
       CatalogState("Poor recording, with gaps", width: 860) {
@@ -53,7 +66,10 @@
     // The trace's paper keeps its place and height, loading or not, so the details below stay put
     // (851-3091).
     sameLayout: [
-      ["Sinus rhythm", "Recording loading", "Recording failed", "Atrial fibrillation, symptoms"]
+      [
+        "Sinus rhythm", "Recording loading", "Recording failed", "Atrial fibrillation, symptoms",
+        "Atrial fibrillation, linked symptoms",
+      ]
     ])
 
   private func recording(
@@ -85,12 +101,25 @@
     }
   }
 
+  /// A made-up symptom logged with `recording`, of the type `HKCategoryTypeIdentifier<type>`, with
+  /// `HKCategoryValueSeverity`'s raw `value`.
+  private func symptom(
+    _ index: Int, _ type: String, value: Int, of recording: HealthElectrocardiogram
+  ) -> HealthSample {
+    HealthSample(
+      id: "7a3e5c90-0000-4000-8000-\(String(format: "%012d", index))",
+      type: "HKCategoryTypeIdentifier\(type)", startDate: recording.startDate,
+      endDate: recording.endDate, categoryValue: value, sourceName: "Apple Watch",
+      sourceBundleID: "com.apple.NanoHeartRhythm")
+  }
+
   @MainActor
   private func detail(
-    _ recording: HealthElectrocardiogram, _ trace: ElectrocardiogramDetailContent.Trace
+    _ recording: HealthElectrocardiogram, _ trace: ElectrocardiogramDetailContent.Trace,
+    symptoms: [HealthSample] = []
   ) -> some View {
     NavigationStack {
-      ElectrocardiogramDetailContent(recording: recording, trace: trace)
+      ElectrocardiogramDetailContent(recording: recording, trace: trace, symptoms: symptoms)
     }
   }
 #endif

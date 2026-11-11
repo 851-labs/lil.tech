@@ -67,6 +67,41 @@
       "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
     },
     {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.strength-rated-effort-dark.png",
+      "id" : "workouts.strength-rated-effort",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.strength-rated-effort-light.png",
+      "name" : "Strength, rated effort",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.run-estimated-effort-dark.png",
+      "id" : "workouts.run-estimated-effort",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.run-estimated-effort-light.png",
+      "name" : "Run, estimated effort",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.multisport-legs-with-effort-dark.png",
+      "id" : "workouts.multisport-legs-with-effort",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.multisport-legs-with-effort-light.png",
+      "name" : "Multisport, legs with effort",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.run-links-not-synced-dark.png",
+      "id" : "workouts.run-links-not-synced",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.run-links-not-synced-light.png",
+      "name" : "Run, links not synced",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
+    },
+    {
+      "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.run-too-many-samples-to-link-dark.png",
+      "id" : "workouts.run-too-many-samples-to-link",
+      "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.run-too-many-samples-to-link-light.png",
+      "name" : "Run, too many samples to link",
+      "source" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/WorkoutsCatalog.swift"
+    },
+    {
       "dark" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.route-loading-dark.png",
       "id" : "workouts.route-loading",
       "light" : "LilPackage/Tests/Health/HealthSnapshotTests/Catalogs/HealthPages/__Snapshots__/WorkoutsCatalog/workouts.route-loading-light.png",

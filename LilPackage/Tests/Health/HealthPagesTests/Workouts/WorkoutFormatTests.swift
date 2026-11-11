@@ -3,6 +3,7 @@ import CoreLocation
 import Foundation
 import HealthCatalog
 import HealthDatabase
+import SQLiteData
 import SwiftUI
 import Testing
 
@@ -161,5 +162,71 @@ struct WorkoutHeartRateTests {
       sample("watch", 150), sample("strap", 90), sample("watch", 152), sample("watch", 149),
     ]
     #expect(WorkoutDetailView.mainSource(samples).map(\.value) == [150, 152, 149])
+  }
+
+  /// The chart is the heart rate linked to the workout (851-4186), even another source's, and
+  /// not what else was recorded during it; until its links sync, the main source's during it.
+  @Test
+  func theChartUsesTheLinkedSamples() throws {
+    let database = try HealthDatabase.make()
+    let workout = HealthWorkout(
+      id: "w", activityType: 37, startDate: 0, endDate: 60_000, duration: 60, activities: "[]",
+      events: "[]", statistics: "{}", sourceName: "Test", sourceBundleID: "com.example")
+    let sample = { (id: String, source: String, at: Int) in
+      HealthSample(
+        id: id, type: WorkoutFormat.heartRate, startDate: at, endDate: at, value: 120,
+        unit: "count/min", sourceName: source, sourceBundleID: source)
+    }
+    try database.write { db in
+      try HealthSample.insert {
+        sample("w1", "watch", 1_000)
+        sample("w2", "watch", 2_000)
+        sample("w3", "watch", 3_000)
+        sample("s1", "strap", 1_500)
+      }
+      .execute(db)
+    }
+    let guessed = try database.read { db in try WorkoutLinkedData(workout, db) }
+    #expect(guessed.heartRates.samples.map(\.id) == ["w1", "w2", "w3"])
+    #expect(guessed.heartRates.origin == .notSynced)
+    try database.write { db in
+      try HealthWorkoutSamples.insert {
+        HealthWorkoutSamples(
+          id: "w", count: 1, samples: #"{"\#(WorkoutFormat.heartRate)":["s1"]}"#)
+      }
+      .execute(db)
+    }
+    let linked = try database.read { db in try WorkoutLinkedData(workout, db) }
+    #expect(linked.heartRates.samples.map(\.id) == ["s1"])
+    #expect(linked.heartRates.origin == .linked)
+    try database.write { db in
+      try HealthWorkoutSamples.upsert {
+        HealthWorkoutSamples(id: "w", count: 30_000, samples: nil)
+      }
+      .execute(db)
+    }
+    let tooMany = try database.read { db in try WorkoutLinkedData(workout, db) }
+    #expect(tooMany.heartRates.samples.map(\.id) == ["w1", "w2", "w3"])
+    #expect(tooMany.heartRates.origin == .tooMany)
+  }
+
+  @Test
+  func effortScoresAreRatedAsHealthRatesThem() {
+    let score = { (value: Double?, type: String) in
+      HealthSample(
+        id: "e", type: type, startDate: 0, endDate: 0, value: value, unit: "appleEffortScore",
+        sourceName: "Test", sourceBundleID: "com.example")
+    }
+    let rated = HealthDatabase.workoutEffortScoreType
+    #expect(WorkoutFormat.effort(score(2, rated)) == "2 · Easy")
+    #expect(WorkoutFormat.effort(score(6.4, rated)) == "6 · Moderate")
+    #expect(WorkoutFormat.effort(score(8, rated)) == "8 · Hard")
+    #expect(WorkoutFormat.effort(score(10, rated)) == "10 · All Out")
+    #expect(WorkoutFormat.effort(score(0, rated)) == "0")
+    #expect(WorkoutFormat.effort(score(nil, rated)) == nil)
+    #expect(WorkoutFormat.effortLabel(score(5, rated)) == "Effort")
+    #expect(
+      WorkoutFormat.effortLabel(score(5, HealthDatabase.estimatedWorkoutEffortScoreType))
+        == "Est. Effort")
   }
 }
