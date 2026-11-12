@@ -11,10 +11,13 @@ name: release lil health
 # A dry run builds, signs and notarizes the DMG, and archives and exports the iOS build, but
 # publishes nothing: no tag, release, appcast branch or upload.
 #
-# The signing secrets live in the `release` environment, which only main can deploy to and which
-# waits for Alexandru's approval on every run, since the minis are shared with Codevisor's CI. They
-# go into a keychain made for the job (never the login keychain) and a folder in the runner's temp
-# directory, both deleted when the job ends, however it ends. See docs/RELEASING.md.
+# The signing secrets live in the `release` environment, which only main can deploy to, since the
+# minis are shared with Codevisor's CI. It needs no approval (851-4222): a run starts as soon as
+# it's dispatched (behind a release already running, below), so anyone with push access can ship a
+# signed release and a TestFlight upload, and the `main`-only checks, the `dry-run` default and the
+# refusal of a tagged version are what's left (docs/decisions/distribution.md › No approval). The
+# secrets go into a keychain made for the job (never the login keychain) and a folder in the
+# runner's temp directory, both deleted when the job ends, however it ends. See docs/RELEASING.md.
 #
 # One release at a time per platform, never cancelled halfway: each job queues in its own
 # concurrency group (`queue: max`, as in main.yml, since the default keeps one waiting run and
@@ -59,7 +62,7 @@ jobs:
     name: build mac dmg
     if: github.ref == 'refs/heads/main' && inputs.target != 'ios'
     # Shared with Codevisor, in the "Mac minis" runner group, which lets any lil.tech workflow use
-    # them: the environment is what keeps the secrets to main and to runs Alexandru approves.
+    # them: the environment is what keeps the secrets to main's runs.
     runs-on: [self-hosted, macOS, ARM64, codevisor-macos-arm64]
     environment: release
     concurrency:
@@ -294,7 +297,7 @@ jobs:
             echo "Installed copies are offered the update once it merges. Add a description to the item first if it has none."
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Alongside mac, not after it, so one approval starts both. With target `both`, it checks the
+  # Alongside mac, not after it, so neither waits for the other. With target `both`, it checks the
   # version isn't released yet as mac does, but a Mac release that fails later doesn't stop the
   # upload: rerun mac from the same commit, which gives it the same build number.
   ios:
