@@ -3,6 +3,21 @@
   <channel>
     <title>lil health</title>
     <item>
+      <title>0.5.0</title>
+      <pubDate>Thu, 12 Nov 2026 00:34:06 +0000</pubDate>
+      <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.5.0</link>
+      <sparkle:version>541</sparkle:version>
+      <sparkle:shortVersionString>0.5.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<ul><li>Custom cards: build Summary’s cards from any Health type, with a live preview, and reorder, edit or delete them, on the Mac and the iPhone</li><li>Agents you connect can read every kind of Health data lil health syncs, and create, edit and reorder cards</li><li>Nights follow the time zone they were recorded in, and details show a Time Zone row</li><li>Workouts and ECGs show the heart rate, effort score and symptoms Health linked to them</li><li>Noise notifications show their level and duration again, and sample details name their metadata in words</li></ul>]]></description>
+      <enclosure
+        url="https://github.com/851-labs/lil.tech/releases/download/health%2Fv0.5.0/lil-health-0.5.0.dmg"
+        length="38890525"
+        type="application/octet-stream"
+        sparkle:edSignature="nBsY/BkQJ9CR0emOfr7XDG3b2Z5x79CqYGPVQfn/H6EmK3djfj9pACDZyUnaZBnKnqJc6WqKOki5pPXOvz2vDg=="
+      />
+    </item>
+    <item>
       <title>0.4.2</title>
       <pubDate>Fri, 23 Oct 2026 15:23:28 +0000</pubDate>
       <link>https://github.com/851-labs/lil.tech/releases/tag/health%2Fv0.4.2</link>
