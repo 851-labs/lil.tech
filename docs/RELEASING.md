@@ -19,7 +19,7 @@ or Actions › release lil health › Run workflow. The inputs:
 - `dry-run` (on by default): build, sign and notarize the DMG, and archive and export the iOS build, but publish nothing (no tag, release, appcast branch or upload).
 - `appcast-notes` (optional): what's new, as one line of HTML for the appcast item's `<description>`, like the earlier items'. Without it, add one in the appcast PR.
 
-Each run starts as soon as it's dispatched from `main`, with no approval (the `release` environment, [below](#the-release-environment)):
+Each run dispatched from `main` starts with no approval (the `release` environment, [below](#the-release-environment)), behind any release already running for its platform (below), and:
 
 1. **mac** (`build mac dmg` in the run's graph) runs `scripts/release health <version>` headless (below): every check and step of a local release, from archive to `enclosure.txt`. The run's summary shows the build number and the enclosure.
 2. **publish-mac** (`publish mac release`, not in a dry run) tags `health/v<version>` on the released commit, makes the GitHub release with the DMG, and pushes the branch `release/health-v<version>`, which adds the item to `appcasts/health.xml`. **Open its PR from the link in the run's summary**, check it, and merge it after `pr-ok` passes. The workflow can't open the PR itself: the repo doesn't let Actions open pull requests, and GitHub runs no workflows (so no `pr-ok`) for one its token opened. The release's notes are one line; write the real ones with `gh release edit health/v<version> --notes-file …`.
@@ -56,9 +56,8 @@ Set one by piping it in, so it never reaches a terminal or a file in the repo: `
 ### The `release` environment
 
 - **Deployable only from `main`** (a deployment branch policy), and the jobs check `github.ref` too. A fork's pull request can't use it, and gets no secrets anyway.
-- **No required reviewer** (851-4222, Alexandru, 2026-11-12): a run dispatched from `main` starts at once. Until then Alexandru (`pondorasti`) approved each one, with no admin bypass; `can_admins_bypass` is still off, so a reviewer added again would bind admins too.
+- **No required reviewer** (851-4222): a run needs no one's approval, so anyone with push access can ship a signed Mac release and a TestFlight upload. Why, and what's left in its place: `docs/decisions/distribution.md` › Releases from GitHub Actions › No approval.
 - Why the branch policy: the "Mac minis" runner group lets any lil.tech workflow run on them, and they're shared with Codevisor's CI, so the environment is what keeps the secrets to `main`'s workflows.
-- **The trade-off:** anyone with push access can dispatch a signed Mac release and a TestFlight upload, with no one in the loop, on the shared minis. What's left is `main` itself (only merged code runs with the secrets), `dry-run` being on by default, and a Mac release (and `both`'s upload) refusing a version that's already tagged. So start a real release only when asked.
 
 ### What stays on the minis
 
