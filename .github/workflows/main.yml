@@ -1,21 +1,17 @@
 name: main
 
-# Everything GitHub runs for a merge to main (851-2826). pr.yml runs what happens before one.
-# - changes: which parts the merge touches (`.github/actions/changes`). The jobs below skip the rest.
-# - deploy: the TypeScript workspace to staging (api.staging.lil.tech), then prod (api.lil.tech),
-#   checking each serves the merge (`.github/actions/check-deploy`).
-# - check: the Swift checks again, on the merged code, and the iPhone's state catalogs in the
-#   simulator (`swift-check.yml`).
-# - pixelbook: publishes the merge's state catalog images to Pixelbook, and points its main at them.
+# Everything GitHub runs for a merge to main. pr.yml runs what happens before one.
+# - changes: whether the merge touches the site (`.github/actions/changes`).
+# - deploy: the site (`Web/site`) to staging (staging.lil.tech), then prod (lil.tech), checking
+#   each serves the merge (`.github/actions/check-deploy`).
 #
-# Nothing here is ever cancelled, so every merge is deployed and checked: jobs that must not
-# overlap queue in order (`queue: max` keeps up to 100 waiting, where the default keeps one and
-# cancels the rest).
+# Nothing here is ever cancelled, so every merge is deployed: deploys queue in the order of the
+# merges (`queue: max` keeps up to 100 waiting, where the default keeps one and cancels the rest).
 
 on:
   push:
     branches: [main]
-  # Checks main's Swift again. It never deploys.
+  # Deploys main again, whatever changed.
   workflow_dispatch:
 
 permissions:
@@ -33,16 +29,13 @@ jobs:
     name: determine changes
     runs-on: ubuntu-latest
     outputs:
-      swift: ${{ steps.changes.outputs.swift }}
-      services: ${{ steps.changes.outputs.services }}
-      healthkit: ${{ steps.changes.outputs.healthkit }}
+      site: ${{ steps.changes.outputs.site }}
     steps:
       - uses: actions/checkout@v7
         # Quiets git's hint about the initial branch's name when checkout runs `git init`, and its
-        # advice after checking out a commit, 13 and 15 lines (851-4052), as `-c` would. On the
-        # checkout steps only, since a workflow's `env` is listed in every step's header. Anchors
-        # don't reach other files, so pr.yml has the same block. Checkout's "Updating files" meter
-        # stays: it always runs `git checkout --progress`, and `show-progress` only reaches the fetch.
+        # advice after checking out a commit, as `-c` would. On the checkout steps only, since a
+        # workflow's `env` is listed in every step's header. Anchors don't reach other files, so
+        # pr.yml has the same block.
         env: &quiet-git
           GIT_CONFIG_COUNT: "2"
           GIT_CONFIG_KEY_0: init.defaultBranch
@@ -59,7 +52,7 @@ jobs:
   deploy:
     name: deploy staging and prod
     needs: changes
-    if: needs.changes.outputs.services == 'true' && github.event_name == 'push'
+    if: needs.changes.outputs.site == 'true'
     # One deploy at a time, in the order of the merges.
     concurrency:
       group: main-deploy
@@ -69,76 +62,31 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      # Staging and prod revoke Sign in with Apple tokens (851-2612). Previews don't get it.
-      LIL_APPLE_SIGN_IN_KEY: ${{ secrets.LIL_APPLE_SIGN_IN_KEY }}
-      # Staging and prod sign in with Google on the agents' authorization page (851-2850).
-      # Previews don't get it.
-      LIL_GOOGLE_WEB_CLIENT_SECRET: ${{ secrets.LIL_GOOGLE_WEB_CLIENT_SECRET }}
     steps:
       - uses: actions/checkout@v7
         env: *quiet-git
-      - name: set up services
-        uses: ./.github/actions/setup-services
-      - name: find the version
-        id: version
-        run: echo "version=$(git describe --always --dirty --exclude '*')" >> "$GITHUB_OUTPUT"
+      - name: set up
+        uses: ./.github/actions/setup
       - name: deploy staging
-        run: pnpm run deploy:staging --yes
-        working-directory: Services/api
+        id: staging
+        working-directory: Web/site
+        run: |
+          pnpm run deploy:staging --yes
+          # What the deploy wrote and uploaded (`pnpm run version`).
+          echo "version=$(cat public/version.txt)" >> "$GITHUB_OUTPUT"
       - name: check staging serves this commit
         uses: ./.github/actions/check-deploy
         with:
-          url: https://api.staging.lil.tech
-          version: ${{ steps.version.outputs.version }}
+          url: https://staging.lil.tech
+          version: ${{ steps.staging.outputs.version }}
       - name: deploy prod
-        run: pnpm run deploy:prod --yes
-        working-directory: Services/api
+        id: prod
+        working-directory: Web/site
+        run: |
+          pnpm run deploy:prod --yes
+          echo "version=$(cat public/version.txt)" >> "$GITHUB_OUTPUT"
       - name: check prod serves this commit
         uses: ./.github/actions/check-deploy
         with:
-          url: https://api.lil.tech
-          version: ${{ steps.version.outputs.version }}
-
-  check:
-    name: swift
-    needs: changes
-    if: needs.changes.outputs.swift == 'true'
-    uses: ./.github/workflows/swift-check.yml
-    with:
-      iphone: true
-      # Only when the merge touched what they're built from or read, as for pull requests.
-      healthkit: ${{ needs.changes.outputs.healthkit == 'true' }}
-
-  # Publishes the merge's state catalog images to Pixelbook and points main at them
-  # (`scripts/pixelbook publish`, 851-2955). They're the catalogs' committed references, read with
-  # git, so it needs no Mac and renders nothing. A merge whose catalogs a branch already published
-  # (its PR's head, when it was up to date with main) only moves pointers.
-  pixelbook:
-    name: publish pixelbook
-    if: github.event_name == 'push'
-    # In order, so main's pointer doesn't move back.
-    concurrency:
-      group: main-pixelbook
-      cancel-in-progress: false
-      queue: max
-    runs-on: ubuntu-latest
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-    steps:
-      - uses: actions/checkout@v7
-        env: *quiet-git
-      - name: set up services
-        uses: ./.github/actions/setup-services
-      - name: publish snapshots and point main at them
-        run: |
-          # All of main, so a late or re-run job can tell its commit is behind main's pointer. The
-          # checkout is the commit alone: `fetch-depth: 0` fetched every other branch and tag too,
-          # listing each in the log (851-4200). Tried 3 times, as checkout does.
-          for attempt in 1 2 3; do
-            git fetch --quiet --no-tags --unshallow origin \
-              +refs/heads/main:refs/remotes/origin/main && break
-            [ "$attempt" = 3 ] && exit 1
-            sleep $((attempt * 10))
-          done
-          scripts/pixelbook publish --ref main
+          url: https://lil.tech
+          version: ${{ steps.prod.outputs.version }}

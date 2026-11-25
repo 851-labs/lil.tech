@@ -1,19 +1,20 @@
 name: Check a deploy
 description: >-
-  Waits until a deployed API reports the expected version at /v1/status, and notes in the job
-  summary that it does, or the last response if it never did. New custom domains and edge caches
-  take a moment, so it polls every 5 seconds until the timeout.
+  Waits until a deployed site serves the expected version at /version.txt (written before each
+  deploy, `pnpm run version` in Web/site), and notes in the job summary that it does, or the last
+  response if it never did. New custom domains, their certificates and edge caches take a moment,
+  so it polls every 5 seconds until the timeout.
 inputs:
   url:
-    description: The API's base URL (e.g. `https://api.staging.lil.tech`).
+    description: The site's base URL (e.g. `https://staging.lil.tech`).
     required: true
   version:
-    description: The version the deploy should report (`git describe --always --dirty --exclude '*'`).
+    description: The version the deploy should serve (`git describe --always --dirty --exclude '*'`).
     required: true
   timeout:
     description: Seconds to wait before giving up.
     required: false
-    default: "120"
+    default: "300"
 runs:
   using: composite
   steps:
@@ -27,12 +28,16 @@ runs:
           echo "error: timeout must be a whole number of seconds, not '$TIMEOUT'" >&2
           exit 1
         fi
-        url="${URL%/}/v1/status"
+        if [ -z "$EXPECTED" ]; then
+          echo "error: no version to expect" >&2
+          exit 1
+        fi
+        url="${URL%/}/version.txt"
         deadline=$(($(date +%s) + TIMEOUT))
         # Asks at least once, however short the timeout.
         while :; do
-          body=$(curl -sS -m 5 "$url" 2>/dev/null || true)
-          if [[ "$body" == *"\"version\":\"$EXPECTED\""* ]]; then
+          body=$(curl -sS -m 5 "$url" 2>/dev/null | head -c 200 || true)
+          if [ "$body" = "$EXPECTED" ]; then
             echo "$url: $body"
             echo "$url serves \`$EXPECTED\`." >> "$GITHUB_STEP_SUMMARY"
             exit 0
@@ -40,6 +45,8 @@ runs:
           [ "$(date +%s)" -lt "$deadline" ] || break
           sleep 5
         done
-        echo "error: $url didn't report version $EXPECTED. Last response: ${body:-none}" >&2
-        echo "$url didn't report \`$EXPECTED\`. Last response: \`${body:-none}\`" >> "$GITHUB_STEP_SUMMARY"
+        # One line, without backticks, so a page served instead of the file can't break the summary.
+        last=$(tr -d '`' <<< "${body:-none}" | head -n 1 | cut -c 1-80)
+        echo "error: $url didn't serve version $EXPECTED. Last response: $last" >&2
+        echo "$url didn't serve \`$EXPECTED\`. Last response: \`$last\`" >> "$GITHUB_STEP_SUMMARY"
         exit 1

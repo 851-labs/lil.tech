@@ -1,1 +1,0 @@
-../../Health/HealthSnapshotTests/StateCatalog.swift

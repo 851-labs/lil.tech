@@ -1,1 +1,0 @@
-ALTER TABLE `agent_grants` ADD `first_used_at` integer;

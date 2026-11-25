@@ -3,351 +3,66 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Connect an AI agent · lil</title>
+    <title>AI agents · lil</title>
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
     <main>
-      <h1>Connect an AI agent</h1>
+      <h1>AI agents</h1>
       <p class="muted">lil · Claude, Claude Code, ChatGPT and other agents</p>
 
       <p>
-        Connect an AI agent to your lil health account, then ask it about your Health data: how you
-        slept this week, how your resting heart rate has changed this year, or what workouts you did
-        last month. The agent reads your data from lil health's servers, so it works wherever the
-        agent runs, without your Mac.
+        <strong>AI agents can no longer connect to lil health.</strong> lil health and lil messages
+        are discontinued. The service shut down on November 25, 2026, and every account's synced
+        data was deleted from my servers that day, with each agent's connection and the log of what
+        agents read.
       </p>
       <p>
-        You need a lil health account with your Health data in it: set up lil health on your iPhone
-        first. When the agent asks you to sign in, use the same Apple ID or Google account.
+        The servers agents connected to, <code>https://mcp.lil.tech</code> and
+        <code>https://mcp.lil.tech/health</code>, no longer exist. An agent that still has one of
+        them reads nothing: its requests fail. Nothing can be connected again.
       </p>
 
-      <h2 id="urls">The URL</h2>
-      <p>
-        Add one of these URLs to your agent as a remote MCP server (some agents call it a
-        connector):
-      </p>
+      <h2>Remove lil from your agent</h2>
+      <p>The connector does nothing now, so you can remove it:</p>
       <ul>
         <li>
-          <strong>Every lil app:</strong> <code>https://mcp.lil.tech</code>. One connector for all
-          of your lil apps. Use this one unless your agent should only ever see lil health.
-        </li>
-        <li><strong>lil health only:</strong> <code>https://mcp.lil.tech/health</code>.</li>
-      </ul>
-      <p>
-        lil health is the only lil app agents can read for now, so both read the same data. Their
-        tools are named differently (see <a href="#tools">Tools</a>).
-      </p>
-      <p>
-        The agent then opens a page in your browser: lil's for <code>https://mcp.lil.tech</code>,
-        which lists every app the agent will read, or lil health's. Sign in with Apple or Google,
-        check which agent is asking, and click Allow.
-      </p>
-
-      <h2>Claude</h2>
-      <p>On claude.ai, or in the Claude app on your Mac or PC:</p>
-      <ol>
-        <li>Open Customize › Connectors (Settings › Connectors in some versions).</li>
-        <li>Click Add, then Add custom connector.</li>
-        <li>
-          Name it lil, paste <code>https://mcp.lil.tech</code>, and add it. (Or name it lil health,
-          with lil health's URL.)
-        </li>
-        <li>Click Connect, then sign in and allow Claude.</li>
-      </ol>
-      <p>
-        On a Team or Enterprise plan, an owner adds the connector in Organization settings ›
-        Connectors first. Then you find it in Customize › Connectors and click Connect.
-      </p>
-
-      <h2>Claude Code</h2>
-      <p>In a terminal:</p>
-      <pre><code>claude mcp add --transport http lil https://mcp.lil.tech</code></pre>
-      <p>
-        Then, in Claude Code, run <code>/mcp</code>, choose lil, and authenticate. Your browser
-        opens lil's page. If you already have a server named lil, such as
-        <a href="#on-your-mac"><code>lil mcp</code></a
-        >, give this one another name.
-      </p>
-      <p>For lil health only:</p>
-      <pre><code>claude mcp add --transport http lil-health https://mcp.lil.tech/health</code></pre>
-
-      <h2>ChatGPT</h2>
-      <p>
-        ChatGPT can add a custom MCP server on some plans and workspaces, sometimes only in
-        developer mode, and its menus change often. Today, on chatgpt.com:
-      </p>
-      <ol>
-        <li>Open Plugins, click the plus button, then Add custom MCP server.</li>
-        <li>
-          Name it lil, paste <code>https://mcp.lil.tech</code> as the Server URL (or lil health's
-          URL), and choose OAuth.
-        </li>
-        <li>Create it, sign in and allow ChatGPT, then install the plugin.</li>
-        <li>In a chat, type @ and choose it by the name you gave it.</li>
-      </ol>
-      <p>
-        If your ChatGPT looks different, see OpenAI's guide to
-        <a href="https://developers.openai.com/api/docs/guides/custom-mcp-server"
-          >adding a custom MCP server</a
-        >.
-      </p>
-
-      <h2>Other agents</h2>
-      <p>
-        Any agent that supports remote MCP servers over Streamable HTTP, with OAuth sign-in, can
-        connect: give it one of the URLs above. lil registers it when it connects, so there's no
-        client ID or secret to enter.
-      </p>
-
-      <h2 id="tools">Tools</h2>
-      <p>
-        Through <code>https://mcp.lil.tech</code>, each tool's name starts with its app's:
-        <code>health.summary</code>, <code>health.metric</code> and so on. Through lil health's URL,
-        the same tools have just their own names: <code>summary</code>, <code>metric</code>. Some
-        agents show them their own way: Claude Code, for example, as
-        <code>mcp__lil__health_summary</code>.
-      </p>
-      <p>lil health's tools:</p>
-      <ul>
-        <li><code>summary</code>: start here. What lil health's Summary shows.</li>
-        <li><code>list_types</code>: the kinds of Health data you have.</li>
-        <li>
-          <code>metric</code>: a statistic over a day, week, month, six months or a year, such as
-          steps or resting heart rate.
+          <strong>Claude</strong> (claude.ai, or the Claude app): open Customize › Connectors
+          (Settings › Connectors in some versions) and remove the connector you added.
         </li>
         <li>
-          <code>samples</code>: individual records, a page at a time, with the app and device each
-          came from and what Health noted about it, such as whether it was entered by hand.
+          <strong>Claude Code:</strong> <code>claude mcp remove</code> with the name you gave it,
+          such as <code>claude mcp remove lil</code> or <code>claude mcp remove lil-health</code>.
         </li>
-        <li><code>workouts</code>, <code>sleep</code> and <code>medications</code>.</li>
-        <li>
-          <code>workout</code>: one workout in full, with its heart rate, power, cadence, laps,
-          splits, pauses, weather, effort score and a triathlon's legs.
-        </li>
-        <li>
-          <code>workout_routes</code> and <code>workout_route</code>: GPS routes, with their
-          distance, climb and a simplified shape, and <code>workout_route_points</code>: a route's
-          every point, a page at a time, only when an agent asks for them.
-        </li>
-        <li>
-          <code>activity_rings</code>: each day's Move, Exercise and Stand rings, with their goals.
-        </li>
-        <li>
-          <code>state_of_mind</code>: logged emotions and moods, how pleasant each felt, the
-          feelings and what they were about.
-        </li>
-        <li>
-          <code>assessments</code>: GAD-7 (anxiety) and PHQ-9 (depression) questionnaires, with
-          their scores, risk and answers.
-        </li>
-        <li>
-          <code>electrocardiograms</code>: ECG recordings, with their classification, average heart
-          rate and the symptoms logged with them.
-        </li>
-        <li>
-          <code>electrocardiogram_voltages</code>: one ECG's voltages, a few seconds at a time, only
-          when an agent asks for them.
-        </li>
-        <li>
-          <code>heartbeat_series</code>: Apple Watch's beat-to-beat measurements, with each one's
-          average heart rate and heart rate variability (SDNN and RMSSD).
-        </li>
-        <li>
-          <code>heartbeat_series_beats</code>: one measurement's beats, a page at a time, only when
-          an agent asks for them.
-        </li>
-        <li>
-          <code>audiograms</code>: hearing test results, with each ear's hearing level and its
-          sensitivity at each frequency.
-        </li>
-        <li>
-          <code>health_documents</code>: the clinical documents you shared, such as visit summaries,
-          with their title, patient, author, custodian and date.
-        </li>
-        <li>
-          <code>health_document</code>: one document's content, as your provider wrote it, a page at
-          a time, only when an agent asks for it.
-        </li>
-        <li>
-          <code>medication_doses</code>: each medication dose you logged, skipped or missed, a page
-          at a time.
-        </li>
-        <li><code>health_details</code>: date of birth, sex, blood type and so on.</li>
-        <li><code>search</code>: finds kinds of data by name, such as “blood pressure”.</li>
-        <li><code>sync_status</code>: how fresh the data is.</li>
-      </ul>
-      <p>Its card tools (see <a href="#cards">Cards</a>):</p>
-      <ul>
-        <li><code>list_cards</code>: your cards, in Summary's order.</li>
-        <li><code>get_card</code>: a card and its chart's numbers for a period.</li>
-        <li>
-          <code>preview_card</code>: tries a card out without saving it, so the agent can check what
-          it would show first.
-        </li>
-        <li>
-          <code>create_card</code>, <code>update_card</code>, <code>delete_card</code> and
-          <code>reorder_cards</code>: change your cards, if you allowed it to when you connected it
-          (see <a href="#cards">Cards</a>).
-        </li>
+        <li><strong>ChatGPT:</strong> open Plugins and remove the custom MCP server you added.</li>
+        <li><strong>Other agents:</strong> remove the remote MCP server with lil's URL.</li>
       </ul>
 
-      <h2>What an agent can read</h2>
-      <ul>
-        <li>
-          <strong>All of your lil health data,</strong> the most sensitive kinds included: ECGs,
-          State of Mind and anxiety and depression scores (GAD-7, PHQ-9), hearing tests,
-          medications, cycle tracking, clinical documents and your workout routes' precise
-          locations. There's no way to share only some kinds of data, and an agent can't change or
-          delete your Health data. Through <code>https://mcp.lil.tech</code>, the same goes for
-          every app its page listed.
-        </li>
-        <li>
-          <strong>Not Health Records,</strong> the clinical records your healthcare providers send
-          to Apple Health, which lil health doesn't read.
-        </li>
-        <li>
-          <strong>Your cards,</strong> which it can also change if you allowed it to (see
-          <a href="#cards">Cards</a>).
-        </li>
-        <li>
-          <strong>Summaries first:</strong> today's numbers, totals and averages over a day, week,
-          month, six months or a year, workouts, sleep, medications and your health details. It
-          reads individual records only when it asks for them, a page at a time.
-        </li>
-        <li>
-          <strong>Days in UTC</strong> unless the agent asks for your time zone, since lil health's
-          servers don't know where you are. Tell your agent where you are if its days look off. When
-          a record says which time zone it was recorded in, as your Apple Watch's workouts and sleep
-          do, the agent also sees that zone and the record's times on its clock, and a night is
-          dated by the zone you slept in, as Apple Health does.
-        </li>
-        <li>
-          <strong>Agents send what they read to their provider,</strong> such as Anthropic or
-          OpenAI, under the provider's own privacy policy.
-        </li>
-      </ul>
+      <h2 id="on-your-mac">Agents on your Mac</h2>
       <p>
-        lil health logs every time an agent reads your data or changes a card: what it asked for or
-        which card it changed, and when, never the answers. You can see the log in lil health: on
-        your Mac, Remote Access Log in Settings › Agents; on your iPhone, Recent Access in Settings
-        › Connected Agents. It's kept for 90 days. The
-        <a href="/privacy#agents">privacy policy</a> has the details.
+        lil health for Mac could also let agents read the copy of your Health data on your Mac,
+        through a local MCP server (<code>lil mcp</code> or <code>lil health mcp</code>). That copy
+        is still on your Mac, and it's no longer updated. If you connected an agent that way, remove
+        the server from it the same way, for example <code>claude mcp remove lil</code>.
+      </p>
+      <p>
+        To remove the <code>lil</code> command, delete it from where you installed it:
+        <code>/usr/local/bin/lil</code>, or <code>.local/bin/lil</code> in your home folder. The
+        <a href="/privacy">Privacy Policy</a> says how to remove lil health's copy of your data from
+        your Mac.
       </p>
 
-      <h2 id="cards">Cards</h2>
+      <h2>What agents already read</h2>
       <p>
-        Cards are the charts on lil health's Summary. An agent can create cards for you, change what
-        they show, their names, icons and colors, reorder them, and delete them, so you can ask it
-        for a chart in your own words, such as “add a card with my heart rate while I sleep”. It
-        can't change your Health data. Its changes sync to your Mac and iPhone, and you can edit or
-        delete its cards yourself.
-      </p>
-      <p>Some cards to ask for:</p>
-      <ul>
-        <li>“Add a card with my body temperature as a line, over a month.”</li>
-        <li>“Add a card with my average heart rate while I'm asleep, each night.”</li>
-        <li>“Add a card with my HRV as dots over a month, with a moving average line.”</li>
-        <li>“Add a card with my heart rate in the 5 minutes before I fall asleep, each night.”</li>
-        <li>
-          “Add a Morning Weight card: my first weigh-in before noon each day as dots, and a 7-day
-          rolling average as a line.”
-        </li>
-      </ul>
-      <p>
-        Agents are asked to try a card out before adding it, and new cards go at the end of your
-        Summary. Ask for changes the same way, such as “show my sleeping heart rate over six
-        months”.
-      </p>
-      <p>
-        When an agent connects, its page tells you whether it will be able to manage your cards as
-        well as read your data. Agents usually ask for both, and you allow all of it or nothing. An
-        agent you connected before, whose page didn't mention cards, can read them but not change
-        them: to let it, remove it and connect it again.
+        An agent sent what it read to its provider's servers (for example Anthropic's or OpenAI's).
+        Shutting lil health down didn't delete that: the provider handles it under its own terms and
+        privacy policy, so ask the provider.
       </p>
 
-      <h2>Stop an agent</h2>
-      <ul>
-        <li>
-          <strong>On your Mac:</strong> in lil health, open Settings › Agents. Click Revoke… next to
-          an agent, or Turn Off Agent Access… to disconnect them all.
-        </li>
-        <li>
-          <strong>On your iPhone:</strong> in lil health, open Settings › Connected Agents. Swipe
-          left on an agent to revoke it, or tap Turn Off Agent Access.
-        </li>
-      </ul>
-      <p>
-        An agent connected through <code>https://mcp.lil.tech</code> is listed in every lil app it
-        reads, marked All lil apps. Revoking it in any of them disconnects it from all of them.
-        Turning off agent access in one app stops every agent reading that app, these included.
+      <p class="muted">
+        <a href="/">lil.tech</a> · <a href="/privacy">Privacy Policy</a> ·
+        <a href="mailto:hello@851.sh">hello@851.sh</a>
       </p>
-      <p>
-        The agent is cut off at its next request. You can also remove it in the agent itself: in
-        Claude, Customize › Connectors; in Claude Code, <code>claude mcp remove</code> with the name
-        you gave it (such as <code>lil</code> or <code>lil-health</code>). Connecting again asks you
-        to sign in and allow it again.
-      </p>
-
-      <h2 id="on-your-mac">Agents on your Mac only</h2>
-      <p>
-        lil health for Mac can also let agents read the copy of your Health data on your Mac,
-        through a local MCP server that the agent starts itself. It works offline, and nothing
-        leaves your Mac except what the agent sends to its provider. It can manage your cards there
-        too: lil health makes its changes, which sync to your other devices.
-      </p>
-      <ol>
-        <li>
-          Install the <code>lil</code> command with lil health › Install Command Line Tool… (until
-          it's installed, Settings › Agents has the same button, under Connect an Agent).
-        </li>
-        <li>
-          Signed in to lil health for Mac, open Settings › Agents and turn on “Allow access on this
-          Mac” (“Allow command-line and agent access” in earlier versions). It's off until you do.
-          It also lets the <code>lil</code> command, Shortcuts, Siri and Spotlight read your Health
-          data and export it. The Access Log under it shows what read your data, and when.
-        </li>
-        <li>
-          Connect your agent to <code>lil mcp</code>: one local server for every lil app, with lil
-          health's tools among them. Under Connect an Agent, Settings › Agents copies the commands
-          with <code>lil</code>'s full path, which works even when the agent is started from an app
-          rather than a terminal.
-        </li>
-      </ol>
-      <p>In Claude Code:</p>
-      <pre><code>claude mcp add --scope user lil -- lil mcp</code></pre>
-      <p>
-        Other agents take a local (stdio) server, with the argument <code>mcp</code>. Its command is
-        <code>lil</code>'s full path: <code>/usr/local/bin/lil</code>, or
-        <code>.local/bin/lil</code> in your home folder, depending on where you installed it. Use
-        the full path in Claude Code too if it can't find <code>lil</code>.
-      </p>
-      <p>
-        <strong>For lil health only,</strong> connect an agent to <code>lil health mcp</code>
-        instead. Settings › Agents doesn't show this one. In Claude Code:
-      </p>
-      <pre><code>claude mcp add --scope user lil-health -- lil health mcp</code></pre>
-      <p>
-        Other agents take the same command, with the arguments <code>health mcp</code>. Its tools
-        have just their own names, such as <code>summary</code>, as through lil health's URL (see
-        <a href="#tools">Tools</a>).
-      </p>
-
-      <h2>If something doesn't work</h2>
-      <ul>
-        <li>
-          <strong>“No lil health account uses this Apple ID”</strong> (or Google account): sign in
-          with the account you use in lil health on your iPhone. Accounts can't be created on the
-          web.
-        </li>
-        <li>
-          <strong>The agent finds no data:</strong> open lil health on your iPhone and check that it
-          has uploaded your Health data.
-        </li>
-      </ul>
-      <p>Anything else: <a href="mailto:hello@851.sh">hello@851.sh</a>.</p>
-
-      <p class="muted"><a href="/">lil.tech</a> · <a href="/privacy">Privacy Policy</a></p>
     </main>
   </body>
 </html>

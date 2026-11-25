@@ -1,58 +1,29 @@
 packages:
-  # Servers and web projects (`docs/DECISIONS.md`); a folder with a package.json joins.
-  - Services/*
+  # Web projects; a folder with a package.json joins.
   - Web/*
 
 catalogMode: prefer
 
 catalog:
-  "@base-ui/react": 1.9.0
-  "@dagrejs/dagre": 3.1.1
   "@effect/platform-node": 4.0.4
-  "@effect/sql-d1": 4.0.4
-  "@effect/sql-sqlite-node": 4.0.4
-  "@effect/vitest": 4.0.4
-  "@fontsource-variable/inter": 5.3.0
-  "@tailwindcss/vite": 4.3.3
-  "@tanstack/react-router": 1.170.45
-  "@tanstack/react-start": 1.169.3
   "@types/node": ^24
-  "@types/react": 19.3.0
-  "@types/react-dom": 19.3.0
-  "@vitejs/plugin-react": 6.1.2
-  "@xyflow/react": 12.12.0
   alchemy: 2.0.0-beta.83
-  # The exact build alchemy@2.0.0-beta.83 is built against (its Drizzle bindings).
-  drizzle-kit: 1.0.0-rc.5-ab785fc
-  drizzle-orm: 1.0.0-rc.5-ab785fc
   effect: 4.0.4
-  jose: 6.2.12
-  react: 19.3.1
-  react-dom: 19.3.1
-  tailwindcss: 4.3.3
   typescript: ^7.0.2
   vite-plus: 1.1.0
 
 overrides:
-  # Vite+ ships its own Vite build. Point every `vite` at it so @effect/vitest
-  # and `vp test` share one Vitest instance.
+  # Vite+ ships its own Vite build. Point every `vite` at it.
   vite: npm:@voidzero-dev/vite-plus-core@1.1.0
 peerDependencyRules:
   allowedVersions:
-    # Vite+ core reports its own version (1.x), which satisfies Vitest's `vite` peer.
+    # Vite+ core reports its own version (1.x), which satisfies a `vite` peer.
     vite: "*"
     # Alchemy's capnp-es (Worker config encoding) declares TypeScript 5/6; it runs fine with 7.
     capnp-es>typescript: "*"
 allowBuilds:
-  # Downloads the local Workers runtime used by `alchemy dev`.
+  # Alchemy's dependencies. workerd downloads the local Workers runtime (`alchemy dev`). esbuild's
+  # binary comes as an optional dependency, so its install script (which only checks for the
+  # binary) isn't needed. Deciding keeps pnpm from failing the install over them.
   workerd: true
-  # drizzle-kit's bundler. Its binary comes as an optional dependency, so its install script
-  # (which only checks for the binary) isn't needed.
   esbuild: false
-# Agent skills that dependencies bundle aren't installed: the repo's skills are its own (AGENTS.md).
-# Deciding keeps pnpm from asking on every install (851-3229).
-permissions:
-  "@tanstack/react-start":
-    skills: false
-  drizzle-kit:
-    skills: false
