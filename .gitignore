@@ -1,41 +1,8 @@
-# Never commit real Messages data
-chat.db
-chat.db-*
-*.db-wal
-*.db-shm
-
-# Never commit real Health data (Health app exports)
-apple_health_export/
-export.xml
-export_cda.xml
-
 # macOS
 .DS_Store
 
-# Xcode
-xcuserdata/
-DerivedData/
-*.xcuserstate
-
-# SwiftPM
-.build/
-# scripts/check's own builds
-.build-check/
-.swiftpm/
-
-# Release builds
-build/
-
-# TypeScript (the pnpm workspace at the root: Services/, Web/)
+# TypeScript (the pnpm workspace at the root: Web/)
 /node_modules/
-/Services/**/node_modules/
-/Services/**/dist/
-/Services/**/.alchemy/
-/Services/**/.wrangler/
-/Services/**/*.tsbuildinfo
-/Services/**/.env
-/Services/**/.env.*
-!/Services/**/.env.example
 /Web/**/node_modules/
 /Web/**/dist/
 /Web/**/.alchemy/
@@ -44,6 +11,9 @@ build/
 /Web/**/.env
 /Web/**/.env.*
 !/Web/**/.env.example
+
+# The commit a deploy serves, written before each deploy (`pnpm run version` in Web/site)
+/Web/site/public/version.txt
 
 # Claude Code local state (project skills in .claude/skills are committed)
 .claude/settings.local.json
